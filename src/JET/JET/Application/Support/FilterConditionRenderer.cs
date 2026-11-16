@@ -17,8 +17,8 @@ namespace JET.Application;
 /// 非營業日卡片保留子條件組，內含排除補班日的日期條件。已存情境裡用兩條預篩選組成的「週末過帳 或 假日過帳」
 /// 照條件樹原樣描述，不換成非營業日卡片的寫法，也不搬到其他位置；本類只影響顯示文字。
 ///
-/// 同一段文字有畫面與文件兩種寫法：底稿與報告（<c>forDocument</c>）把欄位名稱用【】標示，值照舊用「」；
-/// 畫面上的條件讀回、滑鼠提示與情境的自動名稱不加。認不得的欄位寫的是替代句，不是欄位名稱，不加【】。
+/// 欄位名稱照原樣寫，不加任何符號，值用「」。畫面與文件（底稿與報告，<c>forDocument</c>）的寫法只差在統計條件：
+/// 畫面上的條件讀回、滑鼠提示與情境的自動名稱用「」包住欄位名稱，底稿與報告不加符號，欄位名稱前後各留一個半形空白。
 /// </summary>
 public static class FilterConditionRenderer
 {
@@ -35,7 +35,7 @@ public static class FilterConditionRenderer
     /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只用在讀回的說明文字，不存進條件。
     /// <paramref name="zerosThreshold"/> 是「分錄金額中有連續 0 的尾數」由 GL 算出的 0 的個數，條件寫成「金額尾數連續 N 個 0」；
     /// 省略時寫規則名稱。上游修改會清掉已存情境，所以已存情境讀回時用目前的個數就是儲存時的個數。
-    /// <paramref name="forDocument"/> 為真時是底稿與報告用的寫法，欄位名稱加【】。
+    /// <paramref name="forDocument"/> 為真時是底稿與報告用的寫法：統計條件的欄位名稱不用「」包住，前後各留一個半形空白。
     /// </summary>
     public static string Render(
         JsonElement scenario,
@@ -258,12 +258,12 @@ public static class FilterConditionRenderer
             "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold),
             "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold),
             "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate, zerosThreshold),
-            "text" => GlFieldName(Str(r, "field"), forDocument) + " "
+            "text" => GlFieldName(Str(r, "field")) + " "
                 + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + TextKeywords(r) + "」",
-            "textSet" => TextSetAtom(r, forDocument),
-            "dateRange" => GlFieldName(Str(r, "field"), forDocument) + " "
+            "textSet" => TextSetAtom(r),
+            "dateRange" => GlFieldName(Str(r, "field")) + " "
                 + Ellipsis(Str(r, "from")) + "～" + Ellipsis(Str(r, "to")),
-            "numRange" => NumRangeAtom(r, forDocument),
+            "numRange" => NumRangeAtom(r),
             "drCrOnly" => Str(r, "drCr") == "credit" ? "僅貸方" : "僅借方",
             "manualAuto" => Str(r, "isManual") == "false" ? "自動分錄" : "人工分錄",
             "accountPair" => AccountPairAtom(r, categoryLabels),
@@ -271,7 +271,7 @@ public static class FilterConditionRenderer
                 + FilterConditionLabels.SpecialPairModeLabel(Str(r, "pairMode")) + "（借方 "
                 + CategorySelection(r, "debitCategoryIds", categoryLabels) + "，貸方 "
                 + CategorySelection(r, "creditCategoryIds", categoryLabels) + "）",
-            "entityFrequency" => "GL 中" + QuotedFieldName(JetFieldCatalog.GlSemanticFieldMappingLabel(Str(r, "field")), forDocument) +
+            "entityFrequency" => "GL 中" + FrequencyFieldName(JetFieldCatalog.GlSemanticFieldMappingLabel(Str(r, "field")), forDocument) +
                 (Str(r, "countUnit") == "vouchers" ? "傳票張數（同號只算一張）" : "分錄筆數") + " " +
                 (EntityFrequencyConditions.Operators.TryGetValue(Str(r, "countOperator"), out var countLabel) ? countLabel : "") + " " +
                 Str(r, "countFrom") + (Str(r, "countOperator") == "between" ? "～" + Str(r, "countTo") + "（含端點）" : ""),
@@ -279,8 +279,8 @@ public static class FilterConditionRenderer
             "revenueWithoutNormalCounterpart" => "貸方為收入但借方非一般對方科目",
             "manualRevenueEntry" => "收入之人工分錄",
             "preparerEqualsApprover" => "編製人員與核准人員相同",
-            "typed" => TypedFieldAtom(r, rdeFieldLabels, forDocument),
-            "fieldValue" => FieldValueAtom(r, rdeFieldLabels, compact, forDocument),
+            "typed" => TypedFieldAtom(r, rdeFieldLabels),
+            "fieldValue" => FieldValueAtom(r, rdeFieldLabels, compact),
             "accountSide" => AccountSideAtom(r, categoryLabels, accountCategories),
             _ => FilterConditionLabels.RetiredCondition,
         };
@@ -361,7 +361,7 @@ public static class FilterConditionRenderer
     private static bool ContainsExplicitVoucherCondition(JsonElement rule) => Str(rule, "type") == "voucher"
         || ArrayItems(rule, "conditions").Any(ContainsExplicitVoucherCondition);
 
-    private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels, bool compact, bool forDocument)
+    private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels, bool compact)
     {
         var fieldId = Str(rule, "fieldId");
         var glKey = Str(rule, "field");
@@ -370,9 +370,9 @@ public static class FilterConditionRenderer
             ? glKey == "amount" || FilterConditionLabels.GlFields.ContainsKey(glKey)
             : labels is not null && labels.ContainsKey(fieldId);
         var field = fieldId.Length > 0
-            ? (fieldKnown ? FieldName(labels![fieldId], forDocument) : FilterConditionLabels.MissingRdeField)
+            ? (fieldKnown ? labels![fieldId] : FilterConditionLabels.MissingRdeField)
             // 金額欄不在 GlFields 的文字與日期欄位名稱表裡，名稱直接寫「金額」。
-            : glKey == "amount" ? FieldName("金額", forDocument) : GlFieldName(glKey, forDocument);
+            : glKey == "amount" ? "金額" : GlFieldName(glKey);
         var op = Str(rule, "operator");
         var opLabel = FieldValueConditions.Labels.TryGetValue(op, out var knownOp) ? knownOp
             : op.Length == 0 ? string.Empty : FilterConditionLabels.RetiredCondition;
@@ -403,12 +403,11 @@ public static class FilterConditionRenderer
     /// </summary>
     private static string TypedFieldAtom(
         JsonElement r,
-        IReadOnlyDictionary<string, string>? rdeFieldLabels,
-        bool forDocument)
+        IReadOnlyDictionary<string, string>? rdeFieldLabels)
     {
         var fieldId = Str(r, "fieldId");
         var fieldKnown = rdeFieldLabels is not null && rdeFieldLabels.ContainsKey(fieldId);
-        var fieldLabel = fieldKnown ? FieldName(rdeFieldLabels![fieldId], forDocument) : FilterConditionLabels.MissingRdeField;
+        var fieldLabel = fieldKnown ? rdeFieldLabels![fieldId] : FilterConditionLabels.MissingRdeField;
         var op = Str(r, "operator");
         var opLabel = FilterConditionLabels.TypedOperatorLabel(op);
 
@@ -448,17 +447,17 @@ public static class FilterConditionRenderer
     private static string TextKeywords(JsonElement r) =>
         string.Join(",", FieldValueConditions.SplitInputList(Str(r, "keywords")).Distinct(StringComparer.Ordinal));
 
-    private static string NumRangeAtom(JsonElement r, bool forDocument)
+    private static string NumRangeAtom(JsonElement r)
     {
         var from = Str(r, "from");
         var to = Str(r, "to");
-        return FieldName("金額", forDocument) + "（絕對值） "
+        return "金額（絕對值） "
             + (from.Length > 0 ? "≥ " + from : string.Empty)
             + (from.Length > 0 && to.Length > 0 ? "、" : string.Empty)
             + (to.Length > 0 ? "≤ " + to : string.Empty);
     }
 
-    private static string TextSetAtom(JsonElement r, bool forDocument)
+    private static string TextSetAtom(JsonElement r)
     {
         var modeLabel = Str(r, "mode") == "exact"
             ? FilterConditionLabels.TextSetExactAny
@@ -466,7 +465,7 @@ public static class FilterConditionRenderer
         var normalizationLabel = Str(r, "normalization") == "removeAsciiSpaces"
             ? FilterConditionLabels.TextSetRemoveAsciiSpaces
             : FilterConditionLabels.TextSetPreserveAsciiSpaces;
-        return GlFieldName(Str(r, "field"), forDocument)
+        return GlFieldName(Str(r, "field"))
             + " "
             + modeLabel
             + "「"
@@ -580,17 +579,17 @@ public static class FilterConditionRenderer
     /// <summary>空值以刪節號替代（同前端 <c>rule.from || '…'</c>）。</summary>
     private static string Ellipsis(string value) => value.Length > 0 ? value : "…";
 
-    /// <summary>欄位名稱：底稿與報告用【】標示，畫面照原樣。</summary>
-    private static string FieldName(string name, bool forDocument) => forDocument ? "【" + name + "】" : name;
+    /// <summary>
+    /// 統計條件的欄位名稱。畫面用「」包住，和前後的文字分開；底稿與報告的欄位名稱不加任何符號，
+    /// 審計員才不會把符號當成欄位名稱的一部分，所以改用前後各一個半形空白分開。
+    /// </summary>
+    private static string FrequencyFieldName(string name, bool forDocument) =>
+        forDocument ? " " + name + " " : "「" + name + "」";
 
-    /// <summary>畫面上用「」包住的欄位名稱，在底稿與報告裡改成【】。</summary>
-    private static string QuotedFieldName(string name, bool forDocument) =>
-        forDocument ? "【" + name + "】" : "「" + name + "」";
-
-    /// <summary>GL 欄位的名稱：認得的欄位照 <see cref="FieldName"/>；認不得的寫 <see cref="FilterConditionLabels.MissingGlField"/>，那不是欄位名稱，不加【】。</summary>
-    private static string GlFieldName(string key, bool forDocument) =>
+    /// <summary>GL 欄位的名稱：認得的欄位寫讀回用的名稱；認不得的寫 <see cref="FilterConditionLabels.MissingGlField"/>。</summary>
+    private static string GlFieldName(string key) =>
         FilterConditionLabels.GlFields.ContainsKey(key)
-            ? FieldName(FilterConditionLabels.GlFieldReadback(key), forDocument)
+            ? FilterConditionLabels.GlFieldReadback(key)
             : FilterConditionLabels.MissingGlField;
 
     // ---- 原始 JSON 讀取 ----

@@ -622,7 +622,7 @@
               ? Object.assign({}, report, { catalogWarning: warning }) : report;
           }));
       }
-        // 報告已產生、卻寫不進操作紀錄時，回應的 warnings 帶提醒；這時回報成功並提醒。
+        // 報告已產生時，回應的 warnings 帶要提醒的事：有儲存格文字超過 Excel 上限而截斷，或寫不進操作紀錄；這時回報成功並提醒。
         (data.warnings || []).forEach(function (text) { Store.addMessage(text, 'warn'); });
     },
 

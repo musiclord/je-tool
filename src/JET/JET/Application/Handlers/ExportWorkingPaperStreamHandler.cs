@@ -239,7 +239,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
             publishedReport = ReportExportSupport.ReportWire(report),
             reports = catalog.Reports,
             reportWarning = catalog.Warning,
-            warnings = ReportExportSupport.Warnings(operationLogWarning),
+            warnings = ReportExportSupport.Warnings([(report.RelativeFileName, exportStats)], operationLogWarning),
             sheetStats = (exportStats?.SheetStats ?? Array.Empty<SheetStat>())
                 .Select(item => (object)new { sheetName = item.SheetName, rowsWritten = item.RowsWritten })
                 .ToArray()

@@ -29,11 +29,14 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
   一般驗證不順便搜尋這些目錄，真實案件只透過 `PrivateCase` 命令注入。
 - 證據與文件不寫私人絕對路徑、公司名稱、工作表、欄位、科目、傳票、人員或金額。測試優先使用程式生成的合成資料；
   發現疑似機敏內容時停止擴大讀取，只回報檔案與風險類型，等使用者裁定。
+- 這台電腦是主要工作環境，不是專案必要的內容只留在本機，不同步到 GitHub（裁定 2026-11-16-06）。詳細的工作過程、為了續接而留的細節紀錄，
+  以及對真實案件的任何觀察，寫在 Git 忽略的 `local/`；去識別化之後也一樣，例如某個案件驗到哪些規則、缺哪些資料情形。
+  研究用的工具、快照與索引裝在儲存庫外。儲存庫的文件只留現行規則、裁定與精簡的進度。新增會產生檔案的工具或流程時，一併檢查 `.gitignore`。
 
 **Git**
 
 - 沒有使用者明確指令時，不執行也不主動提議 reset、checkout、clean、stash、stage、commit、push 或變更 remote。
-  計畫完成、測試通過或工作樹可提交，都不是授權。
+  計畫完成、測試通過或工作樹可提交，都不是授權。來回修改的過程不各自提交，Git 歷史只留使用者把關過的提交（裁定 2026-11-16-12）。
 - 使用者說要提交時，提交後一併推送，不分成多次提交再一起推送。
 - 禁止 `git add -A`、`git add --all`、`git add -u`、`git add .` 與 `git write-tree`；獲准 stage 時也只加入使用者確認的
   明確路徑，避免忽略規則改變時把私人資料寫進 Git。
@@ -126,6 +129,8 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 - 需要跨多個步驟或 session 的工作，一次只保留一份現行大型計畫（放在 `docs/specs/`）。進度、裁定與下一動作寫進計畫檔，
   不只存在聊天或 Agent 記憶裡。計畫裡的需求與裁定逐字保留使用者原話並附日期；改寫要先獲授權。
   分工、停止與續接方式見 `.agents/harness/development-workflow.md`。
+- 計畫檔只寫精簡的進度與結論。逐步的經過、子代理的回報與續接要用的細節寫在本機的 `local/`，不進 Git（裁定 2026-11-16-06）；
+  換機或重新 clone 後這些紀錄不會存在，所以續接一定要用到的結論仍要留在計畫檔。
 - 計畫的「下一步」是工作順序；本輪交付範圍依使用者任務說清楚，不把做完一個步驟當成整輪完成。
 - 大型工作結束或使用者詢問未完成事項時，逐項回報 `docs/development-status.md` 的「已知但延後的事項」。
 - 本專案的 `security-audit` 執行紀錄放在 `docs/security/run-<N>/`，`<N>` 從 1 起取下一個未使用的整數。
@@ -151,6 +156,7 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 | 前端設計模式與瀏覽器預覽 | `.agents/harness/frontend-design-mode.md` |
 | SAT 送審文件的標準、寫作界線與交接 | `.agents/harness/sat-documents.md` |
 | `data/` 工作簿、`legacy/` 與來源專案 | `docs/data-and-legacy.md` |
+| 讀寫 Excel 的規則、官方依據與檢查清單 | `docs/excel-conventions.md`，核對表在 `docs/excel-conventions-reference.md` |
 | 文件寫作規範與收尾檢查 | `docs/README.md` |
 | 面向人的文字怎麼改寫 | `.agents/skills/jet-readable-docs/SKILL.md` |
 | 前端外觀的設計方向與 AI 預設樣式禁止清單 | `.agents/skills/jet-frontend-design/SKILL.md` |
@@ -162,6 +168,7 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 | 改驗證、預篩選、篩選或抽樣規則 | `docs/jet-guide.md` 第 4 到第 6 節；常用篩選條件十張卡和歷史紀錄裡 KCT A 到 J 的對應在第 6 節，更早的精確舊規則在 `docs/history/superseded/jet-guide-2026-08.md`；衝突裁決走 `docs/business-logic-provenance.md` |
 | 改 action、payload 或前端 | `docs/action-contract-manifest.md` 與 `docs/jet-frontend-description.md` |
 | 改報表輸出或範本 | `docs/jet-guide.md` 第 7 節與 `docs/data-and-legacy.md` |
+| 改讀取或寫出 Excel 的程式 | `docs/excel-conventions.md`；照它的「新增或修改 Excel 輸出時的檢查清單」核對，規則要有微軟官方依據或寫明是 JET 的約定（裁定 2026-11-16-07） |
 | 碰資料庫實作，或接回 DuckDB 與 SQL Server | `docs/jet-guide.md` 第 8 節；兩者的程式留在提交 `7e88b7b`（裁定 2026-11-06-08）；SQL Server 的延後事項、已知安全缺口與暫緩期間的修改，封存在 `docs/history/2026-10-20-sqlserver-archive.md` |
 | 與 IDEA 或 VBA 舊行為比對 | `docs/jet-guide.md` 第 17 節與 `legacy/jet-legacy-notes.md`；差異只分五類，不自創例外 |
 | 立案或接手大型開發 | `docs/development-status.md` 與 `.agents/harness/development-workflow.md` |

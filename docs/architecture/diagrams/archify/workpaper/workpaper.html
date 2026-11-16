@@ -47,7 +47,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>匯出正式底稿</title>
   <script>
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5203,7 +5246,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 864 652" data-reader-fit="width-first" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
+      <svg viewBox="0 0 884 652" data-reader-fit="width-first" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
         <title id="archify-diagram-title">匯出正式底稿</title>
         <desc id="archify-diagram-description">由 Archify 產生的工作流程圖。</desc>
         <!-- Definitions -->
@@ -5250,42 +5293,42 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Swimlanes -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="808" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="828" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="74" class="t-muted" font-size="10" font-weight="600">01 / 審計員與畫面</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="808" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="828" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="198" class="t-muted" font-size="10" font-weight="600">02 / 規劃，不寫檔</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="808" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="828" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="322" class="t-muted" font-size="10" font-weight="600">03 / 報告目錄</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="424" width="808" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-3-exception" x="46" y="430" width="796" height="92" rx="8" class="c-security-group" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="424" width="828" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-3-exception" x="46" y="430" width="816" height="92" rx="8" class="c-security-group" stroke-width="1"/>
         <text x="54" y="446" class="t-security" font-size="10" font-weight="600">EX / 失敗處理</text>
 
         <!-- Phase headers -->
-        <path d="M 74 35 H 534" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
-        <rect x="274.8" y="27" width="58.4" height="16" rx="8" class="c-mask phase-chip"/>
-        <text x="304" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">可以取消</text>
-        <path d="M 588 35 H 810" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
-        <rect x="655.4" y="27" width="87.2" height="16" rx="8" class="c-mask phase-chip"/>
-        <text x="699" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">發布後不再取消</text>
+        <path d="M 74 35 H 548" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <rect x="281.8" y="27" width="58.4" height="16" rx="8" class="c-mask phase-chip"/>
+        <text x="311" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">可以取消</text>
+        <path d="M 608 35 H 830" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <rect x="675.4" y="27" width="87.2" height="16" rx="8" class="c-mask phase-chip"/>
+        <text x="719" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">發布後不再取消</text>
 
         <!-- Workflow groups -->
 
 
         <!-- Edge paths -->
-        <path data-edge-from="cleanup" data-edge-to="report" data-edge-key="0" data-edge-id="cleanup_report" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="542,491;574,491" d="M 542 491 L 574 491" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="facts" data-edge-to="stage" data-edge-key="1" data-edge-id="facts_stage" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="496,269;496,341" d="M 496 269 L 496 341" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="manifest" data-edge-to="reply" data-edge-key="2" data-edge-id="manifest_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="772,341;772,145" d="M 772 341 L 772 145" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="manifest" data-edge-to="restore" data-edge-label="更新清單失敗" data-edge-key="3" data-edge-id="manifest_restore" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="772,393;772,465" d="M 772 393 L 772 465" class="a-default" data-animate="edge" style="--step:11" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="recompute" data-edge-to="facts" data-edge-key="4" data-edge-id="recompute_facts" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="418,243;450,243" d="M 418 243 L 450 243" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="rename" data-edge-to="manifest" data-edge-key="5" data-edge-id="rename_manifest" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="672,367;704,367" d="M 672 367 L 704 367" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="rename" data-edge-to="restore" data-edge-label="改名失敗" data-edge-key="6" data-edge-id="rename_restore" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="626,393;626,409;675,409;675,449;748,449;748,465" d="M 626 393 L 626 401 Q 626 409 634 409 L 667 409 Q 675 409 675 417 L 675 441 Q 675 449 683 449 L 740 449 Q 748 449 748 457 L 748 465" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="cleanup" data-edge-to="report" data-edge-key="0" data-edge-id="cleanup_report" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="424,491;458,491" d="M 424 491 L 458 491" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="facts" data-edge-to="stage" data-edge-key="1" data-edge-id="facts_stage" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="510,269;510,341" d="M 510 269 L 510 341" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="manifest" data-edge-to="reply" data-edge-key="2" data-edge-id="manifest_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="792,341;792,145" d="M 792 341 L 792 145" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="manifest" data-edge-to="restore" data-edge-label="更新清單失敗" data-edge-key="3" data-edge-id="manifest_restore" data-edge-role="error" data-composition-points="792,393;792,491;698,491" d="M 792 393 L 792 483 Q 792 491 784 491 L 698 491" class="a-default" data-animate="edge" style="--step:11" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="recompute" data-edge-to="facts" data-edge-key="4" data-edge-id="recompute_facts" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="430,243;462,243" d="M 430 243 L 462 243" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="rename" data-edge-to="manifest" data-edge-key="5" data-edge-id="rename_manifest" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="692,367;724,367" d="M 692 367 L 724 367" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="rename" data-edge-to="restore" data-edge-label="改名失敗" data-edge-key="6" data-edge-id="rename_restore" data-edge-role="error" data-composition-points="646,393;646,465" d="M 646 393 L 646 465" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="request" data-edge-to="versions" data-edge-key="7" data-edge-id="request_versions" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="176,119;232,119;232,217" d="M 176 119 L 224 119 Q 232 119 232 127 L 232 217" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="restore" data-edge-to="report" data-edge-key="8" data-edge-id="restore_report" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="720,491;678,491" d="M 720 491 L 678 491" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="stage" data-edge-to="cleanup" data-edge-label="失敗或取消" data-edge-key="9" data-edge-id="stage_cleanup" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="496,393;496,465" d="M 496 393 L 496 465" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="stage" data-edge-to="rename" data-edge-key="10" data-edge-id="stage_rename" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="542,367;580,367" d="M 542 367 L 580 367" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="restore" data-edge-to="report" data-edge-key="8" data-edge-id="restore_report" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="594,491;562,491" d="M 594 491 L 562 491" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="stage" data-edge-to="cleanup" data-edge-label="失敗或取消" data-edge-key="9" data-edge-id="stage_cleanup" data-edge-role="error" data-composition-points="462,367;378,367;378,465" d="M 462 367 L 386 367 Q 378 367 378 375 L 378 465" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="stage" data-edge-to="rename" data-edge-key="10" data-edge-id="stage_rename" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="558,367;600,367" d="M 558 367 L 600 367" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="versions" data-edge-to="recompute" data-edge-key="11" data-edge-id="versions_recompute" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="294,243;326,243" d="M 294 243 L 326 243" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="versions" data-edge-to="reject" data-edge-label="不是目前版本" data-edge-key="12" data-edge-id="versions_reject" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="232,269;232,465" d="M 232 269 L 232 465" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
 
@@ -5306,16 +5349,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <g id="node-reply" data-node-id="reply" data-node-label="回應檔案與列數" tabindex="0" role="button" aria-label="聚焦回應檔案與列數，讀回最新報告清單, 審計員與畫面 › 發布後不再取消" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="讀回最新報告清單" data-node-context="審計員與畫面 › 發布後不再取消">
           <title>回應檔案與列數 · 讀回最新報告清單 · 審計員與畫面 › 發布後不再取消</title>
-          <rect x="726" y="93" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="726" y="93" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:7" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(732 99) scale(0.6875)">
+          <rect x="746" y="93" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="746" y="93" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:7" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(752 99) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="772" y="124" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">回應檔案與列數</text>
-          <text data-detail="context" x="772" y="138.6" class="t-muted" font-size="8" text-anchor="middle">讀回最新報告清單</text>
+          <text data-node-label="" data-detail-anchor="" x="792" y="124" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">回應檔案與列數</text>
+          <text data-detail="context" x="792" y="138.6" class="t-muted" font-size="8" text-anchor="middle">讀回最新報告清單</text>
         </g>
 
         <g id="node-versions" data-node-id="versions" data-node-label="核對目前版本" tabindex="0" role="button" aria-label="聚焦核對目前版本，驗證結果、情境版本與位置, 規劃，不寫檔 › 可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="驗證結果、情境版本與位置" data-node-context="規劃，不寫檔 › 可以取消">
@@ -5329,63 +5372,63 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="232" y="255" class="t-muted" font-size="8" text-anchor="middle">驗證結果、情境版本與位置</text>
         </g>
 
-        <g id="node-recompute" data-node-id="recompute" data-node-label="確認篩選結果" tabindex="0" role="button" aria-label="聚焦確認篩選結果，過期時只重算選取的情境, 規劃，不寫檔 › 可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="過期時只重算選取的情境" data-node-context="規劃，不寫檔 › 可以取消">
-          <title>確認篩選結果 · 過期時只重算選取的情境 · 規劃，不寫檔 › 可以取消</title>
-          <rect x="326" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="326" y="217" width="92" height="52" rx="8" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
+        <g id="node-recompute" data-node-id="recompute" data-node-label="確認篩選結果" tabindex="0" role="button" aria-label="聚焦確認篩選結果，過期時只重算選取情境, 規劃，不寫檔 › 可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="過期時只重算選取情境" data-node-context="規劃，不寫檔 › 可以取消">
+          <title>確認篩選結果 · 過期時只重算選取情境 · 規劃，不寫檔 › 可以取消</title>
+          <rect x="326" y="217" width="104" height="52" rx="8" class="c-mask"/>
+          <rect x="326" y="217" width="104" height="52" rx="8" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(332 223) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="372" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認篩選結果</text>
-          <text data-detail="context" x="372" y="262.1" class="t-muted" font-size="6.3" text-anchor="middle">過期時只重算選取的情境</text>
+          <text data-node-label="" data-detail-anchor="" x="384.6" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認篩選結果</text>
+          <text data-detail="context" x="378" y="255" class="t-muted" font-size="8" text-anchor="middle">過期時只重算選取情境</text>
         </g>
 
         <g id="node-facts" data-node-id="facts" data-node-label="建立底稿計畫" tabindex="0" role="button" aria-label="聚焦建立底稿計畫，規劃、讀資料與彙整, 規劃，不寫檔 › 可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="規劃、讀資料與彙整" data-node-context="規劃，不寫檔 › 可以取消">
           <title>建立底稿計畫 · 規劃、讀資料與彙整 · 規劃，不寫檔 › 可以取消</title>
-          <rect x="450" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="450" y="217" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(456 223) scale(0.6875)">
+          <rect x="462" y="217" width="96" height="52" rx="8" class="c-mask"/>
+          <rect x="462" y="217" width="96" height="52" rx="8" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(468 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="496" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">建立底稿計畫</text>
-          <text data-detail="context" x="496" y="263.8" class="t-muted" font-size="7.7" text-anchor="middle">規劃、讀資料與彙整</text>
+          <text data-node-label="" data-detail-anchor="" x="510" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">建立底稿計畫</text>
+          <text data-detail="context" x="510" y="264.1" class="t-muted" font-size="8" text-anchor="middle">規劃、讀資料與彙整</text>
         </g>
 
         <g id="node-stage" data-node-id="stage" data-node-label="寫完暫存檔" tabindex="0" role="button" aria-label="聚焦寫完暫存檔，依計畫分頁讀資料列, 報告目錄 › 可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="依計畫分頁讀資料列" data-node-context="報告目錄 › 可以取消">
           <title>寫完暫存檔 · 依計畫分頁讀資料列 · 報告目錄 › 可以取消</title>
-          <rect x="450" y="341" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="450" y="341" width="92" height="52" rx="8" class="c-database" data-animate="node" style="--step:4" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(456 347) scale(0.6875)">
+          <rect x="462" y="341" width="96" height="52" rx="8" class="c-mask"/>
+          <rect x="462" y="341" width="96" height="52" rx="8" class="c-database" data-animate="node" style="--step:4" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(468 347) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="502" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">寫完暫存檔</text>
-          <text data-detail="context" x="496" y="379" class="t-muted" font-size="7.7" text-anchor="middle">依計畫分頁讀資料列</text>
+          <text data-node-label="" data-detail-anchor="" x="514" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">寫完暫存檔</text>
+          <text data-detail="context" x="510" y="379" class="t-muted" font-size="8" text-anchor="middle">依計畫分頁讀資料列</text>
         </g>
 
         <g id="node-rename" data-node-id="rename" data-node-label="改名成新版本" tabindex="0" role="button" aria-label="聚焦改名成新版本，不覆寫同名底稿, 報告目錄 › 發布後不再取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="不覆寫同名底稿" data-node-context="報告目錄 › 發布後不再取消">
           <title>改名成新版本 · 不覆寫同名底稿 · 報告目錄 › 發布後不再取消</title>
-          <rect x="580" y="341" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="580" y="341" width="92" height="52" rx="8" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(586 347) scale(0.6875)">
+          <rect x="600" y="341" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="600" y="341" width="92" height="52" rx="8" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(606 347) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="626" y="373.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">改名成新版本</text>
-          <text data-detail="context" x="626" y="388.1" class="t-muted" font-size="8" text-anchor="middle">不覆寫同名底稿</text>
+          <text data-node-label="" data-detail-anchor="" x="646" y="373.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">改名成新版本</text>
+          <text data-detail="context" x="646" y="388.1" class="t-muted" font-size="8" text-anchor="middle">不覆寫同名底稿</text>
         </g>
 
         <g id="node-manifest" data-node-id="manifest" data-node-label="更新報告清單" tabindex="0" role="button" aria-label="聚焦更新報告清單，reports.json，再寫操作紀錄, 報告目錄 › 發布後不再取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="reports.json，再寫操作紀錄" data-node-context="報告目錄 › 發布後不再取消">
           <title>更新報告清單 · reports.json，再寫操作紀錄 · 報告目錄 › 發布後不再取消</title>
-          <rect x="704" y="341" width="136" height="52" rx="8" class="c-mask"/>
-          <rect x="704" y="341" width="136" height="52" rx="8" class="c-database" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(710 347) scale(0.6875)">
+          <rect x="724" y="341" width="136" height="52" rx="8" class="c-mask"/>
+          <rect x="724" y="341" width="136" height="52" rx="8" class="c-database" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(730 347) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="772" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">更新報告清單</text>
-          <text data-detail="context" x="772" y="379" class="t-muted" font-size="8" text-anchor="middle">reports.json，再寫操作紀錄</text>
+          <text data-node-label="" data-detail-anchor="" x="792" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">更新報告清單</text>
+          <text data-detail="context" x="792" y="379" class="t-muted" font-size="8" text-anchor="middle">reports.json，再寫操作紀錄</text>
         </g>
 
         <g id="node-reject" data-node-id="reject" data-node-label="回報版本不符" tabindex="0" role="button" aria-label="聚焦回報版本不符，尚未寫任何檔案, 失敗處理 › 可以取消" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="尚未寫任何檔案" data-node-context="失敗處理 › 可以取消">
@@ -5402,36 +5445,36 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <g id="node-cleanup" data-node-id="cleanup" data-node-label="刪除本次暫存檔" tabindex="0" role="button" aria-label="聚焦刪除本次暫存檔，寫入失敗或取消, 失敗處理 › 可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="寫入失敗或取消" data-node-context="失敗處理 › 可以取消">
           <title>刪除本次暫存檔 · 寫入失敗或取消 · 失敗處理 › 可以取消</title>
-          <rect x="450" y="465" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="450" y="465" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(456 471) scale(0.6875)">
+          <rect x="332" y="465" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="332" y="465" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(338 471) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="496" y="496" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">刪除本次暫存檔</text>
-          <text data-detail="context" x="496" y="510.6" class="t-muted" font-size="8" text-anchor="middle">寫入失敗或取消</text>
+          <text data-node-label="" data-detail-anchor="" x="378" y="496" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">刪除本次暫存檔</text>
+          <text data-detail="context" x="378" y="510.6" class="t-muted" font-size="8" text-anchor="middle">寫入失敗或取消</text>
         </g>
 
-        <g id="node-report" data-node-id="report" data-node-label="回報可處理的原因" tabindex="0" role="button" aria-label="聚焦回報可處理的原因，既有底稿沒有被覆寫, 失敗處理 › 發布後不再取消" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="既有底稿沒有被覆寫" data-node-context="失敗處理 › 發布後不再取消">
-          <title>回報可處理的原因 · 既有底稿沒有被覆寫 · 失敗處理 › 發布後不再取消</title>
-          <rect x="574" y="465" width="104" height="52" rx="8" class="c-mask"/>
-          <rect x="574" y="465" width="104" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="stop" class="semantic-sigil s-frontend" transform="translate(580 471) scale(0.6875)">
+        <g id="node-report" data-node-id="report" data-node-label="回報可處理的原因" tabindex="0" role="button" aria-label="聚焦回報可處理的原因，既有底稿沒有被覆寫, 失敗處理 › 可以取消" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="既有底稿沒有被覆寫" data-node-context="失敗處理 › 可以取消">
+          <title>回報可處理的原因 · 既有底稿沒有被覆寫 · 失敗處理 › 可以取消</title>
+          <rect x="458" y="465" width="104" height="52" rx="8" class="c-mask"/>
+          <rect x="458" y="465" width="104" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="stop" class="semantic-sigil s-frontend" transform="translate(464 471) scale(0.6875)">
             <circle cx="8" cy="8" r="5.3"/>
             <rect x="6.1" y="6.1" width="3.8" height="3.8" rx=".5" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="626" y="496" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">回報可處理的原因</text>
-          <text data-detail="context" x="626" y="510.6" class="t-muted" font-size="8" text-anchor="middle">既有底稿沒有被覆寫</text>
+          <text data-node-label="" data-detail-anchor="" x="510" y="496" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">回報可處理的原因</text>
+          <text data-detail="context" x="510" y="510.6" class="t-muted" font-size="8" text-anchor="middle">既有底稿沒有被覆寫</text>
         </g>
 
         <g id="node-restore" data-node-id="restore" data-node-label="還原已改名的檔案" tabindex="0" role="button" aria-label="聚焦還原已改名的檔案，還原失敗會保留備份, 失敗處理 › 發布後不再取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="還原失敗會保留備份" data-node-context="失敗處理 › 發布後不再取消">
           <title>還原已改名的檔案 · 還原失敗會保留備份 · 失敗處理 › 發布後不再取消</title>
-          <rect x="720" y="465" width="104" height="52" rx="8" class="c-mask"/>
-          <rect x="720" y="465" width="104" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(726 471) scale(0.6875)">
+          <rect x="594" y="465" width="104" height="52" rx="8" class="c-mask"/>
+          <rect x="594" y="465" width="104" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(600 471) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="772" y="496" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">還原已改名的檔案</text>
-          <text data-detail="context" x="772" y="510.6" class="t-muted" font-size="8" text-anchor="middle">還原失敗會保留備份</text>
+          <text data-node-label="" data-detail-anchor="" x="646" y="496" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">還原已改名的檔案</text>
+          <text data-detail="context" x="646" y="510.6" class="t-muted" font-size="8" text-anchor="middle">還原失敗會保留備份</text>
         </g>
 
         <!-- Edge labels -->
@@ -5439,20 +5482,20 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
         <g data-detail="context" data-edge-from="manifest" data-edge-to="restore" data-edge-label="更新清單失敗" data-edge-key="3" data-edge-id="manifest_restore">
-          <rect x="738.2" y="419" width="67.6" height="14" rx="3" class="c-mask"/>
-          <text x="772" y="429" class="t-muted" font-size="8" text-anchor="middle">更新清單失敗</text>
+          <rect x="711.2" y="471" width="67.6" height="14" rx="3" class="c-mask"/>
+          <text x="745" y="481" class="t-muted" font-size="8" text-anchor="middle">更新清單失敗</text>
         </g>
 
 
         <g data-detail="context" data-edge-from="rename" data-edge-to="restore" data-edge-label="改名失敗" data-edge-key="6" data-edge-id="rename_restore">
-          <rect x="687.3" y="429" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="711.5" y="439" class="t-muted" font-size="8" text-anchor="middle">改名失敗</text>
+          <rect x="621.8" y="437" width="48.4" height="14" rx="3" class="c-mask"/>
+          <text x="646" y="447" class="t-muted" font-size="8" text-anchor="middle">改名失敗</text>
         </g>
 
 
         <g data-detail="context" data-edge-from="stage" data-edge-to="cleanup" data-edge-label="失敗或取消" data-edge-key="9" data-edge-id="stage_cleanup">
-          <rect x="467" y="419" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="496" y="429" class="t-muted" font-size="8" text-anchor="middle">失敗或取消</text>
+          <rect x="391" y="347" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="420" y="357" class="t-muted" font-size="8" text-anchor="middle">失敗或取消</text>
         </g>
 
 
@@ -5853,6 +5896,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5869,6 +5913,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7292,6 +7337,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7307,6 +7353,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -9934,6 +9981,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12722,6 +12770,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12732,6 +12781,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12766,6 +12816,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13871,6 +13922,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14546,6 +14598,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14783,6 +14836,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

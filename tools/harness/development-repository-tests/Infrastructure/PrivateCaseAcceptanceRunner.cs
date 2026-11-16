@@ -68,6 +68,7 @@ internal sealed class PrivateCaseAcceptanceResult
         && LegacyScenarioEvidence.Passed
         && InfVerification.Passed
         && ScenarioVerification.Passed
+        && ScenarioPopulationComparison.Matches
         && ReportComparison.Passed
         && FollowUps.Select(static item => item.FollowUp)
             .SequenceEqual(PrivateCaseAcceptanceRunner.FollowUps)
@@ -113,6 +114,7 @@ internal sealed class PrivateCaseAcceptanceFollowUpResult
     public bool Passed => ReportCount == Enum.GetValues<LegacyReportKind>().Length
         && InfVerification.Passed
         && ScenarioVerification.Passed
+        && ScenarioPopulationComparison.Matches
         && ReportComparison.Passed;
 
     public override string ToString() => $"private case follow-up acceptance ({FollowUp})";
@@ -162,6 +164,7 @@ internal static class PrivateCaseAcceptanceRunner
                 var legacyScenarioEvidence = PrivateCaseLegacyScenarioEvidenceVerifier.Verify(
                     manifest,
                     expectedReports);
+                var columnAliases = PrivateCaseReportColumnAlignment.CreateAliases(manifest.Gl);
 
                 // 每一段匯出都在下一段開始前比對：後一段會覆蓋同名的報告。
                 // 第一次與三段後續操作用同一組預期底稿、同一份政策，以及私人案件清單標明的內容與外觀決定。
@@ -173,6 +176,8 @@ internal static class PrivateCaseAcceptanceRunner
                         || segment.InfVerification is null
                         || segment.ScenarioVerificationFacts is null
                         || segment.ScenarioDiagnosticFacts is null
+                        // 每個情境都要有 JET 回傳的「符合條件的分錄筆數」，才能和舊版的分錄筆數比。
+                        || segment.ScenarioVerificationFacts.Counts.Any(static count => count.SummaryRowCount is null)
                         || segment.ReportCount != Enum.GetValues<LegacyReportKind>().Length
                         || segments.Count > FollowUps.Count
                         || segment.FollowUp != (segments.Count == 0
@@ -202,7 +207,9 @@ internal static class PrivateCaseAcceptanceRunner
                         pairs,
                         policy,
                         manifest.Legacy.ContentDecisions,
-                        manifest.Legacy.AppearanceDecisions);
+                        manifest.Legacy.AppearanceDecisions,
+                        columnAliases,
+                        manifest.Project.ClientName);
                     segments.Add(new SegmentVerification(
                         segment.ReportCount,
                         segment.InfVerification,

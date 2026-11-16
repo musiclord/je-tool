@@ -149,7 +149,11 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
                 extension));
 
         // 欄名固定在第 2 列，畫面不能改欄名列；找不到欄名時照舊說工作表是空的。
-        var request = new TabularSourceRequest(filePath, SheetName: sheetName, LeadingRowsToSkip: 1, FixedLeadingRows: true);
+        // 有公式、卻沒有存計算結果的格數，匯入完成後寫進提醒；第 1 列的標題不計。
+        var request = new TabularSourceRequest(filePath, SheetName: sheetName, LeadingRowsToSkip: 1, FixedLeadingRows: true)
+        {
+            FormulasWithoutResult = new FormulaWithoutResultTally()
+        };
         // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒。
         var fileName = ImportSourceFileName.Resolve(filePath, PayloadReader.GetOptionalString(payload, "fileName"));
         var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
@@ -172,12 +176,17 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
         var result = JetAuditProgram.Finalize(plan, facts);
 
         await MarkCalendarImportedAsync(document);
+        string[] warnings =
+        [
+            .. openElsewhereWarnings,
+            .. ImportMessages.FormulaWithoutResult(fileName, request.FormulasWithoutResult)
+        ];
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         // 和其他匯入一樣：warnings 是全部提醒，開著的檔案那則另外列一份，畫面放在日曆卡片的匯入結果旁。
         return new { count = result.Count,
-            warnings = openElsewhereWarnings,
+            warnings,
             openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,

@@ -1,3 +1,4 @@
+using System.Globalization;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -44,11 +45,19 @@ internal sealed record PrivateCaseReportComparisonSummary(
     IReadOnlyList<PrivateCaseReportDecisionSummary> AcceptedContentDecisions,
     IReadOnlyList<PrivateCaseReportDecisionSummary> AcceptedAppearanceDecisions)
 {
+    /// <summary>直接比對頁依清單配對對起來的欄數，以及兩邊各自對不起來的欄數。</summary>
+    public IReadOnlyList<PrivateCaseColumnAlignmentSummary> ColumnAlignment { get; init; } = [];
+
+    /// <summary>照範本寫的頁逐格比對的結果。</summary>
+    public IReadOnlyList<PrivateCaseResultSheetSummary> ResultSheets { get; init; } = [];
+
     public bool ContentMatches => BlockingContentDifferenceCount == 0;
 
     public bool AppearanceMatches => UnclassifiedAppearanceDifferenceCount == 0;
 
-    public bool Passed => ContentMatches && AppearanceMatches;
+    public bool ResultCellsMatch => ResultSheets.All(static sheet => sheet.Matches);
+
+    public bool Passed => ContentMatches && AppearanceMatches && ResultCellsMatch;
 
     public override string ToString() => $"private case report comparison ({Kind})";
 }
@@ -86,7 +95,13 @@ internal sealed record PrivateCaseBlockingContentColumnDetail(
     int ExpectedValueCount,
     int ActualValueCount,
     int EstimatedDifferingValueCount,
-    PrivateCaseScenarioTagValueSummary? ScenarioTagValues);
+    PrivateCaseScenarioTagValueSummary? ScenarioTagValues)
+{
+    /// <summary>
+    /// 兩邊的值差在哪裡，只有固定的分類：<c>sign-flipped</c> 表示 JET 每個值都是舊版的相反數；沒有可說明的關係時是 null。
+    /// </summary>
+    internal string? ValueRelation { get; init; }
+}
 
 internal sealed record PrivateCaseScenarioTagValueSummary(
     int ExpectedYesCount,
@@ -143,13 +158,16 @@ internal static class PrivateCaseReportComparator
         PrivateCaseReportPairSet pairs,
         PrivateCaseAcceptancePolicy policy,
         IReadOnlyList<PrivateCaseExplicitContentDecision> explicitContentDecisions,
-        IReadOnlyList<PrivateCaseExplicitAppearanceDecision>? explicitAppearanceDecisions = null)
+        IReadOnlyList<PrivateCaseExplicitAppearanceDecision>? explicitAppearanceDecisions = null,
+        IReadOnlyList<PrivateCaseReportColumnAlias>? columnAliases = null,
+        string? clientName = null)
     {
         ArgumentNullException.ThrowIfNull(pairs);
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(explicitContentDecisions);
         IReadOnlyList<PrivateCaseExplicitAppearanceDecision> appearanceDecisions =
             explicitAppearanceDecisions ?? [];
+        IReadOnlyList<PrivateCaseReportColumnAlias> aliases = columnAliases ?? [];
         if (pairs.ReportCount != Enum.GetValues<LegacyReportKind>().Length
             || policy.ReportComparison != PrivateCaseReportComparisonMode.ContentAndAppearance
             || policy.InfVerification != PrivateCaseInfVerificationMode.RulesAndGl
@@ -189,15 +207,25 @@ internal static class PrivateCaseReportComparator
                     pair.ActualFullPath,
                     excludeJetMetadataSheet: true,
                     contentMask, preserveManualAutoBlanks: normalizeManualAuto);
+                var alignment = PrivateCaseReportColumnAlignment.Apply(slug, expected, actual, aliases);
+                expected = alignment.Expected;
+                actual = alignment.Actual;
                 var content = LegacyAuditParityNormalizedContentComparator.Compare(expected, actual);
                 if (normalizeManualAuto) content = PrivateCaseReportDifferencePolicy.RequireExactManualAuto(expected, actual, content);
+                var creditTotalSignFlippedFamilies = CreditTotalSignFlippedFamilies(
+                    slug,
+                    pair,
+                    content,
+                    alignment.AlignedRoles,
+                    aliases);
                 var classifiedContent = content.Differences
                     .Select(difference => (
                         Difference: difference,
                         DecisionId: PrivateCaseReportDifferencePolicy.ResolveContent(
                             slug,
                             difference,
-                            explicitContentDecisions)))
+                            explicitContentDecisions,
+                            creditTotalSignFlippedFamilies)))
                     .ToArray();
                 var blockingContent = classifiedContent
                     .Where(static item => item.DecisionId is null)
@@ -298,7 +326,12 @@ internal static class PrivateCaseReportComparator
                                     pair,
                                     family,
                                     index + 1,
-                                    column))
+                                    column,
+                                    alignment.AlignedRoles.GetValueOrDefault(
+                                        (family.FamilyName, column.ColumnKey))) with
+                                {
+                                    ValueRelation = ValueRelation(expected, actual, family.FamilyName, column.ColumnKey),
+                                })
                             : [])
                     .ToArray();
                 var rawAppearanceDifferences = expectedAppearance
@@ -394,7 +427,16 @@ internal static class PrivateCaseReportComparator
                     appearanceDifferenceDetails,
                     unclassifiedAppearanceDifferenceDetails,
                     acceptedContentDecisions,
-                    acceptedAppearanceDecisions));
+                    acceptedAppearanceDecisions)
+                {
+                    ColumnAlignment = alignment.Families,
+                    ResultSheets = PrivateCaseResultCellComparison.Compare(
+                        slug,
+                        pair.ExpectedFullPath,
+                        pair.ActualFullPath,
+                        contentMask,
+                        clientName),
+                });
             }
 
             return new PrivateCaseReportComparisonResult(reports);
@@ -486,11 +528,234 @@ internal static class PrivateCaseReportComparator
         return actual.GetValueOrDefault(name, -1);
     }
 
+    // 只說明差異的種類，不放行：JET 每個值都是舊版的相反數時標成 sign-flipped。
+    private static string? ValueRelation(
+        LegacyAuditParityNormalizedWorkbook expected,
+        LegacyAuditParityNormalizedWorkbook actual,
+        string familyName,
+        string columnKey)
+    {
+        var left = expected.DirectFamilies
+            .FirstOrDefault(family => family.BaseSheetName == familyName)?
+            .Columns.FirstOrDefault(column => column.Key == columnKey);
+        var right = actual.DirectFamilies
+            .FirstOrDefault(family => family.BaseSheetName == familyName)?
+            .Columns.FirstOrDefault(column => column.Key == columnKey);
+        return left is not null
+            && right is not null
+            && left.MultisetDigest != right.MultisetDigest
+            && left.MultisetDigest == right.NegatedMultisetDigest
+                ? "sign-flipped"
+                : null;
+    }
+
+    // 預篩選彙總頁 R5、R6 的貸方合計，JET 寫正數、舊版寫負數（裁定 2026-11-16-07）。
+    // 一頁只有貸方合計那一欄的值不同，而且逐列核對每一列都只差貸方合計的正負號時，才列入放行。
+    private static IReadOnlySet<string> CreditTotalSignFlippedFamilies(
+        string reportSlug,
+        PrivateCaseReportPair pair,
+        LegacyAuditParityContentComparisonResult content,
+        IReadOnlyDictionary<(string FamilyName, string ColumnKey), string> alignedRoles,
+        IReadOnlyList<PrivateCaseReportColumnAlias> aliases)
+    {
+        var families = new HashSet<string>(StringComparer.Ordinal);
+        if (reportSlug != "prescreen-report")
+        {
+            return families;
+        }
+        foreach (var family in content.FamilyCoverage)
+        {
+            if (family.FamilyName is "R5" or "R6"
+                && OnlyTheCreditTotalDiffers(family, alignedRoles)
+                && EveryRowDiffersOnlyByTheCreditTotalSign(pair, family.FamilyName, aliases))
+            {
+                families.Add(family.FamilyName);
+            }
+        }
+        return families;
+    }
+
+    private static bool OnlyTheCreditTotalDiffers(
+        LegacyAuditParityContentFamilyCoverage family,
+        IReadOnlyDictionary<(string FamilyName, string ColumnKey), string> alignedRoles) =>
+        family.DifferingSharedColumns is [var column]
+        && alignedRoles.GetValueOrDefault((family.FamilyName, column.ColumnKey))
+            == PrivateCaseReportColumnAlignment.CreditTotalRole;
+
+    /// <summary>
+    /// 逐列核對彙總頁：JET 的欄名照清單的欄位對照換成舊版的欄名，貸方合計取相反數，再把每一列兩邊都有的欄組成一筆；
+    /// 兩邊的列不看順序要完全相同。只比整欄的值看不出兩列的值互換，所以要重讀兩邊的列。
+    /// </summary>
+    private static bool EveryRowDiffersOnlyByTheCreditTotalSign(
+        PrivateCaseReportPair pair,
+        string sheetName,
+        IReadOnlyList<PrivateCaseReportColumnAlias> aliases)
+    {
+        var legacy = ReadSummaryRows(pair.ExpectedFullPath, sheetName);
+        var jet = ReadSummaryRows(pair.ActualFullPath, sheetName);
+        if (legacy is null || jet is null)
+        {
+            return false;
+        }
+
+        var sheetAliases = aliases
+            .Where(alias => alias.ReportSlug == "prescreen-report" && alias.SheetName == sheetName)
+            .ToArray();
+        var legacyHeaders = legacy.Headers.ToHashSet(StringComparer.Ordinal);
+        var jetHeaders = jet.Headers.ToHashSet(StringComparer.Ordinal);
+        var renames = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var alias in sheetAliases)
+        {
+            // 和欄位對齊相同：JET 的欄名舊版也有時本來就會比；舊版的欄名只對給一個 JET 欄。
+            if (!jetHeaders.Contains(alias.JetHeader) || legacyHeaders.Contains(alias.JetHeader))
+            {
+                continue;
+            }
+            var legacyHeader = alias.LegacyHeaders.FirstOrDefault(candidate =>
+                legacyHeaders.Contains(candidate)
+                && !jetHeaders.Contains(candidate)
+                && !renames.ContainsValue(candidate));
+            if (legacyHeader is not null)
+            {
+                renames.TryAdd(alias.JetHeader, legacyHeader);
+            }
+        }
+
+        var creditHeader = sheetAliases
+            .FirstOrDefault(static alias => alias.Role == PrivateCaseReportColumnAlignment.CreditTotalRole)?
+            .JetHeader;
+        if (creditHeader is null || !renames.ContainsKey(creditHeader))
+        {
+            return false;
+        }
+
+        var sharedHeaders = jet.Headers
+            .Select(header => renames.GetValueOrDefault(header, header))
+            .Where(legacyHeaders.Contains)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var legacyRows = legacy.Rows
+            .Select(row => SummaryRowKey(row, sharedHeaders))
+            .Order(StringComparer.Ordinal);
+        var jetRows = jet.Rows
+            .Select(row => row.ToDictionary(
+                cell => renames.GetValueOrDefault(cell.Key, cell.Key),
+                cell => cell.Key == creditHeader ? NegatedNumber(cell.Value) : cell.Value,
+                StringComparer.Ordinal))
+            .Select(row => SummaryRowKey(row, sharedHeaders))
+            .Order(StringComparer.Ordinal);
+        return legacyRows.SequenceEqual(jetRows, StringComparer.Ordinal);
+    }
+
+    private sealed record SummaryRows(
+        IReadOnlyList<string> Headers,
+        IReadOnlyList<IReadOnlyDictionary<string, string>> Rows);
+
+    // 讀一張彙總頁和它的續頁：第 1 列是欄名，第 2 列起每一列是欄名對值。值的正規化和直接比對頁相同，0 和空白不算值。
+    private static SummaryRows? ReadSummaryRows(string workbookPath, string baseSheetName)
+    {
+        using var document = SpreadsheetDocument.Open(workbookPath, false);
+        var workbookPart = document.WorkbookPart;
+        if (workbookPart?.Workbook?.Sheets is null)
+        {
+            return null;
+        }
+        var shared = workbookPart.SharedStringTablePart?.SharedStringTable?
+            .Elements<SharedStringItem>()
+            .Select(item => string.Concat(item.Descendants<Text>().Select(static text => text.Text)))
+            .ToArray() ?? [];
+        List<string>? headers = null;
+        var rows = new List<IReadOnlyDictionary<string, string>>();
+        foreach (var sheet in workbookPart.Workbook.Sheets.Elements<Sheet>())
+        {
+            var sheetName = sheet.Name?.Value;
+            if (sheetName is null
+                || (!string.Equals(sheetName, baseSheetName, StringComparison.Ordinal)
+                    && !sheetName.StartsWith(baseSheetName + " (", StringComparison.Ordinal))
+                || sheet.Id?.Value is not { } relationshipId
+                || !workbookPart.TryGetPartById(relationshipId, out var part)
+                || part is not WorksheetPart worksheetPart)
+            {
+                continue;
+            }
+
+            var columnHeaders = new Dictionary<int, string>();
+            using var reader = new OpenXmlPartReader(worksheetPart);
+            while (reader.Read())
+            {
+                if (reader.ElementType != typeof(Row) || !reader.IsStartElement)
+                {
+                    continue;
+                }
+                var row = (Row)reader.LoadCurrentElement()!;
+                var rowIndex = (int)(row.RowIndex?.Value ?? 0);
+                if (rowIndex == 1)
+                {
+                    foreach (var cell in row.Elements<Cell>())
+                    {
+                        if (ParseColumn(cell.CellReference?.Value) is { } column)
+                        {
+                            columnHeaders[column] = ReadCellText(cell, shared).Trim();
+                        }
+                    }
+                    headers ??= columnHeaders.OrderBy(static item => item.Key).Select(static item => item.Value).ToList();
+                    continue;
+                }
+                if (rowIndex < 2)
+                {
+                    continue;
+                }
+                var values = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var cell in row.Elements<Cell>())
+                {
+                    if (ParseColumn(cell.CellReference?.Value) is { } column
+                        && columnHeaders.TryGetValue(column, out var header)
+                        && SummaryValue(cell, shared) is { } value)
+                    {
+                        values[header] = value;
+                    }
+                }
+                if (values.Count > 0)
+                {
+                    rows.Add(values);
+                }
+            }
+        }
+        return headers is null ? null : new SummaryRows(headers, rows);
+    }
+
+    private static string? SummaryValue(Cell cell, IReadOnlyList<string> shared)
+    {
+        var text = ReadCellText(cell, shared);
+        var dataType = cell.DataType?.Value;
+        var isText = dataType == CellValues.SharedString
+            || dataType == CellValues.InlineString
+            || dataType == CellValues.String;
+        var value = isText
+            ? LegacyAuditParityNormalizedWorkbookReader.NormalizeSemanticValue("text", text).Trim()
+            : decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+                ? number.ToString("G29", CultureInfo.InvariantCulture)
+                : text.Trim();
+        return value is "" or "0" ? null : value;
+    }
+
+    // 不是數字的貸方合計沒有相反數，換成舊版不會有的值，讓這一列對不上。
+    private const string NotANumber = "\u0000not-a-number";
+
+    private static string NegatedNumber(string value) =>
+        decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+            ? (-number).ToString("G29", CultureInfo.InvariantCulture)
+            : NotANumber;
+
+    private static string SummaryRowKey(IReadOnlyDictionary<string, string> row, IReadOnlyList<string> headers) =>
+        string.Join('\u001e', headers.Select(header => header + '\u001f' + row.GetValueOrDefault(header)));
+
     private static PrivateCaseBlockingContentColumnDetail CreateBlockingContentColumnDetail(
         PrivateCaseReportPair pair,
         LegacyAuditParityContentFamilyCoverage family,
         int familyPosition,
-        LegacyAuditParityContentColumnMismatch column)
+        LegacyAuditParityContentColumnMismatch column,
+        string? alignedRole)
     {
         var scenarioPosition = PrivateCaseReportDifferencePolicy.ScenarioTagPosition(
             column.ColumnKey);
@@ -519,7 +784,7 @@ internal static class PrivateCaseReportComparator
 
         return new PrivateCaseBlockingContentColumnDetail(
             familyPosition,
-            PrivateCaseReportDifferencePolicy.SafeColumnRole(column.ColumnKey),
+            alignedRole ?? PrivateCaseReportDifferencePolicy.SafeColumnRole(column.ColumnKey),
             column.ExpectedValueCount,
             column.ActualValueCount,
             column.EstimatedDifferingValues,

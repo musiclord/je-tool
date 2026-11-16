@@ -6,7 +6,7 @@ namespace JET.Tests.AuditCore;
 
 /// <summary>
 /// 欄位資訊的「配對後欄位名稱」依每一欄的來歷填，不看欄名結尾；
-/// 改名欄位的「配對前欄位名稱」描述的是來源欄，加【】。
+/// 改名欄位的「配對前欄位名稱」寫來源欄名本身，和來源檔的欄名一字不差，不加任何符號。
 /// </summary>
 public sealed class FieldInfoProjectionTests
 {
@@ -25,7 +25,7 @@ public sealed class FieldInfoProjectionTests
             Definition(2, "傳票文件項次_JE_S", "來源項次", LegacyFieldKind.Number, decimalPlaces: 0, origin: FieldInfoOrigin.Renamed, jetField: JetFieldCatalog.GlLineItem),
             Definition(3, "總帳日期_JE", "傳票日期", LegacyFieldKind.Date, origin: FieldInfoOrigin.Renamed, jetField: JetFieldCatalog.GlDate),
             Definition(1, "傳票號碼_JE", "來源傳票號碼", LegacyFieldKind.Text, textLength: 25, origin: FieldInfoOrigin.Renamed, jetField: JetFieldCatalog.GlVoucherNumber),
-            Definition(5, "傳票金額_JE", "【傳票金額_JE】由系統產生 : 【金額】", LegacyFieldKind.Number, decimalPlaces: 4, origin: FieldInfoOrigin.Generated, jetField: JetFieldCatalog.GlAmount)
+            Definition(5, "傳票金額_JE", "傳票金額_JE 由系統產生 : 金額", LegacyFieldKind.Number, decimalPlaces: 4, origin: FieldInfoOrigin.Generated, jetField: JetFieldCatalog.GlAmount)
         };
 
         var actual = JetAuditProgram.ProjectFieldInfo(targetTbDefinitions, targetGlDefinitions);
@@ -33,7 +33,7 @@ public sealed class FieldInfoProjectionTests
         Assert.Equal(
             new[]
             {
-                new FieldInfoRow("【客戶科目代號】", "文字型態", 18, null, "會計科目編號_TB"),
+                new FieldInfoRow("客戶科目代號", "文字型態", 18, null, "會計科目編號_TB"),
                 new FieldInfoRow("原始科目名稱", "文字型態", 40, null, null),
                 new FieldInfoRow("期末餘額", "數字型態", null, 0, null)
             },
@@ -41,11 +41,11 @@ public sealed class FieldInfoProjectionTests
         Assert.Equal(
             new[]
             {
-                new FieldInfoRow("【來源傳票號碼】", "文字型態", 25, null, "傳票號碼_JE"),
-                new FieldInfoRow("【來源項次】", "數字型態", null, 0, "傳票文件項次_JE_S"),
-                new FieldInfoRow("【傳票日期】", "日期型態", null, null, "總帳日期_JE"),
+                new FieldInfoRow("來源傳票號碼", "文字型態", 25, null, "傳票號碼_JE"),
+                new FieldInfoRow("來源項次", "數字型態", null, 0, "傳票文件項次_JE_S"),
+                new FieldInfoRow("傳票日期", "日期型態", null, null, "總帳日期_JE"),
                 new FieldInfoRow("核准時間", "時間型態", null, null, null),
-                new FieldInfoRow("【傳票金額_JE】由系統產生 : 【金額】", "數字型態", null, 4, "傳票金額_JE")
+                new FieldInfoRow("傳票金額_JE 由系統產生 : 金額", "數字型態", null, 4, "傳票金額_JE")
             },
             actual.GlRows);
 
@@ -76,9 +76,9 @@ public sealed class FieldInfoProjectionTests
             actual.TbRows.Select(row => row.ActualFieldName));
         Assert.Equal(new string?[] { null, null, "lower_je", "TB_NAME_TB" },
             actual.GlRows.Select(row => row.ActualFieldName));
-        // 原始來源欄寫欄名本身，改名欄與 _Temp 原欄寫【來源欄名】，系統產生的欄寫說明句。
-        Assert.Equal(new[] { "UPPER_TB", "【來源】", "由系統產生" }, actual.TbRows.Select(row => row.DisplayName));
-        Assert.Equal(new[] { "BASE_JE", "【來源】", "【來源】", "由系統產生" }, actual.GlRows.Select(row => row.DisplayName));
+        // 原始來源欄寫欄名本身，改名欄與 _Temp 原欄寫來源欄名，系統產生的欄寫說明句；都不加任何符號。
+        Assert.Equal(new[] { "UPPER_TB", "來源", "由系統產生" }, actual.TbRows.Select(row => row.DisplayName));
+        Assert.Equal(new[] { "BASE_JE", "來源", "來源", "由系統產生" }, actual.GlRows.Select(row => row.DisplayName));
     }
 
     private static FieldInfo Definition(

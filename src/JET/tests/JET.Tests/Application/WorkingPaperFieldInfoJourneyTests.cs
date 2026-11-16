@@ -96,8 +96,8 @@ public sealed class WorkingPaperFieldInfoJourneyTests
             // 沒有 TB：表頭下面直接是兩列空白，接著是 GL 的標題與表頭。
             Assert.All(sheet.Range("A4:E5").Cells(), cell => Assert.True(cell.IsEmpty()));
             Assert.Equal("GL檔案配對前後欄位對照表", sheet.Cell("A6").GetString());
-            // 改名欄位的「配對前欄位名稱」加【】。
-            var longCell = Assert.Single(sheet.Column(1).CellsUsed(), cell => cell.GetString() == $"【{longColumn}】");
+            // 改名欄位的「配對前欄位名稱」寫來源欄名本身，不加任何符號。
+            var longCell = Assert.Single(sheet.Column(1).CellsUsed(), cell => cell.GetString() == longColumn);
             Assert.True(longCell.Address.RowNumber > 7);
             Assert.True(longCell.Style.Alignment.WrapText);
             longRowNumber = (uint)longCell.Address.RowNumber;

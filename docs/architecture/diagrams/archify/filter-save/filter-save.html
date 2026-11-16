@@ -47,7 +47,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>儲存篩選情境</title>
   <script>
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5203,7 +5246,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 872 900" data-reader-fit="width-first" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
+      <svg viewBox="0 0 889 758" data-reader-fit="width-first" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
         <title id="archify-diagram-title">儲存篩選情境</title>
         <desc id="archify-diagram-description">由 Archify 產生的工作流程圖。</desc>
         <!-- Definitions -->
@@ -5250,214 +5293,208 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Swimlanes -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="816" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="833" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="74" class="t-muted" font-size="10" font-weight="600">01 / 審計員與畫面</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="816" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="198" class="t-muted" font-size="10" font-weight="600">02 / 儲存前檢查</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="833" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="198" class="t-muted" font-size="10" font-weight="600">02 / 前置檢查</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="816" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-2-exception" x="46" y="306" width="804" height="92" rx="8" class="c-security-group" stroke-width="1"/>
-        <text x="54" y="322" class="t-security" font-size="10" font-weight="600">EX / 不寫入</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="833" height="210" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="322" class="t-muted" font-size="10" font-weight="600">03 / 擇一寫入</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="424" width="816" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="446" class="t-muted" font-size="10" font-weight="600">04 / 只存這一個情境</text>
-
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-4" x="40" y="548" width="816" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="570" class="t-muted" font-size="10" font-weight="600">05 / 整批處理：全部合格</text>
-
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-5" x="40" y="672" width="816" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="694" class="t-muted" font-size="10" font-weight="600">06 / 整批處理：仍有不合格</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="530" width="833" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-3-exception" x="46" y="536" width="821" height="92" rx="8" class="c-security-group" stroke-width="1"/>
+        <text x="54" y="552" class="t-security" font-size="10" font-weight="600">EX / 不寫入</text>
 
         <!-- Phase headers -->
-        <path d="M 74 35 H 704" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
-        <rect x="345.4" y="27" width="87.2" height="16" rx="8" class="c-mask phase-chip"/>
-        <text x="389" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">提交前可以取消</text>
-        <path d="M 748 35 H 824" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
-        <rect x="746" y="27" width="80" height="16" rx="8" class="c-mask phase-chip"/>
-        <text x="786" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">提交後不再取消</text>
+        <path d="M 98.60000000000002 35 H 732.6" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <rect x="372" y="27" width="87.2" height="16" rx="8" class="c-mask phase-chip"/>
+        <text x="415.6" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">提交前可以取消</text>
+        <path d="M 776.6 35 H 852.6" class="a-default phase-rule" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <rect x="774.6" y="27" width="80" height="16" rx="8" class="c-mask phase-chip"/>
+        <text x="814.6" y="38.5" class="t-muted" font-size="8" font-weight="600" text-anchor="middle" letter-spacing=".04em">提交後不再取消</text>
 
         <!-- Workflow groups -->
 
 
         <!-- Edge paths -->
-        <path data-edge-from="commit" data-edge-to="reply" data-edge-key="0" data-edge-id="commit_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="726,615;779,615;779,145" d="M 726 615 L 771 615 Q 779 615 779 607 L 779 145" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="decide" data-edge-to="commit" data-edge-label="整批合格" data-edge-key="1" data-edge-id="decide_commit" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="532,269;532,615;606,615" d="M 532 269 L 532 607 Q 532 615 540 615 L 606 615" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="decide" data-edge-to="defs" data-edge-label="仍有不合格" data-edge-key="2" data-edge-id="decide_defs" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="500,251;484,251;484,792;666,792;666,765" d="M 500 251 L 492 251 Q 484 251 484 259 L 484 784 Q 484 792 492 792 L 658 792 Q 666 792 666 784 L 666 765" class="a-default" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="decide" data-edge-to="one" data-edge-label="平常" data-edge-key="3" data-edge-id="decide_one" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="560,269;560,491;620,491" d="M 560 269 L 560 483 Q 560 491 568 491 L 620 491" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="defs" data-edge-to="reply" data-edge-key="4" data-edge-id="defs_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="712,739;798,739;798,145" d="M 712 739 L 790 739 Q 798 739 798 731 L 798 145" class="a-default" data-animate="edge" style="--step:11" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="list" data-edge-to="rules" data-edge-key="5" data-edge-id="list_rules" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="300,243;332,243" d="M 300 243 L 332 243" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="load" data-edge-to="list" data-edge-key="6" data-edge-id="load_list" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="176,243;208,243" d="M 176 243 L 208 243" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="load" data-edge-to="reject" data-edge-label="前提不符" data-edge-key="7" data-edge-id="load_reject" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="112,269;112,290;254,290;254,341" d="M 112 269 L 112 282 Q 112 290 120 290 L 246 290 Q 254 290 254 298 L 254 341" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="one" data-edge-to="reply" data-edge-key="8" data-edge-id="one_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="712,491;750,491;750,145" d="M 712 491 L 742 491 Q 750 491 750 483 L 750 145" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="request" data-edge-to="load" data-edge-key="9" data-edge-id="request_load" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="66,119;20,119;20,243;48,243" d="M 66 119 L 28 119 Q 20 119 20 127 L 20 235 Q 20 243 28 243 L 48 243" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="rules" data-edge-to="decide" data-edge-key="10" data-edge-id="rules_decide" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="468,243;500,243" d="M 468 243 L 500 243" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="rules" data-edge-to="reject" data-edge-label="本次不合格" data-edge-key="11" data-edge-id="rules_reject" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="400,269;400,367;300,367" d="M 400 269 L 400 359 Q 400 367 392 367 L 300 367" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="commit" data-edge-to="reply" data-edge-key="0" data-edge-id="commit_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="754.6,360;790.6,360;790.6,145" d="M 754.6 360 L 782.6 360 Q 790.6 360 790.6 352 L 790.6 145" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="decide" data-edge-to="commit" data-edge-label="整批合格" data-edge-key="1" data-edge-id="decide_commit" data-edge-role="" data-composition-points="548.6,394;548.6,360;634.6,360" d="M 548.6 394 L 548.6 368 Q 548.6 360 556.6 360 L 634.6 360" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="decide" data-edge-to="defs" data-edge-label="仍有不合格" data-edge-key="2" data-edge-id="decide_defs" data-edge-role="" data-composition-points="548.6,446;548.6,480;634.6,480" d="M 548.6 446 L 548.6 472 Q 548.6 480 556.6 480 L 634.6 480" class="a-default" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="decide" data-edge-to="one" data-edge-label="平常" data-edge-key="3" data-edge-id="decide_one" data-edge-role="" data-composition-points="596.6,420;634.6,420" d="M 596.6 420 L 634.6 420" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="defs" data-edge-to="reply" data-edge-key="4" data-edge-id="defs_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="754.6,480;838.6,480;838.6,145" d="M 754.6 480 L 830.6 480 Q 838.6 480 838.6 472 L 838.6 145" class="a-default" data-animate="edge" style="--step:11" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="list" data-edge-to="rules" data-edge-key="5" data-edge-id="list_rules" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="328.6,243;360.6,243" d="M 328.6 243 L 360.6 243" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="load" data-edge-to="list" data-edge-key="6" data-edge-id="load_list" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="200.60000000000002,243;232.60000000000002,243" d="M 200.60000000000002 243 L 232.60000000000002 243" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="load" data-edge-to="reject" data-edge-label="前提不符" data-edge-key="7" data-edge-id="load_reject" data-edge-role="error" data-composition-points="136.60000000000002,269;136.60000000000002,597;232.60000000000002,597" d="M 136.60000000000002 269 L 136.60000000000002 589 Q 136.60000000000002 597 144.60000000000002 597 L 232.60000000000002 597" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="one" data-edge-to="reply" data-edge-key="8" data-edge-id="one_reply" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="754.6,420;821.6,420;821.6,145" d="M 754.6 420 L 813.6 420 Q 821.6 420 821.6 412 L 821.6 145" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="request" data-edge-to="load" data-edge-key="9" data-edge-id="request_load" data-edge-role="" data-composition-points="136.60000000000002,145;136.60000000000002,217" d="M 136.60000000000002 145 L 136.60000000000002 217" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="rules" data-edge-to="decide" data-edge-key="10" data-edge-id="rules_decide" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="496.6,243;524.6,243;524.6,394" d="M 496.6 243 L 516.6 243 Q 524.6 243 524.6 251 L 524.6 394" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="rules" data-edge-to="reject" data-edge-label="本次不合格" data-edge-key="11" data-edge-id="rules_reject" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="421.6,269;421.6,597;328.6,597" d="M 421.6 269 L 421.6 589 Q 421.6 597 413.6 597 L 328.6 597" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.4" marker-end="url(#arrowhead)"/>
 
         <!-- Nodes -->
         <g id="node-request" data-node-id="request" data-node-label="按下儲存" tabindex="0" role="button" aria-label="聚焦按下儲存，filter.scenario.save, 審計員與畫面 › 提交前可以取消" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="filter.scenario.save" data-node-context="審計員與畫面 › 提交前可以取消">
           <title>按下儲存 · filter.scenario.save · 審計員與畫面 › 提交前可以取消</title>
-          <rect x="66" y="93" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="66" y="93" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:0" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(72 99) scale(0.6875)">
+          <rect x="84.60000000000002" y="93" width="104" height="52" rx="8" class="c-mask"/>
+          <rect x="84.60000000000002" y="93" width="104" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:0" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(90.60000000000002 99) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="112" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">按下儲存</text>
-          <text data-detail="context" x="112" y="131" class="t-muted" font-size="7" text-anchor="middle">filter.scenario.save</text>
+          <text data-node-label="" data-detail-anchor="" x="136.60000000000002" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">按下儲存</text>
+          <text data-detail="context" x="136.60000000000002" y="131" class="t-muted" font-size="8" text-anchor="middle">filter.scenario.save</text>
         </g>
 
-        <g id="node-reply" data-node-id="reply" data-node-label="讀回最新狀態" tabindex="0" role="button" aria-label="聚焦讀回最新狀態，有存下結果才推進到第五步, 審計員與畫面 › 提交後不再取消" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="有存下結果才推進到第五步" data-node-context="審計員與畫面 › 提交後不再取消">
-          <title>讀回最新狀態 · 有存下結果才推進到第五步 · 審計員與畫面 › 提交後不再取消</title>
-          <rect x="724" y="93" width="124" height="52" rx="8" class="c-mask"/>
-          <rect x="724" y="93" width="124" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(730 99) scale(0.6875)">
+        <g id="node-reply" data-node-id="reply" data-node-label="讀回最新狀態" tabindex="0" role="button" aria-label="聚焦讀回最新狀態，回應情境與結果狀態, 審計員與畫面 › 提交後不再取消" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="回應情境與結果狀態" data-node-context="審計員與畫面 › 提交後不再取消">
+          <title>讀回最新狀態 · 回應情境與結果狀態 · 審計員與畫面 › 提交後不再取消</title>
+          <rect x="766.6" y="93" width="96" height="52" rx="8" class="c-mask"/>
+          <rect x="766.6" y="93" width="96" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(772.6 99) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="786" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">讀回最新狀態</text>
-          <text data-detail="context" x="786" y="131" class="t-muted" font-size="8" text-anchor="middle">有存下結果才推進到第五步</text>
+          <text data-node-label="" data-detail-anchor="" x="814.6" y="125.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">讀回最新狀態</text>
+          <text data-detail="context" x="814.6" y="140.1" class="t-muted" font-size="8" text-anchor="middle">回應情境與結果狀態</text>
         </g>
 
-        <g id="node-load" data-node-id="load" data-node-label="確認前提" tabindex="0" role="button" aria-label="聚焦確認前提，驗證是目前版本，GL 已配對, 儲存前檢查 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="驗證是目前版本，GL 已配對" data-node-context="儲存前檢查 › 提交前可以取消">
-          <title>確認前提 · 驗證是目前版本，GL 已配對 · 儲存前檢查 › 提交前可以取消</title>
-          <rect x="48" y="217" width="128" height="52" rx="8" class="c-mask"/>
-          <rect x="48" y="217" width="128" height="52" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(54 223) scale(0.6875)">
+        <g id="node-load" data-node-id="load" data-node-label="確認前提" tabindex="0" role="button" aria-label="聚焦確認前提，驗證是目前版本，GL 已配對, 前置檢查 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="驗證是目前版本，GL 已配對" data-node-context="前置檢查 › 提交前可以取消">
+          <title>確認前提 · 驗證是目前版本，GL 已配對 · 前置檢查 › 提交前可以取消</title>
+          <rect x="72.60000000000002" y="217" width="128" height="52" rx="8" class="c-mask"/>
+          <rect x="72.60000000000002" y="217" width="128" height="52" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(78.60000000000002 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="112" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認前提</text>
-          <text data-detail="context" x="112" y="255" class="t-muted" font-size="8" text-anchor="middle">驗證是目前版本，GL 已配對</text>
+          <text data-node-label="" data-detail-anchor="" x="136.60000000000002" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認前提</text>
+          <text data-detail="context" x="136.60000000000002" y="255" class="t-muted" font-size="8" text-anchor="middle">驗證是目前版本，GL 已配對</text>
         </g>
 
-        <g id="node-list" data-node-id="list" data-node-label="讀出已存情境" tabindex="0" role="button" aria-label="聚焦讀出已存情境，其他情境照原樣保留, 儲存前檢查 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="其他情境照原樣保留" data-node-context="儲存前檢查 › 提交前可以取消">
-          <title>讀出已存情境 · 其他情境照原樣保留 · 儲存前檢查 › 提交前可以取消</title>
-          <rect x="208" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="208" y="217" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(214 223) scale(0.6875)">
+        <g id="node-list" data-node-id="list" data-node-label="讀出已存情境" tabindex="0" role="button" aria-label="聚焦讀出已存情境，其他情境照原樣保留, 前置檢查 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="其他情境照原樣保留" data-node-context="前置檢查 › 提交前可以取消">
+          <title>讀出已存情境 · 其他情境照原樣保留 · 前置檢查 › 提交前可以取消</title>
+          <rect x="232.60000000000002" y="217" width="96" height="52" rx="8" class="c-mask"/>
+          <rect x="232.60000000000002" y="217" width="96" height="52" rx="8" class="c-backend" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(238.60000000000002 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="254" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">讀出已存情境</text>
-          <text data-detail="context" x="254" y="263.8" class="t-muted" font-size="7.7" text-anchor="middle">其他情境照原樣保留</text>
+          <text data-node-label="" data-detail-anchor="" x="280.6" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">讀出已存情境</text>
+          <text data-detail="context" x="280.6" y="264.1" class="t-muted" font-size="8" text-anchor="middle">其他情境照原樣保留</text>
         </g>
 
-        <g id="node-rules" data-node-id="rules" data-node-label="檢查本次情境" tabindex="0" role="button" aria-label="聚焦檢查本次情境，上限、位置、名稱與儲存規則, 儲存前檢查 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="上限、位置、名稱與儲存規則" data-node-context="儲存前檢查 › 提交前可以取消">
-          <title>檢查本次情境 · 上限、位置、名稱與儲存規則 · 儲存前檢查 › 提交前可以取消</title>
-          <rect x="332" y="217" width="136" height="52" rx="8" class="c-mask"/>
-          <rect x="332" y="217" width="136" height="52" rx="8" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(338 223) scale(0.6875)">
+        <g id="node-rules" data-node-id="rules" data-node-label="檢查本次情境" tabindex="0" role="button" aria-label="聚焦檢查本次情境，上限、位置、名稱與儲存規則, 前置檢查 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="上限、位置、名稱與儲存規則" data-node-context="前置檢查 › 提交前可以取消">
+          <title>檢查本次情境 · 上限、位置、名稱與儲存規則 · 前置檢查 › 提交前可以取消</title>
+          <rect x="360.6" y="217" width="136" height="52" rx="8" class="c-mask"/>
+          <rect x="360.6" y="217" width="136" height="52" rx="8" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(366.6 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="400" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">檢查本次情境</text>
-          <text data-detail="context" x="400" y="255" class="t-muted" font-size="8" text-anchor="middle">上限、位置、名稱與儲存規則</text>
+          <text data-node-label="" data-detail-anchor="" x="428.6" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">檢查本次情境</text>
+          <text data-detail="context" x="428.6" y="255" class="t-muted" font-size="8" text-anchor="middle">上限、位置、名稱與儲存規則</text>
         </g>
 
-        <g id="node-decide" data-node-id="decide" data-node-label="決定儲存範圍" tabindex="0" role="button" aria-label="聚焦決定儲存範圍，本次情境或全部情境, 儲存前檢查 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="本次情境或全部情境" data-node-context="儲存前檢查 › 提交前可以取消">
-          <title>決定儲存範圍 · 本次情境或全部情境 · 儲存前檢查 › 提交前可以取消</title>
-          <rect x="500" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="500" y="217" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:4" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="decision" class="semantic-sigil s-backend" transform="translate(506 223) scale(0.6875)">
+        <g id="node-decide" data-node-id="decide" data-node-label="決定儲存範圍" tabindex="0" role="button" aria-label="聚焦決定儲存範圍，本次情境或全部情境, 擇一寫入 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="本次情境或全部情境" data-node-context="擇一寫入 › 提交前可以取消">
+          <title>決定儲存範圍 · 本次情境或全部情境 · 擇一寫入 › 提交前可以取消</title>
+          <rect x="500.6" y="394" width="96" height="52" rx="8" class="c-mask"/>
+          <rect x="500.6" y="394" width="96" height="52" rx="8" class="c-backend" data-animate="node" style="--step:4" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="decision" class="semantic-sigil s-backend" transform="translate(506.6 400) scale(0.6875)">
             <path d="M8 2.2 13.8 8 8 13.8 2.2 8Z"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="546" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">決定儲存範圍</text>
-          <text data-detail="context" x="546" y="263.8" class="t-muted" font-size="7.7" text-anchor="middle">本次情境或全部情境</text>
+          <text data-node-label="" data-detail-anchor="" x="548.6" y="426.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">決定儲存範圍</text>
+          <text data-detail="context" x="548.6" y="441.1" class="t-muted" font-size="8" text-anchor="middle">本次情境或全部情境</text>
+        </g>
+
+        <g id="node-commit" data-node-id="commit" data-node-label="儲存全部情境與結果" tabindex="0" role="button" aria-label="聚焦儲存全部情境與結果，篩選結果更新為目前版本, 擇一寫入 › 提交前可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="篩選結果更新為目前版本" data-node-context="擇一寫入 › 提交前可以取消">
+          <title>儲存全部情境與結果 · 篩選結果更新為目前版本 · 擇一寫入 › 提交前可以取消</title>
+          <rect x="634.6" y="334" width="120" height="52" rx="8" class="c-mask"/>
+          <rect x="634.6" y="334" width="120" height="52" rx="8" class="c-database" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(640.6 340) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="694.6" y="365.4" class="t-primary" font-size="10.3" font-weight="600" text-anchor="middle">儲存全部情境與結果</text>
+          <text data-detail="context" x="694.6" y="380.1" class="t-muted" font-size="8" text-anchor="middle">篩選結果更新為目前版本</text>
+        </g>
+
+        <g id="node-defs" data-node-id="defs" data-node-label="只儲存情境設定" tabindex="0" role="button" aria-label="聚焦只儲存情境設定，清除命中，標出待修情境, 擇一寫入 › 提交前可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="清除命中，標出待修情境" data-node-context="擇一寫入 › 提交前可以取消">
+          <title>只儲存情境設定 · 清除命中，標出待修情境 · 擇一寫入 › 提交前可以取消</title>
+          <rect x="634.6" y="454" width="120" height="52" rx="8" class="c-mask"/>
+          <rect x="634.6" y="454" width="120" height="52" rx="8" class="c-database" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(640.6 460) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="699.8000000000001" y="475" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">只儲存情境設定</text>
+          <text data-detail="context" x="694.6" y="492" class="t-muted" font-size="8" text-anchor="middle">清除命中，標出待修情境</text>
+        </g>
+
+        <g id="node-one" data-node-id="one" data-node-label="只換這一個情境" tabindex="0" role="button" aria-label="聚焦只換這一個情境，其他情境的結果照原樣, 擇一寫入 › 提交前可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="其他情境的結果照原樣" data-node-context="擇一寫入 › 提交前可以取消">
+          <title>只換這一個情境 · 其他情境的結果照原樣 · 擇一寫入 › 提交前可以取消</title>
+          <rect x="634.6" y="394" width="120" height="52" rx="8" class="c-mask"/>
+          <rect x="634.6" y="394" width="120" height="52" rx="8" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(640.6 400) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="699.8000000000001" y="415" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">只換這一個情境</text>
+          <text data-detail="context" x="694.6" y="432" class="t-muted" font-size="8" text-anchor="middle">其他情境的結果照原樣</text>
         </g>
 
         <g id="node-reject" data-node-id="reject" data-node-label="回錯誤，不寫入" tabindex="0" role="button" aria-label="聚焦回錯誤，不寫入，本次修改未儲存, 不寫入 › 提交前可以取消" aria-pressed="false" data-node-kind="backend" data-node-sublabel="本次修改未儲存" data-node-context="不寫入 › 提交前可以取消">
           <title>回錯誤，不寫入 · 本次修改未儲存 · 不寫入 › 提交前可以取消</title>
-          <rect x="208" y="341" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="208" y="341" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="stop" class="semantic-sigil s-backend" transform="translate(214 347) scale(0.6875)">
+          <rect x="232.60000000000002" y="571" width="96" height="52" rx="8" class="c-mask"/>
+          <rect x="232.60000000000002" y="571" width="96" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="stop" class="semantic-sigil s-backend" transform="translate(238.60000000000002 577) scale(0.6875)">
             <circle cx="8" cy="8" r="5.3"/>
             <rect x="6.1" y="6.1" width="3.8" height="3.8" rx=".5" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="254" y="372" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">回錯誤，不寫入</text>
-          <text data-detail="context" x="254" y="386.6" class="t-muted" font-size="8" text-anchor="middle">本次修改未儲存</text>
-        </g>
-
-        <g id="node-one" data-node-id="one" data-node-label="只換這一個情境" tabindex="0" role="button" aria-label="聚焦只換這一個情境，其他情境的結果照原樣, 只存這一個情境 › 提交前可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="其他情境的結果照原樣" data-node-context="只存這一個情境 › 提交前可以取消">
-          <title>只換這一個情境 · 其他情境的結果照原樣 · 只存這一個情境 › 提交前可以取消</title>
-          <rect x="620" y="465" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="620" y="465" width="92" height="52" rx="8" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(626 471) scale(0.6875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="666" y="496" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">只換這一個情境</text>
-          <text data-detail="context" x="666" y="509.4" class="t-muted" font-size="7" text-anchor="middle">其他情境的結果照原樣</text>
-        </g>
-
-        <g id="node-commit" data-node-id="commit" data-node-label="儲存全部情境與結果" tabindex="0" role="button" aria-label="聚焦儲存全部情境與結果，篩選結果更新為目前版本, 整批處理：全部合格 › 提交前可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="篩選結果更新為目前版本" data-node-context="整批處理：全部合格 › 提交前可以取消">
-          <title>儲存全部情境與結果 · 篩選結果更新為目前版本 · 整批處理：全部合格 › 提交前可以取消</title>
-          <rect x="606" y="589" width="120" height="52" rx="8" class="c-mask"/>
-          <rect x="606" y="589" width="120" height="52" rx="8" class="c-database" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(612 595) scale(0.6875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="666" y="620.4" class="t-primary" font-size="10.3" font-weight="600" text-anchor="middle">儲存全部情境與結果</text>
-          <text data-detail="context" x="666" y="635.1" class="t-muted" font-size="8" text-anchor="middle">篩選結果更新為目前版本</text>
-        </g>
-
-        <g id="node-defs" data-node-id="defs" data-node-label="只儲存情境設定" tabindex="0" role="button" aria-label="聚焦只儲存情境設定，清除命中，標出待修情境, 整批處理：仍有不合格 › 提交前可以取消" aria-pressed="false" data-node-kind="database" data-node-sublabel="清除命中，標出待修情境" data-node-context="整批處理：仍有不合格 › 提交前可以取消">
-          <title>只儲存情境設定 · 清除命中，標出待修情境 · 整批處理：仍有不合格 › 提交前可以取消</title>
-          <rect x="620" y="713" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="620" y="713" width="92" height="52" rx="8" class="c-database" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(626 719) scale(0.6875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="666" y="744" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">只儲存情境設定</text>
-          <text data-detail="context" x="666" y="756.6" class="t-muted" font-size="6.3" text-anchor="middle">清除命中，標出待修情境</text>
+          <text data-node-label="" data-detail-anchor="" x="280.6" y="602.5" class="t-primary" font-size="10.4" font-weight="600" text-anchor="middle">回錯誤，不寫入</text>
+          <text data-detail="context" x="280.6" y="617.3" class="t-muted" font-size="8" text-anchor="middle">本次修改未儲存</text>
         </g>
 
         <!-- Edge labels -->
 
         <g data-detail="context" data-edge-from="decide" data-edge-to="commit" data-edge-label="整批合格" data-edge-key="1" data-edge-id="decide_commit">
-          <rect x="544.8" y="595" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="569" y="605" class="t-muted" font-size="8" text-anchor="middle">整批合格</text>
+          <rect x="567.4" y="340" width="48.4" height="14" rx="3" class="c-mask"/>
+          <text x="591.6" y="350" class="t-muted" font-size="8" text-anchor="middle">整批合格</text>
         </g>
         <g data-detail="context" data-edge-from="decide" data-edge-to="defs" data-edge-label="仍有不合格" data-edge-key="2" data-edge-id="decide_defs">
-          <rect x="546" y="772" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="575" y="782" class="t-muted" font-size="8" text-anchor="middle">仍有不合格</text>
+          <rect x="562.6" y="460" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="591.6" y="470" class="t-muted" font-size="8" text-anchor="middle">仍有不合格</text>
         </g>
         <g data-detail="context" data-edge-from="decide" data-edge-to="one" data-edge-label="平常" data-edge-key="3" data-edge-id="decide_one">
-          <rect x="575" y="471" width="30" height="14" rx="3" class="c-mask"/>
-          <text x="590" y="481" class="t-muted" font-size="8" text-anchor="middle">平常</text>
+          <rect x="600.6" y="400" width="30" height="14" rx="3" class="c-mask"/>
+          <text x="615.6" y="410" class="t-muted" font-size="8" text-anchor="middle">平常</text>
         </g>
 
 
 
         <g data-detail="context" data-edge-from="load" data-edge-to="reject" data-edge-label="前提不符" data-edge-key="7" data-edge-id="load_reject">
-          <rect x="158.8" y="270" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="183" y="280" class="t-muted" font-size="8" text-anchor="middle">前提不符</text>
+          <rect x="160.40000000000003" y="577" width="48.4" height="14" rx="3" class="c-mask"/>
+          <text x="184.60000000000002" y="587" class="t-muted" font-size="8" text-anchor="middle">前提不符</text>
         </g>
 
 
 
         <g data-detail="context" data-edge-from="rules" data-edge-to="reject" data-edge-label="本次不合格" data-edge-key="11" data-edge-id="rules_reject">
-          <rect x="321" y="347" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="350" y="357" class="t-muted" font-size="8" text-anchor="middle">本次不合格</text>
+          <rect x="346.1" y="577" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="375.1" y="587" class="t-muted" font-size="8" text-anchor="middle">本次不合格</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="20" y="800" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="畫面操作與回應" data-legend-x="20" data-legend-baseline="820" data-legend-width="109">
-            <rect x="20" y="812" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-            <text x="42" y="820" class="t-muted" font-size="7.5" font-weight="500">畫面操作與回應</text>
+          <text x="20" y="658" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="畫面操作與回應" data-legend-x="20" data-legend-baseline="678" data-legend-width="109">
+            <rect x="20" y="670" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+            <text x="42" y="678" class="t-muted" font-size="7.5" font-weight="500">畫面操作與回應</text>
           </g>
-          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="JET 檢查與判斷" data-legend-x="136" data-legend-baseline="820" data-legend-width="109">
-            <rect x="136" y="812" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-            <text x="158" y="820" class="t-muted" font-size="7.5" font-weight="500">JET 檢查與判斷</text>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="JET 檢查與判斷" data-legend-x="136" data-legend-baseline="678" data-legend-width="109">
+            <rect x="136" y="670" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+            <text x="158" y="678" class="t-muted" font-size="7.5" font-weight="500">JET 檢查與判斷</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="寫入案件資料庫" data-legend-x="252" data-legend-baseline="820" data-legend-width="109">
-            <rect x="252" y="812" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-            <text x="274" y="820" class="t-muted" font-size="7.5" font-weight="500">寫入案件資料庫</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="寫入案件資料庫" data-legend-x="252" data-legend-baseline="678" data-legend-width="109">
+            <rect x="252" y="670" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+            <text x="274" y="678" class="t-muted" font-size="7.5" font-weight="500">寫入案件資料庫</text>
           </g>
         </g>
       </svg>
@@ -5836,6 +5873,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5852,6 +5890,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7275,6 +7314,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7290,6 +7330,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -9917,6 +9958,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12705,6 +12747,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12715,6 +12758,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12749,6 +12793,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13854,6 +13899,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14529,6 +14575,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14766,6 +14813,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

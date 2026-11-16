@@ -8,6 +8,7 @@ namespace JET.Application;
 /// 不需要先開啟案件，只讀檔，不留下任何變更。回傳正規化後的標頭，以及最多 limit 列的原始內容，
 /// 讓匯入精靈判斷這份檔案有沒有標頭列。讀檔與正規化的做法和 import.inspectFile、正式匯入相同。
 /// 文字檔可以帶 encoding 與 delimiter，所以檢視失敗後改選編碼重試也走這個 action；只讀到一欄時回 notices。
+/// 讀到的列裡有公式、卻沒有存計算結果的儲存格時，notices 也多一則提醒。
 /// 失敗時附上匯入診斷：階段、格式、編碼、分隔符。
 /// </summary>
 public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IApplicationActionHandler
@@ -34,7 +35,9 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
                 $"不支援的檔案類型「{Path.GetExtension(filePath)}」，支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。");
         }
 
-        var request = TabularSourcePayload.Parse(payload, filePath);
+        // 預覽讀到的列裡有公式、卻沒有存計算結果的格數，放進 notices。
+        var formulas = new FormulaWithoutResultTally();
+        var request = TabularSourcePayload.Parse(payload, filePath) with { FormulasWithoutResult = formulas };
         var format = Path.GetExtension(filePath).ToLowerInvariant();
 
         var limit = Math.Clamp(
@@ -87,11 +90,22 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
             cancellationToken);
 
         var isTextFile = format is ".csv" or ".txt";
+        var notices = new List<string>();
+        if (isTextFile && columns.Count == 1)
+        {
+            notices.Add(TabularSourceNotices.SingleColumn);
+        }
+
+        if (TabularSourceNotices.FormulaWithoutResult(formulas) is { } formulaNotice)
+        {
+            notices.Add(formulaNotice);
+        }
+
         return new
         {
             columns,
             sampleRows,
-            notices = isTextFile && columns.Count == 1 ? new[] { TabularSourceNotices.SingleColumn } : null
+            notices = notices.Count > 0 ? notices : null
         };
     }
 

@@ -822,7 +822,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var repositories = new ValidationRepositoryFakes();
         var longDescription = new string('欄', 300);
         // 「配對後欄位名稱」依每一欄的來歷填，不看欄名結尾：手工建的事實標出哪幾欄是配對後改名，
-        // 沒有標的 GL_DATE_je 等欄即使欄名像 JET 欄名也留白。改名欄位的「配對前欄位名稱」加【】。
+        // 沒有標的 GL_DATE_je 等欄即使欄名像 JET 欄名也留白。改名欄位的「配對前欄位名稱」寫來源欄名本身，不加任何符號。
         var fieldInfo = JetAuditProgram.ProjectFieldInfo(
         [
             new FieldInfo(1, "TB_TEXT_TB", longDescription, LegacyFieldKind.Text, 300, null, FieldInfoOrigin.Renamed, JetFieldCatalog.TbAccountNumber),
@@ -853,14 +853,14 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.Equal(
                 new[] { "配對前欄位名稱", "欄位型態", "文字長度", "小數位數", "配對後欄位名稱" },
                 Row(sheet, 3));
-            Assert.Equal($"【{longDescription}】", sheet.Cell("A4").GetString());
+            Assert.Equal(longDescription, sheet.Cell("A4").GetString());
             Assert.True(sheet.Cell("A4").Style.Alignment.WrapText);
             Assert.False(sheet.Cell("A5").Style.Alignment.WrapText);
             Assert.Equal(
                 new[] { "文字型態", "數字型態", "日期型態", "時間型態" },
                 sheet.Range("B4:B7").Cells().Select(cell => cell.GetString()).ToArray());
             Assert.Equal(
-                new[] { $"【{longDescription}】", "TB_NUMBER", "TB_DATE_TB", "TB_TIME" },
+                new[] { longDescription, "TB_NUMBER", "TB_DATE_TB", "TB_TIME" },
                 sheet.Range("A4:A7").Cells().Select(cell => cell.GetString()).ToArray());
             Assert.Equal(300, sheet.Cell("C4").GetValue<int>());
             Assert.True(sheet.Cell("D4").IsEmpty());

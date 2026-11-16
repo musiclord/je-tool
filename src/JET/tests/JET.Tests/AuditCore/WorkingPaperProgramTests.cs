@@ -226,7 +226,7 @@ public sealed class WorkingPaperProgramTests
                 LegacyFieldKind.Text,
                 description: "ManualFlag",
                 jetField: JetFieldCatalog.GlManual),
-            Field(11, "過帳碼_JE", description: "【過帳】過帳判斷值「Y」", origin: FieldInfoOrigin.Generated, jetField: JetFieldCatalog.GlPostingStatus)
+            Field(11, "過帳碼_JE", description: "過帳 過帳判斷值「Y」", origin: FieldInfoOrigin.Generated, jetField: JetFieldCatalog.GlPostingStatus)
         };
 
         var finalized = JetAuditProgram.Finalize(
@@ -312,12 +312,12 @@ public sealed class WorkingPaperProgramTests
             Sheet(finalized, WorkingPaperSheetCatalog.Step3).AuditCondition);
         // 方法說明不寫「專案」，畫面與底稿統一用「案件」或直接寫查核期間。
         // 這裡逐字比對整句：不寫「矩陣」而寫高風險條件彙總，未納入原因寫「總帳日期空白」。
-        // 底稿句子裡的欄位名稱用【】標示。
+        // 底稿句子裡的欄位名稱照原樣寫，不加任何符號。
         Assert.Contains(
             "查核團隊考量舞弊風險相關之分錄，除了會於期末財務報表準備期間發生外，某些與舞弊風險因子相關之分錄類型(例如：收入)"
             + "亦會在整個財務報導期間中被記錄。這些都將會對財務報表的正確性造成影響。因此，除測試期末財務報表準備期間之分錄外，"
             + " 亦將對整個財務報表期間之會計分錄母體，篩選與舞弊風險類型相關之分錄。\n"
-            + "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。",
+            + "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與總帳日期空白的分錄，不列入本版各情境的結果與彙總。",
             Sheet(finalized, WorkingPaperSheetCatalog.Step3).Methodology);
         // 空白傳票號碼的列法寫在範本 A12，方法說明和範本同一句，後端不另外接。
         Assert.Equal(

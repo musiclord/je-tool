@@ -8,7 +8,7 @@ internal static class FilterConditionExcelText
 {
     internal static IReadOnlyList<string> Parts(string text)
     {
-        if (text.Length <= 32_767 && text.Count(character => character == '\n') <= 253) return [text];
+        if (text.Length <= ExcelWorksheetConstraints.MaxCellTextLength && text.Count(character => character == '\n') <= 253) return [text];
         var parts = new List<string>();
         for (var offset = 0; offset < text.Length;)
         {

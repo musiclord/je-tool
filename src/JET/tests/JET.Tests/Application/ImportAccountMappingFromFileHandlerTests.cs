@@ -11,7 +11,7 @@ namespace JET.Tests.Application;
 /// 匯入即投影、replace-only、分類欄的新名稱新增成自訂分類、解鎖未預期借貸組合。
 /// oracle：demo 科目配對派生規格 + 獨立參數化 SQL recount。
 /// </summary>
-public sealed class ImportAccountMappingHandlerTests
+public sealed class ImportAccountMappingFromFileHandlerTests
 {
     [Theory]
     [InlineData("sqlite")]

@@ -70,9 +70,10 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             var sourcePayload = importPayload.Sources[index];
             try
             {
-                sourceRequests.Add((sourcePayload, TabularSourcePayload.Parse(
-                    sourcePayload.Payload,
-                    sourcePayload.FilePath)));
+                // 每個來源各記一份「有公式、卻沒有存計算結果」的格數，匯入完成後寫進提醒。
+                var request = TabularSourcePayload.Parse(sourcePayload.Payload, sourcePayload.FilePath)
+                    with { FormulasWithoutResult = new FormulaWithoutResultTally() };
+                sourceRequests.Add((sourcePayload, request));
             }
             catch (JetActionException error)
             {
@@ -190,6 +191,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             .. openElsewhereWarnings,
             .. DuplicateSourceWarnings(plan.Operation, previous, batch),
             .. QuotedLineBreakWarnings(sourceRequests, lineBreakTallies),
+            .. sourceRequests.SelectMany(item =>
+                ImportMessages.FormulaWithoutResult(item.Payload.FileName, item.Request.FormulasWithoutResult)),
             .. operationLogWarning is null ? Array.Empty<string>() : [operationLogWarning]
         ];
 

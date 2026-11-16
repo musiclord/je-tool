@@ -189,6 +189,7 @@ internal static class ReportTemplatePackage
         try
         {
             IReadOnlyList<SheetStat> sheetStats;
+            IReadOnlyList<TruncatedTextCells> truncatedCells;
             using (var target = SpreadsheetDocument.Open(
                        output,
                        true,
@@ -199,6 +200,8 @@ internal static class ReportTemplatePackage
                 sheetStats = await fill(editor, cancellationToken).ConfigureAwait(false);
                 editor.EnsureAllAllowedWorksheetsWereRewritten();
                 cancellationToken.ThrowIfCancellationRequested();
+                // 截斷格數記在這次開啟的工作表物件上，關閉活頁簿後就讀不到，所以在這裡先收齊。
+                truncatedCells = TruncatedCellsBySheet(target);
             }
 
             // 前面逐列寫出的程式已經用更新模式開過被改寫的工作表。統一字型時要載入每一張工作表，
@@ -214,7 +217,7 @@ internal static class ReportTemplatePackage
             }
 
             output.Flush();
-            return new ExportStats(output.Length, sheetStats);
+            return new ExportStats(output.Length, sheetStats) { TruncatedCellsBySheet = truncatedCells };
         }
         catch (OperationCanceledException)
         {
@@ -236,6 +239,25 @@ internal static class ReportTemplatePackage
                 $"無法填入 JET 內附的範本「{templateName}」。請重新下載 JET 後再匯出。",
                 innerException: exception);
         }
+    }
+
+    /// <summary>依活頁簿的工作表順序，列出這次寫出時有儲存格文字被截斷的工作表與格數。</summary>
+    private static IReadOnlyList<TruncatedTextCells> TruncatedCellsBySheet(SpreadsheetDocument document)
+    {
+        var workbookPart = document.WorkbookPart!;
+        var result = new List<TruncatedTextCells>();
+        foreach (var sheet in workbookPart.Workbook!.Sheets!.Elements<Sheet>())
+        {
+            if (sheet.Id?.Value is { } id
+                && workbookPart.TryGetPartById(id, out var part)
+                && part is WorksheetPart worksheetPart
+                && ExcelText.TruncatedCellCount(worksheetPart) is var count and > 0)
+            {
+                result.Add(new TruncatedTextCells(sheet.Name?.Value ?? string.Empty, count));
+            }
+        }
+
+        return result;
     }
 
     private static void ValidateWorkbook(SpreadsheetDocument document, string name)

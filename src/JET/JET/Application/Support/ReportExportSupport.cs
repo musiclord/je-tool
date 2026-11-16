@@ -71,6 +71,22 @@ internal static class ReportExportSupport
     /// <summary>產生報告回應的 warnings：報告已發布、卻寫不進操作紀錄時放那一句提醒，其他時候是空陣列。</summary>
     public static string[] Warnings(string? operationLogWarning) => operationLogWarning is null ? [] : [operationLogWarning];
 
+    /// <summary>
+    /// 產生報告回應的 warnings：先依檔案順序放有儲存格文字超過 Excel 每格上限而截斷的提醒，
+    /// 再放寫不進操作紀錄的那一句；都沒有時是空陣列。
+    /// </summary>
+    public static string[] Warnings(
+        IEnumerable<(string FileName, ExportStats? Stats)> files,
+        string? operationLogWarning) =>
+    [
+        .. files
+            .Select(file => file.Stats is null
+                ? null
+                : ReportMessages.TruncatedCellText(file.FileName, file.Stats.TruncatedCellsBySheet))
+            .OfType<string>(),
+        .. Warnings(operationLogWarning)
+    ];
+
     public static void RequireRequestedValidationResult(
         ResultRecord current,
         string requestedResultId)

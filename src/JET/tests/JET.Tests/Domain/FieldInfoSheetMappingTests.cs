@@ -6,7 +6,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// 檔案沒有 JET 記下的隱藏配對時，從「自動化工具-檔案欄位資訊」看得見的對照表推得草稿。
-/// 舊版 IDEA JET 與新版 JET 兩種寫法都要認得；欄名都是合成的。
+/// 三種寫法都要認得：舊版 IDEA JET、較早版本把欄名加【】的寫法，以及目前欄名不加符號的寫法；欄名都是合成的。
 /// </summary>
 public sealed class FieldInfoSheetMappingTests
 {
@@ -50,7 +50,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     [Fact]
-    public void Infer_NewVersionMarkedNames_MapBackLikeTheLegacyNames()
+    public void Infer_MarkedWritingNames_MapBackLikeTheLegacyNames()
     {
         var result = Infer(Gl(
             Row("【Doc No】", Text, "傳票號碼_JE"),
@@ -125,7 +125,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     [Fact]
-    public void Infer_NewVersionDualAmount_ReadsBothMarkedNames()
+    public void Infer_MarkedWritingDualAmount_ReadsBothMarkedNames()
     {
         var result = Infer(
             Gl(Row("【傳票金額_JE】由系統產生 : 【Dr-Amt】-【Cr-Amt】", Number, "傳票金額_JE")),
@@ -199,6 +199,18 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Equal(new UnmatchedMappingField("gl", GlMappingKeys.Amount, "金額", "A-B-C"), unmatched);
     }
 
+    // 借貸兩欄的說明句照舊版寫「借方欄-貸方欄」，減號前後不空格，所以前後有空白的「 - 」不比其他「-」更像分隔：
+    // 有好幾個「-」、表上與目前資料都對不上時，不挑其中一刀，列出金額請審計員選。
+    [Fact]
+    public void Infer_DualAmountWithSeveralDashesOneOfThemSpaced_ListsTheAmountWhenNothingMatches()
+    {
+        var result = Infer(Gl(Row("傳票金額_JE 由系統產生 : A - B-C", Number, "傳票金額_JE")), ["Amount"]);
+
+        Assert.Equal(GlAmountModeNames.Signed, result.Draft.Gl.AmountMode);
+        Assert.Empty(result.Draft.Gl.Mapping);
+        Assert.Equal([new UnmatchedMappingField("gl", GlMappingKeys.Amount, "金額", "A - B-C")], result.Unmatched);
+    }
+
     [Fact]
     public void Infer_LegacyAmountWithoutDash_IsSignedWithTheFileName()
     {
@@ -233,7 +245,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     [Fact]
-    public void Infer_NewVersionAmountWithDebitCreditColumn_ReadsTheQuotedDebitCode()
+    public void Infer_MarkedWritingAmountWithDebitCreditColumn_ReadsTheQuotedDebitCode()
     {
         var result = Infer(Gl(
             Row("DC", Number),
@@ -267,6 +279,8 @@ public sealed class FieldInfoSheetMappingTests
     [InlineData("【Status】過帳判斷值「P」「A」「p」", new[] { "P", "A" }, false)]
     [InlineData("【Status】過帳判斷值「P」，空白也算已過帳", new[] { "P" }, true)]
     [InlineData("【Status】過帳判斷值，空白也算已過帳", new string[0], true)]
+    [InlineData("Status 過帳判斷值「P」「A」「p」", new[] { "P", "A" }, false)]
+    [InlineData("Status 過帳判斷值，空白也算已過帳", new string[0], true)]
     public void Infer_PostingStatus_ReadsTheColumnAndTheAcceptedValues(string sentence, string[] values, bool includeBlank)
     {
         var result = Infer(Gl(Row("Status", Text), Row(sentence, Text, "過帳碼_JE")), ["Status"]);
@@ -336,7 +350,7 @@ public sealed class FieldInfoSheetMappingTests
             Row("【Dept】", Text, "部門（Dept）_JE"),
             Row("Note", "時間型態", "Note_JE")), ["Region", "Due", "Cost", "Dept", "Note"]);
 
-        // 「部門（Dept）」沒有和其他攸關資料元素同名，新版不會在後面補來源欄名，所以名稱本身就是「部門（Dept）」。
+        // 「部門（Dept）」沒有和其他攸關資料元素同名，JET 不會在後面補來源欄名，所以名稱本身就是「部門（Dept）」。
         // 後綴照寫出端的規則反推。
         Assert.Equal(
             [
@@ -381,7 +395,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     [Fact]
-    public void Infer_NewVersionRelevantDataElementsWithTheSameName_KeepBothWithTheirOwnSourceColumns()
+    public void Infer_MarkedWritingRelevantDataElementsWithTheSameName_KeepBothWithTheirOwnSourceColumns()
     {
         var result = Infer(Gl(
             Row("【Region】", Text, "地區（Region）_JE"),
@@ -397,6 +411,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // 舊版 A 欄寫原欄名，來源欄本來就叫 JET 欄名時 A 欄和 E 欄相同，算同名配對；目前資料沒有這一欄時照樣寫進草稿，由 handler 列出重選。
+    // 傳票文件項次_JE_S 例外：目前的寫法裡自動編號也寫成這樣，只有目前資料有這一欄時才算配對，見 Infer_CurrentWritingLineItemRow_IsAMappingOnlyWhenTheSourceColumnHasThatName。
     [Fact]
     public void Infer_LegacySourceAlreadyNamedLikeTheJetField_IsASameNameMapping()
     {
@@ -441,9 +456,9 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(result.Unmatched);
     }
 
-    // 新版同名改名的 A 欄寫成「【X】」，算配對；沒有括號、A 欄和 E 欄相同的是系統產生，例如自動編號的傳票文件項次_JE_S。
+    // 較早版本同名改名的 A 欄寫成「【X】」，算配對；沒有括號、A 欄和 E 欄相同的是系統產生，例如自動編號的傳票文件項次_JE_S。
     [Fact]
-    public void Infer_NewVersionSameNameRenameIsAMappingButTheAutoNumberIsNot()
+    public void Infer_MarkedWritingSameNameRenameIsAMappingButTheAutoNumberIsNot()
     {
         var result = Infer(
             Gl(
@@ -462,10 +477,10 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(result.Unmatched);
     }
 
-    // 新版說明句的欄名本身有「】」時：單一欄名去掉最外層括號再找；金額加借貸別的句子有固定的分隔，照樣讀得出來。
+    // 較早版本說明句的欄名本身有「】」時：單一欄名去掉最外層括號再找；金額加借貸別的句子有固定的分隔，照樣讀得出來。
     // 兩種都不套舊版「-」的規則。借貸別句的欄名可以有「】」。
     [Fact]
-    public void Infer_NewVersionAmountWithBracketsInsideTheName_ReadsTheNamesWithoutTheLegacyDashRule()
+    public void Infer_MarkedWritingAmountWithBracketsInsideTheName_ReadsTheNamesWithoutTheLegacyDashRule()
     {
         var single = Infer(
             Gl(Row("【傳票金額_JE】由系統產生 : 【【調整】A-B】", Number, "傳票金額_JE")),
@@ -489,7 +504,7 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(sided.Unmatched);
     }
 
-    // 只填貸方代碼時，新版寫「貸方為「C」」；讀回貸方代碼，不要求填借方代碼。
+    // 只填貸方代碼時，較早版本與目前的寫法都寫「貸方為「C」」；讀回貸方代碼，不要求填借方代碼。
     [Fact]
     public void Infer_AmountWithOnlyACreditCode_ReadsTheCreditCode()
     {
@@ -509,7 +524,7 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(result.Unmatched);
     }
 
-    // 來源欄名本身有括號時，新版的配對前欄位名稱是「【【舊】地區】」：外層括號裡的括號成對，去掉最外層；
+    // 來源欄名本身有括號時，較早版本的配對前欄位名稱是「【【舊】地區】」：外層括號裡的括號成對，去掉最外層；
     // 過帳狀態的說明句也照樣讀出欄名。
     [Fact]
     public void Infer_SourceColumnNamesWithBrackets_AreReadWithoutTheOuterBrackets()
@@ -563,7 +578,7 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(sided.Unmatched);
     }
 
-    // 新版改名列的 A 欄一律寫「【來源欄名】」。來源欄名本身的括號不成對時（「A】」「【舊地區」），照樣只去掉最外層，
+    // 較早版本改名列的 A 欄一律寫「【來源欄名】」。來源欄名本身的括號不成對時（「A】」「【舊地區」），照樣只去掉最外層，
     // 不靠模糊比對；目前資料另有正規化後相同的欄（「A」「舊地區」）時也對得回去。
     [Fact]
     public void Infer_RenamedSourceWithUnpairedBrackets_DropsOnlyTheOuterBrackets()
@@ -584,7 +599,7 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(result.Unmatched);
     }
 
-    // 借貸方判斷欄的欄名本身整格加了【】時，原樣留著的那一列 A 欄是「【DC】」；依它的欄位型態判斷借貸標誌。
+    // 較早版本的寫法裡，借貸方判斷欄的欄名本身整格加了【】時，原樣留著的那一列 A 欄是「【DC】」；依它的欄位型態判斷借貸標誌。
     // 第二份另有來源欄「DC」改名成數字型態的攸關資料元素，A 欄也寫「【DC】」，仍依原樣留著、文字型態的那一列判斷。
     [Fact]
     public void Infer_DrCrColumnNamedWithBrackets_UsesItsFieldType()
@@ -758,6 +773,190 @@ public sealed class FieldInfoSheetMappingTests
 
         Assert.Empty(result.Unmatched);
         AssertDraftIsValid(result, columns);
+    }
+
+    // 目前的寫法：欄名和來源檔一字不差、不加符號，說明句用半形空白分開欄名，值用「」。
+    // 欄名本身有空白、頓號或全形逗號時，金額加借貸別與過帳判斷值的句子照固定的寫法分得開。
+    [Fact]
+    public void Infer_CurrentWriting_ReadsSidedAmountPostingAndApprovalSentences()
+    {
+        string[] columns = ["Doc No", "Post Date", "Amount", "借、貸，別", "過帳 狀態"];
+        var result = Infer(Gl(
+            Row("Doc No", Text, "傳票號碼_JE"),
+            Row("Post Date", Date, "總帳日期_JE"),
+            Row("傳票核准日_JE 由系統產生 : 同總帳日期_JE來源", Date, "傳票核准日_JE"),
+            Row("Amount", Number),
+            Row("借、貸，別", Text),
+            Row("過帳 狀態", Text),
+            Row("傳票金額_JE 由系統產生 : 金額欄位 Amount、借貸方判斷欄位 借、貸，別，借方為「D」，貸方為「C」", Number, "傳票金額_JE"),
+            Row("過帳 狀態 過帳判斷值「Y」「P」，空白也算已過帳", Text, "過帳碼_JE")), columns);
+
+        Assert.Equal(GlAmountModeNames.Side, result.Draft.Gl.AmountMode);
+        Assert.Equal(ApprovalDateModeNames.SameAsGlDate, result.Draft.Gl.ApprovalDateMode);
+        Assert.Equal(
+            new Dictionary<string, string>
+            {
+                [GlMappingKeys.VoucherNumber] = "Doc No",
+                [GlMappingKeys.GlDate] = "Post Date",
+                [GlMappingKeys.Amount] = "Amount",
+                [GlMappingKeys.DrCr] = "借、貸，別",
+                [GlMappingKeys.DrCrDebitCode] = "D",
+                [GlMappingKeys.DrCrCreditCode] = "C",
+                [GlMappingKeys.PostingStatus] = "過帳 狀態"
+            },
+            result.Draft.Gl.Mapping);
+        Assert.NotNull(result.Draft.Gl.PostingStatusPolicy);
+        Assert.Equal(["Y", "P"], result.Draft.Gl.PostingStatusPolicy.AcceptedValues);
+        Assert.True(result.Draft.Gl.PostingStatusPolicy.IncludeBlank);
+        Assert.Empty(result.Unmatched);
+        AssertDraftIsValid(result, columns);
+    }
+
+    // 目前的寫法不去掉括號：來源欄本來就叫「【Doc】」「【DC】」「【狀態】」時，A 欄與說明句照原樣寫，
+    // 推回的就是這些名稱，不會對到另一個叫「Doc」「DC」「狀態」的欄。
+    [Fact]
+    public void Infer_CurrentWritingSourceNamedWithBrackets_KeepsTheBrackets()
+    {
+        var result = Infer(Gl(
+            Row("【Doc】", Text, "傳票號碼_JE"),
+            Row("【DC】", Number),
+            Row("【狀態】", Text),
+            Row("傳票金額_JE 由系統產生 : 金額欄位 Amount、借貸方判斷欄位 【DC】，借方為「1」", Number, "傳票金額_JE"),
+            Row("【狀態】 過帳判斷值「Y」", Text, "過帳碼_JE")),
+            ["【Doc】", "Doc", "Amount", "【DC】", "DC", "【狀態】", "狀態"]);
+
+        Assert.Equal(GlAmountModeNames.Flag, result.Draft.Gl.AmountMode);
+        Assert.Equal(
+            new Dictionary<string, string>
+            {
+                [GlMappingKeys.VoucherNumber] = "【Doc】",
+                [GlMappingKeys.Amount] = "Amount",
+                [GlMappingKeys.DrCr] = "【DC】",
+                [GlMappingKeys.DrCrDebitCode] = "1",
+                [GlMappingKeys.PostingStatus] = "【狀態】"
+            },
+            result.Draft.Gl.Mapping);
+        Assert.Equal(["Y"], result.Draft.Gl.PostingStatusPolicy!.AcceptedValues);
+        Assert.Empty(result.Unmatched);
+    }
+
+    // 不加括號的金額算式裡，欄名本身可能有「-」或「 - 」，借貸兩欄之間照舊版寫「-」不空格。用表上列出的來源欄確認讀法：
+    // 整段是一個列出的欄名就是單一金額；在某個「-」切開、去掉兩邊空白後兩段都是列出的欄名就是借貸兩欄。目前匯入的欄位另有切開後的名稱也不影響。
+    [Fact]
+    public void Infer_PlainAmountWithDashes_UsesTheOnlyReadingListedOnTheSheet()
+    {
+        var signed = Infer(
+            Gl(Row("金額 - 淨額", Number), Row("金額", Number), Row("傳票金額_JE 由系統產生 : 金額 - 淨額", Number, "傳票金額_JE")),
+            ["金額 - 淨額", "金額", "淨額"]);
+        var dual = Infer(
+            Gl(
+                Row("借方-金額", Number),
+                Row("貸方 - 金額", Number),
+                Row("傳票金額_JE 由系統產生 : 借方-金額-貸方 - 金額", Number, "傳票金額_JE")),
+            ["借方-金額", "貸方 - 金額", "借方", "金額"]);
+
+        Assert.Equal(GlAmountModeNames.Signed, signed.Draft.Gl.AmountMode);
+        Assert.Equal(new Dictionary<string, string> { [GlMappingKeys.Amount] = "金額 - 淨額" }, signed.Draft.Gl.Mapping);
+        Assert.Empty(signed.Unmatched);
+        AssertDual(dual, "借方-金額", "貸方 - 金額");
+    }
+
+    // 整段和切開後的兩段都列在表上時，看不出是一個欄名還是兩欄相減，不帶入金額，列出請審計員在第三步選；來源寫說明句冒號後的算式。
+    [Fact]
+    public void Infer_PlainAmountReadableBothWays_ListsTheAmountForTheAuditor()
+    {
+        var result = Infer(
+            Gl(
+                Row("A-B", Number),
+                Row("A", Number),
+                Row("B", Number),
+                Row("傳票金額_JE 由系統產生 : A-B", Number, "傳票金額_JE")),
+            ["A-B", "A", "B"]);
+
+        Assert.Equal(GlAmountModeNames.Signed, result.Draft.Gl.AmountMode);
+        Assert.Empty(result.Draft.Gl.Mapping);
+        Assert.Equal([new UnmatchedMappingField("gl", GlMappingKeys.Amount, "金額", "A-B")], result.Unmatched);
+    }
+
+    // TB 期末與期初各分借貸的算式照舊版寫「(期末借 - 期末貸) - (期初借-期初貸)」。欄名本身有「-」與「 - 」時，
+    // 用表上列出的來源欄確認切法；有兩種切法都對得上時看不出來，不帶入金額，列出請審計員選。
+    [Fact]
+    public void Infer_TbPlainOpeningAndClosingBySide_UsesTheSplitListedOnTheSheetOrListsTheAmount()
+    {
+        var listed = Infer(
+            Sheet(
+                [
+                    Row("Account", Text, "會計科目編號_TB"),
+                    Row("期末-借", Number),
+                    Row("期末 - 貸", Number),
+                    Row("期初-借", Number),
+                    Row("期初 - 貸", Number),
+                    Row("試算表變動金額_TB 由系統產生 : (期末-借 - 期末 - 貸) - (期初-借-期初 - 貸)", Number, "試算表變動金額_TB")
+                ],
+                []),
+            [],
+            ["Account", "期末-借", "期末 - 貸", "期初-借", "期初 - 貸", "期末", "借"]);
+        var ambiguous = Infer(
+            Sheet(
+                [
+                    Row("A", Number),
+                    Row("B - C", Number),
+                    Row("A - B", Number),
+                    Row("C", Number),
+                    Row("D", Number),
+                    Row("E", Number),
+                    Row("試算表變動金額_TB 由系統產生 : (A - B - C) - (D-E)", Number, "試算表變動金額_TB")
+                ],
+                []),
+            [],
+            ["A", "B - C", "A - B", "C", "D", "E"]);
+
+        Assert.NotNull(listed.Draft.Tb);
+        Assert.Equal(TbChangeModeNames.OpenCloseBySide, listed.Draft.Tb.ChangeMode);
+        Assert.Equal(
+            new Dictionary<string, string>
+            {
+                [TbMappingKeys.AccountNumber] = "Account",
+                [TbMappingKeys.ClosingDebitBalance] = "期末-借",
+                [TbMappingKeys.ClosingCreditBalance] = "期末 - 貸",
+                [TbMappingKeys.OpeningDebitBalance] = "期初-借",
+                [TbMappingKeys.OpeningCreditBalance] = "期初 - 貸"
+            },
+            listed.Draft.Tb.Mapping);
+        Assert.Empty(listed.Unmatched);
+        Assert.NotNull(ambiguous.Draft.Tb);
+        Assert.Empty(ambiguous.Draft.Tb.Mapping);
+        Assert.Equal(
+            [new UnmatchedMappingField("tb", TbMappingKeys.ChangeAmount, "年度變動金額", "(A - B - C) - (D-E)")],
+            ambiguous.Unmatched);
+    }
+
+    // 目前的寫法同名改名和自動編號的傳票文件項次_JE_S 寫得一樣（A 欄和 E 欄相同、沒有括號）。
+    // 同一段有讓名成「傳票文件項次_JE_S（來源）」的列時是自動編號；沒有讓名列時，目前匯入的 GL 有一字不差叫這個名稱的欄才算配對。
+    [Theory]
+    [InlineData(true, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, false)]
+    public void Infer_CurrentWritingLineItemRow_IsAMappingOnlyWhenTheSourceColumnHasThatName(
+        bool yielded,
+        bool currentHasColumn,
+        bool expectedMapping)
+    {
+        var rows = new List<FieldInfoSheetRow> { Row("Doc", Text, "傳票號碼_JE"), Row("Amount", Number) };
+        if (yielded)
+        {
+            rows.Add(Row("傳票文件項次_JE_S（來源）", Number));
+        }
+
+        rows.Add(Row("傳票文件項次_JE_S", Number, "傳票文件項次_JE_S"));
+        rows.Add(Row("傳票金額_JE 由系統產生 : Amount", Number, "傳票金額_JE"));
+        string[] columns = currentHasColumn ? ["Doc", "Amount", "傳票文件項次_JE_S"] : ["Doc", "Amount"];
+
+        var result = Infer(Gl([.. rows]), columns);
+
+        Assert.Equal(expectedMapping, result.Draft.Gl.Mapping.ContainsKey(GlMappingKeys.LineItem));
+        Assert.Equal("Doc", result.Draft.Gl.Mapping[GlMappingKeys.VoucherNumber]);
+        Assert.Empty(result.Unmatched);
     }
 
     private static void AssertDual(FieldInfoSheetMappingResult result, string debit, string credit)

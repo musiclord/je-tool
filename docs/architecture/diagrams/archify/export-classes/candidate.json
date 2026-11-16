@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "class",
   "meta": {
-    "title": "正式底稿的處理類別",
+    "title": "正式底稿的處理類別怎麼準備資料",
     "locale": "zh-TW",
     "output": "archify/export-classes/export-classes.html",
     "quality_profile": "showcase",
@@ -22,8 +22,8 @@
   "layout": {
     "mode": "grid",
     "typeW": 180,
-    "typeMaxW": 280,
-    "gapX": 84,
+    "typeMaxW": 300,
+    "gapX": 108,
     "gapY": 84
   },
   "types": [
@@ -32,7 +32,7 @@
       "label": "ExportWorkingPaperStreamHandler",
       "kind": "class",
       "row": 0,
-      "col": 1.5,
+      "col": 0,
       "sublabel": "export.workingPaperStream",
       "methods": [
         {
@@ -41,36 +41,15 @@
           "returns": "Task<object?>",
           "visibility": "public"
         }
-      ]
-    },
-    {
-      "id": "materialize",
-      "label": "FilterHitMaterializeService",
-      "kind": "class",
-      "row": 0,
-      "col": 0,
-      "sublabel": "確認或重算選取的情境",
-      "methods": [
-        {
-          "name": "RequireUsableAsync",
-          "parameters": "string, ProjectDocument, IReadOnlyList<SavedFilterScenario>, IReadOnlyCollection<int>?",
-          "returns": "Task",
-          "visibility": "public"
-        },
-        {
-          "name": "MaterializeSelectedAsync",
-          "parameters": "string, ProjectDocument, IReadOnlyList<SavedFilterScenario>, IReadOnlyCollection<int>",
-          "returns": "Task",
-          "visibility": "public"
-        }
-      ]
+      ],
+      "width": 430
     },
     {
       "id": "program",
       "label": "JetAuditProgram",
       "kind": "class",
       "row": 0,
-      "col": 3,
+      "col": 1,
       "sublabel": "規劃底稿並整理結果",
       "methods": [
         {
@@ -87,14 +66,38 @@
           "visibility": "package",
           "static": true
         }
-      ]
+      ],
+      "width": 470
+    },
+    {
+      "id": "materialize",
+      "label": "FilterHitMaterializeService",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "確認或重算選取的情境",
+      "methods": [
+        {
+          "name": "RequireUsableAsync",
+          "parameters": "string, ProjectDocument, …",
+          "returns": "Task",
+          "visibility": "public"
+        },
+        {
+          "name": "MaterializeSelectedAsync",
+          "parameters": "string, ProjectDocument, …",
+          "returns": "Task",
+          "visibility": "public"
+        }
+      ],
+      "width": 430
     },
     {
       "id": "factsContract",
       "label": "IWorkingPaperPlanningFactsPort",
       "kind": "interface",
       "row": 1,
-      "col": 0,
+      "col": 1,
       "sublabel": "讀規劃需要的資料",
       "methods": [
         {
@@ -104,106 +107,17 @@
           "visibility": "public",
           "abstract": true
         }
-      ]
-    },
-    {
-      "id": "writerContract",
-      "label": "IWorkingPaperPlanWriter",
-      "kind": "interface",
-      "row": 1,
-      "col": 1,
-      "sublabel": "寫入工作簿",
-      "methods": [
-        {
-          "name": "WriteAsync",
-          "parameters": "Stream, WorkingPaperContext, WorkingPaperPlan",
-          "returns": "Task<ExportStats>",
-          "visibility": "public",
-          "abstract": true
-        }
-      ]
-    },
-    {
-      "id": "auditedContract",
-      "label": "IAuditedReportPublishingStore",
-      "kind": "interface",
-      "row": 1,
-      "col": 2,
-      "sublabel": "發布並回操作紀錄的提醒",
-      "methods": [
-        {
-          "name": "WriteAuditedAsync",
-          "parameters": "string, ReportWriteRequest, Action<ReportKind>",
-          "returns": "Task<AuditedReportPublication>",
-          "visibility": "public",
-          "abstract": true
-        }
-      ]
-    },
-    {
-      "id": "publishContract",
-      "label": "IReportPublishingStore",
-      "kind": "interface",
-      "row": 1,
-      "col": 3,
-      "sublabel": "寫檔並通知發布",
-      "methods": [
-        {
-          "name": "WriteWithPublishingAsync",
-          "parameters": "string, ReportWriteRequest, Action<ReportKind>",
-          "returns": "Task<Report>",
-          "visibility": "public",
-          "abstract": true
-        }
-      ]
-    },
-    {
-      "id": "facts",
-      "label": "WorkingPaperPlanningFactsPort",
-      "kind": "class",
-      "row": 2,
-      "col": 0,
-      "sublabel": "不分資料庫"
-    },
-    {
-      "id": "writer",
-      "label": "WorkingPaperWriter",
-      "kind": "class",
-      "row": 2,
-      "col": 1,
-      "sublabel": "分頁讀取並寫出"
-    },
-    {
-      "id": "audited",
-      "label": "AuditedReportStore",
-      "kind": "class",
-      "row": 2,
-      "col": 2,
-      "sublabel": "外層：寫操作紀錄"
-    },
-    {
-      "id": "files",
-      "label": "ProjectReportStore",
-      "kind": "class",
-      "row": 2,
-      "col": 3,
-      "sublabel": "內層：暫存檔、改名與清單"
+      ],
+      "width": 470
     },
     {
       "id": "root",
       "label": "AppCompositionRoot",
       "kind": "class",
-      "row": 3,
-      "col": 1,
+      "row": 2,
+      "col": 0,
       "sublabel": "啟動時建立物件",
       "methods": [
-        {
-          "name": "CreateRuntimeCore",
-          "parameters": "IHostShell, string, …",
-          "returns": "JetApplicationRuntime",
-          "visibility": "private",
-          "static": true
-        },
         {
           "name": "CreateLocalProjectRepositories",
           "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
@@ -211,7 +125,16 @@
           "visibility": "private",
           "static": true
         }
-      ]
+      ],
+      "width": 430
+    },
+    {
+      "id": "facts",
+      "label": "WorkingPaperPlanningFactsPort",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "不分資料庫"
     }
   ],
   "relationships": [
@@ -220,7 +143,7 @@
       "from": "handler",
       "to": "materialize",
       "kind": "dependency",
-      "label": "RequireUsableAsync、MaterializeSelectedAsync"
+      "label": "確認或重算"
     },
     {
       "id": "handler_program",
@@ -234,21 +157,9 @@
       "from": "handler",
       "to": "factsContract",
       "kind": "dependency",
-      "label": "ExecuteAsync"
-    },
-    {
-      "id": "handler_writer",
-      "from": "handler",
-      "to": "writerContract",
-      "kind": "dependency",
-      "label": "寫檔函式內 WriteAsync"
-    },
-    {
-      "id": "handler_audited",
-      "from": "handler",
-      "to": "auditedContract",
-      "kind": "dependency",
-      "label": "WriteAuditedAsync"
+      "label": "ExecuteAsync",
+      "fromSide": "bottom",
+      "toSide": "top"
     },
     {
       "id": "facts_contract",
@@ -257,66 +168,27 @@
       "kind": "realization"
     },
     {
-      "id": "writer_contract",
-      "from": "writer",
-      "to": "writerContract",
-      "kind": "realization"
-    },
-    {
-      "id": "audited_contract",
-      "from": "audited",
-      "to": "publishContract",
-      "kind": "realization"
-    },
-    {
-      "id": "files_contract",
-      "from": "files",
-      "to": "publishContract",
-      "kind": "realization"
-    },
-    {
-      "id": "root_audited",
-      "from": "root",
-      "to": "audited",
-      "kind": "dependency",
-      "label": "建立"
-    },
-    {
-      "id": "root_files",
-      "from": "root",
-      "to": "files",
-      "kind": "dependency",
-      "label": "建立"
-    },
-    {
       "id": "root_facts",
       "from": "root",
       "to": "facts",
       "kind": "dependency",
       "label": "建立"
-    },
-    {
-      "id": "audited_auditedContract",
-      "from": "audited",
-      "to": "auditedContract",
-      "kind": "realization"
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "規劃、寫檔與紀錄分工",
+      "title": "產生底稿前的準備",
       "items": [
-        "ExportWorkingPaperStreamHandler 透過介面取得資料、產生底稿並發布。ProjectReportStore 寫檔，AuditedReportStore 記錄發布。",
-        "存檔類別支援 IAuditedReportPublishingStore 時，回應才包含操作紀錄失敗的提醒；否則使用其他發布介面。"
+        "ExportWorkingPaperStreamHandler 先確認選定的情境：結果標成過期時呼叫 MaterializeSelectedAsync 重算，否則呼叫 RequireUsableAsync 確認仍能套用。接著由 JetAuditProgram 規劃底稿，經 IWorkingPaperPlanningFactsPort 讀取規劃需要的資料。",
+        "方法的參數只列前幾項，省略的部分以「…」表示；完整宣告見連線證據頁。"
       ]
     },
     {
       "dot": "slate",
-      "title": "圖中省略的部分",
+      "title": "寫檔與發布",
       "items": [
-        "兩個存檔類別也實作 IReportStore，負責清單、路徑與失效標記。",
-        "寫檔函式與操作紀錄的呼叫順序見循序圖；圖中建立關係說明兩個存檔類別如何組合。"
+        "寫出工作簿、發布底稿與寫操作紀錄的類別，見「正式底稿怎麼寫檔與發布」。"
       ]
     }
   ]

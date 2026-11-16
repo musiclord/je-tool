@@ -143,8 +143,8 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.Equal(3, selected.RowHitCount);
         var fieldInfo = Assert.IsType<FieldInfoProjection>(plan.FieldInfo);
         Assert.Equal(
-            // 改名欄位的「配對前欄位名稱」描述的是來源欄，加【】。
-            [new FieldInfoRow("【來源科目】", "文字型態", 18, null, "會計科目編號_TB")],
+            // 改名欄位的「配對前欄位名稱」寫來源欄名本身，和來源檔的欄名一字不差。
+            [new FieldInfoRow("來源科目", "文字型態", 18, null, "會計科目編號_TB")],
             fieldInfo.TbRows);
         Assert.Equal(
             [new FieldInfoRow("來源金額", "數字型態", null, 4, "傳票金額_JE")],

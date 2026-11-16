@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "class",
   "meta": {
-    "title": "畫面訊息的處理類別",
+    "title": "畫面訊息怎麼分派到處理類別",
     "locale": "zh-TW",
     "output": "archify/bridge-classes/bridge-classes.html",
     "quality_profile": "showcase",
@@ -11,12 +11,6 @@
       "entries": {
         "dependency": {
           "label": "依賴：呼叫或建立，線上寫方法"
-        },
-        "realization": {
-          "label": "實作介面"
-        },
-        "inheritance": {
-          "label": "繼承"
         }
       }
     },
@@ -26,8 +20,8 @@
     "mode": "grid",
     "typeW": 180,
     "typeMaxW": 280,
-    "gapX": 84,
-    "gapY": 84
+    "gapX": 76,
+    "gapY": 70
   },
   "types": [
     {
@@ -59,7 +53,7 @@
           "visibility": "private"
         }
       ],
-      "width": 330
+      "width": 316
     },
     {
       "id": "registry",
@@ -75,8 +69,7 @@
           "returns": "Task<T>",
           "visibility": "public"
         }
-      ],
-      "width": 340
+      ]
     },
     {
       "id": "root",
@@ -87,13 +80,14 @@
       "sublabel": "啟動時建立物件",
       "methods": [
         {
-          "name": "CreateRuntimeCore",
+          "name": "CreateRuntime",
           "parameters": "IHostShell, string, …",
           "returns": "JetApplicationRuntime",
-          "visibility": "private",
+          "visibility": "public",
           "static": true
         }
-      ]
+      ],
+      "width": 230
     },
     {
       "id": "dispatcher",
@@ -127,6 +121,31 @@
       ]
     },
     {
+      "id": "contract",
+      "label": "IApplicationActionHandler",
+      "kind": "interface",
+      "row": 2,
+      "col": 1,
+      "sublabel": "每個 action 一個實作",
+      "attributes": [
+        {
+          "name": "Action",
+          "type": "string",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 316
+    },
+    {
       "id": "policy",
       "label": "ActionExecutionPolicy",
       "kind": "class",
@@ -149,70 +168,6 @@
           "static": true
         }
       ]
-    },
-    {
-      "id": "contract",
-      "label": "IApplicationActionHandler",
-      "kind": "interface",
-      "row": 2,
-      "col": 1,
-      "sublabel": "每個 action 一個實作",
-      "attributes": [
-        {
-          "name": "Action",
-          "type": "string",
-          "visibility": "public"
-        }
-      ],
-      "methods": [
-        {
-          "name": "HandleAsync",
-          "parameters": "JsonElement",
-          "returns": "Task<object?>",
-          "visibility": "public",
-          "abstract": true
-        }
-      ]
-    },
-    {
-      "id": "save",
-      "label": "FilterScenarioSaveHandler",
-      "kind": "class",
-      "row": 3,
-      "col": 0,
-      "sublabel": "filter.scenario.save"
-    },
-    {
-      "id": "importBase",
-      "label": "ImportFromFileHandler",
-      "kind": "abstract",
-      "row": 3,
-      "col": 2,
-      "sublabel": "GL 與 TB 匯入共用"
-    },
-    {
-      "id": "export",
-      "label": "ExportWorkingPaperStreamHandler",
-      "kind": "class",
-      "row": 3,
-      "col": 1,
-      "sublabel": "export.workingPaperStream"
-    },
-    {
-      "id": "importTb",
-      "label": "ImportTbFromFileHandler",
-      "kind": "class",
-      "row": 3,
-      "col": 3,
-      "sublabel": "import.tb.fromFile",
-      "attributes": [
-        {
-          "name": "Action = \"import.tb.fromFile\"",
-          "type": "string",
-          "visibility": "public"
-        }
-      ],
-      "width": 330
     }
   ],
   "relationships": [
@@ -264,30 +219,6 @@
       "to": "contract",
       "kind": "dependency",
       "label": "HandleAsync"
-    },
-    {
-      "id": "save_contract",
-      "from": "save",
-      "to": "contract",
-      "kind": "realization"
-    },
-    {
-      "id": "import_contract",
-      "from": "importBase",
-      "to": "contract",
-      "kind": "realization"
-    },
-    {
-      "id": "export_contract",
-      "from": "export",
-      "to": "contract",
-      "kind": "realization"
-    },
-    {
-      "id": "tb_import",
-      "from": "importTb",
-      "to": "importBase",
-      "kind": "inheritance"
     }
   ],
   "cards": [
@@ -295,8 +226,8 @@
       "dot": "cyan",
       "title": "依操作名稱找到處理類別",
       "items": [
-        "ActionDispatcher 依 action 名稱呼叫 IApplicationActionHandler。圖中只列三個相關實作，JavaScript 的 JetApi 另見循序圖。",
-        "修改資料的作業同時只允許一項；已有作業時回錯誤，不排隊。"
+        "ActionDispatcher 依 action 名稱找到實作 IApplicationActionHandler 的處理類別，再呼叫它的 HandleAsync。各處理類別怎麼實作這個介面，見「處理類別實作的介面」。",
+        "修改資料的作業同時只允許一項；已有作業時回錯誤，不排隊。JavaScript 的 JetApi 怎麼送出訊息，見循序圖。"
       ]
     },
     {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -203,8 +204,8 @@ public sealed class AccountMappingTemplateWriter :
             var rowNumber = (uint)index + 4;
             var row = CreateRow(prototype.DynamicRow, rowNumber, preserveFirstRowAttributes: index == 0);
             row.Add(
-                TextCell(rowNumber, "A", rows[index].AccountNumber, prototype.ColumnStyles[1]),
-                TextCell(rowNumber, "B", rows[index].TemplateName, prototype.ColumnStyles[2]),
+                TextCell(prototype.Part, rowNumber, "A", rows[index].AccountNumber, prototype.ColumnStyles[1]),
+                TextCell(prototype.Part, rowNumber, "B", rows[index].TemplateName, prototype.ColumnStyles[2]),
                 BlankCell(rowNumber, "C", prototype.OriginalColumnStyles[3]));
             yield return row;
         }
@@ -221,6 +222,7 @@ public sealed class AccountMappingTemplateWriter :
             var rowNumber = (uint)index + 2;
             var row = CreateRow(prototype.DynamicRow, rowNumber, preserveFirstRowAttributes: true);
             row.Add(TextCell(
+                prototype.Part,
                 rowNumber,
                 "A",
                 categories[index].Label,
@@ -251,7 +253,12 @@ public sealed class AccountMappingTemplateWriter :
         return row;
     }
 
+    /// <summary>
+    /// 科目代號、科目名稱與分類名稱在案件資料裡都有字數上限，遠低於 Excel 每格上限，實際不會截斷；
+    /// 仍照一般文字寫出，萬一超過也不會寫出 Excel 打不開的檔案。
+    /// </summary>
     private static XElement TextCell(
+        WorksheetPart part,
         uint rowNumber,
         string column,
         string? value,
@@ -264,7 +271,7 @@ public sealed class AccountMappingTemplateWriter :
         }
 
         cell.SetAttributeValue("t", "inlineStr");
-        cell.Add(ExcelText.InlineStringElement(Spreadsheet, value));
+        cell.Add(ExcelText.InlineStringElement(Spreadsheet, value, part));
         return cell;
     }
 

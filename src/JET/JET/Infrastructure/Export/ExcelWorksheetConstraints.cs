@@ -1,7 +1,9 @@
+using JET.Domain;
+
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Excel 工作表的列數、欄數與名稱長度上限，以及續頁工作表的命名。寫出報告與底稿的程式不能寫出超過上限的列號或欄號；
+/// Excel 工作表的列數、欄數、每格字數與名稱長度上限，以及續頁工作表的命名。寫出報告與底稿的程式不能寫出超過上限的列號或欄號；
 /// 大型明細在到達列數上限之前，由各自的寫出流程換到下一張工作表。
 /// </summary>
 internal static class ExcelWorksheetConstraints
@@ -9,6 +11,15 @@ internal static class ExcelWorksheetConstraints
     public const uint MaxRows = 1_048_576;
     public const uint MaxColumns = 16_384;
     public const int MaxSheetNameLength = 31;
+
+    /// <summary>Excel 的列高上限是 409 點。</summary>
+    public const double MaxRowHeight = 409D;
+
+    /// <summary>
+    /// Excel 一格最多 32,767 個字元。截斷提醒的句子在 Domain 也要寫出這個數字，所以數字定義在
+    /// <see cref="ReportMessages.ExcelCellTextLimit"/>，這裡引用它。
+    /// </summary>
+    public const int MaxCellTextLength = ReportMessages.ExcelCellTextLimit;
 
     private static readonly char[] InvalidSheetNameCharacters = ['[', ']', ':', '*', '?', '/', '\\'];
 

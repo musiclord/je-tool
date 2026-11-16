@@ -150,22 +150,7 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
         if (!_closed && !_faulted)
         {
             _writer.WriteEndElement();
-            if (_ensureProtection
-                && !_afterSheetData.Any(element => element is SheetProtection))
-            {
-                _writer.WriteElement(new SheetProtection
-                {
-                    Sheet = true,
-                    Objects = true,
-                    Scenarios = true,
-                    SelectLockedCells = false,
-                    SelectUnlockedCells = false
-                });
-            }
-            foreach (var element in _afterSheetData)
-            {
-                _writer.WriteElement(element);
-            }
+            WriteElementsAfterSheetData();
             _writer.WriteEndElement();
             _closed = true;
         }
@@ -173,4 +158,39 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
         _writer.Dispose();
         _disposed = true;
     }
+
+    /// <summary>
+    /// 照範本原來的順序寫回 sheetData 之後的元素。這張工作表要保護、範本又沒有保護時，補上不設密碼的保護。
+    /// 工作表的元素順序規定 sheetData 之後只有 sheetCalcPr 排在 sheetProtection 前面，
+    /// 所以補上的保護接在 sheetCalcPr 後面、其他元素前面。
+    /// </summary>
+    private void WriteElementsAfterSheetData()
+    {
+        var needsProtection = _ensureProtection
+            && !_afterSheetData.Any(element => element is SheetProtection);
+        foreach (var element in _afterSheetData)
+        {
+            var protectionGoesHere = needsProtection && element is not SheetCalculationProperties;
+            if (protectionGoesHere)
+            {
+                WriteProtection();
+                needsProtection = false;
+            }
+            _writer.WriteElement(element);
+        }
+        if (needsProtection)
+        {
+            WriteProtection();
+        }
+    }
+
+    private void WriteProtection() =>
+        _writer.WriteElement(new SheetProtection
+        {
+            Sheet = true,
+            Objects = true,
+            Scenarios = true,
+            SelectLockedCells = false,
+            SelectUnlockedCells = false
+        });
 }

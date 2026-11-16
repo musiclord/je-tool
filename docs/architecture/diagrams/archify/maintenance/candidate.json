@@ -41,7 +41,7 @@
       "type": "backend",
       "label": "確認電腦環境",
       "sublabel": "一般權限、WebView2、ACE",
-      "width": 160
+      "width": 120
     },
     {
       "id": "package",
@@ -81,7 +81,7 @@
       "col": 1,
       "type": "backend",
       "label": "複製完整案件",
-      "sublabel": "project.json、資料庫與報告"
+      "sublabel": "整個案件資料夾"
     },
     {
       "id": "open",
@@ -97,13 +97,13 @@
       "col": 3,
       "type": "backend",
       "label": "結果一致？",
-      "sublabel": "比對範圍待公司決定",
+      "sublabel": "比對範圍待公司定",
       "icon": "decision"
     },
     {
       "id": "use",
       "lane": "transfer",
-      "col": 4,
+      "col": 5,
       "type": "frontend",
       "label": "改用新位置",
       "sublabel": "建議步驟"
@@ -111,7 +111,7 @@
     {
       "id": "record",
       "lane": "incident",
-      "col": 1,
+      "col": 2,
       "type": "frontend",
       "label": "匯出支援日誌",
       "sublabel": "記下錯誤與版本"
@@ -119,7 +119,7 @@
     {
       "id": "triage",
       "lane": "incident",
-      "col": 2,
+      "col": 3,
       "type": "backend",
       "label": "區分問題來源",
       "sublabel": "環境、檔案或程式"
@@ -127,19 +127,18 @@
     {
       "id": "restore",
       "lane": "incident",
-      "col": 3,
+      "col": 4,
       "type": "backend",
       "label": "用副本演練復原",
-      "sublabel": "舊版不一定能讀新結構",
-      "width": 160
+      "sublabel": "舊版不一定相容"
     },
     {
       "id": "resume",
       "lane": "incident",
-      "col": 4,
+      "col": 5,
       "type": "backend",
       "label": "核對後恢復作業",
-      "sublabel": "保留期限與責任待定"
+      "sublabel": "保留期與責任待定"
     }
   ],
   "edges": [
@@ -178,7 +177,9 @@
       "from": "same",
       "to": "use",
       "label": "一致",
-      "role": "branch"
+      "role": "branch",
+      "fromSide": "right",
+      "toSide": "left"
     },
     {
       "id": "same_record",
@@ -186,7 +187,10 @@
       "to": "record",
       "label": "不一致",
       "role": "error",
-      "labelSegment": 0
+      "labelSegment": 2,
+      "labelDy": 12,
+      "fromSide": "bottom",
+      "toSide": "top"
     },
     {
       "id": "record_triage",

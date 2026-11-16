@@ -99,7 +99,7 @@ public sealed class AccountMappingSaveStateTests
         });
         try
         {
-            await new ImportAccountMappingHandler(new OpenXmlSaxTableReader(), session).HandleAsync(
+            await new ImportAccountMappingFromFileHandler(new OpenXmlSaxTableReader(), session).HandleAsync(
                 JsonSerializer.SerializeToElement(new { filePath = path }), CancellationToken.None);
         }
         finally { TestWorkbookBuilder.Delete(path); }

@@ -1925,7 +1925,7 @@
           blankCategoryCount: data.blankCategoryCount
         });
         if (data.columnMappingWarning) { Store.addMessage(data.columnMappingWarning, 'warn'); }
-        // 文字檔欄位內含換行的提醒，和 GL、TB 匯入同一句、同一種顯示方式。
+        // 文字檔欄位內含換行、有公式卻沒有存計算結果的儲存格等提醒，和 GL、TB 匯入同一句、同一種顯示方式。
         (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
         Store.applyMutationEffects(data);
         var differences = mappingDifferenceView(Store.getState().importState.accountMapping);

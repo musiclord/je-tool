@@ -11,13 +11,13 @@ namespace JET.Application;
 /// 匯入暫存表 pbc_account_mapping 與正式資料表 account_mapping 由 store 在同一個交易裡寫入。
 /// 科目配對是整份替換的設定檔，只能整份取代；mode 不是 replace 就回 unsupported_mode。
 /// </summary>
-public sealed partial class ImportAccountMappingHandler : IApplicationActionHandler
+public sealed partial class ImportAccountMappingFromFileHandler : IApplicationActionHandler
 {
     private readonly ITabularFileReader reader;
     private readonly ProjectSession session;
     private readonly ILogger? logger;
 
-    internal ImportAccountMappingHandler(
+    internal ImportAccountMappingFromFileHandler(
         ITabularFileReader reader,
         ProjectSession session, ILogger? logger = null)
     {
@@ -56,7 +56,11 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sheet_name_not_applicable");
         }
 
-        var request = new TabularSourceRequest(filePath, SheetName: sheetName);
+        var request = new TabularSourceRequest(filePath, SheetName: sheetName)
+        {
+            // 有公式、卻沒有存計算結果的格數，匯入完成後寫進提醒。
+            FormulasWithoutResult = new FormulaWithoutResultTally()
+        };
         var source = new ImportSourceDescriptor(filePath, fileName, sheetName, null, null);
         // 引號內換行的提醒也適用科目配對檔。
         var lineBreaks = new QuotedLineBreakTally();
@@ -95,7 +99,12 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
         var lineBreakWarning = lineBreaks.Warning(fileName, sourceNo: 1, logger);
-        string[] warnings = [.. openElsewhereWarnings, .. lineBreakWarning is null ? Array.Empty<string>() : [lineBreakWarning]];
+        string[] warnings =
+        [
+            .. openElsewhereWarnings,
+            .. lineBreakWarning is null ? Array.Empty<string>() : [lineBreakWarning],
+            .. ImportMessages.FormulaWithoutResult(fileName, request.FormulasWithoutResult)
+        ];
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         AccountMappingDifferenceCounts? differences = null;

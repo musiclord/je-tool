@@ -708,6 +708,56 @@ public sealed class PrescreenDirectTemplatePackageTests
         Assert.True(note.RowNumber() >= 16);
     }
 
+    // 摘要頁情境列下方的接續列，A 欄的標籤和 B 欄的內容都和其他報告一樣加 xml:space="preserve"。
+    [Fact]
+    public async Task Criteria_SummaryContinuationRow_KeepsSpacesInBothCells()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            builder => builder
+                .WithColumns(OriginalHeaders)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "1101", "現金", "風險摘要 1", "100.00", 1)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "4101", "收入", "一般摘要 1", "100.00", 0)
+                .AddRow("", "2025-03-07", "2025-03-08", "1101", "現金", "風險摘要 空白 1", "50.00", 1)
+                .AddRow("", "2025-03-07", "2025-03-08", "4101", "收入", "風險摘要 空白 2", "50.00", 0),
+            configureTb: tb => tb
+                .AddRow("1101", "現金", 150)
+                .AddRow("4101", "收入", -150));
+        var validation = await host.DispatchAsync("validate.run");
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var committed = await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { KeywordScenario("命中摘要", "風險") } }));
+        var response = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new
+            {
+                validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()
+            }));
+        using var document = SpreadsheetDocument.Open(
+            Path.Combine(host.ProjectsRoot, projectId, response.GetProperty("publishedReport").GetProperty("fileName").GetString()!),
+            isEditable: false);
+        var workbookPart = document.WorkbookPart!;
+        var summarySheet = workbookPart.Workbook!.Sheets!.Elements<Sheet>()
+            .Single(sheet => sheet.Name?.Value == "Summary Inforamtion");
+        var summary = ((WorksheetPart)workbookPart.GetPartById(summarySheet.Id!.Value!)).RequiredWorksheet();
+
+        var noteRow = Assert.Single(
+            summary.Descendants<Row>(),
+            row => row.Elements<Cell>().Any(cell => cell.InlineString?.InnerText == "Criteria Selection 1（說明）"));
+        var texts = noteRow.Elements<Cell>()
+            .Where(cell => cell.DataType?.Value == CellValues.InlineString)
+            .Select(cell => Assert.Single(cell.InlineString!.Elements<Text>()))
+            .ToArray();
+        Assert.Equal(
+            ["Criteria Selection 1（說明）", "另有 2 筆分錄的傳票號碼空白，未列入明細表。"],
+            texts.Select(text => text.Text));
+        Assert.All(texts, text => Assert.Equal(DocumentFormat.OpenXml.SpaceProcessingModeValues.Preserve, text.Space?.Value));
+    }
+
     // 固定答案核對整張傳票展開，以及傳票與傳票內各列的順序。
     [Fact]
     public async Task Criteria_OutputIdentityCountsAndOrder_MatchTheFixedAnswer()

@@ -232,6 +232,23 @@ public sealed class ReportTextEncodingTests
         AssertLocation(Assert.IsType<ArgumentException>(error), "合成1", "B3", 0xFFFF);
     }
 
+    /// <summary>
+    /// 底稿的文字格子和其他報告一樣加 xml:space="preserve"，前後空白與連續空白照檔案格式的規定保留。
+    /// </summary>
+    [Fact]
+    public void WorkingPaperTextCell_KeepsSpacesBeforeAndAfterTheText()
+    {
+        using var stream = new MemoryStream();
+        using var document = CreateWorkbook(stream, out var parts, out var styles);
+        using var sheet = WorkingPaperWriter.SheetWriter.CreateContinuation(
+            "合成1", parts[0], styles, mapCellStyle: null, CancellationToken.None, pageSetupRelationshipId: null);
+
+        var text = Assert.Single(sheet.TextCell(1, 1, " 合成  摘要 ").InlineString!.Elements<Text>());
+
+        Assert.Equal(" 合成  摘要 ", text.Text);
+        Assert.Equal(SpaceProcessingModeValues.Preserve, text.Space?.Value);
+    }
+
     [Fact]
     public void StreamingTemplateRowWithTextThatBypassesTheEncoder_KeepsTheOriginalErrorAndRecordsSheetCellAndCodePoint()
     {

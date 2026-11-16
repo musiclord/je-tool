@@ -127,7 +127,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// 來源欄名本身有括號：過帳狀態的來源欄「【舊】狀態」，以及兩個名稱都叫「地區」、其中一個來源欄是「【舊】地區」的攸關資料元素。
-    /// 新版的配對前欄位名稱與說明句會出現兩層括號，推回的仍是原本的來源欄與名稱。
+    /// 配對前欄位名稱與說明句照來源欄名原樣寫，括號是欄名的一部分，推回的仍是原本的來源欄與名稱。
     /// </summary>
     [Fact]
     public void SourceColumnNamesWithBrackets_ComeBackTheSame()
@@ -148,7 +148,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
         var outcome = WriteAndInfer(source, spec);
 
-        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "【【舊】地區】" && row.AfterName == "地區（【舊】地區）_JE");
+        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "【舊】地區" && row.AfterName == "地區（【舊】地區）_JE");
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Signed);
         Assert.Empty(outcome.Result.Unmatched);
     }
@@ -211,7 +211,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// 來源欄名本身的括號不成對：「A】」配給傳票摘要，兩個名稱都叫「地區」的攸關資料元素，其中一個來源欄是「【舊地區」。
-    /// 目前資料另有「A」「舊地區」，模糊比對分不出來，要靠去掉最外層括號對回原本的來源欄。
+    /// 目前資料另有「A」「舊地區」，模糊比對分不出來，要靠欄名一字不差對回原本的來源欄。
     /// 另有一個借貸方判斷欄整格加【】、型態是數字的「【DC】」，推回的是借貸標誌。
     /// </summary>
     [Fact]
@@ -243,7 +243,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
         var outcome = WriteAndInfer(source, spec);
 
-        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "【【舊地區】" && row.AfterName == "地區（【舊地區）_JE");
+        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "【舊地區" && row.AfterName == "地區（【舊地區）_JE");
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Flag);
         Assert.Empty(outcome.Result.Unmatched);
     }
@@ -268,7 +268,7 @@ public sealed class FieldInfoSheetRoundTripTests
         var outcome = WriteAndInfer(source, spec);
 
         // 確認這個案例真的寫出了系統產生的過帳碼_JE。
-        Assert.Contains(outcome.Sheet.Gl, row => row.AfterName == "過帳碼_JE" && row.BeforeName.StartsWith("【Status】過帳判斷值", StringComparison.Ordinal));
+        Assert.Contains(outcome.Sheet.Gl, row => row.AfterName == "過帳碼_JE" && row.BeforeName.StartsWith("Status 過帳判斷值", StringComparison.Ordinal));
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Signed);
         Assert.Empty(outcome.Result.Unmatched);
     }
@@ -319,17 +319,17 @@ public sealed class FieldInfoSheetRoundTripTests
 
         Assert.Contains(outcome.GlTarget, static state => state.FieldName == "傳票號碼_JE_Temp" && state.Origin == FieldInfoOrigin.Temp);
         Assert.Contains(outcome.GlTarget, static state => state.FieldName == "會計科目編號_JE_Temp" && state.Origin == FieldInfoOrigin.Temp);
-        Assert.Contains(new FieldInfoSheetRow("【Doc No】", "文字型態", null), outcome.Sheet.Gl);
-        Assert.Contains(new FieldInfoSheetRow("【Doc No】", "文字型態", "傳票號碼_JE"), outcome.Sheet.Gl);
-        Assert.Contains(new FieldInfoSheetRow("【Acct】", "文字型態", null), outcome.Sheet.Gl);
-        Assert.Contains(new FieldInfoSheetRow("【Acct】", "文字型態", "會計科目編號_JE"), outcome.Sheet.Gl);
+        Assert.Contains(new FieldInfoSheetRow("Doc No", "文字型態", null), outcome.Sheet.Gl);
+        Assert.Contains(new FieldInfoSheetRow("Doc No", "文字型態", "傳票號碼_JE"), outcome.Sheet.Gl);
+        Assert.Contains(new FieldInfoSheetRow("Acct", "文字型態", null), outcome.Sheet.Gl);
+        Assert.Contains(new FieldInfoSheetRow("Acct", "文字型態", "會計科目編號_JE"), outcome.Sheet.Gl);
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Signed);
         Assert.Empty(outcome.Result.Unmatched);
     }
 
     /// <summary>
     /// 傳票文件項次：有配對時推回原來源欄；沒有配對時系統依列序自動編號，寫出一列 A 欄和 E 欄都是
-    /// 「傳票文件項次_JE_S」、沒有【】的系統產生欄位，新版這種列不算配對。
+    /// 「傳票文件項次_JE_S」的系統產生欄位。目前匯入的 GL 沒有叫這個名稱的欄，這種列不算配對。
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -376,7 +376,7 @@ public sealed class FieldInfoSheetRoundTripTests
         var outcome = WriteAndInfer(source, spec);
 
         Assert.Equal(manualValues, spec.Options.ManualAutoPolicy.ManualValues);
-        Assert.Contains(new FieldInfoSheetRow("【Manual Flag】", "數字型態", "人工傳票否_JE_S"), outcome.Sheet.Gl);
+        Assert.Contains(new FieldInfoSheetRow("Manual Flag", "數字型態", "人工傳票否_JE_S"), outcome.Sheet.Gl);
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Signed);
         Assert.Empty(outcome.Result.Unmatched);
     }
@@ -420,7 +420,7 @@ public sealed class FieldInfoSheetRoundTripTests
             outcome.Sheet.Gl
                 .Where(static row => row.AfterName is { } after
                                      && after.EndsWith("_JE", StringComparison.Ordinal)
-                                     && row.BeforeName is "【Region】" or "【Region 2】" or "【Due】" or "【Cost】" or "【Memo 2】")
+                                     && row.BeforeName is "Region" or "Region 2" or "Due" or "Cost" or "Memo 2")
                 .Select(static row => row.AfterName));
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Signed);
         Assert.Empty(outcome.Result.Unmatched);
@@ -474,7 +474,7 @@ public sealed class FieldInfoSheetRoundTripTests
             Assert.Contains(outcome.Sheet.Gl, row => row.BeforeName == yielded + FieldInfoProjector.SourceNameSuffix && row.AfterName is null);
         }
 
-        Assert.Contains(new FieldInfoSheetRow("【傳票號碼_JE】", "文字型態", "傳票號碼_JE"), outcome.Sheet.Gl);
+        Assert.Contains(new FieldInfoSheetRow("傳票號碼_JE", "文字型態", "傳票號碼_JE"), outcome.Sheet.Gl);
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Signed);
         Assert.Empty(outcome.Result.Unmatched);
     }
@@ -497,7 +497,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
         var outcome = WriteAndInfer(glSource, glSpec, tbSource, tbSpec);
 
-        Assert.Contains(new FieldInfoSheetRow("【Account】", "文字型態", null), outcome.Sheet.Tb);
+        Assert.Contains(new FieldInfoSheetRow("Account", "文字型態", null), outcome.Sheet.Tb);
         AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, glSpec, GlAmountModeNames.Signed);
         Assert.NotNull(outcome.Result.Draft.Tb);
         Assert.Equal(tbSpec.Mapping, outcome.Result.Draft.Tb.Mapping);
@@ -506,7 +506,7 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// TB 借減貸與期末減期初，說明句都寫成兩欄相減「【A】 - 【B】」。
+    /// TB 借減貸與期末減期初，說明句都寫成兩欄相減「A - B」。
     /// TB 只有兩欄相減時，看不出是借減貸還是期末減期初，不帶入金額，列出來請審計員選。
     /// 所以預期是 spec 去掉這兩欄，另列一項「年度變動金額」，來源寫說明句冒號後的算式。
     /// 草稿的金額方式不是 spec 的設定，這裡不比對；推得規則給的值另見 FieldInfoSheetMappingTests。
@@ -541,9 +541,217 @@ public sealed class FieldInfoSheetRoundTripTests
                     "tb",
                     TbMappingKeys.ChangeAmount,
                     "年度變動金額",
-                    $"【{tbSpec.Mapping[minuendKey]}】 - 【{tbSpec.Mapping[subtrahendKey]}】")
+                    $"{tbSpec.Mapping[minuendKey]} - {tbSpec.Mapping[subtrahendKey]}")
             ],
             outcome.Result.Unmatched);
+    }
+
+    /// <summary>
+    /// 來源欄名有空白、連字號、頓號、全形逗號或全形括號時，每一種 GL 金額方式都推回原本的來源欄；
+    /// 同一個案例也配了過帳狀態（兩個過帳判斷值，空白也算已過帳）與「與總帳日期相同」的傳票核准日。
+    /// 欄位資訊表照來源欄名原樣寫、不加任何符號。單一金額的欄名本身有「 - 」，借貸兩欄的欄名本身有「-」與「 - 」，
+    /// 兩欄之間照舊版寫「-」不空格，推得規則要靠表上列出的來源欄確認是一個欄名還是兩欄相減。
+    /// </summary>
+    [Theory]
+    [InlineData(GlAmountMode.SignedAmount, GlAmountModeNames.Signed)]
+    [InlineData(GlAmountMode.DualAmount, GlAmountModeNames.Dual)]
+    [InlineData(GlAmountMode.AmountWithSide, GlAmountModeNames.Side)]
+    [InlineData(GlAmountMode.AmountWithFlag, GlAmountModeNames.Flag)]
+    public void SourceColumnNamesWithSpacesDashesAndPunctuation_ComeBackInEveryAmountMode(GlAmountMode mode, string expectedMode)
+    {
+        var source = Columns([
+            ("傳票 編號", Text),
+            ("總帳-日期", Date),
+            ("科目、代號", Text),
+            ("科目名稱（中文）", Text),
+            ("摘要，說明", Text),
+            ("金額 - 淨額", Number),
+            ("借方-金額（元）", Number),
+            ("貸方 - 金額", Number),
+            ("借貸、別，碼", mode == GlAmountMode.AmountWithFlag ? Number : Text),
+            ("過帳 - 狀態（碼）", Text)
+        ]);
+        var mapping = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [GlMappingKeys.VoucherNumber] = "傳票 編號",
+            [GlMappingKeys.GlDate] = "總帳-日期",
+            [GlMappingKeys.AccountNumber] = "科目、代號",
+            [GlMappingKeys.AccountName] = "科目名稱（中文）",
+            [GlMappingKeys.Description] = "摘要，說明",
+            [GlMappingKeys.PostingStatus] = "過帳 - 狀態（碼）"
+        };
+        switch (mode)
+        {
+            case GlAmountMode.SignedAmount:
+                mapping[GlMappingKeys.Amount] = "金額 - 淨額";
+                break;
+            case GlAmountMode.DualAmount:
+                mapping[GlMappingKeys.DebitAmount] = "借方-金額（元）";
+                mapping[GlMappingKeys.CreditAmount] = "貸方 - 金額";
+                break;
+            case GlAmountMode.AmountWithSide:
+            case GlAmountMode.AmountWithFlag:
+                mapping[GlMappingKeys.Amount] = "金額 - 淨額";
+                mapping[GlMappingKeys.DrCr] = "借貸、別，碼";
+                mapping[GlMappingKeys.DrCrDebitCode] = mode == GlAmountMode.AmountWithFlag ? "1" : "D";
+                mapping[GlMappingKeys.DrCrCreditCode] = mode == GlAmountMode.AmountWithFlag ? "2" : "C";
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
+        }
+
+        var options = GlMappingOptions.NormalizeLegacy(mapping) with { ApprovalDateMode = ApprovalDateModeNames.SameAsGlDate };
+        var spec = PlanGl(source, mapping, mode, new GlPostingStatusPolicy(["Y", "P"], true), options);
+
+        var outcome = WriteAndInfer(source, spec);
+
+        Assert.DoesNotContain(outcome.Sheet.Gl, static row => row.BeforeName.Contains('【') || row.BeforeName.Contains('】'));
+        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "科目名稱（中文）" && row.AfterName == "會計科目名稱_JE");
+        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "傳票核准日_JE 由系統產生 : 同總帳日期_JE來源");
+        if (mode == GlAmountMode.DualAmount)
+        {
+            Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "傳票金額_JE 由系統產生 : 借方-金額（元）-貸方 - 金額");
+        }
+
+        AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, expectedMode);
+        Assert.Empty(outcome.Result.Unmatched);
+    }
+
+    /// <summary>
+    /// TB 來源欄名有空白、連字號、頓號、全形逗號或全形括號：直接變動金額，以及期末與期初各分借貸，都推回原本的來源欄。
+    /// 期末與期初各分借貸的算式照舊版寫「(期末借 - 期末貸) - (期初借-期初貸)」，期初那一組不空格；
+    /// 欄名本身的「-」與「 - 」要靠表上列出的來源欄確認切法。
+    /// </summary>
+    [Theory]
+    [InlineData(TbChangeMode.DirectChange)]
+    [InlineData(TbChangeMode.OpenCloseBySide)]
+    public void TbSourceColumnNamesWithSpacesDashesAndPunctuation_ComeBackTheSame(TbChangeMode changeMode)
+    {
+        var glSource = Columns(StandardGlColumns());
+        var glMapping = CoreGlMapping();
+        glMapping[GlMappingKeys.Amount] = "Amount";
+        var glSpec = PlanGl(glSource, glMapping, GlAmountMode.SignedAmount);
+        var tbSource = Columns([
+            ("科目 - 編號", Text),
+            ("科目、名稱（中文）", Text),
+            ("本期-變動", Number),
+            ("期末-借方", Number),
+            ("期末 - 貸方", Number),
+            ("期初-借方（元）", Number),
+            ("期初，貸方 - 合計", Number)
+        ]);
+        var tbMapping = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [TbMappingKeys.AccountNumber] = "科目 - 編號",
+            [TbMappingKeys.AccountName] = "科目、名稱（中文）"
+        };
+        if (changeMode == TbChangeMode.DirectChange)
+        {
+            tbMapping[TbMappingKeys.ChangeAmount] = "本期-變動";
+        }
+        else
+        {
+            tbMapping[TbMappingKeys.ClosingDebitBalance] = "期末-借方";
+            tbMapping[TbMappingKeys.ClosingCreditBalance] = "期末 - 貸方";
+            tbMapping[TbMappingKeys.OpeningDebitBalance] = "期初-借方（元）";
+            tbMapping[TbMappingKeys.OpeningCreditBalance] = "期初，貸方 - 合計";
+        }
+
+        var tbSpec = PlanTb(tbSource, tbMapping, changeMode);
+
+        var outcome = WriteAndInfer(glSource, glSpec, tbSource, tbSpec);
+
+        Assert.DoesNotContain(outcome.Sheet.Tb, static row => row.BeforeName.Contains('【') || row.BeforeName.Contains('】'));
+        if (changeMode == TbChangeMode.OpenCloseBySide)
+        {
+            Assert.Contains(
+                outcome.Sheet.Tb,
+                static row => row.BeforeName == "試算表變動金額_TB 由系統產生 : (期末-借方 - 期末 - 貸方) - (期初-借方（元）-期初，貸方 - 合計)");
+        }
+
+        Assert.NotNull(outcome.Result.Draft.Tb);
+        Assert.Equal(tbSpec.Mapping, outcome.Result.Draft.Tb.Mapping);
+        Assert.Equal(TbChangeModeNames.ToWireName(tbSpec.ChangeMode), outcome.Result.Draft.Tb.ChangeMode);
+        Assert.Empty(outcome.Result.Unmatched);
+    }
+
+    /// <summary>
+    /// 借貸兩欄寫成「借方欄-貸方欄」，TB 期初那一組寫成「期初借-期初貸」，減號前後都不空格。
+    /// 欄名本身有「-」，表上又另有來源欄讓同一句有兩種切法時，看不出是哪兩欄：不帶入金額，
+    /// 列出「金額」與「年度變動金額」請審計員在第三步選，來源寫說明句冒號後的算式；其他配對照樣帶回。
+    /// </summary>
+    [Fact]
+    public void DashedNamesReadableTwoWays_ListTheAmountsForTheAuditor()
+    {
+        var glSource = Columns([.. StandardGlColumns(), ("A-B", Number), ("C", Number), ("A", Number), ("B-C", Number)]);
+        var glMapping = CoreGlMapping();
+        glMapping[GlMappingKeys.DebitAmount] = "A-B";
+        glMapping[GlMappingKeys.CreditAmount] = "C";
+        var glSpec = PlanGl(glSource, glMapping, GlAmountMode.DualAmount);
+        var tbSource = Columns([
+            ("Account", Text),
+            ("Account Name", Text),
+            ("期末借", Number),
+            ("期末貸", Number),
+            ("D-E", Number),
+            ("F", Number),
+            ("D", Number),
+            ("E-F", Number)
+        ]);
+        var tbMapping = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [TbMappingKeys.AccountNumber] = "Account",
+            [TbMappingKeys.AccountName] = "Account Name",
+            [TbMappingKeys.ClosingDebitBalance] = "期末借",
+            [TbMappingKeys.ClosingCreditBalance] = "期末貸",
+            [TbMappingKeys.OpeningDebitBalance] = "D-E",
+            [TbMappingKeys.OpeningCreditBalance] = "F"
+        };
+        var tbSpec = PlanTb(tbSource, tbMapping, TbChangeMode.OpenCloseBySide);
+
+        var outcome = WriteAndInfer(glSource, glSpec, tbSource, tbSpec);
+
+        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "傳票金額_JE 由系統產生 : A-B-C");
+        Assert.Contains(outcome.Sheet.Tb, static row => row.BeforeName == "試算表變動金額_TB 由系統產生 : (期末借 - 期末貸) - (D-E-F)");
+        Assert.Equal(
+            glSpec.Mapping
+                .Where(static pair => pair.Key is not (GlMappingKeys.DebitAmount or GlMappingKeys.CreditAmount))
+                .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal),
+            outcome.Result.Draft.Gl.Mapping);
+        Assert.NotNull(outcome.Result.Draft.Tb);
+        Assert.Equal(
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [TbMappingKeys.AccountNumber] = "Account",
+                [TbMappingKeys.AccountName] = "Account Name"
+            },
+            outcome.Result.Draft.Tb.Mapping);
+        Assert.Equal(
+            [
+                new UnmatchedMappingField("gl", GlMappingKeys.Amount, "金額", "A-B-C"),
+                new UnmatchedMappingField("tb", TbMappingKeys.ChangeAmount, "年度變動金額", "(期末借 - 期末貸) - (D-E-F)")
+            ],
+            outcome.Result.Unmatched);
+    }
+
+    /// <summary>
+    /// 來源欄本來就叫「傳票文件項次_JE_S」並配給傳票文件項次：原位置改名，A 欄和 E 欄寫得和自動編號一模一樣。
+    /// 同一段沒有讓名的列，目前匯入的 GL 也有一字不差叫這個名稱的欄，所以推回成配對。
+    /// </summary>
+    [Fact]
+    public void LineItemSourceAlreadyNamedLikeTheJetOutput_ComesBackAsAMapping()
+    {
+        var source = Columns([.. StandardGlColumns(), ("傳票文件項次_JE_S", Number)]);
+        var mapping = CoreGlMapping();
+        mapping[GlMappingKeys.Amount] = "Amount";
+        mapping[GlMappingKeys.LineItem] = "傳票文件項次_JE_S";
+        var spec = PlanGl(source, mapping, GlAmountMode.SignedAmount);
+
+        var outcome = WriteAndInfer(source, spec);
+
+        Assert.Contains(outcome.Sheet.Gl, static row => row.BeforeName == "傳票文件項次_JE_S" && row.AfterName == "傳票文件項次_JE_S");
+        AssertGlDraftMatchesSpec(outcome.Result.Draft.Gl, spec, GlAmountModeNames.Signed);
+        Assert.Empty(outcome.Result.Unmatched);
     }
 
     /// <summary>

@@ -159,7 +159,39 @@ public sealed record TabularSourceRequest(
     string? EncodingName = null,
     char? Delimiter = null,
     int LeadingRowsToSkip = 0,
-    bool FixedLeadingRows = false);
+    bool FixedLeadingRows = false)
+{
+    /// <summary>
+    /// 呼叫端要知道有多少儲存格有公式、卻沒有存計算結果時傳入；只有讀資料列時計數，讀欄名不計，
+    /// 所以同一個請求先讀欄名再讀資料列也不會重複計算。null 表示不計數。
+    /// </summary>
+    public FormulaWithoutResultTally? FormulasWithoutResult { get; init; }
+}
+
+/// <summary>
+/// 一個來源裡有公式、卻沒有存計算結果的儲存格（有公式 f、沒有值 v）。讀取器不重算公式，這些格子讀成空白；
+/// 這裡記下格數與第一格的位置，讓匯入結果提醒審計員用 Excel 開檔存檔後再匯入。略過的標題列不計。
+/// </summary>
+public sealed class FormulaWithoutResultTally
+{
+    public int Count { get; private set; }
+
+    /// <summary>第一格所在的工作表。</summary>
+    public string? SheetName { get; private set; }
+
+    /// <summary>第一格的位址，例如 C5。</summary>
+    public string? FirstCell { get; private set; }
+
+    public void Observe(string sheetName, string cellAddress)
+    {
+        Count++;
+        if (FirstCell is null)
+        {
+            SheetName = sheetName;
+            FirstCell = cellAddress;
+        }
+    }
+}
 
 /// <summary>
 /// 單一工作表或 Access 一般資料表的檢視結果（空工作表 Columns 為空清單）。
@@ -181,6 +213,16 @@ public static class TabularSourceNotices
     public const string SingleColumn =
         "只讀到一欄。若檔案上方有公司名稱或報表標題列，請把這一列的「欄名在第幾列」改成欄名所在的列；" +
         "若欄位是用空白對齊的報表格式，請先在 Excel 整理成第一列是欄名、一列一筆資料的表格，另存成 CSV 後再匯入。";
+
+    /// <summary>
+    /// 預覽讀到的列裡有公式、卻沒有存計算結果的儲存格。預覽只讀前幾列，格數只算讀到的部分；
+    /// 正式匯入時另有整個來源的提醒。沒有這種格子時回 null。
+    /// </summary>
+    public static string? FormulaWithoutResult(FormulaWithoutResultTally tally) =>
+        tally is { Count: > 0, SheetName: { } sheetName, FirstCell: { } firstCell }
+            ? $"預覽讀到的列裡有 {CountText.Format(tally.Count)} 個儲存格有公式、卻沒有存計算結果，第一格是工作表「{sheetName}」的 {firstCell}。"
+                + "JET 不會重新計算公式，這些儲存格會讀成空白。請用 Excel 開啟這個檔案並存檔後再匯入。"
+            : null;
 }
 
 /// <summary>

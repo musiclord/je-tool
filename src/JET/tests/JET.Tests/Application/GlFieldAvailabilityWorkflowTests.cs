@@ -325,8 +325,8 @@ public sealed class GlFieldAvailabilityWorkflowTests
         using var workbook = await ExportValidationReportAsync(host, projectId, validation);
         var summary = workbook.Worksheet("ValidationReport");
         Assert.Equal("N/A", summary.Cell("D23").GetString());
-        // 報告句子裡的欄位名稱用【】標示。
-        Assert.Equal("未設定【傳票核准日】欄位", summary.Cell("E23").GetString());
+        // 報告句子裡的欄位名稱照原樣寫，不加任何符號，和舊版原句相同。
+        Assert.Equal("未設定傳票核准日欄位", summary.Cell("E23").GetString());
         Assert.DoesNotContain("V_Report 4", workbook.Worksheets.Select(static sheet => sheet.Name));
     }
 
@@ -349,7 +349,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         var summary = workbook.Worksheet("ValidationReport");
         Assert.Equal(XLDataType.Number, summary.Cell("D23").DataType);
         Assert.Equal(0d, summary.Cell("D23").GetDouble());
-        Assert.NotEqual("未設定【傳票核准日】欄位", summary.Cell("E23").GetString());
+        Assert.NotEqual("未設定傳票核准日欄位", summary.Cell("E23").GetString());
         Assert.DoesNotContain("V_Report 4", workbook.Worksheets.Select(static sheet => sheet.Name));
     }
 

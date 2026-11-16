@@ -65,7 +65,14 @@ public sealed record WorkingPaperContext(
 public sealed record SheetStat(string SheetName, long RowsWritten);
 
 /// <summary>匯出底稿的整體寫出統計:總位元組數 + 各工作表列數(回給前端做完成回饋)。</summary>
-public sealed record ExportStats(long BytesWritten, IReadOnlyList<SheetStat> SheetStats);
+public sealed record ExportStats(long BytesWritten, IReadOnlyList<SheetStat> SheetStats)
+{
+    /// <summary>依活頁簿的工作表順序，列出有儲存格文字超過 Excel 每格上限而截斷的工作表；沒有截斷時是空的。</summary>
+    public IReadOnlyList<TruncatedTextCells> TruncatedCellsBySheet { get; init; } = [];
+}
+
+/// <summary>匯出檔裡一張工作表有幾格文字因為超過 Excel 每格上限而截斷。</summary>
+public sealed record TruncatedTextCells(string SheetName, int Count);
 
 /// <summary>每完成一張底稿工作表後的非權威進度快照。</summary>
 public sealed record WorkingPaperProgress(string SheetName, int SheetsCompleted, long RowsWritten);

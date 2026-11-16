@@ -55,7 +55,7 @@ internal static class ActionShapeJourney
         ("export.criteriaSelectionReport response.reportWarning", "string"),
         ("export.workingPaperStream response.reports", "null"),
         ("export.workingPaperStream response.reportWarning", "string"),
-        // ImportAccountMappingHandler：匯入完成後計算兩種差異數失敗才回 null，匯入本身已完成；失敗無法穩定重現。
+        // ImportAccountMappingFromFileHandler：匯入完成後計算兩種差異數失敗才回 null，匯入本身已完成；失敗無法穩定重現。
         ("import.accountMapping.fromFile response.mappingOnlyCount", "null"),
         ("import.accountMapping.fromFile response.unmappedCount", "null"),
         // MappingValueProfileHandler：資料庫實作沒有來源值核對時回 null（sourceValueCheckStatus 是 unsupportedProvider）；

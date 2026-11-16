@@ -231,8 +231,8 @@ public sealed class FieldInfoProjectorTests
         Assert.Null(definitions[18].DecimalPlaces);
         var amount = definitions[19];
         Assert.Equal("傳票金額_JE", amount.FieldName);
-        // 說明句裡的欄位名稱用【】標示。
-        Assert.Equal("【傳票金額_JE】由系統產生 : 【借方】-【貸方】", amount.Description);
+        // 說明句裡的欄位名稱照原樣寫，不加任何符號；借貸兩欄相減照舊版寫「借方-貸方」，減號前後不空格。
+        Assert.Equal("傳票金額_JE 由系統產生 : 借方-貸方", amount.Description);
         Assert.Equal(LegacyFieldKind.Number, amount.Kind);
         Assert.Null(amount.TextLength);
         Assert.Equal(4, amount.DecimalPlaces);
@@ -490,22 +490,24 @@ public sealed class FieldInfoProjectorTests
         return new GlMappingSpec(mapping, mode);
     }
 
-    // 說明句裡的欄位名稱用【】標示，借方代碼這類值不是欄位，用「」。
+    // 說明句裡的欄位名稱照來源欄名原樣寫，前後不加符號，和前後文字之間用半形空白分開；借方代碼這類值不是欄位，用「」。
+    // 兩欄相減的減號前後空不空格照舊版：借貸兩欄寫「借方-貸方」。
     private static string GlDerivedDescription(GlMappingSpec spec) => spec.AmountMode switch
     {
-        GlAmountMode.SignedAmount => "【傳票金額_JE】由系統產生 : 【金額】",
-        GlAmountMode.DualAmount => "【傳票金額_JE】由系統產生 : 【借方】-【貸方】",
+        GlAmountMode.SignedAmount => "傳票金額_JE 由系統產生 : 金額",
+        GlAmountMode.DualAmount => "傳票金額_JE 由系統產生 : 借方-貸方",
         // 完整寫出兩側代碼。
-        GlAmountMode.AmountWithSide => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「D」，貸方為「C」",
-        GlAmountMode.AmountWithFlag => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「1」，貸方為「D」",
+        GlAmountMode.AmountWithSide => "傳票金額_JE 由系統產生 : 金額欄位 金額、借貸方判斷欄位 借貸別，借方為「D」，貸方為「C」",
+        GlAmountMode.AmountWithFlag => "傳票金額_JE 由系統產生 : 金額欄位 金額、借貸方判斷欄位 借貸別，借方為「1」，貸方為「D」",
         _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.AmountMode, null)
     };
 
+    // 減號前後的空白照舊版：借減貸與期末減期初兩邊各空一格；期末期初各分借貸時，期初那一組括號裡不空格。
     private static string TbDerivedDescription(TbChangeMode mode) => mode switch
     {
-        TbChangeMode.DebitCredit => "【試算表變動金額_TB】由系統產生 : 【借方】 - 【貸方】",
-        TbChangeMode.OpenClose => "【試算表變動金額_TB】由系統產生 : 【期末】 - 【期初】",
-        TbChangeMode.OpenCloseBySide => "【試算表變動金額_TB】由系統產生 : (【期末借】 - 【期末貸】) - (【期初借】-【期初貸】)",
+        TbChangeMode.DebitCredit => "試算表變動金額_TB 由系統產生 : 借方 - 貸方",
+        TbChangeMode.OpenClose => "試算表變動金額_TB 由系統產生 : 期末 - 期初",
+        TbChangeMode.OpenCloseBySide => "試算表變動金額_TB 由系統產生 : (期末借 - 期末貸) - (期初借-期初貸)",
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
     };
 
@@ -544,14 +546,15 @@ public sealed class FieldInfoProjectorTests
         var definitions = FieldInfoProjector.ProjectGl(source, new GlMappingSpec(mapping, GlAmountMode.AmountWithSide), moneyScale: 100);
 
         var amount = definitions.Single(static definition => definition.FieldName == "傳票金額_JE");
-        Assert.Equal("【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】" + expectedEnding, amount.Description);
+        Assert.Equal("傳票金額_JE 由系統產生 : 金額欄位 金額、借貸方判斷欄位 借貸別" + expectedEnding, amount.Description);
     }
 
     /// <summary>
-    /// 傳票核准日選「與總帳日期相同」時追加的欄位，說明句兩個欄位名稱都用【】標示。
+    /// 傳票核准日選「與總帳日期相同」時追加的欄位，說明句兩個欄位名稱都照原樣寫，不加任何符號；
+    /// 「同」「來源」照舊版和總帳日期_JE 連著寫，不空格。
     /// </summary>
     [Fact]
-    public void ApprovalDateSameAsGlDate_DescriptionMarksBothFieldNames()
+    public void ApprovalDateSameAsGlDate_DescriptionNamesBothFieldsWithoutBrackets()
     {
         var source = new[]
         {
@@ -573,7 +576,120 @@ public sealed class FieldInfoProjectorTests
         var definitions = FieldInfoProjector.ProjectGl(source, spec, moneyScale: 100);
 
         var approval = definitions.Single(static definition => definition.FieldName == "傳票核准日_JE");
-        Assert.Equal("【傳票核准日_JE】由系統產生 : 同【總帳日期_JE】來源", approval.Description);
+        Assert.Equal("傳票核准日_JE 由系統產生 : 同總帳日期_JE來源", approval.Description);
+    }
+
+    /// <summary>
+    /// 說明句裡的來源欄名和來源檔的欄名一字不差：欄名有空白、連字號、頓號、逗號或全形括號時，照原樣寫進句子，
+    /// 前後不加任何符號；過帳判斷值與借方代碼這類值照舊用「」。
+    /// </summary>
+    [Fact]
+    public void GeneratedDescriptions_WriteSourceColumnNamesExactlyAsInTheSourceFile()
+    {
+        var source = new[]
+        {
+            new FieldInfoState(1, "傳票 編號", null, LegacyFieldKind.Text, 8, null, 8, true),
+            new FieldInfoState(2, "借方-金額（元）", null, LegacyFieldKind.Number, 0, 2, 7, true),
+            new FieldInfoState(3, "貸方-金額（元）", null, LegacyFieldKind.Number, 0, 2, 7, true),
+            new FieldInfoState(4, "過帳、狀態,碼", null, LegacyFieldKind.Text, 1, null, 1, true)
+        };
+        var mapping = new Dictionary<string, string>
+        {
+            [GlMappingKeys.VoucherNumber] = "傳票 編號",
+            [GlMappingKeys.DebitAmount] = "借方-金額（元）",
+            [GlMappingKeys.CreditAmount] = "貸方-金額（元）",
+            [GlMappingKeys.PostingStatus] = "過帳、狀態,碼"
+        };
+        var spec = new GlMappingSpec(mapping, GlAmountMode.DualAmount)
+        {
+            Options = GlMappingOptions.NormalizeLegacy(mapping) with
+            {
+                PostingStatusPolicy = new GlPostingStatusPolicy(["Y", "P"], true)
+            }
+        };
+
+        var definitions = FieldInfoProjector.ProjectGl(source, spec, moneyScale: 100);
+
+        Assert.Equal(
+            "傳票金額_JE 由系統產生 : 借方-金額（元）-貸方-金額（元）",
+            definitions.Single(static definition => definition.FieldName == "傳票金額_JE").Description);
+        Assert.Equal(
+            "過帳、狀態,碼 過帳判斷值「Y」「P」，空白也算已過帳",
+            definitions.Single(static definition => definition.FieldName == "過帳碼_JE").Description);
+        Assert.Equal(
+            "傳票 編號",
+            definitions.Single(static definition => definition.FieldName == "傳票號碼_JE").Description);
+        Assert.DoesNotContain(definitions, static definition => definition.Description?.Contains('【') == true);
+    }
+
+    /// <summary>
+    /// 已經建立的案件：確認配對時存進案件資料庫的說明句是較早的寫法（欄位名稱加【】）。
+    /// 匯出讀欄位定義時，系統產生欄位的說明句依案件已確認的配對重新產生，審計員不必重新確認配對或重建案件。
+    /// </summary>
+    [Theory]
+    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
+    public async Task StoredDescriptionsFromAnEarlierVersion_AreRewrittenFromTheCommittedMappingWhenRead(string provider)
+    {
+        await using var fixture = await ProjectionFixture.CreateAsync(provider);
+        var glBatch = await fixture.ImportGlAsync();
+        var tbBatch = await fixture.ImportTbAsync();
+        var glMapping = GlSpec(GlAmountMode.AmountWithSide).Mapping
+            .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
+        glMapping.Remove(GlMappingKeys.ApprovalDate);
+        glMapping[GlMappingKeys.PostingStatus] = "未對應欄";
+        var postingPolicy = new GlPostingStatusPolicy(["keep"], false);
+        var glSpec = new GlMappingSpec(glMapping, GlAmountMode.AmountWithSide)
+        {
+            Options = GlMappingOptions.NormalizeLegacy(glMapping) with
+            {
+                ApprovalDateMode = ApprovalDateModeNames.SameAsGlDate,
+                PostingStatusPolicy = postingPolicy
+            }
+        };
+        var gl = await new LocalGlRepository(fixture.Database).ProjectStagingToTargetAsync(
+            fixture.ProjectId,
+            glBatch.BatchId,
+            glSpec,
+            moneyScale: 10_000,
+            DateParseOptions.Default,
+            periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
+            postingStatusMapped: true, postingStatusPolicy: postingPolicy, committedUtc: DateTimeOffset.UnixEpoch,
+            CancellationToken.None);
+        var tb = await new LocalTbRepository(fixture.Database).ProjectStagingToTargetAsync(
+            fixture.ProjectId,
+            tbBatch.BatchId,
+            TbNonDirectSpec(TbChangeMode.OpenCloseBySide),
+            moneyScale: 10_000,
+            committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
+        Assert.Empty(gl.Errors);
+        Assert.Empty(tb.Errors);
+        await fixture.OverwriteStoredDescriptionAsync(
+            "傳票金額_JE",
+            "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「D」，貸方為「C」");
+        await fixture.OverwriteStoredDescriptionAsync("傳票核准日_JE", "【傳票核准日_JE】由系統產生 : 同【總帳日期_JE】來源");
+        await fixture.OverwriteStoredDescriptionAsync("過帳碼_JE", "【未對應欄】過帳判斷值「keep」");
+        await fixture.OverwriteStoredDescriptionAsync(
+            "試算表變動金額_TB",
+            "【試算表變動金額_TB】由系統產生 : (【期末借】 - 【期末貸】) - (【期初借】-【期初貸】)");
+
+        var glDefinitions = await fixture.Facts.ReadAsync(fixture.ProjectId, DatasetKind.Gl, FieldInfoScope.Target, CancellationToken.None);
+        var tbDefinitions = await fixture.Facts.ReadAsync(fixture.ProjectId, DatasetKind.Tb, FieldInfoScope.Target, CancellationToken.None);
+
+        Assert.Equal(
+            "傳票金額_JE 由系統產生 : 金額欄位 金額、借貸方判斷欄位 借貸別，借方為「D」，貸方為「C」",
+            glDefinitions.Single(static definition => definition.FieldName == "傳票金額_JE").Description);
+        Assert.Equal(
+            "傳票核准日_JE 由系統產生 : 同總帳日期_JE來源",
+            glDefinitions.Single(static definition => definition.FieldName == "傳票核准日_JE").Description);
+        Assert.Equal(
+            "未對應欄 過帳判斷值「keep」",
+            glDefinitions.Single(static definition => definition.FieldName == "過帳碼_JE").Description);
+        Assert.Equal(
+            TbDerivedDescription(TbChangeMode.OpenCloseBySide),
+            tbDefinitions.Single(static definition => definition.FieldName == "試算表變動金額_TB").Description);
+        Assert.DoesNotContain(glDefinitions.Concat(tbDefinitions), static definition => definition.Description?.Contains('【') == true);
+        // 改名欄位的說明是來源欄名本身，讀原始資料時要用，照存的值。
+        Assert.Equal("文件號碼", glDefinitions.Single(static definition => definition.FieldName == "傳票號碼_JE").Description);
     }
 
     private static TbMappingSpec TbNonDirectSpec(TbChangeMode changeMode)
@@ -735,6 +851,19 @@ public sealed class FieldInfoProjectorTests
         {
             _root.Dispose();
             return ValueTask.CompletedTask;
+        }
+
+        /// <summary>把配對後欄位定義裡某一欄存的說明句改成指定的文字，模擬較早版本確認配對時存下的寫法。</summary>
+        internal async Task OverwriteStoredDescriptionAsync(string fieldName, string description)
+        {
+            await using var connection = Database.CreateConnection(ProjectId);
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                "UPDATE field_info SET description = @description WHERE definition_scope = 'target' AND field_name = @fieldName;";
+            command.AddWithValue("@description", description);
+            command.AddWithValue("@fieldName", fieldName);
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
         }
 
         private static ImportSourceDescriptor Source(string fileName) =>

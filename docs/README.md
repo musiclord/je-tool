@@ -22,6 +22,7 @@
 | 驗證命令、結束碼與各條驗證路線 | [`../tools/README.md`](../tools/README.md) |
 | CaseWare IDEA 的替代範圍與完成條件 | [`idea-replacement-scope.md`](idea-replacement-scope.md) |
 | `data/` 工作簿、程式隨附範本、`legacy/` 與來源專案 | [`data-and-legacy.md`](data-and-legacy.md) |
+| 讀寫 Excel 檔的方法、上限與微軟官方依據 | [`excel-conventions.md`](excel-conventions.md)；逐項核對表在 [`excel-conventions-reference.md`](excel-conventions-reference.md) |
 | 業務邏輯從哪裡來、衝突時如何裁決 | [`business-logic-provenance.md`](business-logic-provenance.md) |
 | 使用者裁定了什麼、原話在哪裡 | [`rulings.md`](rulings.md) |
 | 每個業務概念在畫面、程式與資料庫各叫什麼 | [`glossary.md`](glossary.md) |

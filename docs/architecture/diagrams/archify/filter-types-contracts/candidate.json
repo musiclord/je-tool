@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "篩選情境介面的實作與建立",
+    "locale": "zh-TW",
+    "output": "archify/filter-types-contracts/filter-types-contracts.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 280,
+    "gapX": 84,
+    "gapY": 80
+  },
+  "types": [
+    {
+      "id": "storeContract",
+      "label": "IFilterScenarioStore",
+      "kind": "interface",
+      "row": 0,
+      "col": 0,
+      "sublabel": "情境定義的讀寫"
+    },
+    {
+      "id": "factsContract",
+      "label": "IFilterFactsPort",
+      "kind": "interface",
+      "row": 0,
+      "col": 1,
+      "sublabel": "執行篩選計畫"
+    },
+    {
+      "id": "localStore",
+      "label": "LocalFilterScenarioStore",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "SQLite 實作"
+    },
+    {
+      "id": "facts",
+      "label": "FilterFactsPort",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "依 action 選預覽或發布"
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "啟動時建立物件",
+      "methods": [
+        {
+          "name": "CreateLocalProjectRepositories",
+          "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
+          "returns": "ProjectRepositories",
+          "visibility": "private",
+          "static": true
+        }
+      ]
+    },
+    {
+      "id": "commitContract",
+      "label": "IFilterCommitRepository",
+      "kind": "interface",
+      "row": 2,
+      "col": 1,
+      "sublabel": "發布定義與命中，或只換一個情境",
+      "methods": [
+        {
+          "name": "CommitAsync",
+          "parameters": "string, IReadOnlyList<FilterCommitItem>, FilterConditionContext",
+          "returns": "Task",
+          "visibility": "public",
+          "abstract": true
+        },
+        {
+          "name": "SaveOneAsync",
+          "parameters": "string, FilterCommitItem, FilterConditionContext",
+          "returns": "Task",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 493
+    },
+    {
+      "id": "local",
+      "label": "LocalFilterCommitRepository",
+      "kind": "class",
+      "row": 3,
+      "col": 1,
+      "sublabel": "SQLite 實作"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "localStore_store",
+      "from": "localStore",
+      "to": "storeContract",
+      "kind": "realization"
+    },
+    {
+      "id": "facts_contract",
+      "from": "facts",
+      "to": "factsContract",
+      "kind": "realization"
+    },
+    {
+      "id": "facts_commit",
+      "from": "facts",
+      "to": "commitContract",
+      "kind": "dependency",
+      "label": "CommitAsync、SaveOneAsync"
+    },
+    {
+      "id": "local_commit",
+      "from": "local",
+      "to": "commitContract",
+      "kind": "realization"
+    },
+    {
+      "id": "root_localStore",
+      "from": "root",
+      "to": "localStore",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_facts",
+      "from": "root",
+      "to": "facts",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_local",
+      "from": "root",
+      "to": "local",
+      "kind": "dependency",
+      "label": "建立",
+      "fromSide": "bottom",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "圖中涵蓋的範圍",
+      "items": [
+        "AppCompositionRoot 建立 FilterFactsPort、LocalFilterCommitRepository 與 LocalFilterScenarioStore。FilterFactsPort 執行計畫後，經 IFilterCommitRepository 寫回案件資料庫。",
+        "IFilterScenarioStore 與 IFilterFactsPort 的方法，以及誰呼叫它們，見「篩選情境儲存時呼叫的類別」。"
+      ]
+    }
+  ]
+}

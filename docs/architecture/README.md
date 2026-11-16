@@ -2,7 +2,8 @@
 
 首次 SAT 的現行 SQLite 架構請看 [Technical Document](<../SAT/Technical Document.docx>) 第 6 節，實體關聯圖、類別圖、元件圖與活動圖在 [Diagrams](../SAT/Diagrams/) 資料夾。
 
-下列詳細圖表保留原程式快照的範圍，含有已暫時移除的其他資料庫，不代表本次正式版支援範圍。
+下列詳細圖表依固定的程式快照繪製，快照之後的修改不在圖上；快照的版本記在 [manifest.json](diagrams/manifest.json)。
+入口分成 7 組，共 25 張 Archify 圖與 10 個 LikeC4 視圖。
 
 開啟[圖表入口](diagrams/index.html)，即可在本機查看，不需要安裝繪圖工具或啟動 JET。
 
@@ -23,4 +24,4 @@
 修改圖表來源後，依[分析與繪圖流程](../../.agents/harness/architecture-documentation.md)重新產生、檢視畫面，再執行文件檢查。
 Archify 的安裝版本與封裝方式見[封裝與檢查工具](../../tools/harness/architecture/README.md)。圖表固定放在 `diagrams/`，前版保留在 Git 歷史。
 
-目前仍缺完整分層資料流圖、所有 action 的追溯、其他資料庫結構，以及正式部署與維護手冊。DocFX 暫緩。
+目前仍缺完整分層資料流圖、所有 action 的追溯，以及正式部署與維護手冊。DocFX 暫緩。

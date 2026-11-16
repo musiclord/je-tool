@@ -159,7 +159,7 @@ public sealed partial class WorkingPaperWriter
             firstRow.Add(sheet.TextCell(1, 6, MappingMetadataFormat.Marker));
             firstRow.Add(sheet.TextCell(1, 7, MappingMetadataFormat.CurrentVersion.ToString(
                 CultureInfo.InvariantCulture)));
-            firstRow.Add(sheet.TextCell(1, 8, metadata));
+            firstRow.Add(sheet.VerbatimTextCell(1, 8, metadata));
         }
         sheet.WriteFixedRow(1, firstRow);
         // TB 與 GL 的標題列都不合併儲存格，底稿和資料驗證報告一致。

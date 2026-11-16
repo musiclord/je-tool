@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "處理類別實作的介面",
+    "locale": "zh-TW",
+    "output": "archify/action-handler-contract/action-handler-contract.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "realization": {
+          "label": "實作介面"
+        },
+        "inheritance": {
+          "label": "繼承"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 320,
+    "gapX": 40,
+    "gapY": 84
+  },
+  "types": [
+    {
+      "id": "contract",
+      "label": "IApplicationActionHandler",
+      "kind": "interface",
+      "row": 0,
+      "col": 1,
+      "sublabel": "每個 action 一個實作",
+      "attributes": [
+        {
+          "name": "Action",
+          "type": "string",
+          "visibility": "public"
+        }
+      ],
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ]
+    },
+    {
+      "id": "save",
+      "label": "FilterScenarioSaveHandler",
+      "kind": "class",
+      "row": 1,
+      "col": 0,
+      "sublabel": "filter.scenario.save"
+    },
+    {
+      "id": "export",
+      "label": "ExportWorkingPaperStreamHandler",
+      "kind": "class",
+      "row": 1,
+      "col": 1,
+      "sublabel": "export.workingPaperStream"
+    },
+    {
+      "id": "importBase",
+      "label": "ImportFromFileHandler",
+      "kind": "abstract",
+      "row": 1,
+      "col": 2,
+      "sublabel": "GL 與 TB 匯入共用"
+    },
+    {
+      "id": "importTb",
+      "label": "ImportTbFromFileHandler",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "import.tb.fromFile",
+      "attributes": [
+        {
+          "name": "Action = \"import.tb.fromFile\"",
+          "type": "string",
+          "visibility": "public"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "save_contract",
+      "from": "save",
+      "to": "contract",
+      "kind": "realization"
+    },
+    {
+      "id": "export_contract",
+      "from": "export",
+      "to": "contract",
+      "kind": "realization"
+    },
+    {
+      "id": "import_contract",
+      "from": "importBase",
+      "to": "contract",
+      "kind": "realization"
+    },
+    {
+      "id": "tb_import",
+      "from": "importTb",
+      "to": "importBase",
+      "kind": "inheritance"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "每個 action 一個處理類別",
+      "items": [
+        "每個處理類別以 Action 屬性對應一個 action 名稱，ActionDispatcher 依名稱呼叫它的 HandleAsync；分派經過哪些類別，見「畫面訊息怎麼分派到處理類別」。",
+        "圖中只列三個相關的處理類別。ImportTbFromFileHandler 繼承 GL 與 TB 共用的 ImportFromFileHandler，只指定自己的 action 名稱與資料種類。"
+      ]
+    }
+  ]
+}

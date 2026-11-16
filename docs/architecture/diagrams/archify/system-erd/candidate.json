@@ -30,9 +30,9 @@
   },
   "layout": {
     "mode": "grid",
-    "gapX": 120,
-    "gapY": 70,
-    "entityW": 340
+    "gapX": 56,
+    "gapY": 44,
+    "entityW": 240
   },
   "entities": [
     {
@@ -201,6 +201,7 @@
       "title": "資料修改後的處理",
       "items": [
         "驗證與預篩選各自儲存摘要。上游資料改動時，清除受影響的結果並標記失效。",
+        "schema_info 以 key 記錄結構版本 schema_version（第 20 版）與篩選資料版本 filter_data_revision。篩選命中失效時，filter_data_revision 加一。",
         "操作紀錄保存重新匯入與發布等事件；寫入失敗時留下支援日誌，並在回應附提醒。"
       ]
     }

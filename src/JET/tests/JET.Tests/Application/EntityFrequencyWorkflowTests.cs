@@ -58,8 +58,8 @@ public sealed class EntityFrequencyWorkflowTests
             Assert.Contains(workbook.Worksheets.Where(sheet => sheet.Visibility == XLWorksheetVisibility.Visible)
                 .SelectMany(sheet => sheet.CellsUsed()).Select(cell => cell.GetString()),
                 // 條件讀回的用語和畫面一致，寫「GL 中」。
-                // 報告的條件說明用【】標欄位名稱，畫面才用「」。
-                text => text.Contains("GL 中【會計科目編號】傳票張數（同號只算一張） 介於 1～2（含端點）", StringComparison.Ordinal));
+                // 報告的條件說明裡欄位名稱照原樣寫，前後各留一個半形空白；畫面才用「」包住。
+                text => text.Contains("GL 中 會計科目編號 傳票張數（同號只算一張） 介於 1～2（含端點）", StringComparison.Ordinal));
         }
         var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
         { scenario = Scenario("description", "vouchers", "equals", 1) })));

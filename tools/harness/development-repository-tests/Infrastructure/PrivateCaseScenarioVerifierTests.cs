@@ -123,6 +123,96 @@ public sealed class PrivateCaseScenarioVerifierTests
         Assert.True(scenario.ExpandedVoucherRowsMatchExpected);
     }
 
+    // 只用一條「未預期借貸組合」的情境，畫面的「符合條件的分錄筆數」寫整張命中傳票的分錄數（裁定 2026-08-28-01、
+    // 2026-11-05-02、2026-10-16-08）。JET 回傳的 summaryRowCount 要等於驗證框架自己展開的整張傳票列數。
+    [Theory]
+    [InlineData(10, true)]
+    [InlineData(5, false)]
+    public void Verify_ExportedVoucherRowsBasis_RequiresTheReturnedSummaryRowsToBeTheExpandedRows(
+        long summaryRowCount,
+        bool passed)
+    {
+        var result = PrivateCaseScenarioVerifier.Verify(
+            [
+                new PrivateCaseScenarioCount(
+                    1,
+                    5,
+                    10,
+                    PrivateCaseScenarioRowCountBasis.ExportedVoucherRows),
+            ],
+            CaptureWithSummaryRows((1, 5, 5, summaryRowCount)),
+            ExpandedDiagnostics(expandedVoucherRowCount: 10, expandedVoucherCount: 5));
+
+        var scenario = Assert.Single(result.Scenarios);
+        Assert.True(scenario.RowCountMatches);
+        Assert.True(scenario.SummaryRowCountCompared);
+        Assert.Equal(passed, scenario.SummaryRowCountMatches);
+        Assert.Equal(passed, result.Passed);
+    }
+
+    // 其他情境的「符合條件的分錄筆數」就是直接符合的分錄數。
+    [Theory]
+    [InlineData(5, true)]
+    [InlineData(7, false)]
+    public void Verify_DirectHitRowsBasis_RequiresTheReturnedSummaryRowsToBeTheDirectRows(
+        long summaryRowCount,
+        bool passed)
+    {
+        var result = PrivateCaseScenarioVerifier.Verify(
+            [new PrivateCaseScenarioCount(1, 3, 5)],
+            CaptureWithSummaryRows((1, 3, 5, summaryRowCount)));
+
+        var scenario = Assert.Single(result.Scenarios);
+        Assert.True(scenario.RowCountMatches);
+        Assert.Equal(passed, scenario.SummaryRowCountMatches);
+        Assert.Equal(passed, result.Passed);
+    }
+
+    [Fact]
+    public void Capture_NegativeSummaryRowCount_IsRejected()
+    {
+        using var negative = JsonDocument.Parse(
+            """{"scenarios":[{"position":1,"voucherHitCount":1,"rowHitCount":1,"summaryRowCount":-1}]}""");
+
+        Assert.Throws<PrivateCaseScenarioVerificationException>(() =>
+            PrivateCaseScenarioVerificationFacts.Capture(negative.RootElement));
+    }
+
+    private static PrivateCaseScenarioDiagnosticFacts ExpandedDiagnostics(
+        long expandedVoucherRowCount,
+        long expandedVoucherCount) => new(
+        [
+            new PrivateCaseScenarioDiagnosticCount(
+                Position: 1,
+                ExpandedVoucherRowCount: expandedVoucherRowCount,
+                ExpandedVoucherCount: expandedVoucherCount,
+                ExpandedRowsWhoseDirectHitHasNullOrEmptyDescription: null,
+                VouchersWhoseDirectHitHasNullOrEmptyDescription: null,
+                ExpandedRowsWithLegacyTextMatch: null,
+                VouchersWithLegacyTextMatch: null,
+                SameRowRuleMatchRowCount: null,
+                SameRowRuleMatchVoucherCount: null,
+                WeekendIncludingMakeupRowCount: null,
+                WeekendIncludingMakeupVoucherCount: null),
+        ]);
+
+    private static PrivateCaseScenarioVerificationFacts CaptureWithSummaryRows(
+        params (int Position, long VoucherCount, long RowCount, long SummaryRowCount)[] counts)
+    {
+        var json = JsonSerializer.Serialize(new
+        {
+            scenarios = counts.Select(count => new
+            {
+                position = count.Position,
+                voucherHitCount = count.VoucherCount,
+                rowHitCount = count.RowCount,
+                summaryRowCount = count.SummaryRowCount,
+            }),
+        });
+        using var document = JsonDocument.Parse(json);
+        return PrivateCaseScenarioVerificationFacts.Capture(document.RootElement);
+    }
+
     [Fact]
     public void Verify_ExportedVoucherRowsBasis_RequiresDiagnosticRows()
     {

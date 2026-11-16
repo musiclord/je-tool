@@ -103,27 +103,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        var table = previous ? "field_mapping_previous" : "field_mapping";
-        CommittedMapping? committed;
-        await using (var command = connection.CreateCommand())
-        {
-            command.CommandText =
-                $"""
-                SELECT mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
-                FROM {table}
-                WHERE dataset_kind = @kind
-                LIMIT 1;
-                """;
-            command.AddWithValue("@kind", kind.ToStorageName());
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            if (!await reader.ReadAsync(cancellationToken))
-            {
-                return null;
-            }
-
-            committed = previous ? TryReadRow(reader, kind) : ReadRow(reader, kind);
-        }
+        var committed = await ReadRowWithinAsync(connection, kind, previous, cancellationToken);
 
         if (committed is null || previous || kind != DatasetKind.Gl)
         {
@@ -135,6 +115,41 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         totals.CommandText = MappingStateSerialization.GlTotalsQuery("gl_control_total");
         await using var totalsReader = await totals.ExecuteReaderAsync(cancellationToken);
         return committed with { GlTotals = await MappingStateSerialization.ReadGlTotalsAsync(totalsReader, cancellationToken) };
+    }
+
+    /// <summary>
+    /// 用呼叫端已開好的連線讀目前已確認的配對，不帶控制總數。讀配對後欄位定義的程式用它和欄位定義讀同一份資料庫。
+    /// </summary>
+    internal static Task<CommittedMapping?> FindCommittedWithinAsync(
+        DbConnection connection,
+        DatasetKind kind,
+        CancellationToken cancellationToken) =>
+        ReadRowWithinAsync(connection, kind, previous: false, cancellationToken);
+
+    private static async Task<CommittedMapping?> ReadRowWithinAsync(
+        DbConnection connection,
+        DatasetKind kind,
+        bool previous,
+        CancellationToken cancellationToken)
+    {
+        var table = previous ? "field_mapping_previous" : "field_mapping";
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            $"""
+            SELECT mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
+            FROM {table}
+            WHERE dataset_kind = @kind
+            LIMIT 1;
+            """;
+        command.AddWithValue("@kind", kind.ToStorageName());
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return previous ? TryReadRow(reader, kind) : ReadRow(reader, kind);
     }
 
     private static CommittedMapping ReadRow(DbDataReader reader, DatasetKind kind)

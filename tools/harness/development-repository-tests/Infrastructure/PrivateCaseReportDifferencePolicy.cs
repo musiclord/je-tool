@@ -34,6 +34,12 @@ internal static class PrivateCaseReportDifferencePolicy
     // 只在明示指定這項決定時正規化 Step 4-1 舊端人工旗標；正規化後不得放行該欄差異。
     internal const string ApprovedManualAutoDisplay = "approved-manual-auto-display";
 
+    /// <summary>
+    /// 預篩選 R5、R6 的貸方合計：JET 寫正數，舊版 IDEA 的貸方金額欄是負數，加總後寫負數（裁定 2026-11-16-07）。
+    /// 只有貸方合計那一欄不同，而且逐列核對每一列都只差貸方合計的正負號時，這一頁的值差異才放行。
+    /// </summary>
+    internal const string PrescreenCreditTotalSign = "prescreen-credit-total-sign";
+
     internal const string UnifiedFormalWorkbookFont = "unified-formal-workbook-font";
     internal const string DynamicSafeWidth = "dynamic-safe-width";
     internal const string PersistedSourceFieldTypeAppearance = "persisted-source-field-type-appearance";
@@ -54,17 +60,16 @@ internal static class PrivateCaseReportDifferencePolicy
             ["validation-report"] = Set("V_Report 3", "V_Report 4", "V_Report 5"),
             ["inf-report"] = Set("可靠性樣本_所有欄位"),
             ["prescreen-report"] = Set("R1", "R2", "R3", "R4", "R5", "R6", "R7"),
-            ["criteria-selection-report"] = Set(
-                "#Criteria Select 1",
-                "#Criteria Select 2",
-                "#Criteria Select 3",
-                "#Criteria Select 4",
-                "#Criteria Select 5",
-                "#Criteria Select 6"),
+            // 條件篩選報告最多十個情境，每個情境一張明細頁。
+            ["criteria-selection-report"] = Set(CriteriaSelectPages),
             ["working-paper"] = Set("step4-1 符合高風險條件傳票明細"),
         };
 
+    private static string[] CriteriaSelectPages =>
+        Enumerable.Range(1, 10).Select(static position => $"#Criteria Select {position}").ToArray();
+
     private static readonly IReadOnlySet<string> RawSchemaPages = Set(
+    [
         "V_Report 3",
         "V_Report 4",
         "可靠性樣本_所有欄位",
@@ -73,12 +78,8 @@ internal static class PrivateCaseReportDifferencePolicy
         "R3",
         "R4",
         "R7",
-        "#Criteria Select 1",
-        "#Criteria Select 2",
-        "#Criteria Select 3",
-        "#Criteria Select 4",
-        "#Criteria Select 5",
-        "#Criteria Select 6");
+        .. CriteriaSelectPages,
+    ]);
 
     private static readonly IReadOnlySet<string> FixedPrecisionPages =
         Set("V_Report 5", "R5", "R6");
@@ -128,10 +129,15 @@ internal static class PrivateCaseReportDifferencePolicy
         PrivateCaseExplicitAppearanceDecision decision) =>
         ExplicitAppearanceDecisions.ContainsKey((decision.Scope, decision.DecisionId));
 
+    /// <summary>
+    /// 判斷一筆內容差異能不能放行。creditTotalSignFlippedFamilies 是比對程式逐列核對過、
+    /// 每一列都只差貸方合計正負號的預篩選彙總頁名稱。
+    /// </summary>
     internal static string? ResolveContent(
         string reportSlug,
         LegacyAuditParityContentDifference difference,
-        IReadOnlyList<PrivateCaseExplicitContentDecision> explicitDecisions)
+        IReadOnlyList<PrivateCaseExplicitContentDecision> explicitDecisions,
+        IReadOnlySet<string>? creditTotalSignFlippedFamilies = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reportSlug);
         ArgumentNullException.ThrowIfNull(difference);
@@ -178,6 +184,12 @@ internal static class PrivateCaseReportDifferencePolicy
         if (difference.Dimension == LegacyAuditParityContentDimension.RowValueSequence)
         {
             return DetailRowOrdering;
+        }
+        if (difference.Dimension == LegacyAuditParityContentDimension.RowValues
+            && reportSlug == "prescreen-report"
+            && creditTotalSignFlippedFamilies?.Contains(difference.SheetName) == true)
+        {
+            return PrescreenCreditTotalSign;
         }
         return null;
     }

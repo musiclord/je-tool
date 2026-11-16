@@ -20,18 +20,18 @@
     {
       "name": "public-tests",
       "status": "passed",
-      "total": 4810,
-      "executed": 4810,
-      "passed": 4810,
+      "total": 4879,
+      "executed": 4879,
+      "passed": 4879,
       "failed": 0,
       "skipped": 0
     },
     {
       "name": "frontend-tests",
       "status": "passed",
-      "total": 1028,
-      "executed": 1028,
-      "passed": 1028,
+      "total": 1029,
+      "executed": 1029,
+      "passed": 1029,
       "failed": 0,
       "skipped": 0
     }
@@ -77,8 +77,8 @@
         "InfSamplingPrfTests",
         "InfSamplingPrfProviderTests"
       ],
-      "total": 34,
-      "passed": 34,
+      "total": 35,
+      "passed": 35,
       "failed": 0
     },
     {
@@ -107,20 +107,20 @@
     }
   ],
   "coverage": {
-    "covered": 41010,
-    "total": 44161,
+    "covered": 41462,
+    "total": 44612,
     "modules": [
       {
         "module": "Application",
-        "covered": 9834,
-        "total": 10317,
-        "rate": 0.9531840651352137
+        "covered": 9888,
+        "total": 10372,
+        "rate": 0.9533359043578866
       },
       {
         "module": "AuditCore",
-        "covered": 3920,
-        "total": 4082,
-        "rate": 0.9603135717785399
+        "covered": 3916,
+        "total": 4078,
+        "rate": 0.9602746444335458
       },
       {
         "module": "Bridge",
@@ -130,15 +130,15 @@
       },
       {
         "module": "Domain",
-        "covered": 5324,
-        "total": 5577,
-        "rate": 0.9546351084812623
+        "covered": 5517,
+        "total": 5772,
+        "rate": 0.9558212058212058
       },
       {
         "module": "Infrastructure",
-        "covered": 21066,
-        "total": 22857,
-        "rate": 0.9216432602703767
+        "covered": 21275,
+        "total": 23062,
+        "rate": 0.9225132252189749
       },
       {
         "module": "Host（JET 資料夾最上層的原始檔）",
@@ -210,9 +210,9 @@
       },
       {
         "path": "src/JET/JET/Application/Handlers/ExportReportHandlers.cs",
-        "covered": 361,
-        "total": 364,
-        "rate": 0.9917582417582418
+        "covered": 373,
+        "total": 377,
+        "rate": 0.9893899204244032
       },
       {
         "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
@@ -257,28 +257,28 @@
         "rate": 0.8648648648648649
       },
       {
-        "path": "src/JET/JET/Application/Handlers/Import/ImportAccountMappingHandler.cs",
-        "covered": 105,
-        "total": 105,
+        "path": "src/JET/JET/Application/Handlers/Import/ImportAccountMappingFromFileHandler.cs",
+        "covered": 114,
+        "total": 114,
         "rate": 1.0
       },
       {
-        "path": "src/JET/JET/Application/Handlers/Import/ImportAuthorizedPreparerFromFileHandler.cs",
-        "covered": 83,
-        "total": 83,
+        "path": "src/JET/JET/Application/Handlers/Import/ImportAuthorizedPreparerHandlers.cs",
+        "covered": 89,
+        "total": 89,
         "rate": 1.0
       },
       {
         "path": "src/JET/JET/Application/Handlers/Import/ImportCalendarHandlers.cs",
-        "covered": 162,
-        "total": 162,
+        "covered": 170,
+        "total": 170,
         "rate": 1.0
       },
       {
-        "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-        "covered": 321,
-        "total": 330,
-        "rate": 0.9727272727272728
+        "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs",
+        "covered": 323,
+        "total": 332,
+        "rate": 0.9728915662650602
       },
       {
         "path": "src/JET/JET/Application/Handlers/Import/ImportInspectFileHandler.cs",
@@ -288,9 +288,9 @@
       },
       {
         "path": "src/JET/JET/Application/Handlers/Import/ImportPreviewFileHandler.cs",
-        "covered": 66,
-        "total": 76,
-        "rate": 0.868421052631579
+        "covered": 76,
+        "total": 86,
+        "rate": 0.8837209302325582
       },
       {
         "path": "src/JET/JET/Application/Handlers/ImportStateShapes.cs",
@@ -347,7 +347,7 @@
         "rate": 1.0
       },
       {
-        "path": "src/JET/JET/Application/Handlers/Project/ProjectListHandler.cs",
+        "path": "src/JET/JET/Application/Handlers/Project/ProjectListLocalHandler.cs",
         "covered": 32,
         "total": 32,
         "rate": 1.0
@@ -546,9 +546,9 @@
       },
       {
         "path": "src/JET/JET/Application/Support/FilterConditionRenderer.cs",
-        "covered": 390,
-        "total": 405,
-        "rate": 0.9629629629629629
+        "covered": 389,
+        "total": 404,
+        "rate": 0.9628712871287128
       },
       {
         "path": "src/JET/JET/Application/Support/FilterConditionWireFields.cs",
@@ -660,9 +660,9 @@
       },
       {
         "path": "src/JET/JET/Application/Support/ReportExportSupport.cs",
-        "covered": 219,
-        "total": 226,
-        "rate": 0.9690265486725663
+        "covered": 227,
+        "total": 234,
+        "rate": 0.9700854700854701
       },
       {
         "path": "src/JET/JET/Application/Support/ReportWorkbookMetadataFactory.cs",
@@ -738,9 +738,9 @@
       },
       {
         "path": "src/JET/JET/AuditCore/FieldInfoProjection.cs",
-        "covered": 43,
-        "total": 47,
-        "rate": 0.9148936170212766
+        "covered": 39,
+        "total": 43,
+        "rate": 0.9069767441860465
       },
       {
         "path": "src/JET/JET/AuditCore/FilterCompilation.cs",
@@ -1032,9 +1032,9 @@
       },
       {
         "path": "src/JET/JET/Domain/Contracts/ImportContracts.cs",
-        "covered": 82,
-        "total": 90,
-        "rate": 0.9111111111111111
+        "covered": 94,
+        "total": 102,
+        "rate": 0.9215686274509803
       },
       {
         "path": "src/JET/JET/Domain/Contracts/MappingMetadataContracts.cs",
@@ -1116,8 +1116,8 @@
       },
       {
         "path": "src/JET/JET/Domain/Contracts/WorkingPaperContracts.cs",
-        "covered": 41,
-        "total": 41,
+        "covered": 43,
+        "total": 43,
         "rate": 1.0
       },
       {
@@ -1140,8 +1140,8 @@
       },
       {
         "path": "src/JET/JET/Domain/ImportMessages.cs",
-        "covered": 8,
-        "total": 8,
+        "covered": 12,
+        "total": 12,
         "rate": 1.0
       },
       {
@@ -1253,6 +1253,12 @@
         "rate": 0.7857142857142857
       },
       {
+        "path": "src/JET/JET/Domain/ReportMessages.cs",
+        "covered": 18,
+        "total": 18,
+        "rate": 1.0
+      },
+      {
         "path": "src/JET/JET/Domain/Rules/AccountMappingColumnMatcher.cs",
         "covered": 48,
         "total": 48,
@@ -1284,15 +1290,15 @@
       },
       {
         "path": "src/JET/JET/Domain/Rules/FieldInfoProjector.cs",
-        "covered": 355,
-        "total": 373,
-        "rate": 0.9517426273458445
+        "covered": 373,
+        "total": 391,
+        "rate": 0.9539641943734015
       },
       {
         "path": "src/JET/JET/Domain/Rules/FieldInfoSheetMapping.cs",
-        "covered": 452,
-        "total": 460,
-        "rate": 0.9826086956521739
+        "covered": 591,
+        "total": 601,
+        "rate": 0.9833610648918469
       },
       {
         "path": "src/JET/JET/Domain/Rules/FieldInfos.cs",
@@ -1524,9 +1530,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/SupportFailureFields.cs",
-        "covered": 54,
+        "covered": 56,
         "total": 61,
-        "rate": 0.8852459016393442
+        "rate": 0.9180327868852459
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs",
@@ -1536,9 +1542,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/AccountMappingTemplateWriter.cs",
-        "covered": 178,
-        "total": 186,
-        "rate": 0.956989247311828
+        "covered": 179,
+        "total": 187,
+        "rate": 0.9572192513368984
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/DemoWorkbookWriter.cs",
@@ -1548,15 +1554,15 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/DirectTemplateStreamingSheetWriter.cs",
-        "covered": 103,
-        "total": 117,
-        "rate": 0.8803418803418803
+        "covered": 111,
+        "total": 128,
+        "rate": 0.8671875
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/DirectTemplateWorkbookEditor.cs",
-        "covered": 629,
-        "total": 792,
-        "rate": 0.7941919191919192
+        "covered": 661,
+        "total": 826,
+        "rate": 0.8002421307506054
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/DirectTemplateWorksheetOverlay.cs",
@@ -1572,9 +1578,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/ExcelText.cs",
-        "covered": 117,
-        "total": 128,
-        "rate": 0.9140625
+        "covered": 155,
+        "total": 166,
+        "rate": 0.9337349397590361
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/ExcelWorksheetConstraints.cs",
@@ -1602,9 +1608,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/FormalWorkbookTypography.cs",
-        "covered": 38,
-        "total": 46,
-        "rate": 0.8260869565217391
+        "covered": 39,
+        "total": 47,
+        "rate": 0.8297872340425532
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/InfSampleDisplayValues.cs",
@@ -1620,21 +1626,21 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.Criteria.cs",
-        "covered": 237,
-        "total": 243,
-        "rate": 0.9753086419753086
+        "covered": 238,
+        "total": 244,
+        "rate": 0.9754098360655737
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.Inf.cs",
-        "covered": 490,
-        "total": 508,
-        "rate": 0.9645669291338582
+        "covered": 502,
+        "total": 520,
+        "rate": 0.9653846153846154
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.Prescreen.cs",
-        "covered": 726,
-        "total": 745,
-        "rate": 0.974496644295302
+        "covered": 723,
+        "total": 740,
+        "rate": 0.977027027027027
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.RawSpool.cs",
@@ -1650,9 +1656,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.Validation.cs",
-        "covered": 801,
-        "total": 827,
-        "rate": 0.9685610640870617
+        "covered": 804,
+        "total": 830,
+        "rate": 0.9686746987951808
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.cs",
@@ -1674,15 +1680,15 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/ReportSheetWriter.cs",
-        "covered": 232,
-        "total": 270,
-        "rate": 0.8592592592592593
+        "covered": 263,
+        "total": 301,
+        "rate": 0.8737541528239202
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/ReportTemplatePackage.cs",
-        "covered": 520,
-        "total": 585,
-        "rate": 0.8888888888888888
+        "covered": 536,
+        "total": 601,
+        "rate": 0.891846921797005
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/ReportWorkbookMetadataCodec.cs",
@@ -1740,15 +1746,15 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Template.cs",
-        "covered": 664,
-        "total": 743,
-        "rate": 0.8936742934051144
+        "covered": 658,
+        "total": 731,
+        "rate": 0.9001367989056087
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.cs",
-        "covered": 800,
-        "total": 947,
-        "rate": 0.8447729672650475
+        "covered": 793,
+        "total": 940,
+        "rate": 0.8436170212765958
       },
       {
         "path": "src/JET/JET/Infrastructure/FileIO/AccessTableReader.cs",
@@ -1806,15 +1812,15 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/FileIO/OpenXmlMappingMetadataReader.cs",
-        "covered": 208,
-        "total": 224,
-        "rate": 0.9285714285714286
+        "covered": 226,
+        "total": 242,
+        "rate": 0.9338842975206612
       },
       {
         "path": "src/JET/JET/Infrastructure/FileIO/OpenXmlSaxTableReader.cs",
-        "covered": 412,
-        "total": 437,
-        "rate": 0.9427917620137299
+        "covered": 446,
+        "total": 471,
+        "rate": 0.9469214437367304
       },
       {
         "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
@@ -1830,9 +1836,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/FileIO/SourceFileErrors.cs",
-        "covered": 28,
-        "total": 38,
-        "rate": 0.7368421052631579
+        "covered": 32,
+        "total": 42,
+        "rate": 0.7619047619047619
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/AccountMappingDifferenceQuery.cs",
@@ -1998,9 +2004,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFieldInfoPersistence.cs",
-        "covered": 145,
-        "total": 150,
-        "rate": 0.9666666666666667
+        "covered": 167,
+        "total": 173,
+        "rate": 0.9653179190751445
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFileLockService.cs",
@@ -2082,9 +2088,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs",
-        "covered": 145,
-        "total": 149,
-        "rate": 0.9731543624161074
+        "covered": 147,
+        "total": 151,
+        "rate": 0.9735099337748344
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalMappingValueProfileRepository.cs",

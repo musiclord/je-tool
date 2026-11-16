@@ -43,7 +43,8 @@
       "stage": 0,
       "row": 1,
       "label": "GL 與 TB",
-      "sublabel": "標準化資料表"
+      "height": 46,
+      "yOffset": -44
     },
     {
       "id": "conditions",
@@ -51,7 +52,8 @@
       "stage": 0,
       "row": 2,
       "label": "情境定義",
-      "sublabel": "filter_scenario"
+      "height": 46,
+      "yOffset": -68
     },
     {
       "id": "validation",
@@ -59,7 +61,8 @@
       "stage": 1,
       "row": 0,
       "label": "驗證與預篩選",
-      "sublabel": "validate.run、prescreen.run"
+      "height": 46,
+      "yOffset": -20
     },
     {
       "id": "filter",
@@ -67,7 +70,8 @@
       "stage": 1,
       "row": 2,
       "label": "進階篩選",
-      "sublabel": "條件樹轉成 SQL"
+      "height": 46,
+      "yOffset": -68
     },
     {
       "id": "summary",
@@ -75,7 +79,8 @@
       "stage": 2,
       "row": 0,
       "label": "執行摘要",
-      "sublabel": "validation_result、prescreen_result"
+      "height": 46,
+      "yOffset": -20
     },
     {
       "id": "hits",
@@ -83,7 +88,8 @@
       "stage": 2,
       "row": 2,
       "label": "命中分錄",
-      "sublabel": "filter_hit"
+      "height": 46,
+      "yOffset": -68
     },
     {
       "id": "screen",
@@ -91,7 +97,8 @@
       "stage": 3,
       "row": 0,
       "label": "畫面查詢",
-      "sublabel": "摘要與分頁"
+      "height": 46,
+      "yOffset": -20
     },
     {
       "id": "workbook",
@@ -99,7 +106,8 @@
       "stage": 3,
       "row": 1,
       "label": "正式底稿",
-      "sublabel": "WorkingPaperWriter"
+      "height": 46,
+      "yOffset": -44
     }
   ],
   "flows": [
@@ -108,7 +116,9 @@
       "from": "population",
       "to": "validation",
       "label": "計數與彙總",
-      "variant": "emphasis"
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "left"
     },
     {
       "id": "validation_summary",
@@ -151,7 +161,22 @@
       "to": "screen",
       "label": "命中分頁",
       "variant": "dashed",
-      "labelDy": 56
+      "fromSide": "bottom",
+      "toSide": "right",
+      "via": [
+        [
+          530,
+          354
+        ],
+        [
+          815,
+          354
+        ],
+        [
+          815,
+          131
+        ]
+      ]
     },
     {
       "id": "hits_workbook",
@@ -172,7 +197,8 @@
       "to": "workbook",
       "label": "驗證結果",
       "variant": "dashed",
-      "toSide": "top"
+      "toSide": "top",
+      "fromSide": "bottom"
     }
   ],
   "cards": [
@@ -180,8 +206,9 @@
       "dot": "cyan",
       "title": "計算留在資料庫",
       "items": [
-        "驗證與預篩選儲存摘要。進階篩選儲存命中分錄，以及分錄符合的條件。",
-        "畫面讀取摘要與分頁，不載入整批分錄。"
+        "validate.run 與 prescreen.run 以 SQL 在 GL 上計數與彙總，只把摘要 JSON 存進 validation_result 或 prescreen_result。",
+        "進階篩選把條件樹轉成 SQL，在資料庫寫入命中分錄 filter_hit，以及分錄符合的條件。情境定義存在 filter_scenario。",
+        "輸入的 GL 與 TB 是標準化資料表。畫面讀取摘要與分頁，不載入整批分錄。"
       ]
     },
     {
@@ -189,7 +216,7 @@
       "title": "底稿逐頁讀取明細",
       "items": [
         "規劃時先讀摘要；WorkingPaperWriter 寫檔時再分頁讀取明細。",
-        "底稿也使用欄位定義、配對與範本。這張圖只呈現 SQLite 或 DuckDB 的主要審計資料。"
+        "底稿也使用欄位定義、配對與範本。這張圖只呈現主要審計資料。"
       ]
     }
   ]

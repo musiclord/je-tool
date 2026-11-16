@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "class",
   "meta": {
-    "title": "TB 匯入的處理類別",
+    "title": "TB 匯入的處理類別怎麼讀檔與更新進度",
     "locale": "zh-TW",
     "output": "archify/import-classes/import-classes.html",
     "quality_profile": "showcase",
@@ -10,7 +10,7 @@
       "mode": "auto",
       "entries": {
         "dependency": {
-          "label": "依賴：呼叫或建立，線上寫方法"
+          "label": "依賴：呼叫，線上寫方法"
         },
         "realization": {
           "label": "實作介面"
@@ -25,8 +25,8 @@
   "layout": {
     "mode": "grid",
     "typeW": 180,
-    "typeMaxW": 280,
-    "gapX": 84,
+    "typeMaxW": 300,
+    "gapX": 40,
     "gapY": 84
   },
   "types": [
@@ -44,14 +44,14 @@
           "visibility": "public"
         }
       ],
-      "width": 330
+      "width": 300
     },
     {
       "id": "base",
       "label": "ImportFromFileHandler",
       "kind": "abstract",
       "row": 0,
-      "col": 1.5,
+      "col": 1,
       "sublabel": "GL 與 TB 共用流程",
       "methods": [
         {
@@ -60,31 +60,8 @@
           "returns": "Task<object?>",
           "visibility": "public"
         }
-      ]
-    },
-    {
-      "id": "program",
-      "label": "JetAuditProgram",
-      "kind": "class",
-      "row": 0,
-      "col": 3,
-      "sublabel": "規劃匯入並整理結果",
-      "methods": [
-        {
-          "name": "Plan",
-          "parameters": "IntakeRequest",
-          "returns": "IntakePlan",
-          "visibility": "package",
-          "static": true
-        },
-        {
-          "name": "Finalize",
-          "parameters": "IntakePlan, IntakeFacts",
-          "returns": "IntakeResult",
-          "visibility": "package",
-          "static": true
-        }
-      ]
+      ],
+      "width": 302
     },
     {
       "id": "readerContract",
@@ -108,31 +85,40 @@
           "visibility": "public",
           "abstract": true
         }
-      ]
+      ],
+      "width": 300
     },
     {
-      "id": "intakeContract",
-      "label": "IIntakeFactsPort",
-      "kind": "interface",
+      "id": "program",
+      "label": "JetAuditProgram",
+      "kind": "class",
       "row": 1,
       "col": 1,
-      "sublabel": "執行匯入計畫",
+      "sublabel": "規劃匯入並整理結果",
       "methods": [
         {
-          "name": "ExecuteAsync",
-          "parameters": "IntakePlan, IReadOnlyList<ImportSourceInput>",
-          "returns": "Task<IntakeFacts>",
-          "visibility": "public",
-          "abstract": true
+          "name": "Plan",
+          "parameters": "IntakeRequest",
+          "returns": "IntakePlan",
+          "visibility": "package",
+          "static": true
+        },
+        {
+          "name": "Finalize",
+          "parameters": "IntakePlan, IntakeFacts",
+          "returns": "IntakeResult",
+          "visibility": "package",
+          "static": true
         }
-      ]
+      ],
+      "width": 302
     },
     {
       "id": "projectContract",
       "label": "IProjectStore",
       "kind": "interface",
       "row": 1,
-      "col": 3,
+      "col": 2,
       "sublabel": "案件進度檔",
       "methods": [
         {
@@ -149,7 +135,8 @@
           "visibility": "public",
           "abstract": true
         }
-      ]
+      ],
+      "width": 321
     },
     {
       "id": "reader",
@@ -160,69 +147,12 @@
       "sublabel": "依副檔名交給四種讀取器"
     },
     {
-      "id": "intake",
-      "label": "IntakeFactsPort",
-      "kind": "class",
-      "row": 2,
-      "col": 1,
-      "sublabel": "依計畫取代或追加"
-    },
-    {
       "id": "project",
       "label": "JsonFileProjectStore",
       "kind": "class",
       "row": 2,
-      "col": 3,
+      "col": 2,
       "sublabel": "project.json"
-    },
-    {
-      "id": "importContract",
-      "label": "IImportRepository",
-      "kind": "interface",
-      "row": 1,
-      "col": 2,
-      "sublabel": "批次與原始列",
-      "methods": [
-        {
-          "name": "GetLatestBatchAsync",
-          "parameters": "string, DatasetKind",
-          "returns": "Task<ImportBatchInfo?>",
-          "visibility": "public",
-          "abstract": true
-        },
-        {
-          "name": "ReplaceBatchAsync",
-          "parameters": "string, DatasetKind, IReadOnlyList<ImportSourceInput>",
-          "returns": "Task<ImportBatchResult>",
-          "visibility": "public",
-          "abstract": true
-        }
-      ]
-    },
-    {
-      "id": "localImport",
-      "label": "LocalImportRepository",
-      "kind": "class",
-      "row": 2,
-      "col": 2,
-      "sublabel": "SQLite 與 DuckDB 共用"
-    },
-    {
-      "id": "root",
-      "label": "AppCompositionRoot",
-      "kind": "class",
-      "row": 3,
-      "col": 1.5,
-      "sublabel": "啟動時建立物件",
-      "methods": [
-        {
-          "name": "CreateLocalProjectRepositories",
-          "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
-          "returns": "ProjectRepositories",
-          "visibility": "private",
-          "static": true
-        }
-      ]
     }
   ],
   "relationships": [
@@ -244,28 +174,18 @@
       "from": "base",
       "to": "readerContract",
       "kind": "dependency",
-      "label": "讀標頭與資料列"
-    },
-    {
-      "id": "base_intake",
-      "from": "base",
-      "to": "intakeContract",
-      "kind": "dependency",
-      "label": "ExecuteAsync"
+      "label": "ReadColumnsAsync、ReadRowsAsync",
+      "fromSide": "bottom",
+      "toSide": "top"
     },
     {
       "id": "base_project",
       "from": "base",
       "to": "projectContract",
       "kind": "dependency",
-      "label": "FindAsync、SaveAsync"
-    },
-    {
-      "id": "base_import",
-      "from": "base",
-      "to": "importContract",
-      "kind": "dependency",
-      "label": "GetLatestBatchAsync"
+      "label": "FindAsync、SaveAsync",
+      "fromSide": "right",
+      "toSide": "top"
     },
     {
       "id": "reader_contract",
@@ -274,59 +194,26 @@
       "kind": "realization"
     },
     {
-      "id": "intake_contract",
-      "from": "intake",
-      "to": "intakeContract",
-      "kind": "realization"
-    },
-    {
       "id": "project_contract",
       "from": "project",
       "to": "projectContract",
       "kind": "realization"
-    },
-    {
-      "id": "intake_import",
-      "from": "intake",
-      "to": "importContract",
-      "kind": "dependency",
-      "label": "ReplaceBatchAsync"
-    },
-    {
-      "id": "local_import",
-      "from": "localImport",
-      "to": "importContract",
-      "kind": "realization"
-    },
-    {
-      "id": "root_local",
-      "from": "root",
-      "to": "localImport",
-      "kind": "dependency",
-      "label": "建立"
-    },
-    {
-      "id": "root_intake",
-      "from": "root",
-      "to": "intake",
-      "kind": "dependency",
-      "label": "建立"
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "讀檔與寫入分工",
+      "title": "讀檔與進度檔",
       "items": [
-        "CompositeTabularFileReader 按格式交給 OpenXml、CSV、舊版 Excel 或 Access 讀取器。SQLite 與 DuckDB 由 LocalImportRepository 寫入。",
-        "ImportTbFromFileHandler 繼承共用的 ImportFromFileHandler。追加匯入另走 AppendToBatchAsync。"
+        "ImportTbFromFileHandler 繼承 GL 與 TB 共用的 ImportFromFileHandler。共用流程先讀檔案的標頭與資料列，再交 JetAuditProgram 規劃與整理結果，完成後更新案件進度檔。",
+        "CompositeTabularFileReader 按格式交給 OpenXml、CSV、舊版 Excel 或 Access 讀取器。"
       ]
     },
     {
       "dot": "slate",
-      "title": "圖外的操作紀錄",
+      "title": "寫入案件資料庫的部分",
       "items": [
-        "CommittedOperationLog 經 IProjectOperationLog 寫入紀錄；本機案件寫入失敗會附提醒。SQL Server 實作未列入。"
+        "取代或追加匯入批次、寫入資料列與建立這些類別的位置，見「TB 匯入資料怎麼寫進案件資料庫」。"
       ]
     }
   ]

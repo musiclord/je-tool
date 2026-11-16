@@ -76,15 +76,13 @@ internal static class FieldInfoProjector
             else if (field.SemanticIdentity == JetFieldCatalog.GlApprovalDate
                      && spec.Options.ApprovalDateMode == ApprovalDateModeNames.SameAsGlDate)
             {
-                var glDate = JetFieldCatalog.GlFields.Single(
-                    static candidate => candidate.SemanticIdentity == JetFieldCatalog.GlDate).LegacyFieldName!;
                 projection.AppendDerived(
                     field.LegacyFieldName,
                     LegacyFieldKind.Date,
                     textLength: 0,
                     decimalPlaces: null,
                     field.SemanticIdentity,
-                    description: $"{FieldMark(field.LegacyFieldName)}由系統產生 : 同{FieldMark(glDate)}來源");
+                    description: ApprovalSameAsGlDateDescription());
             }
             else if (field.SemanticIdentity == JetFieldCatalog.GlLineItem)
             {
@@ -189,15 +187,58 @@ internal static class FieldInfoProjector
         return false;
     }
 
-    private static string RequiredMappedSource(IReadOnlyDictionary<string, string> mapping, string key) =>
+    // 說明句裡的欄位名稱照來源檔的欄名原樣寫，前後不加任何符號，和前後的文字用半形空白分開；
+    // 借方代碼與過帳判斷值這類值不是欄位，照條件說明的寫法用「」。兩欄相減的減號前後空不空格照舊版：
+    // GL 借貸兩欄寫「借方欄-貸方欄」；TB 借減貸與期末減期初寫「甲 - 乙」；期末與期初各分借貸時，期初那一組寫「期初借-期初貸」。
+    // 欄名本身有連字號時，從底稿帶回配對要靠欄位資訊表列出的來源欄確認切法。
+    // 改名欄位的說明欄存的是來源欄名本身，底稿第四步之一拿它當讀原始資料的欄名，欄位資訊也照這個名稱顯示。
+    private static string SourceName(IReadOnlyDictionary<string, string> mapping, string key) =>
         TryMappedSource(mapping, key, out var sourceName) ? sourceName : key;
 
-    // 說明句裡的欄位名稱一律用【】標示，借方代碼這類值不是欄位，照條件說明的寫法用「」。
-    // 改名欄位的說明欄存的是來源欄名本身，底稿第四步之一拿它當讀原始資料的欄名；【】由欄位資訊的投影在顯示時加上。
-    private static string FieldMark(string name) => $"【{name}】";
+    private static string GlLegacyName(string semanticIdentity) =>
+        JetFieldCatalog.GlFields.Single(field => field.SemanticIdentity == semanticIdentity).LegacyFieldName!;
 
-    private static string SourceMark(IReadOnlyDictionary<string, string> mapping, string key) =>
-        FieldMark(RequiredMappedSource(mapping, key));
+    /// <summary>
+    /// 系統產生欄位的說明句，只由確認的配對決定。案件資料庫存的是確認配對當時寫下的句子；
+    /// 讀出欄位定義時依同一份配對重新產生，句子的寫法改變後，已經建立的案件不必重新確認配對。
+    /// 改名欄位的說明是來源欄名本身，不在這裡改；沒有說明句的系統產生欄位（自動編號的傳票文件項次）照舊沒有說明。
+    /// </summary>
+    internal static IReadOnlyList<FieldInfoState> WithCurrentDescriptions(
+        IReadOnlyList<FieldInfoState> target,
+        GlMappingSpec spec) =>
+        target
+            .Select(definition => definition is { Origin: FieldInfoOrigin.Generated, JetField: { } jetField }
+                                  && GeneratedGlDescription(jetField, spec) is { } description
+                ? definition with { Description = description }
+                : definition)
+            .ToArray();
+
+    /// <summary>TB 只有年度變動金額由系統產生；直接變動金額是在原位置改名的來源欄，沒有說明句。</summary>
+    internal static IReadOnlyList<FieldInfoState> WithCurrentDescriptions(
+        IReadOnlyList<FieldInfoState> target,
+        TbMappingSpec spec) =>
+        spec.ChangeMode == TbChangeMode.DirectChange
+            ? target
+            : target
+                .Select(definition => definition is { Origin: FieldInfoOrigin.Generated, JetField: JetFieldCatalog.TbChangeAmount }
+                    ? definition with { Description = TbAmountDescription(spec) }
+                    : definition)
+                .ToArray();
+
+    private static string? GeneratedGlDescription(string jetField, GlMappingSpec spec) => jetField switch
+    {
+        JetFieldCatalog.GlAmount => GlAmountDescription(spec),
+        JetFieldCatalog.GlApprovalDate => ApprovalSameAsGlDateDescription(),
+        JetFieldCatalog.GlPostingStatus when TryMappedSource(spec.Mapping, GlMappingKeys.PostingStatus, out var sourceName) =>
+            PostingCodeDescription(sourceName, spec.Options.PostingStatusPolicy),
+        _ => null
+    };
+
+    /// <summary>
+    /// 傳票核准日選「與總帳日期相同」時追加的欄位，說明句寫兩個 JET 欄名；「同總帳日期_JE來源」照舊版連著寫，不空格。
+    /// </summary>
+    private static string ApprovalSameAsGlDateDescription() =>
+        $"{GlLegacyName(JetFieldCatalog.GlApprovalDate)} 由系統產生 : 同{GlLegacyName(JetFieldCatalog.GlDate)}來源";
 
     /// <summary>
     /// 過帳碼_JE 的說明照舊版寫來源欄與過帳判斷值，值用「」。
@@ -209,30 +250,29 @@ internal static class FieldInfoProjector
             ? string.Empty
             : string.Concat(policy.AcceptedValues.Select(static value => $"「{value}」"));
         var blank = policy is { IncludeBlank: true } ? "，空白也算已過帳" : string.Empty;
-        return $"{FieldMark(sourceName)}過帳判斷值{values}{blank}";
+        return $"{sourceName} 過帳判斷值{values}{blank}";
     }
 
     private static string GlAmountDescription(GlMappingSpec spec)
     {
-        var target = FieldMark(JetFieldCatalog.GlFields.Single(
-            static field => field.SemanticIdentity == JetFieldCatalog.GlAmount).LegacyFieldName!);
+        var target = GlLegacyName(JetFieldCatalog.GlAmount);
 
         return spec.AmountMode switch
         {
             GlAmountMode.SignedAmount =>
-                $"{target}由系統產生 : {SourceMark(spec.Mapping, GlMappingKeys.Amount)}",
+                $"{target} 由系統產生 : {SourceName(spec.Mapping, GlMappingKeys.Amount)}",
             GlAmountMode.DualAmount =>
-                $"{target}由系統產生 : {SourceMark(spec.Mapping, GlMappingKeys.DebitAmount)}-{SourceMark(spec.Mapping, GlMappingKeys.CreditAmount)}",
+                $"{target} 由系統產生 : {SourceName(spec.Mapping, GlMappingKeys.DebitAmount)}-{SourceName(spec.Mapping, GlMappingKeys.CreditAmount)}",
             GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag =>
-                $"{target}由系統產生 : 金額欄位{SourceMark(spec.Mapping, GlMappingKeys.Amount)}、" +
-                $"借貸方判斷欄位{SourceMark(spec.Mapping, GlMappingKeys.DrCr)}，" +
+                $"{target} 由系統產生 : 金額欄位 {SourceName(spec.Mapping, GlMappingKeys.Amount)}、" +
+                $"借貸方判斷欄位 {SourceName(spec.Mapping, GlMappingKeys.DrCr)}，" +
                 DrCrCodeText(spec.Mapping),
             _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.AmountMode, null)
         };
     }
 
     /// <summary>
-    /// 舊版只寫借方代碼「借方為【代碼】」。
+    /// 舊版只寫借方代碼。
     /// 新版完整寫出已填的兩側代碼，只有一側時只寫該側，讓看得見的表也能帶回相同設定。
     /// </summary>
     private static string DrCrCodeText(IReadOnlyDictionary<string, string> mapping)
@@ -251,18 +291,18 @@ internal static class FieldInfoProjector
 
     private static string TbAmountDescription(TbMappingSpec spec)
     {
-        var target = FieldMark(JetFieldCatalog.TbFields.Single(
-            static field => field.SemanticIdentity == JetFieldCatalog.TbChangeAmount).LegacyFieldName!);
+        var target = JetFieldCatalog.TbFields.Single(
+            static field => field.SemanticIdentity == JetFieldCatalog.TbChangeAmount).LegacyFieldName!;
 
         return spec.ChangeMode switch
         {
             TbChangeMode.DebitCredit =>
-                $"{target}由系統產生 : {SourceMark(spec.Mapping, TbMappingKeys.DebitAmount)} - {SourceMark(spec.Mapping, TbMappingKeys.CreditAmount)}",
+                $"{target} 由系統產生 : {SourceName(spec.Mapping, TbMappingKeys.DebitAmount)} - {SourceName(spec.Mapping, TbMappingKeys.CreditAmount)}",
             TbChangeMode.OpenClose =>
-                $"{target}由系統產生 : {SourceMark(spec.Mapping, TbMappingKeys.ClosingBalance)} - {SourceMark(spec.Mapping, TbMappingKeys.OpeningBalance)}",
+                $"{target} 由系統產生 : {SourceName(spec.Mapping, TbMappingKeys.ClosingBalance)} - {SourceName(spec.Mapping, TbMappingKeys.OpeningBalance)}",
             TbChangeMode.OpenCloseBySide =>
-                $"{target}由系統產生 : ({SourceMark(spec.Mapping, TbMappingKeys.ClosingDebitBalance)} - {SourceMark(spec.Mapping, TbMappingKeys.ClosingCreditBalance)}) - " +
-                $"({SourceMark(spec.Mapping, TbMappingKeys.OpeningDebitBalance)}-{SourceMark(spec.Mapping, TbMappingKeys.OpeningCreditBalance)})",
+                $"{target} 由系統產生 : ({SourceName(spec.Mapping, TbMappingKeys.ClosingDebitBalance)} - {SourceName(spec.Mapping, TbMappingKeys.ClosingCreditBalance)}) - " +
+                $"({SourceName(spec.Mapping, TbMappingKeys.OpeningDebitBalance)}-{SourceName(spec.Mapping, TbMappingKeys.OpeningCreditBalance)})",
             _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.ChangeMode, null)
         };
     }

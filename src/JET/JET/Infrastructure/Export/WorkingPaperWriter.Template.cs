@@ -67,7 +67,6 @@ public sealed partial class WorkingPaperWriter
         private readonly WorkbookStylePatcher _stylePatcher;
         private readonly bool _useFinalStep41Schema;
         private readonly CancellationToken _cancellationToken;
-        private readonly IReadOnlyList<LocalDefinedNameOwner> _localDefinedNameOwners;
         private readonly Dictionary<string, WorksheetPart> _templateParts =
             new(StringComparer.Ordinal);
         private readonly Dictionary<string, IReadOnlyDictionary<string, uint>>
@@ -96,7 +95,6 @@ public sealed partial class WorkingPaperWriter
             _cancellationToken = cancellationToken;
             _workbookPart = editor.Document.WorkbookPart
                 ?? throw new InvalidDataException("WorkingPaper 範本缺少 workbook part。");
-            _localDefinedNameOwners = CaptureLocalDefinedNameOwners(_workbookPart);
         }
 
         /// <param name="lockedArea">受保護工作表裡程式寫入的資料區；其他格子保持可填。</param>
@@ -554,7 +552,6 @@ public sealed partial class WorkingPaperWriter
                     _workbookPart,
                     _editor.Sheets,
                     _desiredNames,
-                    _localDefinedNameOwners,
                     _cancellationToken);
             }
         }
@@ -585,14 +582,19 @@ public sealed partial class WorkingPaperWriter
             ?? [];
     }
 
+    /// <summary>
+    /// 把工作表排成 <paramref name="desiredNames"/> 的順序，帶 localSheetId 的定義名稱跟著改成所屬工作表的新位置。
+    /// 移除工作表時，屬於它的定義名稱已經一起拿掉，其餘名稱的 localSheetId 也已調整，
+    /// 所以排序前依目前的位置記下每個名稱屬於哪一張工作表。
+    /// </summary>
     private static void AlignDirectTemplateSheets(
         WorkbookPart workbookPart,
         Sheets sheets,
         IReadOnlyList<string> desiredNames,
-        IReadOnlyList<LocalDefinedNameOwner> localDefinedNameOwners,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var localDefinedNameOwners = CaptureLocalDefinedNameOwners(workbookPart);
         var remaining = sheets.Elements<Sheet>()
             .ToDictionary(
                 sheet => sheet.Name?.Value
@@ -627,21 +629,7 @@ public sealed partial class WorkingPaperWriter
         foreach (var localName in localDefinedNameOwners)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (localName.Ordinal >= definedNames.Length)
-            {
-                throw new InvalidDataException(
-                    "WorkingPaper 範本 defined names 在直接 SAX 寫出期間發生未授權變更。");
-            }
-
-            var definedName = definedNames[localName.Ordinal];
-            if (indexes.TryGetValue(localName.Owner, out var index))
-            {
-                definedName.LocalSheetId = index;
-            }
-            else
-            {
-                definedName.Remove();
-            }
+            definedNames[localName.Ordinal].LocalSheetId = indexes[localName.Owner];
         }
 
         workbook.Save();

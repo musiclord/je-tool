@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "erd",
   "meta": {
-    "title": "SQLite：匯入批次與原始資料",
+    "title": "SQLite：匯入批次、來源檔與欄位定義",
     "locale": "zh-TW",
     "output": "archify/import-erd/import-erd.html",
     "quality_profile": "standard",
@@ -30,9 +30,9 @@
   },
   "layout": {
     "mode": "grid",
-    "gapX": 120,
-    "gapY": 70,
-    "entityW": 340
+    "gapX": 56,
+    "gapY": 44,
+    "entityW": 220
   },
   "entities": [
     {
@@ -90,8 +90,8 @@
     {
       "id": "import_batch",
       "label": "import_batch",
-      "row": 1,
-      "col": 0,
+      "row": 0,
+      "col": 1,
       "attributes": [
         {
           "name": "batch_id",
@@ -129,8 +129,9 @@
     {
       "id": "field_info",
       "label": "field_info",
-      "row": 2,
-      "col": 0,
+      "row": 0,
+      "col": 2,
+      "width": 240,
       "attributes": [
         {
           "name": "batch_id",
@@ -174,138 +175,18 @@
         {
           "name": "has_observation",
           "type": "INTEGER"
+        },
+        {
+          "name": "field_origin",
+          "type": "TEXT"
+        },
+        {
+          "name": "jet_field",
+          "type": "TEXT"
         }
       ],
       "tag": "批次中繼資料",
       "sublabel": "來源與目標欄位定義"
-    },
-    {
-      "id": "pbc_gl",
-      "label": "pbc_gl",
-      "row": 0,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "batch_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "row_number",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "source_no",
-          "type": "INTEGER"
-        },
-        {
-          "name": "source_row_number",
-          "type": "INTEGER"
-        },
-        {
-          "name": "row_json",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "審計來源",
-      "sublabel": "PBC-GL 原始列"
-    },
-    {
-      "id": "pbc_tb",
-      "label": "pbc_tb",
-      "row": 1,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "batch_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "row_number",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "source_no",
-          "type": "INTEGER"
-        },
-        {
-          "name": "source_row_number",
-          "type": "INTEGER"
-        },
-        {
-          "name": "row_json",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "審計來源",
-      "sublabel": "PBC-TB 原始列"
-    },
-    {
-      "id": "pbc_account_mapping",
-      "label": "pbc_account_mapping",
-      "row": 0,
-      "col": 2,
-      "attributes": [
-        {
-          "name": "batch_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "row_number",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "source_no",
-          "type": "INTEGER"
-        },
-        {
-          "name": "source_row_number",
-          "type": "INTEGER"
-        },
-        {
-          "name": "row_json",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "參考資料來源",
-      "sublabel": "科目配對檔的原始列"
-    },
-    {
-      "id": "pbc_authorized_preparer",
-      "label": "pbc_authorized_preparer",
-      "row": 1,
-      "col": 2,
-      "attributes": [
-        {
-          "name": "batch_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "row_number",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "source_no",
-          "type": "INTEGER"
-        },
-        {
-          "name": "source_row_number",
-          "type": "INTEGER"
-        },
-        {
-          "name": "row_json",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "參考資料來源",
-      "sublabel": "授權編製人清單的原始列"
     }
   ],
   "relationships": [
@@ -314,6 +195,7 @@
       "from": "import_batch_source",
       "to": "import_batch",
       "label": "batch_id",
+      "labelDy": 13,
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true,
@@ -325,28 +207,7 @@
       "from": "field_info",
       "to": "import_batch",
       "label": "batch_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
-      "id": "gl_batch",
-      "from": "pbc_gl",
-      "to": "import_batch",
-      "label": "batch_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
-      "id": "tb_batch",
-      "from": "pbc_tb",
-      "to": "import_batch",
-      "label": "batch_id",
+      "labelDy": 13,
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true,
@@ -359,8 +220,8 @@
       "dot": "cyan",
       "title": "以批次連接來源資料",
       "items": [
-        "原始列、來源檔與欄位定義共用 batch_id。取代匯入時，依資料種類找到批次並清除舊資料。",
-        "科目配對與授權編製人另走其他匯入程序，圖中未畫它們與批次的連線。"
+        "來源檔與欄位定義以 batch_id 對應匯入批次；這是程式在 SQL 裡使用的欄位，資料庫沒有宣告外鍵。取代匯入時，依資料種類找到批次並清除舊資料。",
+        "原始資料列也帶同一個 batch_id，畫在「SQLite：匯入的原始資料列」。"
       ]
     }
   ]

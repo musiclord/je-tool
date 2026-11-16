@@ -2305,6 +2305,21 @@ test('a single-column text file shows the report-layout notice next to the sourc
   assert.match(w.render().html(), /synthetic notice about 報表格式/);
 });
 
+// 展開工作表來源的預覽時，預覽帶回的提醒，例如讀到的列裡有公式、卻沒有存計算結果，顯示在這個來源旁。
+test('opening a worksheet preview shows the notice the preview returns next to the source', async () => {
+  const NOTICE = 'synthetic notice about 公式沒有存計算結果';
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'C:\\in\\formula.xlsx', fileName: 'formula.xlsx' }] });
+    api.importInspectFile = async () => ({ fileType: 'xlsx', worksheets: [{ name: '合成總帳', columns: ['doc', 'amount'], rowCountEstimate: 1 }] });
+    api.importPreviewFile = async () => ({ columns: ['doc', 'amount'], sampleRows: [['V1', null]], notices: [NOTICE] });
+  });
+  w.open();
+  w.render().click('wizard-pick'); await settle();
+  assert.ok(!w.render().html().includes(NOTICE), 'inspecting the workbook alone shows no notice');
+  w.render().click('pending-preview:0'); await settle();
+  assert.ok(w.render().html().includes(NOTICE), 'the preview notice is shown next to the source');
+});
+
 // 來源檔前面有標題列時，審計員在待匯入清單指定「欄名在第幾列」，
 // 預覽與匯入都帶這個值；匯入後的來源清單寫出「欄名在第 N 列」。
 test('a worksheet whose column names sit below a title row takes the header row in the pending list and sends it with the preview and the import', async () => {

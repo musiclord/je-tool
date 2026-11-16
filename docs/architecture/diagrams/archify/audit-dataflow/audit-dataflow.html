@@ -47,7 +47,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>審計結果如何供畫面與底稿使用</title>
   <script>
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5203,7 +5246,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 853 518" data-reader-fit="intrinsic-height" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-motion-choreography="stream">
+      <svg viewBox="0 0 853 452" data-reader-fit="intrinsic-height" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-motion-choreography="stream">
         <title id="archify-diagram-title">審計結果如何供畫面與底稿使用</title>
         <desc id="archify-diagram-description">由 Archify 產生的資料流圖。</desc>
         <!-- Definitions -->
@@ -5229,196 +5272,179 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Data Stages -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="0" x="16" y="46" width="168" height="398" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="0" x="16" y="46" width="168" height="332" rx="10" class="c-lane" stroke-width="1"/>
         <text x="100" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">01 / 資料庫輸入</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="1" x="231" y="46" width="168" height="398" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="1" x="231" y="46" width="168" height="332" rx="10" class="c-lane" stroke-width="1"/>
         <text x="315" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">02 / 集合式計算</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="2" x="446" y="46" width="168" height="398" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="2" x="446" y="46" width="168" height="332" rx="10" class="c-lane" stroke-width="1"/>
         <text x="530" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">03 / 已保存結果</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="3" x="661" y="46" width="168" height="398" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="3" x="661" y="46" width="168" height="332" rx="10" class="c-lane" stroke-width="1"/>
         <text x="745" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">04 / 使用方式</text>
 
         <!-- Flow paths -->
-        <path data-edge-from="population" data-edge-to="validation" data-edge-label="計數與彙總" data-edge-key="0" data-edge-id="population_validation" data-composition-points="156,258;205,258;205,157;254,157" d="M 156 258 L 205 258 L 205 157 L 254 157" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="validation" data-edge-to="summary" data-edge-label="摘要 JSON" data-edge-key="1" data-edge-id="validation_summary" data-composition-points="376,157;452.5,157" d="M 376 157 L 452.5 157" class="a-dashed" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="conditions" data-edge-to="filter" data-edge-label="條件定義" data-edge-key="2" data-edge-id="conditions_filter" data-composition-points="156,394;259,394" d="M 156 394 L 259 394" class="a-dashed" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="population" data-edge-to="filter" data-edge-label="測試母體" data-edge-key="3" data-edge-id="population_filter" data-composition-points="156,284;207.5,284;207.5,376;259,376" d="M 156 284 L 207.5 284 L 207.5 376 L 259 376" class="a-emphasis" data-animate="edge" style="--step:3" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="filter" data-edge-to="hits" data-edge-label="情境編號與分錄 ID" data-edge-key="4" data-edge-id="filter_hits" data-composition-points="371,385;474,385" d="M 371 385 L 474 385" class="a-emphasis" data-animate="edge" style="--step:4" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="summary" data-edge-to="screen" data-edge-label="結果摘要" data-edge-key="5" data-edge-id="summary_screen" data-composition-points="607.5,148;689,148" d="M 607.5 148 L 689 148" class="a-dashed" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <g data-graph-role="automatic-crossover" style="--step:6">
-          <path data-graph-role="automatic-crossover-underlay" d="M 586 376 L 637.5 376 L 637.5 166 L 689 166" fill="none" stroke="var(--mask)" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-        <path data-edge-from="hits" data-edge-to="screen" data-edge-label="命中分頁" data-edge-key="6" data-edge-id="hits_screen" data-composition-points="586,376;637.5,376;637.5,166;689,166" data-composition-crossover="halo" d="M 586 376 L 637.5 376 L 637.5 166 L 689 166" class="a-dashed" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        </g>
-        <path data-edge-from="hits" data-edge-to="workbook" data-edge-label="選取情境的命中" data-edge-key="7" data-edge-id="hits_workbook" data-composition-points="586,394;745,394;745,300" d="M 586 394 L 745 394 L 745 300" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <g data-graph-role="automatic-crossover" style="--step:8">
-          <path data-graph-role="automatic-crossover-underlay" d="M 156 271 L 689 271" fill="none" stroke="var(--mask)" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-        <path data-edge-from="population" data-edge-to="workbook" data-edge-label="母體明細" data-edge-key="8" data-edge-id="population_workbook" data-composition-points="156,271;689,271" data-composition-crossover="halo" d="M 156 271 L 689 271" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        </g>
-        <g data-graph-role="automatic-crossover" style="--step:9">
-          <path data-graph-role="automatic-crossover-underlay" d="M 607.5 166 L 631.5 166 L 631.5 218 L 745 218 L 745 242" fill="none" stroke="var(--mask)" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-        <path data-edge-from="summary" data-edge-to="workbook" data-edge-label="驗證結果" data-edge-key="9" data-edge-id="summary_workbook" data-composition-points="607.5,166;631.5,166;631.5,218;745,218;745,242" data-composition-crossover="halo" d="M 607.5 166 L 631.5 166 L 631.5 218 L 745 218 L 745 242" class="a-dashed" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        </g>
+        <path data-edge-from="population" data-edge-to="validation" data-edge-label="計數與彙總" data-edge-key="0" data-edge-id="population_validation" data-composition-points="100,198;100,131;259,131" d="M 100 198 L 100 131 L 259 131" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="validation" data-edge-to="summary" data-edge-label="摘要 JSON" data-edge-key="1" data-edge-id="validation_summary" data-composition-points="371,131;474,131" d="M 371 131 L 474 131" class="a-dashed" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="conditions" data-edge-to="filter" data-edge-label="條件定義" data-edge-key="2" data-edge-id="conditions_filter" data-composition-points="156,318;259,318" d="M 156 318 L 259 318" class="a-dashed" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="population" data-edge-to="filter" data-edge-label="測試母體" data-edge-key="3" data-edge-id="population_filter" data-composition-points="156,228;207.5,228;207.5,304;259,304" d="M 156 228 L 207.5 228 L 207.5 304 L 259 304" class="a-emphasis" data-animate="edge" style="--step:3" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="filter" data-edge-to="hits" data-edge-label="情境編號與分錄 ID" data-edge-key="4" data-edge-id="filter_hits" data-composition-points="371,311;474,311" d="M 371 311 L 474 311" class="a-emphasis" data-animate="edge" style="--step:4" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="summary" data-edge-to="screen" data-edge-label="結果摘要" data-edge-key="5" data-edge-id="summary_screen" data-composition-points="586,131;689,131" d="M 586 131 L 689 131" class="a-dashed" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="hits" data-edge-to="screen" data-edge-label="命中分頁" data-edge-key="6" data-edge-id="hits_screen" data-composition-points="530,334;530,354;815,354;815,131;801,131" d="M 530 334 L 530 354 L 815 354 L 815 131 L 801 131" class="a-dashed" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="hits" data-edge-to="workbook" data-edge-label="選取情境的命中" data-edge-key="7" data-edge-id="hits_workbook" data-composition-points="586,311;745,311;745,244" d="M 586 311 L 745 311 L 745 244" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="population" data-edge-to="workbook" data-edge-label="母體明細" data-edge-key="8" data-edge-id="population_workbook" data-composition-points="156,214;689,214" d="M 156 214 L 689 214" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="summary" data-edge-to="workbook" data-edge-label="驗證結果" data-edge-key="9" data-edge-id="summary_workbook" data-composition-points="530,154;530,176;745,176;745,198" d="M 530 154 L 530 176 L 745 176 L 745 198" class="a-dashed" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Nodes -->
-        <g id="node-population" data-node-id="population" data-node-label="GL 與 TB" tabindex="0" role="button" aria-label="聚焦GL 與 TB，標準化資料表, 01 / 資料庫輸入" aria-pressed="false" data-node-kind="database" data-node-sublabel="標準化資料表" data-node-context="01 / 資料庫輸入">
-          <title>GL 與 TB · 標準化資料表 · 01 / 資料庫輸入</title>
-          <rect x="44" y="242" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="44" y="242" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:0" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(50 248) scale(0.6875)">
+        <g id="node-population" data-node-id="population" data-node-label="GL 與 TB" tabindex="0" role="button" aria-label="聚焦GL 與 TB，01 / 資料庫輸入" aria-pressed="false" data-node-kind="database" data-node-context="01 / 資料庫輸入">
+          <title>GL 與 TB · 01 / 資料庫輸入</title>
+          <rect x="44" y="198" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="44" y="198" width="112" height="46" rx="6" class="c-database" data-animate="node" style="--step:0" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(50 204) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="100" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">GL 與 TB</text>
-          <text data-detail="context" x="100" y="279" class="t-muted" font-size="7" text-anchor="middle">標準化資料表</text>
+          <text data-node-label="" x="100" y="219" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">GL 與 TB</text>
         </g>
 
-        <g id="node-conditions" data-node-id="conditions" data-node-label="情境定義" tabindex="0" role="button" aria-label="聚焦情境定義，filter_scenario, 01 / 資料庫輸入" aria-pressed="false" data-node-kind="database" data-node-sublabel="filter_scenario" data-node-context="01 / 資料庫輸入">
-          <title>情境定義 · filter_scenario · 01 / 資料庫輸入</title>
-          <rect x="44" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="44" y="356" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(50 362) scale(0.6875)">
+        <g id="node-conditions" data-node-id="conditions" data-node-label="情境定義" tabindex="0" role="button" aria-label="聚焦情境定義，01 / 資料庫輸入" aria-pressed="false" data-node-kind="database" data-node-context="01 / 資料庫輸入">
+          <title>情境定義 · 01 / 資料庫輸入</title>
+          <rect x="44" y="288" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="44" y="288" width="112" height="46" rx="6" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(50 294) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="100" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">情境定義</text>
-          <text data-detail="context" x="100" y="393" class="t-muted" font-size="7" text-anchor="middle">filter_scenario</text>
+          <text data-node-label="" x="100" y="309" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">情境定義</text>
         </g>
 
-        <g id="node-validation" data-node-id="validation" data-node-label="驗證與預篩選" tabindex="0" role="button" aria-label="聚焦驗證與預篩選，validate.run、prescreen.run, 02 / 集合式計算" aria-pressed="false" data-node-kind="backend" data-node-sublabel="validate.run、prescreen.run" data-node-context="02 / 集合式計算">
-          <title>驗證與預篩選 · validate.run、prescreen.run · 02 / 集合式計算</title>
-          <rect x="254" y="128" width="122" height="58" rx="6" class="c-mask"/>
-          <rect x="254" y="128" width="122" height="58" rx="6" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(260 134) scale(0.6875)">
+        <g id="node-validation" data-node-id="validation" data-node-label="驗證與預篩選" tabindex="0" role="button" aria-label="聚焦驗證與預篩選，02 / 集合式計算" aria-pressed="false" data-node-kind="backend" data-node-context="02 / 集合式計算">
+          <title>驗證與預篩選 · 02 / 集合式計算</title>
+          <rect x="259" y="108" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="259" y="108" width="112" height="46" rx="6" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(265 114) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="315" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">驗證與預篩選</text>
-          <text data-detail="context" x="315" y="165" class="t-muted" font-size="7" text-anchor="middle">validate.run、prescreen.run</text>
+          <text data-node-label="" x="315" y="129" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">驗證與預篩選</text>
         </g>
 
-        <g id="node-filter" data-node-id="filter" data-node-label="進階篩選" tabindex="0" role="button" aria-label="聚焦進階篩選，條件樹轉成 SQL, 02 / 集合式計算" aria-pressed="false" data-node-kind="backend" data-node-sublabel="條件樹轉成 SQL" data-node-context="02 / 集合式計算">
-          <title>進階篩選 · 條件樹轉成 SQL · 02 / 集合式計算</title>
-          <rect x="259" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="259" y="356" width="112" height="58" rx="6" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(265 362) scale(0.6875)">
+        <g id="node-filter" data-node-id="filter" data-node-label="進階篩選" tabindex="0" role="button" aria-label="聚焦進階篩選，02 / 集合式計算" aria-pressed="false" data-node-kind="backend" data-node-context="02 / 集合式計算">
+          <title>進階篩選 · 02 / 集合式計算</title>
+          <rect x="259" y="288" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="259" y="288" width="112" height="46" rx="6" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(265 294) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="315" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">進階篩選</text>
-          <text data-detail="context" x="315" y="393" class="t-muted" font-size="7" text-anchor="middle">條件樹轉成 SQL</text>
+          <text data-node-label="" x="315" y="309" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">進階篩選</text>
         </g>
 
-        <g id="node-summary" data-node-id="summary" data-node-label="執行摘要" tabindex="0" role="button" aria-label="聚焦執行摘要，validation_result、prescreen_result, 03 / 已保存結果" aria-pressed="false" data-node-kind="database" data-node-sublabel="validation_result、prescreen_result" data-node-context="03 / 已保存結果">
-          <title>執行摘要 · validation_result、prescreen_result · 03 / 已保存結果</title>
-          <rect x="452.5" y="128" width="155" height="58" rx="6" class="c-mask"/>
-          <rect x="452.5" y="128" width="155" height="58" rx="6" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(458.5 134) scale(0.6875)">
+        <g id="node-summary" data-node-id="summary" data-node-label="執行摘要" tabindex="0" role="button" aria-label="聚焦執行摘要，03 / 已保存結果" aria-pressed="false" data-node-kind="database" data-node-context="03 / 已保存結果">
+          <title>執行摘要 · 03 / 已保存結果</title>
+          <rect x="474" y="108" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="474" y="108" width="112" height="46" rx="6" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(480 114) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="530" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">執行摘要</text>
-          <text data-detail="context" x="530" y="165" class="t-muted" font-size="7" text-anchor="middle">validation_result、prescreen_result</text>
+          <text data-node-label="" x="530" y="129" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">執行摘要</text>
         </g>
 
-        <g id="node-hits" data-node-id="hits" data-node-label="命中分錄" tabindex="0" role="button" aria-label="聚焦命中分錄，filter_hit, 03 / 已保存結果" aria-pressed="false" data-node-kind="database" data-node-sublabel="filter_hit" data-node-context="03 / 已保存結果">
-          <title>命中分錄 · filter_hit · 03 / 已保存結果</title>
-          <rect x="474" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="474" y="356" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(480 362) scale(0.6875)">
+        <g id="node-hits" data-node-id="hits" data-node-label="命中分錄" tabindex="0" role="button" aria-label="聚焦命中分錄，03 / 已保存結果" aria-pressed="false" data-node-kind="database" data-node-context="03 / 已保存結果">
+          <title>命中分錄 · 03 / 已保存結果</title>
+          <rect x="474" y="288" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="474" y="288" width="112" height="46" rx="6" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(480 294) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="530" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">命中分錄</text>
-          <text data-detail="context" x="530" y="393" class="t-muted" font-size="7" text-anchor="middle">filter_hit</text>
+          <text data-node-label="" x="530" y="309" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">命中分錄</text>
         </g>
 
-        <g id="node-screen" data-node-id="screen" data-node-label="畫面查詢" tabindex="0" role="button" aria-label="聚焦畫面查詢，摘要與分頁, 04 / 使用方式" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="摘要與分頁" data-node-context="04 / 使用方式">
-          <title>畫面查詢 · 摘要與分頁 · 04 / 使用方式</title>
-          <rect x="689" y="128" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="689" y="128" width="112" height="58" rx="6" class="c-frontend" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(695 134) scale(0.6875)">
+        <g id="node-screen" data-node-id="screen" data-node-label="畫面查詢" tabindex="0" role="button" aria-label="聚焦畫面查詢，04 / 使用方式" aria-pressed="false" data-node-kind="frontend" data-node-context="04 / 使用方式">
+          <title>畫面查詢 · 04 / 使用方式</title>
+          <rect x="689" y="108" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="689" y="108" width="112" height="46" rx="6" class="c-frontend" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(695 114) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="745" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">畫面查詢</text>
-          <text data-detail="context" x="745" y="165" class="t-muted" font-size="7" text-anchor="middle">摘要與分頁</text>
+          <text data-node-label="" x="745" y="129" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">畫面查詢</text>
         </g>
 
-        <g id="node-workbook" data-node-id="workbook" data-node-label="正式底稿" tabindex="0" role="button" aria-label="聚焦正式底稿，WorkingPaperWriter, 04 / 使用方式" aria-pressed="false" data-node-kind="external" data-node-sublabel="WorkingPaperWriter" data-node-context="04 / 使用方式">
-          <title>正式底稿 · WorkingPaperWriter · 04 / 使用方式</title>
-          <rect x="689" y="242" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="689" y="242" width="112" height="58" rx="6" class="c-external" data-animate="node" style="--step:8" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(695 248) scale(0.6875)">
+        <g id="node-workbook" data-node-id="workbook" data-node-label="正式底稿" tabindex="0" role="button" aria-label="聚焦正式底稿，04 / 使用方式" aria-pressed="false" data-node-kind="external" data-node-context="04 / 使用方式">
+          <title>正式底稿 · 04 / 使用方式</title>
+          <rect x="689" y="198" width="112" height="46" rx="6" class="c-mask"/>
+          <rect x="689" y="198" width="112" height="46" rx="6" class="c-external" data-animate="node" style="--step:8" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(695 204) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="745" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">正式底稿</text>
-          <text data-detail="context" x="745" y="279" class="t-muted" font-size="7" text-anchor="middle">WorkingPaperWriter</text>
+          <text data-node-label="" x="745" y="219" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">正式底稿</text>
         </g>
 
         <!-- Flow labels -->
         <g data-detail="context" data-edge-from="population" data-edge-to="validation" data-edge-label="計數與彙總" data-edge-key="0" data-edge-id="population_validation">
-          <rect x="174.5" y="186.5" width="61" height="16" rx="4" class="c-mask"/>
-          <text x="205" y="197.5" class="t-edge-emphasis" font-size="8" text-anchor="middle">計數與彙總</text>
+          <rect x="149" y="110" width="61" height="16" rx="4" class="c-mask"/>
+          <text x="179.5" y="121" class="t-edge-emphasis" font-size="8" text-anchor="middle">計數與彙總</text>
         </g>
         <g data-detail="context" data-edge-from="validation" data-edge-to="summary" data-edge-label="摘要 JSON" data-edge-key="1" data-edge-id="validation_summary">
-          <rect x="386.2" y="136" width="56.1" height="16" rx="4" class="c-mask"/>
-          <text x="414.25" y="147" class="t-edge-dashed" font-size="8" text-anchor="middle">摘要 JSON</text>
+          <rect x="394.45" y="110" width="56.1" height="16" rx="4" class="c-mask"/>
+          <text x="422.5" y="121" class="t-edge-dashed" font-size="8" text-anchor="middle">摘要 JSON</text>
         </g>
         <g data-detail="context" data-edge-from="conditions" data-edge-to="filter" data-edge-label="條件定義" data-edge-key="2" data-edge-id="conditions_filter">
-          <rect x="181.9" y="404" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="207.5" y="415" class="t-edge-dashed" font-size="8" text-anchor="middle">條件定義</text>
+          <rect x="181.9" y="328" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="207.5" y="339" class="t-edge-dashed" font-size="8" text-anchor="middle">條件定義</text>
         </g>
         <g data-detail="context" data-edge-from="population" data-edge-to="filter" data-edge-label="測試母體" data-edge-key="3" data-edge-id="population_filter">
-          <rect x="181.9" y="309" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="207.5" y="320" class="t-edge-emphasis" font-size="8" text-anchor="middle">測試母體</text>
+          <rect x="181.9" y="245" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="207.5" y="256" class="t-edge-emphasis" font-size="8" text-anchor="middle">測試母體</text>
         </g>
         <g data-detail="context" data-edge-from="filter" data-edge-to="hits" data-edge-label="情境編號與分錄 ID" data-edge-key="4" data-edge-id="filter_hits">
-          <rect x="374.85" y="364" width="95.3" height="16" rx="4" class="c-mask"/>
-          <text x="422.5" y="375" class="t-edge-emphasis" font-size="8" text-anchor="middle">情境編號與分錄 ID</text>
+          <rect x="374.85" y="290" width="95.3" height="16" rx="4" class="c-mask"/>
+          <text x="422.5" y="301" class="t-edge-emphasis" font-size="8" text-anchor="middle">情境編號與分錄 ID</text>
         </g>
         <g data-detail="context" data-edge-from="summary" data-edge-to="screen" data-edge-label="結果摘要" data-edge-key="5" data-edge-id="summary_screen">
-          <rect x="622.65" y="127" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="648.25" y="138" class="t-edge-dashed" font-size="8" text-anchor="middle">結果摘要</text>
+          <rect x="611.9" y="110" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="637.5" y="121" class="t-edge-dashed" font-size="8" text-anchor="middle">結果摘要</text>
         </g>
         <g data-detail="context" data-edge-from="hits" data-edge-to="screen" data-edge-label="命中分頁" data-edge-key="6" data-edge-id="hits_screen">
-          <rect x="611.9" y="306" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="637.5" y="317" class="t-edge-dashed" font-size="8" text-anchor="middle">命中分頁</text>
+          <rect x="646.9" y="333" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="672.5" y="344" class="t-edge-dashed" font-size="8" text-anchor="middle">命中分頁</text>
         </g>
         <g data-detail="context" data-edge-from="hits" data-edge-to="workbook" data-edge-label="選取情境的命中" data-edge-key="7" data-edge-id="hits_workbook">
-          <rect x="704.7" y="326" width="80.6" height="16" rx="4" class="c-mask"/>
-          <text x="745" y="337" class="t-edge-default" font-size="8" text-anchor="middle">選取情境的命中</text>
+          <rect x="704.7" y="256.5" width="80.6" height="16" rx="4" class="c-mask"/>
+          <text x="745" y="267.5" class="t-edge-default" font-size="8" text-anchor="middle">選取情境的命中</text>
         </g>
         <g data-detail="context" data-edge-from="population" data-edge-to="workbook" data-edge-label="母體明細" data-edge-key="8" data-edge-id="population_workbook">
-          <rect x="396.9" y="250" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="422.5" y="261" class="t-edge-default" font-size="8" text-anchor="middle">母體明細</text>
+          <rect x="396.9" y="193" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="422.5" y="204" class="t-edge-default" font-size="8" text-anchor="middle">母體明細</text>
         </g>
         <g data-detail="context" data-edge-from="summary" data-edge-to="workbook" data-edge-label="驗證結果" data-edge-key="9" data-edge-id="summary_workbook">
-          <rect x="574.3" y="198" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="599.9" y="209" class="t-edge-dashed" font-size="8" text-anchor="middle">驗證結果</text>
+          <rect x="611.9" y="155" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="637.5" y="166" class="t-edge-dashed" font-size="8" text-anchor="middle">驗證結果</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="40" y="462" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="emphasis" data-legend-x="40" data-legend-baseline="482" data-legend-width="198">
-            <path d="M 40 479 L 74 479" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-            <text x="83" y="482" class="t-muted" font-size="10" font-weight="500">資料庫內以 SQL 集合式處理</text>
+          <text x="40" y="396" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="emphasis" data-legend-x="40" data-legend-baseline="416" data-legend-width="198">
+            <path d="M 40 413 L 74 413" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+            <text x="83" y="416" class="t-muted" font-size="10" font-weight="500">資料庫內以 SQL 集合式處理</text>
           </g>
-          <g data-legend-semantic-kind="dashed" data-legend-x="260" data-legend-baseline="482" data-legend-width="192">
-            <path d="M 260 479 L 294 479" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-            <text x="303" y="482" class="t-muted" font-size="10" font-weight="500">只傳摘要、定義或分頁資料</text>
+          <g data-legend-semantic-kind="dashed" data-legend-x="260" data-legend-baseline="416" data-legend-width="192">
+            <path d="M 260 413 L 294 413" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+            <text x="303" y="416" class="t-muted" font-size="10" font-weight="500">只傳摘要、定義或分頁資料</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="資料儲存" data-legend-x="474" data-legend-baseline="482" data-legend-width="93">
-            <rect x="474" y="474" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-            <text x="496" y="482" class="t-muted" font-size="10" font-weight="500">資料儲存</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="資料儲存" data-legend-x="474" data-legend-baseline="416" data-legend-width="93">
+            <rect x="474" y="408" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+            <text x="496" y="416" class="t-muted" font-size="10" font-weight="500">資料儲存</text>
           </g>
-          <g data-legend-semantic-kind="default" data-legend-x="589" data-legend-baseline="482" data-legend-width="118">
-            <path d="M 589 479 L 623 479" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-            <text x="632" y="482" class="t-muted" font-size="10" font-weight="500">JET 分頁讀取</text>
+          <g data-legend-semantic-kind="default" data-legend-x="589" data-legend-baseline="416" data-legend-width="118">
+            <path d="M 589 413 L 623 413" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <text x="632" y="416" class="t-muted" font-size="10" font-weight="500">JET 分頁讀取</text>
           </g>
         </g>
       </svg>
@@ -5604,8 +5630,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>計算留在資料庫</h3>
         </div>
         <ul>
-          <li>驗證與預篩選儲存摘要。進階篩選儲存命中分錄，以及分錄符合的條件。</li>
-          <li>畫面讀取摘要與分頁，不載入整批分錄。</li>
+          <li>validate.run 與 prescreen.run 以 SQL 在 GL 上計數與彙總，只把摘要 JSON 存進 validation_result 或 prescreen_result。</li>
+          <li>進階篩選把條件樹轉成 SQL，在資料庫寫入命中分錄 filter_hit，以及分錄符合的條件。情境定義存在 filter_scenario。</li>
+          <li>輸入的 GL 與 TB 是標準化資料表。畫面讀取摘要與分頁，不載入整批分錄。</li>
         </ul>
       </div>
 
@@ -5616,7 +5643,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </div>
         <ul>
           <li>規劃時先讀摘要；WorkingPaperWriter 寫檔時再分頁讀取明細。</li>
-          <li>底稿也使用欄位定義、配對與範本。這張圖只呈現 SQLite 或 DuckDB 的主要審計資料。</li>
+          <li>底稿也使用欄位定義、配對與範本。這張圖只呈現主要審計資料。</li>
         </ul>
       </div>
     </div>
@@ -5797,6 +5824,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5813,6 +5841,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7236,6 +7265,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7251,6 +7281,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -9878,6 +9909,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12666,6 +12698,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12676,6 +12709,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12710,6 +12744,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13815,6 +13850,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14490,6 +14526,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14727,6 +14764,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

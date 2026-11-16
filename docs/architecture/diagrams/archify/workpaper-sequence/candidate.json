@@ -29,54 +29,48 @@
     {
       "id": "ui",
       "type": "frontend",
-      "label": "第六步畫面",
-      "sublabel": "JetApi"
+      "label": "第六步畫面"
     },
     {
       "id": "handler",
       "type": "backend",
-      "label": "底稿匯出處理",
-      "sublabel": "export.workingPaperStream"
+      "label": "底稿匯出處理"
     },
     {
       "id": "facts",
       "type": "backend",
-      "label": "讀規劃資料",
-      "sublabel": "WorkingPaperPlanningFactsPort"
-    },
-    {
-      "id": "audited",
-      "type": "backend",
-      "label": "記錄發布",
-      "sublabel": "AuditedReportStore"
-    },
-    {
-      "id": "files",
-      "type": "database",
-      "label": "寫檔與發布",
-      "sublabel": "ProjectReportStore"
+      "label": "讀規劃資料"
     },
     {
       "id": "writer",
       "type": "backend",
-      "label": "工作簿寫出",
-      "sublabel": "WorkingPaperWriter"
+      "label": "工作簿寫出"
+    },
+    {
+      "id": "audited",
+      "type": "backend",
+      "label": "記錄發布"
+    },
+    {
+      "id": "files",
+      "type": "database",
+      "label": "寫檔與發布"
     }
   ],
   "segments": [
     {
       "from": 150,
-      "to": 338,
+      "to": 326,
       "label": "準備：核對版本，確認存好的結果，再讀規劃資料"
     },
     {
-      "from": 352,
-      "to": 708,
+      "from": 348,
+      "to": 692,
       "label": "寫暫存檔：這一段可以取消"
     },
     {
-      "from": 722,
-      "to": 972,
+      "from": 714,
+      "to": 946,
       "label": "發布：改名前最後檢查取消，之後不再接受取消"
     }
   ],
@@ -87,23 +81,21 @@
       "to": "handler",
       "y": 180,
       "label": "WebMessage",
-      "variant": "emphasis",
-      "note": "經 ActionDispatcher 分派給這個 action 的處理類別"
+      "variant": "emphasis"
     },
     {
       "id": "m02",
       "from": "handler",
       "to": "facts",
-      "y": 242,
+      "y": 236,
       "label": "IWorkingPaperPlanningFactsPort.ExecuteAsync",
-      "variant": "dashed",
-      "note": "先由 JetAuditProgram 建立計畫"
+      "variant": "dashed"
     },
     {
       "id": "m03",
       "from": "facts",
       "to": "handler",
-      "y": 304,
+      "y": 292,
       "label": "WorkingPaperPlanningFacts",
       "variant": "return"
     },
@@ -111,43 +103,39 @@
       "id": "m04",
       "from": "handler",
       "to": "audited",
-      "y": 382,
+      "y": 378,
       "label": "IAuditedReportPublishingStore.WriteAuditedAsync",
-      "variant": "dashed",
-      "note": "先數既有報告，再交給下一層寫檔"
+      "variant": "dashed"
     },
     {
       "id": "m05",
       "from": "audited",
       "to": "files",
-      "y": 444,
+      "y": 434,
       "label": "IReportPublishingStore.WriteWithPublishingAsync",
-      "variant": "dashed",
-      "note": "鎖住報告目錄，讀出報告清單"
+      "variant": "dashed"
     },
     {
       "id": "m06",
       "from": "files",
       "to": "handler",
-      "y": 506,
+      "y": 490,
       "label": "ReportContentWriter",
-      "variant": "emphasis",
-      "note": "把暫存 .tmp 檔交給寫檔程式"
+      "variant": "emphasis"
     },
     {
       "id": "m07",
       "from": "handler",
       "to": "writer",
-      "y": 568,
+      "y": 546,
       "label": "IWorkingPaperPlanWriter.WriteAsync",
-      "variant": "dashed",
-      "note": "依計畫分頁讀資料列，寫入工作簿"
+      "variant": "dashed"
     },
     {
       "id": "m08",
       "from": "writer",
       "to": "handler",
-      "y": 630,
+      "y": 602,
       "label": "ExportStats",
       "variant": "return"
     },
@@ -155,7 +143,7 @@
       "id": "m09",
       "from": "handler",
       "to": "files",
-      "y": 674,
+      "y": 658,
       "label": "暫存檔寫完",
       "variant": "return"
     },
@@ -163,37 +151,33 @@
       "id": "m10",
       "from": "files",
       "to": "handler",
-      "y": 752,
+      "y": 744,
       "label": "publishingReport",
-      "variant": "emphasis",
-      "note": "全部暫存檔寫完才通知，畫面進度改成發布中"
+      "variant": "emphasis"
     },
     {
       "id": "m11",
       "from": "files",
       "to": "audited",
-      "y": 814,
+      "y": 800,
       "label": "Report",
-      "variant": "return",
-      "note": "改名成正式檔名，不覆寫同名底稿，再更新報告清單"
+      "variant": "return"
     },
     {
       "id": "m12",
       "from": "audited",
       "to": "handler",
-      "y": 876,
+      "y": 856,
       "label": "Report",
-      "variant": "return",
-      "note": "經 CommittedOperationLog 寫入 report.publish 操作紀錄；失敗回提醒"
+      "variant": "return"
     },
     {
       "id": "m13",
       "from": "handler",
       "to": "ui",
-      "y": 938,
+      "y": 912,
       "label": "產出檔案、各表列數與清單",
-      "variant": "return",
-      "note": "讀回最新報告清單與失效狀態；提醒一起回"
+      "variant": "return"
     }
   ],
   "cards": [
@@ -203,6 +187,46 @@
       "items": [
         "驗證結果必須符合目前版本。有篩選情境時，也要核對情境版本與位置；尚未儲存情境仍可匯出。",
         "結果過期時，只重算選取的情境。規劃時先讀摘要，寫檔時再分頁讀明細。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "參與者與程式類別",
+      "items": [
+        "第六步畫面：JetApi。",
+        "底稿匯出處理：ExportWorkingPaperStreamHandler，處理 export.workingPaperStream。",
+        "讀規劃資料：WorkingPaperPlanningFactsPort。",
+        "工作簿寫出：WorkingPaperWriter。",
+        "記錄發布：AuditedReportStore。",
+        "寫檔與發布：ProjectReportStore。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "準備",
+      "items": [
+        "WebMessage：經 ActionDispatcher 分派給這個 action 的處理類別。",
+        "IWorkingPaperPlanningFactsPort.ExecuteAsync：先由 JetAuditProgram 建立計畫。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "寫暫存檔",
+      "items": [
+        "IAuditedReportPublishingStore.WriteAuditedAsync：先數既有報告，再交給下一層寫檔。",
+        "IReportPublishingStore.WriteWithPublishingAsync：鎖住報告目錄，讀出報告清單。",
+        "ReportContentWriter：把暫存 .tmp 檔交給寫檔程式。",
+        "IWorkingPaperPlanWriter.WriteAsync：依計畫分頁讀資料列，寫入工作簿。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "發布",
+      "items": [
+        "publishingReport：全部暫存檔寫完才通知，畫面進度改成發布中。",
+        "寫檔與發布回傳 Report：改名成正式檔名，不覆寫同名底稿，再更新報告清單。",
+        "記錄發布回傳 Report：經 CommittedOperationLog 寫入 report.publish 操作紀錄；失敗時回提醒。",
+        "產出檔案、各表列數與清單：讀回最新報告清單與失效狀態；提醒一起回。"
       ]
     },
     {
@@ -218,27 +242,27 @@
     {
       "participant": "handler",
       "from": 180,
-      "to": 938
+      "to": 912
     },
     {
       "participant": "facts",
-      "from": 242,
-      "to": 304
+      "from": 236,
+      "to": 292
     },
     {
       "participant": "audited",
-      "from": 382,
-      "to": 876
+      "from": 378,
+      "to": 856
     },
     {
       "participant": "files",
-      "from": 444,
-      "to": 814
+      "from": 434,
+      "to": 800
     },
     {
       "participant": "writer",
-      "from": 568,
-      "to": 630
+      "from": 546,
+      "to": 602
     }
   ]
 }

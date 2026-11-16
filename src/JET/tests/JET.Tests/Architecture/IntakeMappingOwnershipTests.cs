@@ -108,9 +108,9 @@ public sealed class IntakeMappingOwnershipTests
     public void ReferenceDataProductionPath_UsesAuditCoreDecisionOwners()
     {
         var accountHandler = ReadProduct(
-            "Application", "Handlers", "Import", "ImportAccountMappingHandler.cs");
+            "Application", "Handlers", "Import", "ImportAccountMappingFromFileHandler.cs");
         var authorizedHandler = ReadProduct(
-            "Application", "Handlers", "Import", "ImportAuthorizedPreparerFromFileHandler.cs");
+            "Application", "Handlers", "Import", "ImportAuthorizedPreparerHandlers.cs");
         var calendarHandler = ReadProduct(
             "Application", "Handlers", "Import", "ImportCalendarHandlers.cs");
         var factsPort = ReadProduct(

@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "SQLite：篩選情境、命中與抽樣",
+    "locale": "zh-TW",
+    "output": "archify/filter-results-erd/filter-results-erd.html",
+    "quality_profile": "standard",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "pk": {
+          "label": "主鍵"
+        },
+        "uk": {
+          "label": "唯一約束或唯一索引"
+        },
+        "many": {
+          "label": "多筆"
+        },
+        "one": {
+          "label": "一筆"
+        },
+        "optional": {
+          "label": "可以沒有對應"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 56,
+    "gapY": 70,
+    "entityW": 220
+  },
+  "entities": [
+    {
+      "id": "filter_scenario",
+      "label": "filter_scenario",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "scenario_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "position",
+          "type": "INTEGER"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "rationale",
+          "type": "TEXT"
+        },
+        {
+          "name": "definition_json",
+          "type": "TEXT"
+        },
+        {
+          "name": "saved_utc",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "篩選情境",
+      "sublabel": "第五步已存的篩選情境"
+    },
+    {
+      "id": "filter_hit",
+      "label": "filter_hit",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "scenario_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        }
+      ],
+      "tag": "篩選命中",
+      "sublabel": "每個情境命中的分錄"
+    },
+    {
+      "id": "filter_hit_condition",
+      "label": "filter_hit_condition",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "scenario_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "group_no",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "condition_no",
+          "type": "INTEGER",
+          "key": "pk"
+        }
+      ],
+      "tag": "篩選命中",
+      "sublabel": "命中傳票裡每筆分錄符合哪一條"
+    },
+    {
+      "id": "gl",
+      "label": "gl",
+      "row": 0,
+      "col": 2,
+      "sublabel": "只畫連接欄位 entry_id",
+      "tag": "參照",
+      "attributes": [
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        }
+      ]
+    },
+    {
+      "id": "inf_sample",
+      "label": "inf_sample",
+      "row": 1,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "result_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "voucher_number",
+          "type": "TEXT"
+        },
+        {
+          "name": "line_item",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "資料可靠性測試",
+      "sublabel": "資料可靠性測試抽出的分錄"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "hit_scenario",
+      "from": "filter_hit",
+      "to": "filter_scenario",
+      "label": "scenario_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "condition_scenario",
+      "from": "filter_hit_condition",
+      "to": "filter_scenario",
+      "label": "scenario_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "hit_entry",
+      "from": "filter_hit",
+      "to": "gl",
+      "label": "entry_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "condition_entry",
+      "from": "filter_hit_condition",
+      "to": "gl",
+      "label": "entry_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "sample_entry",
+      "from": "inf_sample",
+      "to": "gl",
+      "label": "entry_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "從結果連回分錄",
+      "items": [
+        "命中與抽樣明細以 entry_id 連回 GL；命中再以 scenario_id 對應情境。這些是程式在 SQL 裡使用的欄位，資料庫沒有宣告外鍵。重算單一情境時，先清除舊條件紀錄與命中。",
+        "gl 只畫連接欄位 entry_id，完整欄位見「SQLite：GL 分錄與攸關資料元素欄位」。科目分類與參考清單見「SQLite：科目分類與參考清單」。"
+      ]
+    }
+  ]
+}

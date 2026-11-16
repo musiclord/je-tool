@@ -29,65 +29,58 @@
     {
       "id": "ui",
       "type": "frontend",
-      "label": "匯入畫面",
-      "sublabel": "JetApi"
+      "label": "匯入畫面"
     },
     {
       "id": "route",
       "type": "backend",
-      "label": "action 通道",
-      "sublabel": "ActionDispatcher"
+      "label": "action 通道"
     },
     {
       "id": "handler",
       "type": "backend",
-      "label": "TB 匯入處理",
-      "sublabel": "ImportTbFromFileHandler"
-    },
-    {
-      "id": "reader",
-      "type": "backend",
-      "label": "表格檔讀取",
-      "sublabel": "ITabularFileReader"
+      "label": "TB 匯入處理"
     },
     {
       "id": "port",
       "type": "backend",
-      "label": "匯入執行",
-      "sublabel": "IntakeFactsPort"
+      "label": "匯入執行"
+    },
+    {
+      "id": "reader",
+      "type": "backend",
+      "label": "表格檔讀取"
     },
     {
       "id": "db",
       "type": "database",
-      "label": "案件資料庫",
-      "sublabel": "SQLite 或 DuckDB"
+      "label": "案件資料庫"
     },
     {
       "id": "project",
       "type": "database",
-      "label": "案件進度檔",
-      "sublabel": "JsonFileProjectStore"
+      "label": "案件進度檔"
     }
   ],
   "segments": [
     {
       "from": 150,
-      "to": 274,
+      "to": 258,
       "label": "共用分派：與篩選儲存圖相同"
     },
     {
-      "from": 306,
-      "to": 575,
+      "from": 272,
+      "to": 512,
       "label": "準備：任一來源的標頭讀取失敗就不寫入"
     },
     {
-      "from": 607,
-      "to": 931,
+      "from": 526,
+      "to": 810,
       "label": "同一筆交易：取代批次與資料列，失敗時嘗試回復"
     },
     {
-      "from": 963,
-      "to": 1213,
+      "from": 824,
+      "to": 1020,
       "label": "提交之後：不再接受取消"
     }
   ],
@@ -98,32 +91,29 @@
       "to": "route",
       "y": 180,
       "label": "import.tb.fromFile",
-      "variant": "emphasis",
-      "note": "沒有指定 mode 就是取代匯入"
+      "variant": "emphasis"
     },
     {
       "id": "m02",
       "from": "route",
       "to": "handler",
-      "y": 240,
+      "y": 224,
       "label": "IApplicationActionHandler.HandleAsync",
-      "variant": "dashed",
-      "note": "依 action 名稱找處理類別"
+      "variant": "dashed"
     },
     {
       "id": "m03",
       "from": "handler",
       "to": "db",
-      "y": 336,
+      "y": 302,
       "label": "IImportRepository.GetLatestBatchAsync",
-      "variant": "dashed",
-      "note": "讀前一批次；先由 JetAuditProgram 建立計畫"
+      "variant": "dashed"
     },
     {
       "id": "m04",
       "from": "db",
       "to": "handler",
-      "y": 398,
+      "y": 346,
       "label": "前一批次",
       "variant": "return"
     },
@@ -131,16 +121,15 @@
       "id": "m05",
       "from": "handler",
       "to": "reader",
-      "y": 438,
+      "y": 390,
       "label": "ITabularFileReader.ReadColumnsAsync",
-      "variant": "dashed",
-      "note": "逐一讀完所有來源的標頭"
+      "variant": "dashed"
     },
     {
       "id": "m06",
       "from": "reader",
       "to": "handler",
-      "y": 490,
+      "y": 434,
       "label": "欄位清單",
       "variant": "return"
     },
@@ -148,43 +137,39 @@
       "id": "m07",
       "from": "handler",
       "to": "reader",
-      "y": 530,
+      "y": 478,
       "label": "ITabularFileReader.ReadRowsAsync",
-      "variant": "dashed",
-      "note": "先準備讀取方式，還沒讀資料列"
+      "variant": "dashed"
     },
     {
       "id": "m08",
       "from": "handler",
       "to": "port",
-      "y": 637,
+      "y": 556,
       "label": "IIntakeFactsPort.ExecuteAsync",
-      "variant": "dashed",
-      "note": "在背景執行，傳入計畫與各來源的資料列"
+      "variant": "dashed"
     },
     {
       "id": "m09",
       "from": "port",
       "to": "db",
-      "y": 699,
+      "y": 600,
       "label": "IImportRepository.ReplaceBatchAsync",
-      "variant": "dashed",
-      "note": "取代匯入：刪除舊批次與受影響的結果"
+      "variant": "dashed"
     },
     {
       "id": "m10",
       "from": "db",
       "to": "reader",
-      "y": 761,
+      "y": 644,
       "label": "逐列讀取",
-      "variant": "emphasis",
-      "note": "逐列寫入原始列資料表；每 20,000 列回報一次進度"
+      "variant": "emphasis"
     },
     {
       "id": "m11",
       "from": "reader",
       "to": "db",
-      "y": 823,
+      "y": 688,
       "label": "資料列",
       "variant": "return"
     },
@@ -192,16 +177,15 @@
       "id": "m12",
       "from": "db",
       "to": "port",
-      "y": 863,
+      "y": 732,
       "label": "ImportBatchResult",
-      "variant": "return",
-      "note": "提交前檢查取消"
+      "variant": "return"
     },
     {
       "id": "m13",
       "from": "port",
       "to": "handler",
-      "y": 915,
+      "y": 776,
       "label": "IntakeFacts",
       "variant": "return"
     },
@@ -209,37 +193,33 @@
       "id": "m14",
       "from": "handler",
       "to": "project",
-      "y": 993,
+      "y": 854,
       "label": "IProjectStore.SaveAsync",
-      "variant": "dashed",
-      "note": "案件步驟落後才更新；失敗記在支援日誌"
+      "variant": "dashed"
     },
     {
       "id": "m15",
       "from": "handler",
       "to": "db",
-      "y": 1055,
+      "y": 898,
       "label": "IProjectOperationLog.TryAppendAsync",
-      "variant": "dashed",
-      "note": "只在取代了舊批次時寫；經 CommittedOperationLog 呼叫，失敗回應附提醒"
+      "variant": "dashed"
     },
     {
       "id": "m16",
       "from": "handler",
       "to": "route",
-      "y": 1117,
+      "y": 942,
       "label": "批次摘要與失效狀態",
-      "variant": "return",
-      "note": "讀回失效狀態與報告清單；讀不回時仍回應成功並附提醒"
+      "variant": "return"
     },
     {
       "id": "m17",
       "from": "route",
       "to": "ui",
-      "y": 1179,
+      "y": 986,
       "label": "回應",
-      "variant": "return",
-      "note": "完成以回應為準，沒有完成事件"
+      "variant": "return"
     }
   ],
   "cards": [
@@ -247,8 +227,57 @@
       "dot": "cyan",
       "title": "從選檔到寫入",
       "items": [
-        "本圖是 SQLite 或 DuckDB 案件正常完成取代匯入的流程。未指定 mode 時採取代方式。",
+        "本圖是正常完成取代匯入的流程。未指定 mode 時採取代方式。",
         "先讀完所有檔案標頭，再逐列寫入同一筆交易。追加匯入另走 AppendToBatchAsync。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "參與者與程式類別",
+      "items": [
+        "匯入畫面：JetApi。",
+        "action 通道：ActionDispatcher。",
+        "TB 匯入處理：ImportTbFromFileHandler。",
+        "匯入執行：IntakeFactsPort。",
+        "表格檔讀取：ITabularFileReader。",
+        "案件資料庫：SQLite。",
+        "案件進度檔：JsonFileProjectStore。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "共用分派",
+      "items": [
+        "IApplicationActionHandler.HandleAsync：依 action 名稱找處理類別。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "準備",
+      "items": [
+        "IImportRepository.GetLatestBatchAsync：先由 JetAuditProgram 建立計畫，再讀前一批次。",
+        "ITabularFileReader.ReadColumnsAsync：逐一讀完所有來源的標頭。",
+        "ITabularFileReader.ReadRowsAsync：先準備讀取方式，還沒讀資料列。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "同一筆交易",
+      "items": [
+        "IIntakeFactsPort.ExecuteAsync：在背景執行，傳入計畫與各來源的資料列。",
+        "IImportRepository.ReplaceBatchAsync：取代匯入時刪除舊批次與受影響的結果。",
+        "逐列讀取：逐列寫入原始列資料表，每 20,000 列回報一次進度。",
+        "ImportBatchResult：提交前會檢查是否已取消。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "提交之後",
+      "items": [
+        "IProjectStore.SaveAsync：案件步驟落後才更新；失敗記在支援日誌。",
+        "IProjectOperationLog.TryAppendAsync：只在取代了舊批次時寫；經 CommittedOperationLog 呼叫，失敗時回應附提醒。",
+        "批次摘要與失效狀態：讀回失效狀態與報告清單；讀不回時仍回應成功並附提醒。",
+        "回應：完成以回應為準，沒有完成事件。"
       ]
     },
     {
@@ -264,52 +293,52 @@
     {
       "participant": "route",
       "from": 180,
-      "to": 1179
+      "to": 986
     },
     {
       "participant": "handler",
-      "from": 240,
-      "to": 1117
+      "from": 224,
+      "to": 942
     },
     {
       "participant": "db",
-      "from": 336,
-      "to": 398
+      "from": 302,
+      "to": 346
     },
     {
       "participant": "reader",
-      "from": 438,
-      "to": 490
+      "from": 390,
+      "to": 434
     },
     {
       "participant": "reader",
-      "from": 530,
-      "to": 554
+      "from": 478,
+      "to": 502
     },
     {
       "participant": "port",
-      "from": 637,
-      "to": 915
+      "from": 556,
+      "to": 776
     },
     {
       "participant": "db",
-      "from": 699,
-      "to": 863
+      "from": 600,
+      "to": 732
     },
     {
       "participant": "reader",
-      "from": 761,
-      "to": 823
+      "from": 644,
+      "to": 688
     },
     {
       "participant": "project",
-      "from": 993,
-      "to": 1017
+      "from": 854,
+      "to": 878
     },
     {
       "participant": "db",
-      "from": 1055,
-      "to": 1079
+      "from": 898,
+      "to": 922
     }
   ]
 }

@@ -29,7 +29,7 @@
     },
     {
       "id": "prepare",
-      "label": "準備，不寫入"
+      "label": "準備"
     },
     {
       "id": "tx",
@@ -52,7 +52,8 @@
       "col": 0,
       "type": "frontend",
       "label": "選檔並匯入 TB",
-      "sublabel": "import.tb.fromFile"
+      "sublabel": "import.tb.fromFile",
+      "width": 96
     },
     {
       "id": "plan",
@@ -84,7 +85,7 @@
       "col": 3,
       "type": "database",
       "label": "逐列寫入新批次",
-      "sublabel": "背景逐列讀取並寫入"
+      "sublabel": "背景逐列讀取寫入"
     },
     {
       "id": "commit",
@@ -92,7 +93,7 @@
       "col": 4,
       "type": "database",
       "label": "提交交易",
-      "sublabel": "提交前最後檢查取消"
+      "sublabel": "先查取消再提交"
     },
     {
       "id": "step",
@@ -156,12 +157,16 @@
     {
       "id": "plan_headers",
       "from": "plan",
-      "to": "headers"
+      "to": "headers",
+      "fromSide": "right",
+      "toSide": "left"
     },
     {
       "id": "headers_clear",
       "from": "headers",
-      "to": "clear"
+      "to": "clear",
+      "fromSide": "right",
+      "toSide": "top"
     },
     {
       "id": "clear_write",
@@ -202,7 +207,10 @@
       "from": "headers",
       "to": "error",
       "label": "標頭或選項錯誤",
-      "role": "error"
+      "role": "error",
+      "labelDy": 96,
+      "fromSide": "bottom",
+      "toSide": "top"
     },
     {
       "id": "write_rollback",
@@ -265,7 +273,7 @@
       "dot": "amber",
       "title": "失敗與取消",
       "items": [
-        "寫入失敗或取消時會嘗試回復交易；回復本身也可能失敗。SQLite 可中斷正在執行的語句，由資料庫回復該寫入。",
+        "寫入失敗或取消時會嘗試回復交易；回復本身也可能失敗。執行中的語句也能中途取消，被中斷的寫入由 SQLite 回復。",
         "提交後不再接受取消。步驟更新失敗記錄日誌；取代舊批次的操作紀錄寫入失敗時，另在畫面提醒。"
       ]
     }

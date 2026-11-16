@@ -484,7 +484,7 @@
         {
           "component": "application",
           "label": "讀取來源檔、儲存報告檔",
-          "file": "Application/Handlers/Import/ImportAccountMappingHandler.cs",
+          "file": "Application/Handlers/Import/ImportAccountMappingFromFileHandler.cs",
           "text": "ITabularFileReader reader,",
           "more": [
             {

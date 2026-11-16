@@ -17,8 +17,9 @@ public sealed partial class LegacyReportWriter
 
     private const string PrescreenApprovalDateNotMappedMessage = "沒有設定傳票核准日欄位";
 
+    // 舊版原句在欄位名稱外加了括號；報告裡的欄位名稱照原樣寫、不加符號，所以這句只拿掉括號，其他字照舊版。
     private const string PrescreenPreparerNotMappedMessage =
-        "因於資料欄未配對時未配對【編制人員】欄位，故此預篩選程序未執行";
+        "因於資料欄未配對時未配對編制人員欄位，故此預篩選程序未執行";
 
     /// <summary>
     /// 「財報準備日起核准」只因傳票核准日不可用而不能執行時，第四步存下的原因句；
@@ -460,27 +461,22 @@ public sealed partial class LegacyReportWriter
         {
             return cell.InlineString.InnerText;
         }
-        if (cell.DataType?.Value == CellValues.SharedString
-            && int.TryParse(
-                cell.CellValue?.Text,
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out var index))
+
+        var raw = cell.CellValue?.Text;
+        if (cell.DataType?.Value == CellValues.SharedString && !string.IsNullOrWhiteSpace(raw))
         {
+            // 共用字串格的值是共用字串表的編號；不是編號、活頁簿沒有共用字串表或編號超出範圍，都是範本內容有問題。
             var workbookPart = worksheetPart.GetParentParts()
                 .OfType<WorkbookPart>()
                 .Single();
-            var sharedStrings = workbookPart.SharedStringTablePart?.SharedStringTable;
-            if (sharedStrings is null)
-            {
-                return string.Empty;
-            }
-
-            return sharedStrings.Elements<SharedStringItem>().ElementAtOrDefault(index)?.InnerText
+            var item = int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+                ? workbookPart.SharedStringTablePart?.SharedStringTable?.Elements<SharedStringItem>().ElementAtOrDefault(index)
+                : null;
+            return item?.InnerText
                 ?? throw new InvalidDataException($"範本儲存格 {reference} 指到共用字串表裡沒有的項目。");
         }
 
-        return cell.CellValue?.Text ?? string.Empty;
+        return raw ?? string.Empty;
     }
 
     private async Task EmitPrescreenRuleFromPlanAsync(

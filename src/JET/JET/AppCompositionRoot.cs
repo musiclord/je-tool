@@ -189,9 +189,9 @@ public static partial class AppCompositionRoot
 #endif
             new ImportGlFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportGlFromFileHandler>()),
             new ImportTbFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportTbFromFileHandler>()),
-            new ImportAccountMappingHandler(fileReader, session, loggerFactory.CreateLogger<ImportAccountMappingHandler>()),
+            new ImportAccountMappingFromFileHandler(fileReader, session, loggerFactory.CreateLogger<ImportAccountMappingFromFileHandler>()),
             new ImportAuthorizedPreparerFromFileHandler(fileReader, session, loggerFactory.CreateLogger<ImportAuthorizedPreparerFromFileHandler>()),
-            new ClearAuthorizedPreparerHandler(session, loggerFactory.CreateLogger<ClearAuthorizedPreparerHandler>()),
+            new ImportAuthorizedPreparerClearHandler(session, loggerFactory.CreateLogger<ImportAuthorizedPreparerClearHandler>()),
             new ImportInspectFileHandler(fileReader, loggerFactory.CreateLogger<ImportInspectFileHandler>()),
             new ImportPreviewFileHandler(fileReader),
             new ImportHolidayHandler(projectStore, session, loggerFactory.CreateLogger<ImportHolidayHandler>()),

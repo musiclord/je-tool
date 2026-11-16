@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "TB 匯入資料怎麼寫進案件資料庫",
+    "locale": "zh-TW",
+    "output": "archify/import-classes-write/import-classes-write.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 300,
+    "gapX": 130,
+    "gapY": 48
+  },
+  "types": [
+    {
+      "id": "base",
+      "label": "ImportFromFileHandler",
+      "kind": "abstract",
+      "row": 0,
+      "col": 0.5,
+      "sublabel": "GL 與 TB 共用流程",
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public"
+        }
+      ],
+      "width": 302
+    },
+    {
+      "id": "intakeContract",
+      "label": "IIntakeFactsPort",
+      "kind": "interface",
+      "row": 1,
+      "col": 0,
+      "sublabel": "執行匯入計畫",
+      "methods": [
+        {
+          "name": "ExecuteAsync",
+          "parameters": "IntakePlan, IReadOnlyList<ImportSourceInput>",
+          "returns": "Task<IntakeFacts>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 400
+    },
+    {
+      "id": "importContract",
+      "label": "IImportRepository",
+      "kind": "interface",
+      "row": 1,
+      "col": 1,
+      "sublabel": "批次與原始列",
+      "methods": [
+        {
+          "name": "GetLatestBatchAsync",
+          "parameters": "string, DatasetKind",
+          "returns": "Task<ImportBatchInfo?>",
+          "visibility": "public",
+          "abstract": true
+        },
+        {
+          "name": "ReplaceBatchAsync",
+          "parameters": "string, DatasetKind, IReadOnlyList<ImportSourceInput>",
+          "returns": "Task<ImportBatchResult>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 475
+    },
+    {
+      "id": "intake",
+      "label": "IntakeFactsPort",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "依計畫取代或追加"
+    },
+    {
+      "id": "localImport",
+      "label": "LocalImportRepository",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "SQLite 實作"
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 3,
+      "col": 0.5,
+      "sublabel": "啟動時建立物件",
+      "methods": [
+        {
+          "name": "CreateLocalProjectRepositories",
+          "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
+          "returns": "ProjectRepositories",
+          "visibility": "private",
+          "static": true
+        }
+      ],
+      "width": 430
+    }
+  ],
+  "relationships": [
+    {
+      "id": "base_intake",
+      "from": "base",
+      "to": "intakeContract",
+      "kind": "dependency",
+      "label": "ExecuteAsync"
+    },
+    {
+      "id": "base_import",
+      "from": "base",
+      "to": "importContract",
+      "kind": "dependency",
+      "label": "GetLatestBatchAsync"
+    },
+    {
+      "id": "intake_contract",
+      "from": "intake",
+      "to": "intakeContract",
+      "kind": "realization"
+    },
+    {
+      "id": "intake_import",
+      "from": "intake",
+      "to": "importContract",
+      "kind": "dependency",
+      "label": "ReplaceBatchAsync",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelSegment": 1,
+      "labelDx": -3,
+      "labelDy": 31
+    },
+    {
+      "id": "local_import",
+      "from": "localImport",
+      "to": "importContract",
+      "kind": "realization"
+    },
+    {
+      "id": "root_intake",
+      "from": "root",
+      "to": "intake",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_local",
+      "from": "root",
+      "to": "localImport",
+      "kind": "dependency",
+      "label": "建立"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "寫入分工",
+      "items": [
+        "ImportFromFileHandler 先查最新批次，再把匯入計畫交給 IIntakeFactsPort。IntakeFactsPort 依計畫取代匯入；追加匯入另走 AppendToBatchAsync。由 LocalImportRepository 寫入 SQLite。",
+        "讀檔、規劃與更新進度檔，見「TB 匯入的處理類別怎麼讀檔與更新進度」。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "圖外的操作紀錄",
+      "items": [
+        "CommittedOperationLog 經 IProjectOperationLog 寫入紀錄；寫入失敗會附提醒。"
+      ]
+    }
+  ]
+}

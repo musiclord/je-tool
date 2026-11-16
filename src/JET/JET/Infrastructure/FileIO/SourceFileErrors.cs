@@ -59,6 +59,15 @@ internal static class SourceFileErrors
         JetErrorCodes.EmptyWorkbook,
         $"檔案「{Path.GetFileName(filePath)}」從第 {leadingRowsToSkip + 1} 列起沒有內容，找不到欄名。請確認欄名所在的列。");
 
+    /// <summary>
+    /// 共用字串格記的編號在共用字串表裡找不到，這一格原本的文字已經讀不到。當成空白匯入的話，審計員看不出少了資料，
+    /// 所以停下來寫出工作表與儲存格位址，請審計員用 Excel 開啟確認後另存新檔再匯入。
+    /// </summary>
+    public static JetActionException MissingSharedString(string filePath, string sheetName, string cellAddress) => new(
+        JetErrorCodes.FileReadError,
+        $"檔案「{Path.GetFileName(filePath)}」工作表「{sheetName}」的儲存格 {cellAddress} 讀不到文字內容，檔案可能已損壞。" +
+        $"請用 Excel 開啟這個檔案確認 {cellAddress} 的內容，另存新檔後再匯入。");
+
     public static JetActionException UnbalancedQuote(string filePath, CsvStructureException error)
     {
         return new JetActionException(

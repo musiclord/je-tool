@@ -37,6 +37,22 @@ internal sealed record LegacyAuditParityNormalizedFamilyColumn(
     string MultisetDigest,
     string SequenceDigest,
     int ValueCount,
+    IReadOnlyList<int> BucketCounts)
+{
+    /// <summary>
+    /// 把這一欄的數字儲存格當成 Excel 日期序列值、換成 yyyy-MM-dd 之後的值摘要。只有呼叫端確定這一欄是日期欄時才拿來比；
+    /// 這一欄沒有可換的序列值時是 null，表示和原本的摘要相同。
+    /// </summary>
+    internal LegacyAuditParityColumnDigests? AsDates { get; init; }
+
+    /// <summary>這一欄每個數字取相反數之後的多重集摘要，只用來說明差異是不是只差正負號，不拿來放行。</summary>
+    internal string? NegatedMultisetDigest { get; init; }
+}
+
+/// <summary>一欄值的三種摘要：不看順序的多重集、照列順序的序列，以及估計差值數用的 64 格分布。</summary>
+internal sealed record LegacyAuditParityColumnDigests(
+    string MultisetDigest,
+    string SequenceDigest,
     IReadOnlyList<int> BucketCounts);
 
 internal sealed record LegacyAuditParityNormalizedDirectFamily(
@@ -130,7 +146,7 @@ internal sealed record LegacyAuditParityNormalizedWorkbook(
 /// </summary>
 internal static class LegacyAuditParityNormalizedWorkbookReader
 {
-    /// <summary>18 張 direct-physical 基底頁的固定標題列位置。</summary>
+    /// <summary>22 張 direct-physical 基底頁的固定標題列位置；條件篩選報告的十張明細頁都是第 1 列。</summary>
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>>
         DirectFamilyHeaderRows = new Dictionary<string, IReadOnlyDictionary<string, int>>(
             StringComparer.Ordinal)
@@ -163,6 +179,10 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
                 ["#Criteria Select 4"] = 1,
                 ["#Criteria Select 5"] = 1,
                 ["#Criteria Select 6"] = 1,
+                ["#Criteria Select 7"] = 1,
+                ["#Criteria Select 8"] = 1,
+                ["#Criteria Select 9"] = 1,
+                ["#Criteria Select 10"] = 1,
             },
             ["working-paper"] = new Dictionary<string, int>(StringComparer.Ordinal)
             {
@@ -363,10 +383,23 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
                 {
                     values = [];
                     _columns.Add(key, values);
+                    _dateValues.Add(key, []);
                 }
                 values.Add((semantic, formula));
+                var asDate = kind == "number" && formula.Length == 0
+                    ? SerialDateText(semantic)
+                    : null;
+                _dateValues[key].Add(asDate);
+                if (asDate is not null)
+                {
+                    _columnsWithDates.Add(key);
+                }
             }
         }
+
+        // 和 _columns 同一欄、同一順序：數字儲存格當成 Excel 日期序列值換出的日期，不能換的是 null。
+        private readonly Dictionary<string, List<string?>> _dateValues = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _columnsWithDates = new(StringComparer.Ordinal);
 
         internal LegacyAuditParityNormalizedDirectFamily Build(string baseName) => new(
             baseName,
@@ -374,15 +407,47 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
             _dataRowCount,
             _columns
                 .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                .Select(static pair => new LegacyAuditParityNormalizedFamilyColumn(
+                .Select(pair => new LegacyAuditParityNormalizedFamilyColumn(
                     pair.Key,
-                    DigestValues(pair.Value
-                        .OrderBy(static entry => entry.Value, StringComparer.Ordinal)
-                        .ThenBy(static entry => entry.Formula, StringComparer.Ordinal)),
+                    MultisetDigest(pair.Value),
                     DigestValues(pair.Value),
                     pair.Value.Count,
-                    BucketValues(pair.Value)))
+                    BucketValues(pair.Value))
+                {
+                    AsDates = _columnsWithDates.Contains(pair.Key)
+                        ? Digests(pair.Value
+                            .Select((entry, index) => (_dateValues[pair.Key][index] ?? entry.Value, entry.Formula))
+                            .ToArray())
+                        : null,
+                    NegatedMultisetDigest = MultisetDigest(pair.Value
+                        .Select(static entry => (Negate(entry.Value), entry.Formula))
+                        .ToArray()),
+                })
                 .ToArray());
+
+        private static LegacyAuditParityColumnDigests Digests(IReadOnlyList<(string Value, string Formula)> values) =>
+            new(MultisetDigest(values), DigestValues(values), BucketValues(values));
+
+        private static string MultisetDigest(IEnumerable<(string Value, string Formula)> values) =>
+            DigestValues(values
+                .OrderBy(static entry => entry.Value, StringComparer.Ordinal)
+                .ThenBy(static entry => entry.Formula, StringComparer.Ordinal));
+
+        // Excel 1900 日期系統的整數序列值；第 61 號以後和 OLE 日期一致，這裡只換 1900-03-01 以後到 9999-12-31 的日期。
+        private static string? SerialDateText(string semantic)
+        {
+            if (!decimal.TryParse(semantic, NumberStyles.Integer, CultureInfo.InvariantCulture, out var serial)
+                || serial is < 61 or > 2958465)
+            {
+                return null;
+            }
+            return DateTime.FromOADate((double)serial).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        private static string Negate(string semantic) =>
+            decimal.TryParse(semantic, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+                ? (-number).ToString("G29", CultureInfo.InvariantCulture)
+                : semantic;
 
         /// <summary>64-bucket 值分布向量：跨側 L1 距離即為每欄差值數的下界估計。</summary>
         private static int[] BucketValues(IEnumerable<(string Value, string Formula)> values)

@@ -937,7 +937,10 @@ public sealed partial class WorkingPaperWriter(
 
         public void Protect() => _protect = true;
 
-        /// <summary>inline-string 文字 cell(空字串會被視為空 cell 不輸出值,但保留樣式)。</summary>
+        /// <summary>
+        /// inline-string 文字 cell(空字串會被視為空 cell 不輸出值,但保留樣式)。超過 Excel 每格上限的文字寫到上限並註明已截斷，
+        /// 記在這張工作表的截斷格數。照範本原樣保留的工作表不寫資料列，沒有工作表可記，文字照原樣寫出。
+        /// </summary>
         public Cell TextCell(uint rowIndex, uint column, string? value, uint style = WorkingPaperStyles.Default)
         {
             var cell = new Cell
@@ -948,7 +951,26 @@ public sealed partial class WorkingPaperWriter(
             if (!string.IsNullOrEmpty(value))
             {
                 cell.DataType = CellValues.InlineString;
-                cell.InlineString = ExcelText.InlineString(value, preserveSpace: false);
+                cell.InlineString = _part is null
+                    ? ExcelText.VerbatimInlineString(value)
+                    : ExcelText.InlineString(value, _part);
+            }
+
+            return cell;
+        }
+
+        /// <summary>照原樣寫出、不截斷的文字 cell，給 JET 讀回用的配對資料與篩選條件說明切好的分段。</summary>
+        public Cell VerbatimTextCell(uint rowIndex, uint column, string? value, uint style = WorkingPaperStyles.Default)
+        {
+            var cell = new Cell
+            {
+                CellReference = Reference(column, rowIndex),
+                StyleIndex = MapCellStyle(rowIndex, column, style)
+            };
+            if (!string.IsNullOrEmpty(value))
+            {
+                cell.DataType = CellValues.InlineString;
+                cell.InlineString = ExcelText.VerbatimInlineString(value);
             }
 
             return cell;
@@ -1215,7 +1237,7 @@ public sealed partial class WorkingPaperWriter(
                     {
                         if (validation.SequenceOfReferences is { InnerText: { } sqref } references)
                         {
-                            references.InnerText = ExtendSqref(
+                            references.InnerText = ReportSheetWriter.ExtendSqref(
                                 sqref,
                                 extension.TemplateLastRow,
                                 extension.LastRow);
@@ -1420,31 +1442,6 @@ public sealed partial class WorkingPaperWriter(
             var mapped = _styles.Map(sourceStyle);
             return _mapCellStyle?.Invoke(row, column, mapped) ?? mapped;
         }
-
-        /// <summary>sqref 以空白分隔多個範圍；只延伸結束列等於範本最後一列的範圍，其他範圍照原樣。</summary>
-        private static string ExtendSqref(string sqref, uint templateLastRow, uint lastRow) =>
-            string.Join(' ', sqref
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .Select(range =>
-                {
-                    var colon = range.IndexOf(':', StringComparison.Ordinal);
-                    var end = colon < 0 ? range : range[(colon + 1)..];
-                    var digits = end.IndexOfAny("0123456789".ToCharArray());
-                    if (digits <= 0
-                        || !uint.TryParse(
-                            end[digits..],
-                            NumberStyles.None,
-                            CultureInfo.InvariantCulture,
-                            out var endRow)
-                        || endRow != templateLastRow)
-                    {
-                        return range;
-                    }
-                    var extendedEnd = end[..digits] + lastRow.ToString(CultureInfo.InvariantCulture);
-                    return colon < 0
-                        ? range + ":" + extendedEnd
-                        : range[..(colon + 1)] + extendedEnd;
-                }));
 
         /// <summary>(column, row) → A1 形式參考。column/row 皆 1-based。</summary>
         private static string Reference(uint column, uint rowIndex)

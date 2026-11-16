@@ -18,6 +18,8 @@ namespace JET.Infrastructure;
 /// - 標頭用共用的 TabularHeaderNormalizer 正規化，結果和文字檔讀取器完全相同。
 ///   資料列超出標頭範圍的儲存格有資料時，補一個 COL_{欄號} 佔位欄，不會丟掉。
 /// - request.SheetName 指定要讀的工作表，不分大小寫；沒有指定時讀第一個資料工作表，chartsheet 不算。
+/// - 共用字串格的編號在共用字串表裡找不到時，檔案已經損壞，停下來指出工作表與儲存格，不當成空白讀進來。
+/// - 有公式、卻沒有存計算結果的格子讀成空白；request.FormulasWithoutResult 有值時，讀資料列時順便記下格數與第一格。
 /// </summary>
 public sealed class OpenXmlSaxTableReader : ITabularFileReader
 {
@@ -34,7 +36,8 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         var (sheetName, part) = ResolveWorksheet(handle.Document, request);
         var context = CellContext.Create(handle.Document);
 
-        var header = FindHeaderRow(part, context, onDimension: null, request.LeadingRowsToSkip)
+        var header = FindHeaderRow(
+                part, context, new SheetSource(request.FilePath, sheetName), onDimension: null, request.LeadingRowsToSkip)
             ?? throw NoHeader(request, sheetName);
 
         IReadOnlyList<string> columns = BuildHeaderMap(header.Cells).Select(h => h.Name).ToList();
@@ -61,7 +64,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             cancellationToken.ThrowIfCancellationRequested();
 
             string? dimensionRef = null;
-            var header = FindHeaderRow(part, context, reference => dimensionRef = reference);
+            var header = FindHeaderRow(part, context, new SheetSource(filePath, name), reference => dimensionRef = reference);
 
             if (header is null)
             {
@@ -97,7 +100,21 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         Dictionary<int, string>? headerByColumn = null;
         HashSet<string>? usedNames = null;
 
-        foreach (var row in EnumerateContentRows(part, context, onDimension: null))
+        // 只有讀資料列時計數；略過的標題列不匯入，裡面的公式不提醒。
+        Action<int, int>? onFormulaWithoutResult = null;
+        if (request.FormulasWithoutResult is { } formulas)
+        {
+            onFormulaWithoutResult = (rowNumber, columnNumber) =>
+            {
+                if (rowNumber > request.LeadingRowsToSkip)
+                {
+                    formulas.Observe(sheetName, CellAddress(columnNumber, rowNumber));
+                }
+            };
+        }
+
+        var source = new SheetSource(request.FilePath, sheetName);
+        foreach (var row in EnumerateContentRows(part, context, source, onDimension: null, onFormulaWithoutResult))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -269,11 +286,14 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     private readonly record struct ContentRow(int RowNumber, List<ContentCell> Cells);
 
+    /// <summary>正在讀的檔案與工作表，讀不到儲存格內容時用來寫出是哪個檔案的哪一張工作表。</summary>
+    private readonly record struct SheetSource(string FilePath, string SheetName);
+
     /// <summary>略過前 N 個實際列號，再取第一個有內容的標頭；空白列也計入略過範圍。</summary>
     private static ContentRow? FindHeaderRow(
-        WorksheetPart part, CellContext context, Action<string>? onDimension, int leadingRowsToSkip = 0)
+        WorksheetPart part, CellContext context, SheetSource source, Action<string>? onDimension, int leadingRowsToSkip = 0)
     {
-        foreach (var row in EnumerateContentRows(part, context, onDimension))
+        foreach (var row in EnumerateContentRows(part, context, source, onDimension))
         {
             if (row.RowNumber <= leadingRowsToSkip)
             {
@@ -289,9 +309,15 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     /// <summary>
     /// 逐列往前讀工作表，不載入成 DOM，只回傳至少有一個非空白值的列。
     /// row 或 cell 沒有寫 r 屬性時，列號或欄號接著前一個往下數；OOXML 允許省略這個屬性。
+    /// 有公式、卻沒有存計算結果的格子照樣當成空白，另外把列號與欄號交給 onFormulaWithoutResult；
+    /// 只有這種格子的列不回傳，但仍然會計數。
     /// </summary>
     private static IEnumerable<ContentRow> EnumerateContentRows(
-        WorksheetPart part, CellContext context, Action<string>? onDimension)
+        WorksheetPart part,
+        CellContext context,
+        SheetSource source,
+        Action<string>? onDimension,
+        Action<int, int>? onFormulaWithoutResult = null)
     {
         using var reader = OpenXmlReader.Create(part);
         var lastRowNumber = 0;
@@ -334,8 +360,19 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
                 var columnNumber = ParseColumnNumber(cell.CellReference?.Value) ?? lastColumnNumber + 1;
                 lastColumnNumber = columnNumber;
 
+                // 先看有沒有值：大部分格子有值，不必再找公式元素。
+                if (onFormulaWithoutResult is not null && cell.CellValue is null && cell.CellFormula is not null)
+                {
+                    onFormulaWithoutResult(rowNumber, columnNumber);
+                }
+
                 ExtractedCellValue extracted;
                 try { extracted = ExtractCellValue(cell, context); }
+                catch (MissingSharedStringException)
+                {
+                    throw SourceFileErrors.MissingSharedString(
+                        source.FilePath, source.SheetName, CellAddress(columnNumber, rowNumber));
+                }
                 catch (Exception error) when (error is FormatException or OverflowException or ArgumentException)
                 {
                     ImportFailureDiagnostics.Attach(error, new ImportFailureContext(ImportFailureStage.CellConversion,
@@ -504,13 +541,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         if (dataType == CellValues.SharedString)
         {
-            var raw = cell.CellValue?.InnerText;
-            var value = raw is not null
-                && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index)
-                && index >= 0 && index < context.SharedStrings.Count
-                ? context.SharedStrings[index].Trim()
-                : string.Empty;
-            return TextValue(value);
+            return TextValue(SharedStringText(cell.CellValue?.InnerText, context.SharedStrings));
         }
 
         if (dataType == CellValues.InlineString)
@@ -563,7 +594,8 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             return new ExtractedCellValue(raw, LegacyFieldKind.Date, DecimalPlaces: null);
         }
 
-        // 其餘是數值儲存格：沒有型別屬性，或 t="n"。公式儲存格沒有存計算結果時當成空白，讀取時不重算公式。
+        // 其餘是數值儲存格：沒有型別屬性，或 t="n"。公式儲存格沒有存計算結果時當成空白，讀取時不重算公式；
+        // 這種格子由逐列讀取的地方計數，匯入結果會提醒審計員。
         var rawValue = cell.CellValue?.InnerText;
         if (string.IsNullOrWhiteSpace(rawValue))
         {
@@ -609,6 +641,32 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     private static ExtractedCellValue TextValue(string value) =>
         new(value, LegacyFieldKind.Text, DecimalPlaces: null);
+
+    /// <summary>
+    /// 共用字串格的值是共用字串表的編號，從 0 起算。沒有值的格子當成空白。有值卻找不到對應的文字時，
+    /// 這一格原本的文字已經讀不到，丟出 <see cref="MissingSharedStringException"/>，由逐列讀取的地方補上工作表與儲存格位址。
+    /// </summary>
+    private static string SharedStringText(string? raw, IReadOnlyList<string> sharedStrings)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index)
+            || index < 0
+            || index >= sharedStrings.Count)
+        {
+            throw new MissingSharedStringException();
+        }
+
+        return sharedStrings[index].Trim();
+    }
+
+    /// <summary>共用字串格的編號在共用字串表裡找不到。只在這個讀取器內部使用，對外改成指出儲存格位址的錯誤。</summary>
+    private sealed class MissingSharedStringException : Exception
+    {
+    }
 
     private readonly record struct NormalizedNumericValue(string Value, int DecimalPlaces);
 
@@ -684,6 +742,18 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         }
 
         return column == 0 ? null : column;
+    }
+
+    /// <summary>欄號與列號組成儲存格位址，例如第 3 欄第 5 列是 C5。</summary>
+    private static string CellAddress(int columnNumber, int rowNumber)
+    {
+        var letters = new StringBuilder();
+        for (var column = columnNumber; column > 0; column = (column - 1) / 26)
+        {
+            letters.Insert(0, (char)('A' + (column - 1) % 26));
+        }
+
+        return letters.Append(rowNumber.ToString(CultureInfo.InvariantCulture)).ToString();
     }
 
     /// <summary>dimension ref（"A1:AB678400" 或 "A1"）的末列號。</summary>

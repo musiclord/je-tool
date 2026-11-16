@@ -22,7 +22,11 @@ internal sealed class PrivateCaseScenarioVerificationException : InvalidOperatio
 internal sealed record PrivateCaseScenarioActualCount(
     int Position,
     long VoucherCount,
-    long RowCount);
+    long RowCount)
+{
+    /// <summary>JET 畫面上的「符合條件的分錄筆數」；回應沒有這個欄位時是 null。</summary>
+    internal long? SummaryRowCount { get; init; }
+}
 
 internal sealed class PrivateCaseScenarioVerificationFacts
 {
@@ -56,7 +60,12 @@ internal sealed class PrivateCaseScenarioVerificationFacts
             counts.Add(new PrivateCaseScenarioActualCount(
                 position,
                 RequiredCount(scenario, "voucherHitCount"),
-                RequiredCount(scenario, "rowHitCount")));
+                RequiredCount(scenario, "rowHitCount"))
+            {
+                SummaryRowCount = scenario.TryGetProperty("summaryRowCount", out _)
+                    ? RequiredCount(scenario, "summaryRowCount")
+                    : null,
+            });
         }
         if (!positions.SetEquals(Enumerable.Range(1, counts.Count)))
         {
@@ -114,6 +123,24 @@ internal sealed record PrivateCaseScenarioVerificationSummary(
 
     public long? WeekendIncludingMakeupVoucherCount { get; init; }
 
+    /// <summary>JET 回傳的「符合條件的分錄筆數」。</summary>
+    public long? ActualSummaryRowCount { get; init; }
+
+    public bool SummaryRowCountCompared => ActualSummaryRowCount.HasValue;
+
+    // 只用一條「未預期借貸組合」的情境，「符合條件的分錄筆數」是整張命中傳票的分錄數，要等於驗證框架展開的列數；
+    // 其他情境是直接符合的分錄數。
+    public bool SummaryRowCountMatches => !ActualSummaryRowCount.HasValue
+        || RowCountBasis switch
+        {
+            PrivateCaseScenarioRowCountBasis.DirectHitRows =>
+                ActualSummaryRowCount.Value == ActualRowCount,
+            PrivateCaseScenarioRowCountBasis.ExportedVoucherRows =>
+                ExpandedVoucherRowCount.HasValue
+                && ActualSummaryRowCount.Value == ExpandedVoucherRowCount.Value,
+            _ => false,
+        };
+
     [JsonIgnore]
     internal PrivateCaseScenarioRowCountBasis RowCountBasis { get; init; }
 
@@ -132,7 +159,8 @@ internal sealed record PrivateCaseScenarioVerificationSummary(
         || ExpectedVoucherCount.Value == ActualVoucherCount;
 
     public bool Passed => RowCountMatches
-        && (!VoucherCountCompared || VoucherCountMatches);
+        && (!VoucherCountCompared || VoucherCountMatches)
+        && SummaryRowCountMatches;
 
     public bool ExpandedVoucherRowsMatchExpected =>
         ExpandedVoucherRowCount.HasValue
@@ -266,6 +294,7 @@ internal static class PrivateCaseScenarioVerifier
                         observed.VoucherCount)
                     {
                         RowCountBasis = count.RowCountBasis,
+                        ActualSummaryRowCount = observed.SummaryRowCount,
                         ExpandedVoucherRowCount = diagnostic?.ExpandedVoucherRowCount,
                         ExpandedRowsWhoseDirectHitHasNullOrEmptyDescription =
                             diagnostic?.ExpandedRowsWhoseDirectHitHasNullOrEmptyDescription,

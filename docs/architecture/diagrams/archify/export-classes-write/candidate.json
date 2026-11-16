@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "diagram_type": "class",
+  "meta": {
+    "title": "正式底稿怎麼寫檔與發布",
+    "locale": "zh-TW",
+    "output": "archify/export-classes-write/export-classes-write.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dependency": {
+          "label": "依賴：呼叫或建立，線上寫方法"
+        },
+        "realization": {
+          "label": "實作介面"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "typeW": 180,
+    "typeMaxW": 300,
+    "gapX": 62,
+    "gapY": 45
+  },
+  "types": [
+    {
+      "id": "handler",
+      "label": "ExportWorkingPaperStreamHandler",
+      "kind": "class",
+      "row": 0,
+      "col": 1,
+      "sublabel": "export.workingPaperStream",
+      "methods": [
+        {
+          "name": "HandleAsync",
+          "parameters": "JsonElement",
+          "returns": "Task<object?>",
+          "visibility": "public"
+        }
+      ]
+    },
+    {
+      "id": "writerContract",
+      "label": "IWorkingPaperPlanWriter",
+      "kind": "interface",
+      "row": 1,
+      "col": 0,
+      "sublabel": "寫入工作簿",
+      "methods": [
+        {
+          "name": "WriteAsync",
+          "parameters": "Stream, WorkingPaperContext, WorkingPaperPlan",
+          "returns": "Task<ExportStats>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 274
+    },
+    {
+      "id": "auditedContract",
+      "label": "IAuditedReportPublishingStore",
+      "kind": "interface",
+      "row": 1,
+      "col": 1,
+      "sublabel": "發布並回操作紀錄的提醒",
+      "methods": [
+        {
+          "name": "WriteAuditedAsync",
+          "parameters": "string, ReportWriteRequest, Action<ReportKind>",
+          "returns": "Task<AuditedReportPublication>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 326
+    },
+    {
+      "id": "publishContract",
+      "label": "IReportPublishingStore",
+      "kind": "interface",
+      "row": 1,
+      "col": 2,
+      "sublabel": "寫檔並通知發布",
+      "methods": [
+        {
+          "name": "WriteWithPublishingAsync",
+          "parameters": "string, ReportWriteRequest, Action<ReportKind>",
+          "returns": "Task<Report>",
+          "visibility": "public",
+          "abstract": true
+        }
+      ],
+      "width": 265
+    },
+    {
+      "id": "writer",
+      "label": "WorkingPaperWriter",
+      "kind": "class",
+      "row": 2,
+      "col": 0,
+      "sublabel": "分頁讀取並寫出"
+    },
+    {
+      "id": "audited",
+      "label": "AuditedReportStore",
+      "kind": "class",
+      "row": 2,
+      "col": 1,
+      "sublabel": "外層：寫操作紀錄"
+    },
+    {
+      "id": "files",
+      "label": "ProjectReportStore",
+      "kind": "class",
+      "row": 2,
+      "col": 2,
+      "sublabel": "內層：暫存檔、改名與清單"
+    },
+    {
+      "id": "root",
+      "label": "AppCompositionRoot",
+      "kind": "class",
+      "row": 3,
+      "col": 1.5,
+      "sublabel": "啟動時建立物件",
+      "methods": [
+        {
+          "name": "CreateRuntime",
+          "parameters": "IHostShell, string, …",
+          "returns": "JetApplicationRuntime",
+          "visibility": "public",
+          "static": true
+        },
+        {
+          "name": "CreateLocalProjectRepositories",
+          "parameters": "string, ILocalProjectDatabase, ProjectRepositoryAssembly",
+          "returns": "ProjectRepositories",
+          "visibility": "private",
+          "static": true
+        }
+      ],
+      "width": 440
+    }
+  ],
+  "relationships": [
+    {
+      "id": "handler_writer",
+      "from": "handler",
+      "to": "writerContract",
+      "kind": "dependency",
+      "label": "寫檔函式內 WriteAsync",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "handler_audited",
+      "from": "handler",
+      "to": "auditedContract",
+      "kind": "dependency",
+      "label": "WriteAuditedAsync"
+    },
+    {
+      "id": "writer_contract",
+      "from": "writer",
+      "to": "writerContract",
+      "kind": "realization"
+    },
+    {
+      "id": "audited_auditedContract",
+      "from": "audited",
+      "to": "auditedContract",
+      "kind": "realization"
+    },
+    {
+      "id": "audited_contract",
+      "from": "audited",
+      "to": "publishContract",
+      "kind": "realization"
+    },
+    {
+      "id": "files_contract",
+      "from": "files",
+      "to": "publishContract",
+      "kind": "realization"
+    },
+    {
+      "id": "root_audited",
+      "from": "root",
+      "to": "audited",
+      "kind": "dependency",
+      "label": "建立"
+    },
+    {
+      "id": "root_files",
+      "from": "root",
+      "to": "files",
+      "kind": "dependency",
+      "label": "建立"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "寫檔與發布分工",
+      "items": [
+        "ExportWorkingPaperStreamHandler 把寫檔函式交給存檔類別，函式裡呼叫 IWorkingPaperPlanWriter.WriteAsync 寫出工作簿。ProjectReportStore 寫檔，AuditedReportStore 包在外層記錄發布。",
+        "存檔類別支援 IAuditedReportPublishingStore 時，回應才包含操作紀錄失敗的提醒；否則使用其他發布介面。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "圖中省略的部分",
+      "items": [
+        "兩個存檔類別也實作 IReportStore，負責清單、路徑與失效標記。",
+        "寫檔函式與操作紀錄的呼叫順序見循序圖；規劃底稿的類別見「正式底稿的處理類別怎麼準備資料」。"
+      ]
+    }
+  ]
+}

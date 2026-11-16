@@ -197,6 +197,10 @@ internal sealed class LocalFieldInfoFactsPort(ILocalProjectDatabase database)
             batchId,
             scope,
             cancellationToken);
+        if (scope == FieldInfoScope.Target)
+        {
+            states = await WithCurrentDescriptionsAsync(connection, kind, batchId, states, cancellationToken);
+        }
 
         return states
             .Select(state => new FieldInfo(
@@ -209,5 +213,38 @@ internal sealed class LocalFieldInfoFactsPort(ILocalProjectDatabase database)
                 state.Origin,
                 state.JetField))
             .ToList();
+    }
+
+    /// <summary>
+    /// 系統產生欄位的說明句依這一批已確認的配對重新產生，不照存的句子寫：存的是確認配對當時的寫法，
+    /// 寫法改變後，已經建立的案件不必重新確認配對就能寫出目前的句子。配對和配對後的欄位定義在同一個交易寫下，
+    /// 讀不到這一批的配對時（不會發生在正常的案件）照存的句子。
+    /// </summary>
+    private static async Task<IReadOnlyList<FieldInfoState>> WithCurrentDescriptionsAsync(
+        DbConnection connection,
+        DatasetKind kind,
+        string batchId,
+        IReadOnlyList<FieldInfoState> states,
+        CancellationToken cancellationToken)
+    {
+        var committed = await LocalMappingStateStore.FindCommittedWithinAsync(connection, kind, cancellationToken);
+        if (committed is null || !string.Equals(committed.SourceBatchId, batchId, StringComparison.Ordinal))
+        {
+            return states;
+        }
+
+        return kind switch
+        {
+            DatasetKind.Gl when GlAmountModeNames.TryParse(committed.ModeName, out var amountMode) =>
+                FieldInfoProjector.WithCurrentDescriptions(
+                    states,
+                    new GlMappingSpec(committed.Mapping, amountMode)
+                    {
+                        Options = committed.GlOptions ?? GlMappingOptions.NormalizeLegacy(committed.Mapping)
+                    }),
+            DatasetKind.Tb when TbChangeModeNames.TryParse(committed.ModeName, out var changeMode) =>
+                FieldInfoProjector.WithCurrentDescriptions(states, new TbMappingSpec(committed.Mapping, changeMode)),
+            _ => states
+        };
     }
 }

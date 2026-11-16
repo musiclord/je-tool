@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using JET.Domain;
 using JET.Tests.Infrastructure;
@@ -8,24 +7,32 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 底稿與條件篩選報告裡的條件說明，欄位名稱用【】標示、值照舊用「」。
-/// 用合成案件匯出兩份文件後讀檔，確認【】只包住欄位名稱，值與連接詞都不在【】裡。
-/// 畫面的讀回不加【】，由 FilterConditionRendererTests 守住。
+/// 底稿與條件篩選報告寫出的欄位名稱不加任何符號。條件說明裡的欄位名稱照原樣寫，值照舊用「」；
+/// 底稿「自動化工具-檔案欄位資訊」的配對前欄位名稱和來源檔的欄名一字不差，欄名含空白、連字號、頓號、全形逗號或全形括號也一樣。
+/// 用合成案件走正式流程匯出兩份文件後讀檔核對。畫面讀回的寫法由 FilterConditionRendererTests 守住。
 /// </summary>
-public sealed class DocumentFieldNameMarkupJourneyTests
+public sealed class DocumentFieldNameJourneyTests
 {
     private const string ExpectedConditionText =
-        "【傳票摘要】 包含「調整」 且 【金額】（絕對值） ≥ 1000 且 【總帳日期】 每月幾日屬於「5、31」；空白不列入";
+        "傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000 且 總帳日期 每月幾日屬於「5、31」；空白不列入";
+
+    private const string VoucherColumn = "傳票 號碼";
+    private const string GlDateColumn = "傳票日期";
+    private const string AccountNumberColumn = "科目-代號";
+    private const string AccountNameColumn = "科目名稱";
+    private const string DescriptionColumn = "摘要（說明）";
+    private const string AmountColumn = "金額、原幣";
+    private const string DebitFlagColumn = "借方，旗標";
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task ExportedWorkingPaperAndCriteriaReport_MarkOnlyFieldNamesInConditionText(string provider)
+    public async Task ExportedDocuments_WriteFieldNamesWithoutAddedSymbols_AndSourceColumnNamesExactly(string provider)
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            projectCode = "FIELD-MARK-001",
-            clientName = "合成欄位標示案件",
+            projectCode = "FIELD-NAME-001",
+            clientName = "合成欄位名稱案件",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",
@@ -34,7 +41,7 @@ public sealed class DocumentFieldNameMarkupJourneyTests
         var projectId = created.GetProperty("projectId").GetString()!;
 
         var builder = new InlineGlWorkbookBuilder()
-            .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
+            .WithColumns(VoucherColumn, GlDateColumn, AccountNumberColumn, AccountNameColumn, DescriptionColumn, AmountColumn, DebitFlagColumn)
             .AddRow("JV-001", "2025-03-05", "1101", "合成現金", "合成調整", 1500, 1)
             .AddRow("JV-001", "2025-03-05", "4101", "合成收入", "合成調整", 1500, 0);
         var workbookPath = builder.WriteWorkbook();
@@ -53,7 +60,18 @@ public sealed class DocumentFieldNameMarkupJourneyTests
 
         await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["mapping"] = builder.BuildFlagModeMapping(),
+            ["mapping"] = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["voucherNumber"] = VoucherColumn,
+                ["glDate"] = GlDateColumn,
+                ["accountNumber"] = AccountNumberColumn,
+                ["accountName"] = AccountNameColumn,
+                ["description"] = DescriptionColumn,
+                ["amount"] = AmountColumn,
+                ["drCr"] = DebitFlagColumn,
+                ["drCrDebitCode"] = "1",
+                ["drCrCreditCode"] = "0"
+            },
             ["amountMode"] = "flag",
             ["manualAutoPolicy"] = new { manualValues = new[] { "1" }, automaticValues = new[] { "0" } }
         }));
@@ -104,7 +122,21 @@ public sealed class DocumentFieldNameMarkupJourneyTests
             var description = row.Cell(3).GetString();
             // 儲存格裡的換行寫成 CRLF，比對前統一成 LF。
             Assert.Equal("調整分錄\n篩選條件：" + ExpectedConditionText, description.Replace("\r\n", "\n", StringComparison.Ordinal));
-            AssertMarksOnlyFieldNames(description);
+            AssertNoAddedSymbols(description);
+
+            // 欄位資訊的配對前欄位名稱：改名欄位寫來源欄名本身，金額說明句裡的來源欄名也一字不差。
+            var beforeNames = workingPaper.Worksheet(WorkingPaperSheetCatalog.FieldInfo).Column(1).CellsUsed()
+                .Select(static cell => cell.GetString())
+                .ToArray();
+            Assert.All(beforeNames, AssertNoAddedSymbols);
+            Assert.Contains(VoucherColumn, beforeNames);
+            Assert.Contains(GlDateColumn, beforeNames);
+            Assert.Contains(AccountNumberColumn, beforeNames);
+            Assert.Contains(AccountNameColumn, beforeNames);
+            Assert.Contains(DescriptionColumn, beforeNames);
+            Assert.Contains(
+                $"傳票金額_JE 由系統產生 : 金額欄位 {AmountColumn}、借貸方判斷欄位 {DebitFlagColumn}，借方為「1」，貸方為「0」",
+                beforeNames);
         }
 
         using (var criteriaReport = new XLWorkbook(ReportPath(reports, projectDirectory, "criteriaSelectionReport")))
@@ -113,17 +145,14 @@ public sealed class DocumentFieldNameMarkupJourneyTests
             Assert.Equal("Criteria Selection 1", sheet.Cell("A5").GetString());
             var conditionText = sheet.Cell("B5").GetString();
             Assert.Equal(ExpectedConditionText, conditionText);
-            AssertMarksOnlyFieldNames(conditionText);
+            AssertNoAddedSymbols(conditionText);
         }
     }
 
-    private static void AssertMarksOnlyFieldNames(string text)
+    private static void AssertNoAddedSymbols(string text)
     {
-        var marked = Regex.Matches(text, "【([^】]*)】").Select(match => match.Groups[1].Value).ToArray();
-        Assert.Equal(new[] { "傳票摘要", "金額", "總帳日期" }, marked);
-        Assert.Contains("「調整」", text, StringComparison.Ordinal);
-        Assert.Contains("「5、31」", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("【1000】", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("【", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("】", text, StringComparison.Ordinal);
     }
 
     private static string ReportPath(JsonElement[] reports, string projectDirectory, string kind)

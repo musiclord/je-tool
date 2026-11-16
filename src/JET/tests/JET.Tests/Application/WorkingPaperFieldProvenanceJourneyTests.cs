@@ -34,7 +34,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
             var yielded = Assert.Single(fieldInfo, row => row.Before == "傳票金額_JE（來源）");
             Assert.Equal(string.Empty, yielded.After);
             var generated = Assert.Single(fieldInfo, row => row.After == "傳票金額_JE");
-            Assert.StartsWith("【傳票金額_JE】由系統產生", generated.Before, StringComparison.Ordinal);
+            Assert.StartsWith("傳票金額_JE 由系統產生", generated.Before, StringComparison.Ordinal);
 
             var step41 = ReadStep41(workbook);
             Assert.Single(step41.Headers, header => header == "傳票金額_JE");
@@ -82,7 +82,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
         {
             var fieldInfo = ReadGlFieldInfo(workbook);
             var approval = Assert.Single(fieldInfo, row => row.After == "傳票核准日_JE");
-            Assert.Equal("【傳票核准日_JE】由系統產生 : 同【總帳日期_JE】來源", approval.Before);
+            Assert.Equal("傳票核准日_JE 由系統產生 : 同總帳日期_JE來源", approval.Before);
 
             var step41 = ReadStep41(workbook);
             var approvalIndex = step41.Headers.IndexOf("傳票核准日_JE");
@@ -142,9 +142,9 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
             {
                 var fieldInfo = ReadGlFieldInfo(workbook);
                 var rde = Assert.Single(fieldInfo, row => row.After == "成本中心_JE");
-                Assert.Equal("【成本中心】", rde.Before);
+                Assert.Equal("成本中心", rde.Before);
                 var postingCode = Assert.Single(fieldInfo, row => row.After == "過帳碼_JE");
-                Assert.Equal("【過帳】過帳判斷值「Y」", postingCode.Before);
+                Assert.Equal("過帳 過帳判斷值「Y」", postingCode.Before);
                 var postingSource = Assert.Single(fieldInfo, row => row.Before == "過帳");
                 Assert.Equal(string.Empty, postingSource.After);
 

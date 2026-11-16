@@ -47,9 +47,9 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>TB 匯入的處理類別</title>
+  <title>TB 匯入的處理類別怎麼讀檔與更新進度</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5194,7 +5237,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>TB 匯入的處理類別</h1>
+        <h1>TB 匯入的處理類別怎麼讀檔與更新進度</h1>
       </div>
     </div>
 
@@ -5203,8 +5246,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 1478 826" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">TB 匯入的處理類別</title>
+      <svg viewBox="0 0 1059 548" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+        <title id="archify-diagram-title">TB 匯入的處理類別怎麼讀檔與更新進度</title>
         <desc id="archify-diagram-description">由 Archify 產生的類別與介面圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5274,298 +5317,171 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Relationships (before types for correct z-order) -->
-        <path data-edge-from="tb" data-edge-to="base" data-edge-key="0" data-edge-id="tb_base" data-class-relationship="inheritance" data-composition-points="362,89;628,89" d="M 362 89 L 628 89" class="a-default cl-relationship" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="base" data-edge-to="program" data-edge-label="Plan、Finalize" data-edge-key="1" data-edge-id="base_program" data-class-relationship="dependency" data-composition-points="908,89;1174,89" d="M 908 89 L 1174 89" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="base" data-edge-to="readerContract" data-edge-label="讀標頭與資料列" data-edge-key="2" data-edge-id="base_reader" data-class-relationship="dependency" data-composition-points="628,115;433,115;433,345;337,345" d="M 628 115 L 441 115 Q 433 115 433 123 L 433 337 Q 433 345 425 345 L 337 345" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="base" data-edge-to="intakeContract" data-edge-label="ExecuteAsync" data-edge-key="3" data-edge-id="base_intake" data-class-relationship="dependency" data-composition-points="755,159;755,218.5;586,218.5;586,278" d="M 755 159 L 755 210.5 Q 755 218.5 747 218.5 L 594 218.5 Q 586 218.5 586 226.5 L 586 278" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="base" data-edge-to="projectContract" data-edge-label="FindAsync、SaveAsync" data-edge-key="4" data-edge-id="base_project" data-class-relationship="dependency" data-composition-points="908,115;1150,115;1150,345;1174,345" d="M 908 115 L 1142 115 Q 1150 115 1150 123 L 1150 337 Q 1150 345 1158 345 L 1174 345" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="base" data-edge-to="importContract" data-edge-label="GetLatestBatchAsync" data-edge-key="5" data-edge-id="base_import" data-class-relationship="dependency" data-composition-points="781,159;781,203.5;950,203.5;950,248" d="M 781 159 L 781 195.5 Q 781 203.5 789 203.5 L 942 203.5 Q 950 203.5 950 211.5 L 950 248" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="reader" data-edge-to="readerContract" data-edge-key="6" data-edge-id="reader_contract" data-class-relationship="realization" data-composition-points="197,526;197,432" d="M 197 526 L 197 432" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="intake" data-edge-to="intakeContract" data-edge-key="7" data-edge-id="intake_contract" data-class-relationship="realization" data-composition-points="586,526;586,412" d="M 586 526 L 586 412" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="project" data-edge-to="projectContract" data-edge-key="8" data-edge-id="project_contract" data-class-relationship="realization" data-composition-points="1314,526;1314,412" d="M 1314 526 L 1314 412" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:8" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="intake" data-edge-to="importContract" data-edge-label="ReplaceBatchAsync" data-edge-key="9" data-edge-id="intake_import" data-class-relationship="dependency" data-composition-points="688,543;749,543;749,345;810,345" d="M 688 543 L 741 543 Q 749 543 749 535 L 749 353 Q 749 345 757 345 L 810 345" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:9" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="localImport" data-edge-to="importContract" data-edge-key="10" data-edge-id="local_import" data-class-relationship="realization" data-composition-points="950,526;950,442" d="M 950 526 L 950 442" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:10" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="root" data-edge-to="localImport" data-edge-label="建立" data-edge-key="11" data-edge-id="root_local" data-class-relationship="dependency" data-composition-points="781,644;781,602;950,602;950,560" d="M 781 644 L 781 610 Q 781 602 789 602 L 942 602 Q 950 602 950 594 L 950 560" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:11" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="root" data-edge-to="intake" data-edge-label="建立" data-edge-key="12" data-edge-id="root_intake" data-class-relationship="dependency" data-composition-points="755,644;755,602;586,602;586,560" d="M 755 644 L 755 610 Q 755 602 747 602 L 594 602 Q 586 602 586 594 L 586 560" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="tb" data-edge-to="base" data-edge-key="0" data-edge-id="tb_base" data-class-relationship="inheritance" data-composition-points="332,77;372,77" d="M 332 77 L 372 77" class="a-default cl-relationship" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="base" data-edge-to="program" data-edge-label="Plan、Finalize" data-edge-key="1" data-edge-id="base_program" data-class-relationship="dependency" data-composition-points="536,114;536,223" d="M 536 114 L 536 223" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="base" data-edge-to="readerContract" data-edge-label="ReadColumnsAsync、ReadRowsAsync" data-edge-key="2" data-edge-id="base_reader" data-class-relationship="dependency" data-composition-points="510,114;510,156;182,156;182,198" d="M 510 114 L 510 148 Q 510 156 502 156 L 190 156 Q 182 156 182 164 L 182 198" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="base" data-edge-to="projectContract" data-edge-label="FindAsync、SaveAsync" data-edge-key="3" data-edge-id="base_project" data-class-relationship="dependency" data-composition-points="674,77;874.5,77;874.5,238" d="M 674 77 L 866.5 77 Q 874.5 77 874.5 85 L 874.5 238" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="reader" data-edge-to="readerContract" data-edge-key="4" data-edge-id="reader_contract" data-class-relationship="realization" data-composition-points="182,456;182,372" d="M 182 456 L 182 372" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="project" data-edge-to="projectContract" data-edge-key="5" data-edge-id="project_contract" data-class-relationship="realization" data-composition-points="874.5,456;874.5,332" d="M 874.5 456 L 874.5 332" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
 
         <!-- Types -->
         <g id="node-tb" data-node-id="tb" data-node-label="ImportTbFromFileHandler" tabindex="0" role="button" aria-label="聚焦ImportTbFromFileHandler，import.tb.fromFile, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="import.tb.fromFile" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>ImportTbFromFileHandler · import.tb.fromFile · 類別</title>
-          <rect x="32" y="70" width="330" height="64" rx="8" class="c-mask"/>
-          <rect x="32" y="70" width="330" height="64" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 40 70 H 354 A 8 8 0 0 1 362 78 V 104 H 32 V 78 A 8 8 0 0 1 40 70 Z"/>
-          <path class="cl-cap" d="M 44 71.4 H 350" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="32" y="45" width="300" height="64" rx="8" class="c-mask"/>
+          <rect x="32" y="45" width="300" height="64" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 40 45 H 324 A 8 8 0 0 1 332 53 V 79 H 32 V 53 A 8 8 0 0 1 40 45 Z"/>
+          <path class="cl-cap" d="M 44 46.4 H 320" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="44" y="79" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="52" y="90.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="44" y="54" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="65.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="197" y="92" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ImportTbFromFileHandler</text>
+          <text data-node-label="" x="182" y="67" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ImportTbFromFileHandler</text>
           <g data-detail="context" data-class-compartment="attributes">
-            <line x1="32" y1="104" x2="362" y2="104" class="cl-rule" stroke-width="1"/>
-            <rect x="44" y="113.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="124" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="64" y="124" class="t-primary cl-member" font-size="11">Action = &quot;import.tb.fromFile&quot;</text><text data-detail="context" x="350" y="124" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">string</text>
+            <line x1="32" y1="79" x2="332" y2="79" class="cl-rule" stroke-width="1"/>
+            <rect x="44" y="88.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="99" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="64" y="99" class="t-primary cl-member" font-size="11">Action = &quot;import.tb.fromFile&quot;</text><text data-detail="context" x="320" y="99" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">string</text>
           </g>
         </g>
 
         <g id="node-base" data-node-id="base" data-node-label="ImportFromFileHandler" tabindex="0" role="button" aria-label="聚焦ImportFromFileHandler，GL 與 TB 共用流程, 抽象類別" aria-pressed="false" data-node-kind="abstract" data-node-sublabel="GL 與 TB 共用流程" data-node-context="抽象類別" data-class-kind="abstract" class="cl-hue-backend">
           <title>ImportFromFileHandler · GL 與 TB 共用流程 · 抽象類別</title>
-          <rect x="628" y="45" width="280" height="114" rx="8" class="c-mask"/>
-          <rect x="628" y="45" width="280" height="114" rx="8" class="c-backend cl-type" data-animate="node" style="--step:0" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 636 45 H 900 A 8 8 0 0 1 908 53 V 89 H 628 V 53 A 8 8 0 0 1 636 45 Z"/>
-          <path class="cl-cap" d="M 640 46.4 H 896" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="372" y="40" width="302" height="74" rx="8" class="c-mask"/>
+          <rect x="372" y="40" width="302" height="74" rx="8" class="c-backend cl-type" data-animate="node" style="--step:0" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 380 40 H 666 A 8 8 0 0 1 674 48 V 84 H 372 V 48 A 8 8 0 0 1 380 40 Z"/>
+          <path class="cl-cap" d="M 384 41.4 H 662" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="640" y="59" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="648" y="70.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">A</text>
+            <rect x="384" y="54" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="392" y="65.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">A</text>
           </g>
-          <text x="768" y="61" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«abstract»</text>
-          <text data-node-label="" x="768" y="79" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle" font-style="italic">ImportFromFileHandler</text>
+          <text x="523" y="56" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«abstract»</text>
+          <text data-node-label="" x="523" y="74" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle" font-style="italic">ImportFromFileHandler</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="628" y1="89" x2="908" y2="89" class="cl-rule" stroke-width="1"/>
-            <rect x="640" y="98.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="647" y="109" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="660" y="109" class="t-primary cl-member" font-size="11">HandleAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="673.1999999999999" y="129" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">JsonElement</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="660" y="149" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;object?&gt;</tspan></text>
-          </g>
-        </g>
-
-        <g id="node-program" data-node-id="program" data-node-label="JetAuditProgram" tabindex="0" role="button" aria-label="聚焦JetAuditProgram，規劃匯入並整理結果, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="規劃匯入並整理結果" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>JetAuditProgram · 規劃匯入並整理結果 · 類別</title>
-          <rect x="1174" y="40" width="280" height="124" rx="8" class="c-mask"/>
-          <rect x="1174" y="40" width="280" height="124" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 1182 40 H 1446 A 8 8 0 0 1 1454 48 V 74 H 1174 V 48 A 8 8 0 0 1 1182 40 Z"/>
-          <path class="cl-cap" d="M 1186 41.4 H 1442" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="1186" y="49" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="1194" y="60.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
-          </g>
-          
-          <text data-node-label="" x="1314" y="62" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JetAuditProgram</text>
-          <g data-detail="context" data-class-compartment="methods">
-            <line x1="1174" y1="74" x2="1454" y2="74" class="cl-rule" stroke-width="1"/>
-            <rect x="1186" y="83.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="1193" y="94" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="1206" y="94" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Plan<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">IntakeRequest</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1442" y="94" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="text-decoration: underline">IntakePlan</text>
-            <rect x="1178" y="100" width="272" height="58" rx="4" class="cl-zebra"/><rect x="1186" y="103.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="1193" y="114" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="1206" y="114" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Finalize<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1219.2" y="134" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">IntakePlan, IntakeFacts</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1206" y="154" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">IntakeResult</tspan></text>
+            <line x1="372" y1="84" x2="674" y2="84" class="cl-rule" stroke-width="1"/>
+            <rect x="384" y="93.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="391" y="104" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="404" y="104" class="t-primary cl-member" font-size="11">HandleAsync<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">JsonElement</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="662" y="104" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Task&lt;object?&gt;</text>
           </g>
         </g>
 
         <g id="node-readerContract" data-node-id="readerContract" data-node-label="ITabularFileReader" tabindex="0" role="button" aria-label="聚焦ITabularFileReader，讀標頭與資料列, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="讀標頭與資料列" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
           <title>ITabularFileReader · 讀標頭與資料列 · 介面</title>
-          <rect x="57" y="258" width="280" height="174" rx="8" class="c-mask"/>
-          <rect x="57" y="258" width="280" height="174" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 65 258 H 329 A 8 8 0 0 1 337 266 V 302 H 57 V 266 A 8 8 0 0 1 65 258 Z"/>
-          <path class="cl-cap" d="M 69 259.4 H 325" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="32" y="198" width="300" height="174" rx="8" class="c-mask"/>
+          <rect x="32" y="198" width="300" height="174" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 40 198 H 324 A 8 8 0 0 1 332 206 V 242 H 32 V 206 A 8 8 0 0 1 40 198 Z"/>
+          <path class="cl-cap" d="M 44 199.4 H 320" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="69" y="272" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="77" y="283.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="44" y="212" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="223.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="197" y="274" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="197" y="292" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ITabularFileReader</text>
+          <text x="182" y="214" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="182" y="232" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ITabularFileReader</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="57" y1="302" x2="337" y2="302" class="cl-rule" stroke-width="1"/>
-            <rect x="69" y="311.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="76" y="322" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="89" y="322" class="t-primary cl-member" font-size="11" style="font-style: italic">ReadColumnsAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="102.19999999999999" y="342" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">TabularSourceRequest</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="89" y="362" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;IReadOnlyList&lt;string&gt;&gt;</tspan></text>
-            <rect x="61" y="368" width="272" height="58" rx="4" class="cl-zebra"/><rect x="69" y="371.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="76" y="382" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="89" y="382" class="t-primary cl-member" font-size="11" style="font-style: italic">ReadRowsAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="102.19999999999999" y="402" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">TabularSourceRequest</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="89" y="422" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">IAsyncEnumerable&lt;StagingRow&gt;</tspan></text>
+            <line x1="32" y1="242" x2="332" y2="242" class="cl-rule" stroke-width="1"/>
+            <rect x="44" y="251.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="262" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="262" class="t-primary cl-member" font-size="11" style="font-style: italic">ReadColumnsAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="282" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">TabularSourceRequest</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="302" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;IReadOnlyList&lt;string&gt;&gt;</tspan></text>
+            <rect x="36" y="308" width="292" height="58" rx="4" class="cl-zebra"/><rect x="44" y="311.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="322" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="322" class="t-primary cl-member" font-size="11" style="font-style: italic">ReadRowsAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="342" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">TabularSourceRequest</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="362" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">IAsyncEnumerable&lt;StagingRow&gt;</tspan></text>
           </g>
         </g>
 
-        <g id="node-intakeContract" data-node-id="intakeContract" data-node-label="IIntakeFactsPort" tabindex="0" role="button" aria-label="聚焦IIntakeFactsPort，執行匯入計畫, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="執行匯入計畫" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
-          <title>IIntakeFactsPort · 執行匯入計畫 · 介面</title>
-          <rect x="446" y="278" width="280" height="134" rx="8" class="c-mask"/>
-          <rect x="446" y="278" width="280" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:3" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 454 278 H 718 A 8 8 0 0 1 726 286 V 322 H 446 V 286 A 8 8 0 0 1 454 278 Z"/>
-          <path class="cl-cap" d="M 458 279.4 H 714" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-program" data-node-id="program" data-node-label="JetAuditProgram" tabindex="0" role="button" aria-label="聚焦JetAuditProgram，規劃匯入並整理結果, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="規劃匯入並整理結果" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>JetAuditProgram · 規劃匯入並整理結果 · 類別</title>
+          <rect x="372" y="223" width="302" height="124" rx="8" class="c-mask"/>
+          <rect x="372" y="223" width="302" height="124" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 380 223 H 666 A 8 8 0 0 1 674 231 V 257 H 372 V 231 A 8 8 0 0 1 380 223 Z"/>
+          <path class="cl-cap" d="M 384 224.4 H 662" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="458" y="292" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="466" y="303.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="384" y="232" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="392" y="243.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
-          <text x="586" y="294" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="586" y="312" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IIntakeFactsPort</text>
+          
+          <text data-node-label="" x="523" y="245" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JetAuditProgram</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="446" y1="322" x2="726" y2="322" class="cl-rule" stroke-width="1"/>
-            <rect x="458" y="331.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="465" y="342" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="478" y="342" class="t-primary cl-member" font-size="11" style="font-style: italic">ExecuteAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="491.2" y="362" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">IntakePlan,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="491.2" y="382" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">IReadOnlyList&lt;ImportSourceInput&gt;</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="478" y="402" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;IntakeFacts&gt;</tspan></text>
+            <line x1="372" y1="257" x2="674" y2="257" class="cl-rule" stroke-width="1"/>
+            <rect x="384" y="266.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="391" y="277" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="404" y="277" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Plan<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">IntakeRequest</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="662" y="277" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="text-decoration: underline">IntakePlan</text>
+            <rect x="376" y="283" width="294" height="58" rx="4" class="cl-zebra"/><rect x="384" y="286.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="391" y="297" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="404" y="297" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Finalize<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="417.2" y="317" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">IntakePlan, IntakeFacts</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="404" y="337" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">IntakeResult</tspan></text>
           </g>
         </g>
 
         <g id="node-projectContract" data-node-id="projectContract" data-node-label="IProjectStore" tabindex="0" role="button" aria-label="聚焦IProjectStore，案件進度檔, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="案件進度檔" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
           <title>IProjectStore · 案件進度檔 · 介面</title>
-          <rect x="1174" y="278" width="280" height="134" rx="8" class="c-mask"/>
-          <rect x="1174" y="278" width="280" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 1182 278 H 1446 A 8 8 0 0 1 1454 286 V 322 H 1174 V 286 A 8 8 0 0 1 1182 278 Z"/>
-          <path class="cl-cap" d="M 1186 279.4 H 1442" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="714" y="238" width="321" height="94" rx="8" class="c-mask"/>
+          <rect x="714" y="238" width="321" height="94" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 722 238 H 1027 A 8 8 0 0 1 1035 246 V 282 H 714 V 246 A 8 8 0 0 1 722 238 Z"/>
+          <path class="cl-cap" d="M 726 239.4 H 1023" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="1186" y="292" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="1194" y="303.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="726" y="252" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="734" y="263.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="1314" y="294" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="1314" y="312" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IProjectStore</text>
+          <text x="874.5" y="254" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="874.5" y="272" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IProjectStore</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="1174" y1="322" x2="1454" y2="322" class="cl-rule" stroke-width="1"/>
-            <rect x="1186" y="331.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="1193" y="342" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="1206" y="342" class="t-primary cl-member" font-size="11" style="font-style: italic">FindAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1219.2" y="362" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">string</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1206" y="382" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;ProjectDocument?&gt;</tspan></text>
-            <rect x="1178" y="388" width="272" height="18" rx="4" class="cl-zebra"/><rect x="1186" y="391.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="1193" y="402" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="1206" y="402" class="t-primary cl-member" font-size="11" style="font-style: italic">SaveAsync<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">ProjectDocument</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1442" y="402" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="font-style: italic">Task</text>
+            <line x1="714" y1="282" x2="1035" y2="282" class="cl-rule" stroke-width="1"/>
+            <rect x="726" y="291.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="733" y="302" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="746" y="302" class="t-primary cl-member" font-size="11" style="font-style: italic">FindAsync<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">string</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1023" y="302" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="font-style: italic">Task&lt;ProjectDocument?&gt;</text>
+            <rect x="718" y="308" width="313" height="18" rx="4" class="cl-zebra"/><rect x="726" y="311.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="733" y="322" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="746" y="322" class="t-primary cl-member" font-size="11" style="font-style: italic">SaveAsync<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">ProjectDocument</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1023" y="322" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="font-style: italic">Task</text>
           </g>
         </g>
 
         <g id="node-reader" data-node-id="reader" data-node-label="CompositeTabularFileReader" tabindex="0" role="button" aria-label="聚焦CompositeTabularFileReader，依副檔名交給四種讀取器, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="依副檔名交給四種讀取器" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>CompositeTabularFileReader · 依副檔名交給四種讀取器 · 類別</title>
-          <rect x="47" y="526" width="300" height="34" rx="8" class="c-mask"/>
-          <rect x="47" y="526" width="300" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:7" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 55 526 H 339 A 8 8 0 0 1 347 534 V 560 H 47 V 534 A 8 8 0 0 1 55 526 Z"/>
-          <path class="cl-cap" d="M 59 527.4 H 335" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="32" y="456" width="300" height="34" rx="8" class="c-mask"/>
+          <rect x="32" y="456" width="300" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 40 456 H 324 A 8 8 0 0 1 332 464 V 490 H 32 V 464 A 8 8 0 0 1 40 456 Z"/>
+          <path class="cl-cap" d="M 44 457.4 H 320" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="59" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="67" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="44" y="465" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="476.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="197" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">CompositeTabularFileReader</text>
-
-        </g>
-
-        <g id="node-intake" data-node-id="intake" data-node-label="IntakeFactsPort" tabindex="0" role="button" aria-label="聚焦IntakeFactsPort，依計畫取代或追加, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="依計畫取代或追加" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>IntakeFactsPort · 依計畫取代或追加 · 類別</title>
-          <rect x="484" y="526" width="204" height="34" rx="8" class="c-mask"/>
-          <rect x="484" y="526" width="204" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:8" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 492 526 H 680 A 8 8 0 0 1 688 534 V 560 H 484 V 534 A 8 8 0 0 1 492 526 Z"/>
-          <path class="cl-cap" d="M 496 527.4 H 676" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="496" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="504" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
-          </g>
-          
-          <text data-node-label="" x="586" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IntakeFactsPort</text>
+          <text data-node-label="" x="182" y="478" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">CompositeTabularFileReader</text>
 
         </g>
 
         <g id="node-project" data-node-id="project" data-node-label="JsonFileProjectStore" tabindex="0" role="button" aria-label="聚焦JsonFileProjectStore，project.json, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="project.json" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>JsonFileProjectStore · project.json · 類別</title>
-          <rect x="1190.5" y="526" width="247" height="34" rx="8" class="c-mask"/>
-          <rect x="1190.5" y="526" width="247" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:9" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 1198.5 526 H 1429.5 A 8 8 0 0 1 1437.5 534 V 560 H 1190.5 V 534 A 8 8 0 0 1 1198.5 526 Z"/>
-          <path class="cl-cap" d="M 1202.5 527.4 H 1425.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="751" y="456" width="247" height="34" rx="8" class="c-mask"/>
+          <rect x="751" y="456" width="247" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 759 456 H 990 A 8 8 0 0 1 998 464 V 490 H 751 V 464 A 8 8 0 0 1 759 456 Z"/>
+          <path class="cl-cap" d="M 763 457.4 H 986" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="1202.5" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="1210.5" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="763" y="465" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="771" y="476.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="1314" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JsonFileProjectStore</text>
+          <text data-node-label="" x="874.5" y="478" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JsonFileProjectStore</text>
 
-        </g>
-
-        <g id="node-importContract" data-node-id="importContract" data-node-label="IImportRepository" tabindex="0" role="button" aria-label="聚焦IImportRepository，批次與原始列, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="批次與原始列" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
-          <title>IImportRepository · 批次與原始列 · 介面</title>
-          <rect x="810" y="248" width="280" height="194" rx="8" class="c-mask"/>
-          <rect x="810" y="248" width="280" height="194" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:5" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 818 248 H 1082 A 8 8 0 0 1 1090 256 V 292 H 810 V 256 A 8 8 0 0 1 818 248 Z"/>
-          <path class="cl-cap" d="M 822 249.4 H 1078" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="822" y="262" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="830" y="273.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
-          </g>
-          <text x="950" y="264" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="950" y="282" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IImportRepository</text>
-          <g data-detail="context" data-class-compartment="methods">
-            <line x1="810" y1="292" x2="1090" y2="292" class="cl-rule" stroke-width="1"/>
-            <rect x="822" y="301.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="829" y="312" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="842" y="312" class="t-primary cl-member" font-size="11" style="font-style: italic">GetLatestBatchAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="855.1999999999999" y="332" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">string, DatasetKind</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="842" y="352" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;ImportBatchInfo?&gt;</tspan></text>
-            <rect x="814" y="358" width="272" height="78" rx="4" class="cl-zebra"/><rect x="822" y="361.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="829" y="372" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="842" y="372" class="t-primary cl-member" font-size="11" style="font-style: italic">ReplaceBatchAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="855.1999999999999" y="392" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">string, DatasetKind,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="855.1999999999999" y="412" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">IReadOnlyList&lt;ImportSourceInput&gt;</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="842" y="432" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;ImportBatchResult&gt;</tspan></text>
-          </g>
-        </g>
-
-        <g id="node-localImport" data-node-id="localImport" data-node-label="LocalImportRepository" tabindex="0" role="button" aria-label="聚焦LocalImportRepository，SQLite 與 DuckDB 共用, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="SQLite 與 DuckDB 共用" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>LocalImportRepository · SQLite 與 DuckDB 共用 · 類別</title>
-          <rect x="822" y="526" width="256" height="34" rx="8" class="c-mask"/>
-          <rect x="822" y="526" width="256" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:11" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 830 526 H 1070 A 8 8 0 0 1 1078 534 V 560 H 822 V 534 A 8 8 0 0 1 830 526 Z"/>
-          <path class="cl-cap" d="M 834 527.4 H 1066" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="834" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="842" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
-          </g>
-          
-          <text data-node-label="" x="950" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">LocalImportRepository</text>
-
-        </g>
-
-        <g id="node-root" data-node-id="root" data-node-label="AppCompositionRoot" tabindex="0" role="button" aria-label="聚焦AppCompositionRoot，啟動時建立物件, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="啟動時建立物件" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>AppCompositionRoot · 啟動時建立物件 · 類別</title>
-          <rect x="628" y="644" width="280" height="124" rx="8" class="c-mask"/>
-          <rect x="628" y="644" width="280" height="124" rx="8" class="c-backend cl-type" data-animate="node" style="--step:12" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 636 644 H 900 A 8 8 0 0 1 908 652 V 678 H 628 V 652 A 8 8 0 0 1 636 644 Z"/>
-          <path class="cl-cap" d="M 640 645.4 H 896" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="640" y="653" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="648" y="664.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
-          </g>
-          
-          <text data-node-label="" x="768" y="666" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AppCompositionRoot</text>
-          <g data-detail="context" data-class-compartment="methods">
-            <line x1="628" y1="678" x2="908" y2="678" class="cl-rule" stroke-width="1"/>
-            <rect x="640" y="687.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="647" y="698" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="660" y="698" class="t-primary cl-member" font-size="11" style="text-decoration: underline">CreateLocalProjectRepositories<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="673.1999999999999" y="718" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">string, ILocalProjectDatabase,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="673.1999999999999" y="738" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">ProjectRepositoryAssembly</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="660" y="758" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">ProjectRepositories</tspan></text>
-          </g>
         </g>
 
         <!-- Relationship labels -->
         <g data-detail="context" data-edge-from="base" data-edge-to="program" data-edge-label="Plan、Finalize" data-edge-key="1" data-edge-id="base_program" data-class-relationship="dependency">
-          <rect x="994.77" y="73" width="92.46" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="1041" y="83" class="t-muted" font-size="9.5" text-anchor="middle">Plan、Finalize</text>
+          <rect x="542" y="162.5" width="92.46" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="588.23" y="172.5" class="t-muted" font-size="9.5" text-anchor="middle">Plan、Finalize</text>
         </g>
-        <g data-detail="context" data-edge-from="base" data-edge-to="readerContract" data-edge-label="讀標頭與資料列" data-edge-key="2" data-edge-id="base_reader" data-class-relationship="dependency">
-          <rect x="439" y="224" width="92.46" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="485.23" y="234" class="t-muted" font-size="9.5" text-anchor="middle">讀標頭與資料列</text>
+        <g data-detail="context" data-edge-from="base" data-edge-to="readerContract" data-edge-label="ReadColumnsAsync、ReadRowsAsync" data-edge-key="2" data-edge-id="base_reader" data-class-relationship="dependency">
+          <rect x="249.70499999999998" y="140" width="192.59" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="346" y="150" class="t-muted" font-size="9.5" text-anchor="middle">ReadColumnsAsync、ReadRowsAsync</text>
         </g>
-        <g data-detail="context" data-edge-from="base" data-edge-to="intakeContract" data-edge-label="ExecuteAsync" data-edge-key="3" data-edge-id="base_intake" data-class-relationship="dependency">
-          <rect x="630.16" y="202.5" width="80.67999999999999" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="670.5" y="212.5" class="t-muted" font-size="9.5" text-anchor="middle">ExecuteAsync</text>
-        </g>
-        <g data-detail="context" data-edge-from="base" data-edge-to="projectContract" data-edge-label="FindAsync、SaveAsync" data-edge-key="4" data-edge-id="base_project" data-class-relationship="dependency">
-          <rect x="1156" y="224" width="127.8" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="1219.9" y="234" class="t-muted" font-size="9.5" text-anchor="middle">FindAsync、SaveAsync</text>
-        </g>
-        <g data-detail="context" data-edge-from="base" data-edge-to="importContract" data-edge-label="GetLatestBatchAsync" data-edge-key="5" data-edge-id="base_import" data-class-relationship="dependency">
-          <rect x="804.545" y="187.5" width="121.91" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="865.5" y="197.5" class="t-muted" font-size="9.5" text-anchor="middle">GetLatestBatchAsync</text>
-        </g>
-        <g data-detail="context" data-edge-from="intake" data-edge-to="importContract" data-edge-label="ReplaceBatchAsync" data-edge-key="9" data-edge-id="intake_import" data-class-relationship="dependency">
-          <rect x="632.8699999999999" y="437" width="110.13" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="687.935" y="447" class="t-muted" font-size="9.5" text-anchor="middle">ReplaceBatchAsync</text>
-        </g>
-        <g data-detail="context" data-edge-from="root" data-edge-to="localImport" data-edge-label="建立" data-edge-key="11" data-edge-id="root_local" data-class-relationship="dependency">
-          <rect x="848.72" y="586" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="865.5" y="596" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
-        </g>
-        <g data-detail="context" data-edge-from="root" data-edge-to="intake" data-edge-label="建立" data-edge-key="12" data-edge-id="root_intake" data-class-relationship="dependency">
-          <rect x="653.72" y="586" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="670.5" y="596" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
+        <g data-detail="context" data-edge-from="base" data-edge-to="projectContract" data-edge-label="FindAsync、SaveAsync" data-edge-key="3" data-edge-id="base_project" data-class-relationship="dependency">
+          <rect x="880.5" y="151.5" width="127.8" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="944.4" y="161.5" class="t-muted" font-size="9.5" text-anchor="middle">FindAsync、SaveAsync</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="790" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="810" data-legend-width="251">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="依賴：呼叫或建立，線上寫方法" x="18" y="795" width="263" height="22" rx="11"/><path d="M 26 806 L 56 806" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
-            <text x="66" y="810" class="t-muted" font-size="12" font-weight="500">依賴：呼叫或建立，線上寫方法</text>
+          <text x="24" y="512" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="532" data-legend-width="206">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="依賴：呼叫，線上寫方法" x="18" y="517" width="218" height="22" rx="11"/><path d="M 26 528 L 56 528" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
+            <text x="66" y="532" class="t-muted" font-size="12" font-weight="500">依賴：呼叫，線上寫方法</text>
           </g>
-          <g data-legend-semantic-kind="inheritance" data-legend-x="297" data-legend-baseline="810" data-legend-width="72">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="繼承" x="291" y="795" width="84" height="22" rx="11"/><path d="M 299 806 L 329 806" class="a-default cl-relationship" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-            <text x="339" y="810" class="t-muted" font-size="12" font-weight="500">繼承</text>
+          <g data-legend-semantic-kind="inheritance" data-legend-x="252" data-legend-baseline="532" data-legend-width="72">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="繼承" x="246" y="517" width="84" height="22" rx="11"/><path d="M 254 528 L 284 528" class="a-default cl-relationship" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+            <text x="294" y="532" class="t-muted" font-size="12" font-weight="500">繼承</text>
           </g>
-          <g data-legend-semantic-kind="realization" data-legend-x="391" data-legend-baseline="810" data-legend-width="102">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="實作介面" x="385" y="795" width="114" height="22" rx="11"/><path d="M 393 806 L 423 806" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-            <text x="433" y="810" class="t-muted" font-size="12" font-weight="500">實作介面</text>
+          <g data-legend-semantic-kind="realization" data-legend-x="346" data-legend-baseline="532" data-legend-width="102">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="實作介面" x="340" y="517" width="114" height="22" rx="11"/><path d="M 348 528 L 378 528" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+            <text x="388" y="532" class="t-muted" font-size="12" font-weight="500">實作介面</text>
           </g>
         </g>
       </svg>
@@ -5748,21 +5664,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>讀檔與寫入分工</h3>
+          <h3>讀檔與進度檔</h3>
         </div>
         <ul>
-          <li>CompositeTabularFileReader 按格式交給 OpenXml、CSV、舊版 Excel 或 Access 讀取器。SQLite 與 DuckDB 由 LocalImportRepository 寫入。</li>
-          <li>ImportTbFromFileHandler 繼承共用的 ImportFromFileHandler。追加匯入另走 AppendToBatchAsync。</li>
+          <li>ImportTbFromFileHandler 繼承 GL 與 TB 共用的 ImportFromFileHandler。共用流程先讀檔案的標頭與資料列，再交 JetAuditProgram 規劃與整理結果，完成後更新案件進度檔。</li>
+          <li>CompositeTabularFileReader 按格式交給 OpenXml、CSV、舊版 Excel 或 Access 讀取器。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot slate"></div>
-          <h3>圖外的操作紀錄</h3>
+          <h3>寫入案件資料庫的部分</h3>
         </div>
         <ul>
-          <li>CommittedOperationLog 經 IProjectOperationLog 寫入紀錄；本機案件寫入失敗會附提醒。SQL Server 實作未列入。</li>
+          <li>取代或追加匯入批次、寫入資料列與建立這些類別的位置，見「TB 匯入資料怎麼寫進案件資料庫」。</li>
         </ul>
       </div>
     </div>
@@ -5943,6 +5859,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5959,6 +5876,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7382,6 +7300,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7397,6 +7316,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -10024,6 +9944,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12812,6 +12733,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12822,6 +12744,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12856,6 +12779,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13961,6 +13885,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14636,6 +14561,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14873,6 +14799,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

@@ -40,8 +40,8 @@ public static partial class JetAuditProgram
             .ToArray());
 
     /// <summary>
-    /// 「配對前欄位名稱」依來歷寫：原始來源欄寫欄名本身；配對後改名與 _Temp 原欄寫來源欄名並加【】，
-    /// 因為那一格描述的是另一個欄位；系統產生的欄寫說明句，句裡的欄位名稱已經有【】。
+    /// 「配對前欄位名稱」依來歷寫：原始來源欄寫欄名本身；配對後改名與 _Temp 原欄寫來源欄名；系統產生的欄寫說明句。
+    /// 來源欄名和來源檔的欄名一字不差，前後不加任何符號，審計員才不會把符號當成原始資料的一部分。
     /// 「配對後欄位名稱」只有 JET 欄位才填，不看欄名結尾。
     /// </summary>
     private static FieldInfoRow ProjectRow(FieldInfo definition)
@@ -58,14 +58,10 @@ public static partial class JetAuditProgram
                 "未登錄的 Legacy 欄位型態。")
         };
 
-        var displayName = definition.Origin switch
-        {
-            FieldInfoOrigin.Renamed or FieldInfoOrigin.Temp when !string.IsNullOrWhiteSpace(definition.Description) =>
-                $"【{definition.Description}】",
-            FieldInfoOrigin.Generated when !string.IsNullOrWhiteSpace(definition.Description) =>
-                definition.Description,
-            _ => definition.FieldName
-        };
+        var displayName = definition.Origin is FieldInfoOrigin.Renamed or FieldInfoOrigin.Temp or FieldInfoOrigin.Generated
+                          && !string.IsNullOrWhiteSpace(definition.Description)
+            ? definition.Description
+            : definition.FieldName;
 
         return new FieldInfoRow(
             displayName,

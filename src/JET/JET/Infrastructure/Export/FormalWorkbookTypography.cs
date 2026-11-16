@@ -17,7 +17,7 @@ internal static class FormalWorkbookTypography
     /// <summary>
     /// JET 自己寫的工作表列高一律是字級的 1.5 倍：10 點 15、11 點 16.5、12 點 18；其他字級也照它算。
     /// 微軟正黑體比舊流程的 Arial 高，沿用 12.5 點會切到字；Excel 的標準列高又隨螢幕縮放改變，
-    /// 1.5 倍在一般縮放與高縮放下都不低於字的自然高度。多行文字依行數加高。
+    /// 1.5 倍在一般縮放與高縮放下都不低於字的自然高度。多行文字依行數加高，最高到 Excel 的列高上限 409 點。
     /// </summary>
     internal static double RowHeight(double fontSize, int lines = 1)
     {
@@ -27,7 +27,8 @@ internal static class FormalWorkbookTypography
         }
         ArgumentOutOfRangeException.ThrowIfLessThan(lines, 1);
 
-        return fontSize * RowHeightPerFontPoint * lines;
+        var heightForAllLines = fontSize * RowHeightPerFontPoint * lines;
+        return Math.Min(heightForAllLines, ExcelWorksheetConstraints.MaxRowHeight);
     }
 
     internal static void Normalize(SpreadsheetDocument document)

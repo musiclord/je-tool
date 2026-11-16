@@ -86,6 +86,8 @@ public sealed class ExportValidationReportsHandler(
         var fieldInfoProjection = JetAuditProgram.ProjectFieldInfo(
             targetTbDefinitions,
             targetGlDefinitions);
+        ExportStats? validationStats = null;
+        ExportStats? infStats = null;
         var requests = new ReportWriteRequest[]
         {
             new(
@@ -94,7 +96,7 @@ public sealed class ExportValidationReportsHandler(
                 async (stream, ct) =>
                 {
                     var progress = progressByKind[ReportKind.ValidationReport];
-                    await validationWriter.WriteAsync(
+                    validationStats = await validationWriter.WriteAsync(
                         stream,
                         reportContext,
                         reportProjection,
@@ -113,7 +115,7 @@ public sealed class ExportValidationReportsHandler(
                 {
                     var progress = progressByKind[ReportKind.InfReport];
                     var infContext = new InfReportContext(project, run.ResultId, run.GeneratedUtc);
-                    await infWriter.WriteAsync(
+                    infStats = await infWriter.WriteAsync(
                         stream,
                         infContext,
                         plan.WorkbookMetadata!,
@@ -138,7 +140,16 @@ public sealed class ExportValidationReportsHandler(
             publishedReports = result.Reports.Select(ReportExportSupport.ReportWire).ToArray(),
             reports = catalog.Reports,
             reportWarning = catalog.Warning,
-            warnings = ReportExportSupport.Warnings(result.OperationLogWarning)
+            warnings = ReportExportSupport.Warnings(
+                result.Reports.Select(report => (
+                    report.RelativeFileName,
+                    report.Kind switch
+                    {
+                        ReportKind.ValidationReport => validationStats,
+                        ReportKind.InfReport => infStats,
+                        _ => null
+                    })),
+                result.OperationLogWarning)
         };
     }
 
@@ -220,12 +231,13 @@ public sealed class ExportPrescreenReportHandler(
             unfinalizedReportPlan,
             planningFacts);
 
+        ExportStats? stats = null;
         var request = new ReportWriteRequest(
                 plan.ReportKinds[0],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
-                    await writer.WriteAsync(
+                    stats = await writer.WriteAsync(
                         stream,
                         reportContext,
                         reportProjection,
@@ -250,7 +262,7 @@ public sealed class ExportPrescreenReportHandler(
             ok = true, publishedReport = ReportExportSupport.ReportWire(report),
             reports = catalog.Reports,
             reportWarning = catalog.Warning,
-            warnings = ReportExportSupport.Warnings(result.OperationLogWarning)
+            warnings = ReportExportSupport.Warnings([(report.RelativeFileName, stats)], result.OperationLogWarning)
         };
     }
 }
@@ -366,12 +378,13 @@ public sealed class ExportCriteriaSelectionReportHandler(
             conditionLogic,
             filterRevision.PopulationScope,
             wholeVoucherSummaryPositions);
+        ExportStats? stats = null;
         var request = new ReportWriteRequest(
                 plan.ReportKinds[0],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
-                    await writer.WriteAsync(
+                    stats = await writer.WriteAsync(
                         stream,
                         reportContext,
                         plan.WorkbookMetadata!,
@@ -395,7 +408,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
             ok = true, publishedReport = ReportExportSupport.ReportWire(report),
             reports = catalog.Reports,
             reportWarning = catalog.Warning,
-            warnings = ReportExportSupport.Warnings(result.OperationLogWarning)
+            warnings = ReportExportSupport.Warnings([(report.RelativeFileName, stats)], result.OperationLogWarning)
         };
     }
 }

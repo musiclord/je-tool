@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "SQLite：GL 分錄與攸關資料元素欄位",
+    "locale": "zh-TW",
+    "output": "archify/gl-rde-erd/gl-rde-erd.html",
+    "quality_profile": "standard",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "pk": {
+          "label": "主鍵"
+        },
+        "uk": {
+          "label": "唯一約束或唯一索引"
+        },
+        "many": {
+          "label": "多筆"
+        },
+        "one": {
+          "label": "一筆"
+        },
+        "optional": {
+          "label": "可以沒有對應"
+        }
+      }
+    },
+    "visual_preset": "editorial"
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 56,
+    "gapY": 44,
+    "entityW": 220,
+    "rowH": 18
+  },
+  "entities": [
+    {
+      "id": "gl",
+      "label": "gl",
+      "row": 0,
+      "col": 0,
+      "width": 270,
+      "attributes": [
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_row_number",
+          "type": "INTEGER"
+        },
+        {
+          "name": "voucher_number",
+          "type": "TEXT"
+        },
+        {
+          "name": "line_item",
+          "type": "TEXT"
+        },
+        {
+          "name": "line_item_numeric_sort_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "gl_date",
+          "type": "TEXT"
+        },
+        {
+          "name": "approval_date",
+          "type": "TEXT"
+        },
+        {
+          "name": "account_number",
+          "type": "TEXT"
+        },
+        {
+          "name": "account_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_module",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "approved_by",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_manual",
+          "type": "INTEGER"
+        },
+        {
+          "name": "amount_scaled",
+          "type": "INTEGER"
+        },
+        {
+          "name": "debit_amount_scaled",
+          "type": "INTEGER"
+        },
+        {
+          "name": "credit_amount_scaled",
+          "type": "INTEGER"
+        },
+        {
+          "name": "dr_cr",
+          "type": "TEXT"
+        },
+        {
+          "name": "posting_status",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_excluded",
+          "type": "INTEGER"
+        },
+        {
+          "name": "exclusion_reason",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "標準化資料",
+      "sublabel": "GL 與 GL(未納入測試) 的分錄"
+    },
+    {
+      "id": "gl_rde_value",
+      "label": "gl_rde_value",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "field_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "value_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "text_value",
+          "type": "TEXT"
+        },
+        {
+          "name": "date_value",
+          "type": "TEXT"
+        },
+        {
+          "name": "amount_scaled",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "攸關資料元素欄位",
+      "sublabel": "每筆分錄的攸關資料元素值"
+    },
+    {
+      "id": "gl_rde_field",
+      "label": "gl_rde_field",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "field_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "source_column",
+          "type": "TEXT"
+        },
+        {
+          "name": "label",
+          "type": "TEXT"
+        },
+        {
+          "name": "value_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "ordinal",
+          "type": "INTEGER"
+        },
+        {
+          "name": "is_rde",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "攸關資料元素欄位",
+      "sublabel": "GL 攸關資料元素欄位的定義"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rde_entry",
+      "from": "gl_rde_value",
+      "to": "gl",
+      "label": "entry_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "rde_field",
+      "from": "gl_rde_value",
+      "to": "gl_rde_field",
+      "label": "field_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "攸關資料元素的對應",
+      "items": [
+        "攸關資料元素的值以 entry_id 對應分錄，以 field_id 對應欄位定義；這是程式在 SQL 裡使用的欄位，資料庫沒有宣告外鍵。",
+        "gl 以 batch_id 連回匯入批次，這條線畫在「SQLite：欄位配對、TB 與批次來源」。"
+      ]
+    }
+  ]
+}

@@ -134,13 +134,27 @@ internal sealed class ReportSheetWriter : IDisposable
 
     public void Protect() => _protect = true;
 
+    /// <summary>文字格；超過 Excel 每格上限的文字寫到上限並註明已截斷，記在這張工作表的截斷格數。</summary>
     public Cell TextCell(uint row, uint column, string? value, uint style = LegacyReportStyles.Body)
     {
         var cell = new Cell { CellReference = Reference(column, row), StyleIndex = _mapStyle(style) };
         if (!string.IsNullOrEmpty(value))
         {
             cell.DataType = CellValues.InlineString;
-            cell.InlineString = ExcelText.InlineString(value);
+            cell.InlineString = ExcelText.InlineString(value, _part);
+        }
+
+        return cell;
+    }
+
+    /// <summary>照原樣寫出、不截斷的文字格，給 JET 讀回用的配對資料。</summary>
+    public Cell VerbatimTextCell(uint row, uint column, string? value, uint style = LegacyReportStyles.Body)
+    {
+        var cell = new Cell { CellReference = Reference(column, row), StyleIndex = _mapStyle(style) };
+        if (!string.IsNullOrEmpty(value))
+        {
+            cell.DataType = CellValues.InlineString;
+            cell.InlineString = ExcelText.VerbatimInlineString(value);
         }
 
         return cell;
@@ -190,6 +204,34 @@ internal sealed class ReportSheetWriter : IDisposable
         ExcelWorksheetConstraints.EnsureCell(row, column);
         return ColumnLetters(column) + row.ToString(CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    /// 資料超過範本列數時延伸範本的資料驗證範圍。sqref 以空白分隔多個範圍；先讀出每個範圍的結束列，
+    /// 只把結束列等於範本最後一列的範圍延伸到 <paramref name="lastRow"/>，其他範圍照原樣。
+    /// </summary>
+    public static string ExtendSqref(string sqref, uint templateLastRow, uint lastRow) =>
+        string.Join(' ', sqref
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(range =>
+            {
+                var colon = range.IndexOf(':', StringComparison.Ordinal);
+                var end = colon < 0 ? range : range[(colon + 1)..];
+                var digits = end.IndexOfAny("0123456789".ToCharArray());
+                if (digits <= 0
+                    || !uint.TryParse(
+                        end[digits..],
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out var endRow)
+                    || endRow != templateLastRow)
+                {
+                    return range;
+                }
+                var extendedEnd = end[..digits] + lastRow.ToString(CultureInfo.InvariantCulture);
+                return colon < 0
+                    ? range + ":" + extendedEnd
+                    : range[..(colon + 1)] + extendedEnd;
+            }));
 
     private void WriteRowCore(uint rowIndex, IReadOnlyList<Cell> cells, double? height)
     {

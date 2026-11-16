@@ -10,6 +10,9 @@ namespace JET.Infrastructure;
 public sealed partial class LegacyReportWriter
 {
     private const int InfReportSampleSize = InfSampling.DefaultSampleSize;
+
+    // INF 固定範本的樣本列從第 53 列到第 111 列，剛好放預設的 59 筆樣本；樣本更多時照第 111 列往下加列。
+    private const uint InfTemplateLastSampleRow = 111;
     private const string InfMainSheet = "INF Testing 可靠性測試";
     private const string InfAllFieldsSheet = "可靠性樣本_所有欄位";
 
@@ -325,8 +328,9 @@ public sealed partial class LegacyReportWriter
         var worksheet = part.RequiredWorksheet();
         var rowCount = Math.Max(InfReportSampleSize, samples.Count);
         var sheetData = worksheet.GetFirstChild<SheetData>()!;
-        var prototype = sheetData.Elements<Row>().Single(row => row.RowIndex?.Value == 111);
-        for (var rowIndex = 112U; rowIndex <= 52U + rowCount; rowIndex++)
+        var prototype = sheetData.Elements<Row>().Single(row => row.RowIndex?.Value == InfTemplateLastSampleRow);
+        var lastSampleRow = checked(52U + (uint)rowCount);
+        for (var rowIndex = InfTemplateLastSampleRow + 1; rowIndex <= lastSampleRow; rowIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var row = (Row)prototype.CloneNode(true);
@@ -336,15 +340,28 @@ public sealed partial class LegacyReportWriter
                 var column = new string(cell.CellReference!.Value!.TakeWhile(char.IsLetter).ToArray());
                 cell.CellReference = column + rowIndex.ToString(CultureInfo.InvariantCulture);
                 cell.RemoveAllChildren();
-                cell.DataType = CellValues.InlineString;
-                if (column == "A") cell.InlineString = ExcelText.InlineString($"{rowIndex - 52}.");
+                // A 欄寫序號；其他欄是只留範本樣式的空白格，沒有值就不寫儲存格型別。
+                if (column == "A")
+                {
+                    cell.DataType = CellValues.InlineString;
+                    cell.InlineString = ExcelText.VerbatimInlineString($"{rowIndex - 52}.");
+                }
+                else
+                {
+                    cell.DataType = null;
+                }
             }
             sheetData.Append(row);
         }
-        foreach (var validation in worksheet.Descendants<DataValidation>())
+        if (lastSampleRow > InfTemplateLastSampleRow)
         {
-            if (validation.SequenceOfReferences is { InnerText: { } sqref } references)
-                references.InnerText = sqref.Replace("111", (52 + rowCount).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+            foreach (var validation in worksheet.Descendants<DataValidation>())
+            {
+                if (validation.SequenceOfReferences is { InnerText: { } sqref } references)
+                {
+                    references.InnerText = ReportSheetWriter.ExtendSqref(sqref, InfTemplateLastSampleRow, lastSampleRow);
+                }
+            }
         }
         if (worksheet.GetFirstChild<SheetDimension>() is { } dimension)
             dimension.Reference = $"A1:T{52 + rowCount}";

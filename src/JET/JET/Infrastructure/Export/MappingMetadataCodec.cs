@@ -11,8 +11,6 @@ namespace JET.Infrastructure;
 /// </summary>
 internal static class MappingMetadataCodec
 {
-    private const int ExcelCellTextLimit = 32_767;
-
     public static string Encode(CommittedMapping gl, CommittedMapping tb)
     {
         EnsureCommittedMapping<GlAmountMode>(
@@ -50,7 +48,7 @@ internal static class MappingMetadataCodec
         }
 
         var json = Encoding.UTF8.GetString(stream.ToArray());
-        if (json.Length > ExcelCellTextLimit)
+        if (json.Length > ExcelWorksheetConstraints.MaxCellTextLength)
         {
             throw new InvalidOperationException("欄位配對 metadata 超過 Excel 單一儲存格上限。");
         }

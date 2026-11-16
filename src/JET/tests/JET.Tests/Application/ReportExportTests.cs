@@ -1059,9 +1059,9 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal("N/A", summary.Cell("E13").GetString());
         Assert.Equal("N/A", summary.Cell("F13").GetString());
         Assert.StartsWith("N/A", summary.Cell("D10").GetString(), StringComparison.Ordinal);
-        // R5、R6 的 D 欄照舊版原句，不寫「彙總 N 項」。
+        // R5、R6 的 D 欄照舊版原句，不寫「彙總 N 項」；R5 句中的欄位名稱不加任何符號。
         Assert.Equal(
-            "因於資料欄未配對時未配對【編制人員】欄位，故此預篩選程序未執行",
+            "因於資料欄未配對時未配對編制人員欄位，故此預篩選程序未執行",
             summary.Cell("D12").GetString());
         Assert.Equal("符合預篩選條件之明細項請詳 [R6] 工作表", summary.Cell("D13").GetString());
         Assert.All(summary.Range("D14:D16").Cells(),
@@ -1224,8 +1224,8 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
 
         const string expected =
             // 統計條件的讀回，資料名稱寫「GL 中」。
-            // 報告的條件說明用【】標欄位名稱；「僅借方」不是欄位名稱，不加。
-            "（（GL 中【傳票建立人員】分錄筆數 小於或等於 11 或 GL 中【會計科目編號】分錄筆數 小於或等於 11） 且 僅借方）";
+            // 報告的條件說明裡欄位名稱照原樣寫，不加任何符號，前後各留一個半形空白。
+            "（（GL 中 傳票建立人員 分錄筆數 小於或等於 11 或 GL 中 會計科目編號 分錄筆數 小於或等於 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             projectId,

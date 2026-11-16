@@ -183,7 +183,7 @@ internal sealed class DirectTemplateWorkbookEditor
     }
 
     /// <summary>
-    /// 移除一張允許改寫的既有工作表，連同它的 part 與關聯；活頁簿記錄的作用中分頁位置跟著調整。
+    /// 移除一張允許改寫的既有工作表，連同它的 part 與關聯；活頁簿記錄的作用中分頁位置與只屬於單一工作表的定義名稱跟著調整。
     /// 用在某張工作表依條件不需要輸出的時候。
     /// </summary>
     internal void RemoveWorksheet(
@@ -218,10 +218,36 @@ internal sealed class DirectTemplateWorkbookEditor
                     remainingCount);
             }
         }
+        AdjustLocalDefinedNames(checked((uint)removedIndex));
         sheet.Remove();
         _workbookPart.DeletePart(part);
         Workbook.Save();
         cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>
+    /// 帶 localSheetId 的定義名稱只屬於一張工作表，例如篩選範圍 _xlnm._FilterDatabase；localSheetId 是那張工作表在活頁簿裡的位置，從 0 起算。
+    /// 屬於被移除工作表的名稱一起拿掉；排在它後面的工作表往前移一位，名稱的 localSheetId 跟著減 1。不屬於單一工作表的名稱不動。
+    /// </summary>
+    private void AdjustLocalDefinedNames(uint removedIndex)
+    {
+        var localNames = Workbook.DefinedNames?
+            .Elements<DefinedName>()
+            .Where(name => name.LocalSheetId is not null)
+            .ToArray()
+            ?? [];
+        foreach (var name in localNames)
+        {
+            var owner = name.LocalSheetId!.Value;
+            if (owner == removedIndex)
+            {
+                name.Remove();
+            }
+            else if (owner > removedIndex)
+            {
+                name.LocalSheetId = owner - 1U;
+            }
+        }
     }
 
     private static uint ShiftTabIndex(uint? current, int removedIndex, int remainingCount)
@@ -425,8 +451,26 @@ internal sealed class DirectTemplateCellEditor
         }
 
         cell.DataType = CellValues.InlineString;
-        cell.InlineString = ExcelText.InlineString(value);
+        cell.InlineString = ExcelText.InlineString(value, WorksheetPart);
     }
+
+    /// <summary>照原樣寫出、不截斷的文字，給篩選條件說明切好的分段。</summary>
+    internal void SetVerbatimInlineString(string reference, string? value)
+    {
+        var cell = TakeCell(reference);
+        ClearPayload(cell);
+        if (string.IsNullOrEmpty(value))
+        {
+            return;
+        }
+
+        cell.DataType = CellValues.InlineString;
+        cell.InlineString = ExcelText.VerbatimInlineString(value);
+    }
+
+    /// <summary>超過 Excel 每格上限的文字截斷後，截斷格數記在這張工作表上。</summary>
+    private WorksheetPart WorksheetPart => _worksheet.WorksheetPart
+        ?? throw new InvalidOperationException("Template worksheet is not loaded from a worksheet part.");
 
     internal void SetNumber(
         string reference,
@@ -618,10 +662,12 @@ internal sealed record DirectTemplateWorksheetRewritePlan(
     IReadOnlyDictionary<uint, double>? MinimumColumnWidths = null,
     IReadOnlySet<uint>? AutoFitColumns = null);
 
+/// <param name="Part">正在改寫的工作表；資料列的文字超過 Excel 每格上限而截斷時，截斷格數記在這裡。</param>
 internal sealed record DirectTemplateWorksheetPrototype(
     IReadOnlyDictionary<uint, uint> OriginalColumnStyles,
     IReadOnlyDictionary<uint, uint> ColumnStyles,
-    XElement DynamicRow);
+    XElement DynamicRow,
+    WorksheetPart Part);
 
 /// <summary>
 /// 由上往下重寫一張工作表。原本的 XML 先複製到關閉時自動刪除的暫存檔，再一邊讀一邊寫回去；暫存檔不是 xlsx 檔。
@@ -718,7 +764,7 @@ internal static class DirectTemplateWorksheetRewriter
         using var writer = XmlWriter.Create(target, writerSettings);
         try
         {
-            RewriteXml(reader, writer, plan, cancellationToken);
+            RewriteXml(part, reader, writer, plan, cancellationToken);
         }
         catch (Exception error) when (ExcelText.MarkWriteFailure(error, part, Array.Empty<XElement>()))
         {
@@ -729,6 +775,7 @@ internal static class DirectTemplateWorksheetRewriter
     }
 
     private static void RewriteXml(
+        WorksheetPart part,
         XmlReader reader,
         XmlWriter writer,
         DirectTemplateWorksheetRewritePlan plan,
@@ -790,6 +837,7 @@ internal static class DirectTemplateWorksheetRewriter
             if (localName == "sheetData" && reader.NamespaceURI == SpreadsheetNamespace)
             {
                 RewriteSheetData(
+                    part,
                     reader,
                     writer,
                     plan,
@@ -920,6 +968,7 @@ internal static class DirectTemplateWorksheetRewriter
     }
 
     private static void RewriteSheetData(
+        WorksheetPart part,
         XmlReader reader,
         XmlWriter writer,
         DirectTemplateWorksheetRewritePlan plan,
@@ -973,7 +1022,8 @@ internal static class DirectTemplateWorksheetRewriter
                 var prototype = new DirectTemplateWorksheetPrototype(
                     new Dictionary<uint, uint>(originalStyles),
                     new Dictionary<uint, uint>(mappedStyles),
-                    prototypeRow);
+                    prototypeRow,
+                    part);
                 foreach (var row in plan.CreateDynamicRows(prototype, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -1036,7 +1086,8 @@ internal static class DirectTemplateWorksheetRewriter
 
             cell.RemoveNodes();
             cell.SetAttributeValue("t", "inlineStr");
-            cell.Add(ExcelText.InlineStringElement(spreadsheet, value));
+            // 固定儲存格換上的是程式寫好的說明文字，照原樣寫出。
+            cell.Add(ExcelText.VerbatimInlineStringElement(spreadsheet, value));
             applied.Add(reference);
         }
     }

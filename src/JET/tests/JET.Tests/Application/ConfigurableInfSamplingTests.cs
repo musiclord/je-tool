@@ -88,6 +88,55 @@ public sealed class ConfigurableInfSamplingTests
         Assert.Empty(main.DataValidations.GetAllInRange(main.Cell("S173").AsRange().RangeAddress));
     }
 
+    /// <summary>
+    /// 樣本超過範本的 59 列時，第 112 列起照第 111 列加列。A 欄寫序號；沒有寫值的格子只留第 111 列同一欄的樣式，
+    /// 不寫儲存格型別，整張表沒有型別是內嵌字串卻沒有內容的格子。下拉選單只延伸結束在第 111 列的範圍。
+    /// </summary>
+    [Fact]
+    public async Task RequestedCountAboveFiftyNine_AddedRowsLeaveBlankCellsUntyped()
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        var validation = await host.DispatchAsync("validate.run", JsonSerializer.Serialize(new { sampleSize = 120 }));
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+        var exports = await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
+        var report = exports.GetProperty("publishedReports").EnumerateArray()
+            .Single(item => item.GetProperty("kind").GetString() == "infReport");
+        using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(
+            Path.Combine(host.ProjectsRoot, context.ProjectId, report.GetProperty("fileName").GetString()!),
+            false);
+        var workbookPart = document.WorkbookPart!;
+        var sheet = workbookPart.Workbook!.Sheets!.Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>()
+            .Single(item => item.Name?.Value == "INF Testing 可靠性測試");
+        var worksheet = ((DocumentFormat.OpenXml.Packaging.WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!)).Worksheet!;
+        var cells = worksheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.Cell>()
+            .ToDictionary(cell => cell.CellReference!.Value!, StringComparer.Ordinal);
+
+        Assert.DoesNotContain(
+            cells.Values,
+            cell => cell.DataType?.Value == DocumentFormat.OpenXml.Spreadsheet.CellValues.InlineString
+                    && cell.InlineString is null);
+        foreach (var row in new[] { 112, 172 })
+        {
+            Assert.Equal($"{row - 52}.", cells[$"A{row}"].InlineString?.InnerText);
+            foreach (var column in "MNOPQRST")
+            {
+                var cell = cells[$"{column}{row}"];
+                Assert.Null(cell.DataType);
+                Assert.False(cell.HasChildren);
+                Assert.Equal(cells[$"{column}111"].StyleIndex?.Value, cell.StyleIndex?.Value);
+            }
+        }
+        Assert.Equal(
+            new (string?, string?)[]
+            {
+                ("B40:B42 B20:B25 B27:B32 B36:B38 B15", "\"V,NA\""),
+                ("M53:S172", "\"相符,不符合,N/A\"")
+            },
+            worksheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.DataValidation>()
+                .Select(item => (item.SequenceOfReferences?.InnerText, item.Formula1?.Text)));
+    }
+
     [Fact]
     public async Task RequestedCountAbovePopulation_SelectsEveryEligibleEntry()
     {

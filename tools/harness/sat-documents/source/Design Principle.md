@@ -47,7 +47,7 @@ index.html 與 app.css 不得引用外部網址的資源。字型、圖示與 EC
 |---|---|---|
 | 後端型別與方法 | PascalCase；介面以 I 開頭 | IApplicationActionHandler、HandleAsync |
 | action 名稱 | camelCase，以句點分段，第一段為功能領域 | validate.run、mapping.commit.gl |
-| Handler | 每種請求一個類別，名稱以 Handler 結尾 | ValidateRunHandler |
+| Handler | 每種請求一個類別；類別名稱為請求的各段首字改為大寫後相連，再加上 Handler | ValidateRunHandler |
 | 錯誤碼 | 小寫英文與底線，集中定義於 JetErrorCodes | invalid_payload |
 | 前端檔案 | 小寫與連字號；各步驟的主要程式置於 js/steps | validate-step.js |
 | CSS 類別 | 區塊__元素；變體與狀態以 -- 修飾，另有 is- 與 has- 開頭的狀態類別 | toc-item--current、is-missing、busy-overlay__label |

@@ -13,15 +13,97 @@ namespace JET.Infrastructure;
 /// 儲存格文字寫進活頁簿前的編碼，以及 JET 讀回自己寫的文字時的還原，依 Excel 文字的 _xHHHH_ 跳脫格式：
 /// XML 不允許的字元寫成 _xHHHH_；CR 也這樣寫，因為讀取 XML 時 CR 會被換成 LF；原文裡會被讀成跳脫格式的底線寫成 _x005F_。
 /// Tab、LF 與成對的 surrogate 照原樣寫入。報告與範本的文字儲存格只透過這裡建立。
+/// 文字一律加 xml:space="preserve"：Excel 依這個屬性決定空白怎麼處理，加了才保證前後空白與連續空白照原樣保留。
+/// Excel 一格最多 32,767 個字元。一般文字寫出後超過這個長度時，寫到上限並在結尾加上已截斷的註明，記在那張工作表的截斷格數；
+/// 長度以跳脫後寫進檔案的字數計算，它不會比原文短，所以不論以原文或寫出的字數計算都不超過上限。
 /// </summary>
 internal static class ExcelText
 {
-    public static InlineString InlineString(string value, bool preserveSpace = true) =>
-        new(new Text(Encode(value)) { Space = preserveSpace ? SpaceProcessingModeValues.Preserve : null });
+    /// <summary>一個字元寫成 _xHHHH_ 時占的字數。</summary>
+    private const int EscapedCharacterLength = 7;
 
-    public static XElement InlineStringElement(XNamespace spreadsheet, string value) =>
+    /// <summary>截斷時留給原文的字數：上限扣掉結尾的註明。註明沒有要跳脫的字元，寫出的字數等於它的長度。</summary>
+    private static readonly int TruncatedTextBudget =
+        ExcelWorksheetConstraints.MaxCellTextLength - ReportMessages.TruncatedCellNotice.Length;
+
+    /// <summary>寫進 <paramref name="part"/> 這張工作表的文字；超過每格上限時截斷，並記在這張工作表的截斷格數。</summary>
+    public static InlineString InlineString(string value, WorksheetPart part) =>
+        TextElement(EncodeWithinLimit(value, part));
+
+    /// <summary>和 <see cref="InlineString(string, WorksheetPart)"/> 相同，給以 XML 元素組列的寫出程式用。</summary>
+    public static XElement InlineStringElement(XNamespace spreadsheet, string value, WorksheetPart part) =>
+        TextElement(spreadsheet, EncodeWithinLimit(value, part));
+
+    /// <summary>
+    /// 照原樣寫出、不截斷的文字：JET 讀回用的配對資料與報告資料、篩選條件說明切好的分段，以及程式固定的文字。
+    /// 這些文字由寫出的程式自己控制長度；配對資料與報告資料被截斷的話，JET 就讀不回來。
+    /// </summary>
+    public static InlineString VerbatimInlineString(string value) => TextElement(Encode(value));
+
+    /// <summary>和 <see cref="VerbatimInlineString(string)"/> 相同，給以 XML 元素組列的寫出程式用。</summary>
+    public static XElement VerbatimInlineStringElement(XNamespace spreadsheet, string value) =>
+        TextElement(spreadsheet, Encode(value));
+
+    /// <summary>這張工作表到目前為止有幾格文字因為超過上限而截斷。</summary>
+    public static int TruncatedCellCount(WorksheetPart part) => part.Annotation<TruncatedCells>()?.Count ?? 0;
+
+    private static InlineString TextElement(string encoded) =>
+        new(new Text(encoded) { Space = SpaceProcessingModeValues.Preserve });
+
+    private static XElement TextElement(XNamespace spreadsheet, string encoded) =>
         new(spreadsheet + "is",
-            new XElement(spreadsheet + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), Encode(value)));
+            new XElement(spreadsheet + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), encoded));
+
+    /// <summary>
+    /// 寫出的字數不超過上限就照 <see cref="Encode"/> 的結果寫。超過時從頭累加每個字元寫出的字數，
+    /// 加到放不下為止，再接上註明。成對的 surrogate 當成一個字元，放不下就整對不寫，不會切開。
+    /// 截出的開頭單獨編碼時，結尾附近的底線可能不必再寫成 _x005F_，所以實際寫出的字數只會比累加的少。
+    /// </summary>
+    private static string EncodeWithinLimit(string value, WorksheetPart part)
+    {
+        ArgumentNullException.ThrowIfNull(part);
+        var encoded = Encode(value);
+        if (encoded.Length <= ExcelWorksheetConstraints.MaxCellTextLength)
+        {
+            return encoded;
+        }
+
+        var written = 0;
+        var cut = 0;
+        while (cut < value.Length)
+        {
+            var length = IsPairStart(value, cut) ? 2 : 1;
+            var width = length == 1 && WrittenAsEscape(value, cut) ? EscapedCharacterLength : length;
+            if (written + width > TruncatedTextBudget)
+            {
+                break;
+            }
+
+            written += width;
+            cut += length;
+        }
+
+        CountTruncatedCell(part);
+        return Encode(value[..cut]) + ReportMessages.TruncatedCellNotice;
+    }
+
+    private static void CountTruncatedCell(WorksheetPart part)
+    {
+        var cells = part.Annotation<TruncatedCells>();
+        if (cells is null)
+        {
+            cells = new TruncatedCells();
+            part.AddAnnotation(cells);
+        }
+
+        cells.Count++;
+    }
+
+    /// <summary>掛在工作表上的截斷格數；同一張工作表由同一個寫出程式依序寫入。</summary>
+    private sealed class TruncatedCells
+    {
+        public int Count { get; set; }
+    }
 
     public static string Encode(string value)
     {
@@ -183,6 +265,10 @@ internal static class ExcelText
 
     private static bool IsPairStart(string value, int index) =>
         char.IsHighSurrogate(value[index]) && index + 1 < value.Length && char.IsLowSurrogate(value[index + 1]);
+
+    /// <summary>不在成對 surrogate 裡的這個字元，<see cref="Encode"/> 是否會寫成 _xHHHH_。</summary>
+    private static bool WrittenAsEscape(string value, int index) =>
+        Escaped(value[index]) || (value[index] == '_' && ReadsAsEscape(value, index));
 
     /// <summary>不在成對 surrogate 裡的字元是否要寫成 _xHHHH_：XML 不允許的字元、CR 與單獨的 surrogate。</summary>
     private static bool Escaped(char character) =>

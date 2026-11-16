@@ -47,9 +47,9 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>畫面訊息的處理類別</title>
+  <title>畫面訊息怎麼分派到處理類別</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5194,7 +5237,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>畫面訊息的處理類別</h1>
+        <h1>畫面訊息怎麼分派到處理類別</h1>
       </div>
     </div>
 
@@ -5203,8 +5246,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 1613 806" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">畫面訊息的處理類別</title>
+      <svg viewBox="0 0 1063 590" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+        <title id="archify-diagram-title">畫面訊息怎麼分派到處理類別</title>
         <desc id="archify-diagram-description">由 Archify 產生的類別與介面圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5226,12 +5269,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <!-- UML relationship markers -->
           <marker id="cl-open" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse" class="cl-marker" stroke-width="1.5" stroke-linejoin="round">
             <path d="M 1 1 L 11 6 L 1 11" fill="none"/>
-          </marker>
-          <marker id="cl-triangle" markerWidth="16" markerHeight="16" refX="15" refY="8" orient="auto" markerUnits="userSpaceOnUse" class="cl-marker" stroke-width="1.5" stroke-linejoin="round">
-            <path d="M 1 1.5 L 15 8 L 1 14.5 Z" class="cl-marker-hollow"/>
-          </marker>
-          <marker id="cl-triangle-start" markerWidth="16" markerHeight="16" refX="15" refY="8" orient="auto-start-reverse" markerUnits="userSpaceOnUse" class="cl-marker" stroke-width="1.5" stroke-linejoin="round">
-            <path d="M 1 1.5 L 15 8 L 1 14.5 Z" class="cl-marker-hollow"/>
           </marker>
         </defs>
         <style>
@@ -5277,284 +5314,208 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Relationships (before types for correct z-order) -->
-        <path data-edge-from="form" data-edge-to="bridge" data-edge-label="建立、Attach" data-edge-key="0" data-edge-id="form_bridge" data-class-relationship="dependency" data-composition-points="267.5,112;414,112" d="M 267.5 112 L 414 112" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="bridge" data-edge-to="registry" data-edge-label="RunAsync" data-edge-key="1" data-edge-id="bridge_registry" data-class-relationship="dependency" data-composition-points="744,112;835,112" d="M 744 112 L 835 112" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="bridge" data-edge-to="dispatcher" data-edge-label="DispatchAsync" data-edge-key="2" data-edge-id="bridge_dispatcher" data-class-relationship="dependency" data-composition-points="579,184;579,268" d="M 579 184 L 579 268" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="root" data-edge-to="dispatcher" data-edge-label="建立" data-edge-key="3" data-edge-id="root_dispatcher" data-class-relationship="dependency" data-composition-points="317.5,320;439,320" d="M 317.5 320 L 439 320" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="dispatcher" data-edge-to="gate" data-edge-label="TryAcquire" data-edge-key="4" data-edge-id="dispatcher_gate" data-class-relationship="dependency" data-composition-points="719,307;885.5,307" d="M 719 307 L 885.5 307" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="dispatcher" data-edge-to="policy" data-edge-label="IsExclusive" data-edge-key="5" data-edge-id="dispatcher_policy" data-class-relationship="dependency" data-composition-points="719,333;798,333;798,528;877,528" d="M 719 333 L 790 333 Q 798 333 798 341 L 798 520 Q 798 528 806 528 L 877 528" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="dispatcher" data-edge-to="contract" data-edge-label="HandleAsync" data-edge-key="6" data-edge-id="dispatcher_contract" data-class-relationship="dependency" data-composition-points="579,372;579,456" d="M 579 372 L 579 456" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="save" data-edge-to="contract" data-edge-key="7" data-edge-id="save_contract" data-class-relationship="realization" data-class-bus="contract" data-motion-path="M 177.5 699 L 177.5 655 Q 177.5 647 185.5 647 L 571 647 Q 579 647 579 639 L 579 600" data-composition-points="177.5,699;177.5,647;579,647;579,600" d="M 579 600 L 579 639 Q 579 647 571 647 L 185.5 647 Q 177.5 647 177.5 655 L 177.5 699" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-start="url(#cl-triangle-start)"/>
-        <path data-edge-from="importBase" data-edge-to="contract" data-edge-key="8" data-edge-id="import_contract" data-class-relationship="realization" data-class-bus="contract" data-motion-path="M 1005 694 L 1005 655 Q 1005 647 997 647 L 587 647 Q 579 647 579 639 L 579 600" data-composition-points="1005,694;1005,647;579,647;579,600" d="M 579 600 L 579 639 Q 579 647 587 647 L 997 647 Q 1005 647 1005 655 L 1005 694" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:8" stroke-width="1.5" marker-start="url(#cl-triangle-start)"/>
-        <path data-edge-from="export" data-edge-to="contract" data-edge-key="9" data-edge-id="export_contract" data-class-relationship="realization" data-class-bus="contract" data-motion-path="M 579 699 L 579 600" data-composition-points="579,699;579,600" d="M 579 600 L 579 699" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:9" stroke-width="1.5" marker-start="url(#cl-triangle-start)"/>
-        <path data-edge-from="importTb" data-edge-to="importBase" data-edge-key="10" data-edge-id="tb_import" data-class-relationship="inheritance" data-composition-points="1259,716;1133,716" d="M 1259 716 L 1133 716" class="a-default cl-relationship" data-animate="edge" style="--step:10" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="form" data-edge-to="bridge" data-edge-label="建立、Attach" data-edge-key="0" data-edge-id="form_bridge" data-class-relationship="dependency" data-composition-points="237,112;338,112" d="M 237 112 L 338 112" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="bridge" data-edge-to="registry" data-edge-label="RunAsync" data-edge-key="1" data-edge-id="bridge_registry" data-class-relationship="dependency" data-composition-points="654,112;730,112" d="M 654 112 L 730 112" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="bridge" data-edge-to="dispatcher" data-edge-label="DispatchAsync" data-edge-key="2" data-edge-id="bridge_dispatcher" data-class-relationship="dependency" data-composition-points="496,184;496,254" d="M 496 184 L 496 254" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="root" data-edge-to="dispatcher" data-edge-label="建立" data-edge-key="3" data-edge-id="root_dispatcher" data-class-relationship="dependency" data-composition-points="262,306;356,306" d="M 262 306 L 356 306" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="dispatcher" data-edge-to="gate" data-edge-label="TryAcquire" data-edge-key="4" data-edge-id="dispatcher_gate" data-class-relationship="dependency" data-composition-points="636,293;765,293" d="M 636 293 L 765 293" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="dispatcher" data-edge-to="policy" data-edge-label="IsExclusive" data-edge-key="5" data-edge-id="dispatcher_policy" data-class-relationship="dependency" data-composition-points="636,319;696.25,319;696.25,480;756.5,480" d="M 636 319 L 688.25 319 Q 696.25 319 696.25 327 L 696.25 472 Q 696.25 480 704.25 480 L 756.5 480" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="dispatcher" data-edge-to="contract" data-edge-label="HandleAsync" data-edge-key="6" data-edge-id="dispatcher_contract" data-class-relationship="dependency" data-composition-points="496,358;496,428" d="M 496 358 L 496 428" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#cl-open)"/>
 
         <!-- Types -->
         <g id="node-form" data-node-id="form" data-node-label="Form1" tabindex="0" role="button" aria-label="聚焦Form1，WinForms 主視窗, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="WinForms 主視窗" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>Form1 · WinForms 主視窗 · 類別</title>
-          <rect x="87.5" y="95" width="180" height="34" rx="8" class="c-mask"/>
-          <rect x="87.5" y="95" width="180" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 95.5 95 H 259.5 A 8 8 0 0 1 267.5 103 V 129 H 87.5 V 103 A 8 8 0 0 1 95.5 95 Z"/>
-          <path class="cl-cap" d="M 99.5 96.4 H 255.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="57" y="95" width="180" height="34" rx="8" class="c-mask"/>
+          <rect x="57" y="95" width="180" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 65 95 H 229 A 8 8 0 0 1 237 103 V 129 H 57 V 103 A 8 8 0 0 1 65 95 Z"/>
+          <path class="cl-cap" d="M 69 96.4 H 225" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="99.5" y="104" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="107.5" y="115.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="69" y="104" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="77" y="115.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="177.5" y="117" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">Form1</text>
+          <text data-node-label="" x="147" y="117" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">Form1</text>
 
         </g>
 
         <g id="node-bridge" data-node-id="bridge" data-node-label="JetWebMessageBridge" tabindex="0" role="button" aria-label="聚焦JetWebMessageBridge，接收 WebMessage, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="接收 WebMessage" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>JetWebMessageBridge · 接收 WebMessage · 類別</title>
-          <rect x="414" y="40" width="330" height="144" rx="8" class="c-mask"/>
-          <rect x="414" y="40" width="330" height="144" rx="8" class="c-backend cl-type" data-animate="node" style="--step:0" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 422 40 H 736 A 8 8 0 0 1 744 48 V 74 H 414 V 48 A 8 8 0 0 1 422 40 Z"/>
-          <path class="cl-cap" d="M 426 41.4 H 732" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="338" y="40" width="316" height="144" rx="8" class="c-mask"/>
+          <rect x="338" y="40" width="316" height="144" rx="8" class="c-backend cl-type" data-animate="node" style="--step:0" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 346 40 H 646 A 8 8 0 0 1 654 48 V 74 H 338 V 48 A 8 8 0 0 1 346 40 Z"/>
+          <path class="cl-cap" d="M 350 41.4 H 642" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="426" y="49" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="434" y="60.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="350" y="49" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="358" y="60.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="579" y="62" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JetWebMessageBridge</text>
+          <text data-node-label="" x="496" y="62" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JetWebMessageBridge</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="414" y1="74" x2="744" y2="74" class="cl-rule" stroke-width="1"/>
-            <rect x="426" y="83.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="433" y="94" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="446" y="94" class="t-primary cl-member" font-size="11">Attach<tspan class="t-muted cl-punct">(</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="732" y="94" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">void</text>
-            <rect x="418" y="100" width="322" height="78" rx="4" class="cl-zebra"/><rect x="426" y="103.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="433" y="114" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="446" y="114" class="t-primary cl-member" font-size="11">OnWebMessageReceived<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="459.2" y="134" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">object?,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="459.2" y="154" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">CoreWebView2WebMessageReceivedEventArgs</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="446" y="174" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">void</tspan></text>
+            <line x1="338" y1="74" x2="654" y2="74" class="cl-rule" stroke-width="1"/>
+            <rect x="350" y="83.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="357" y="94" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="370" y="94" class="t-primary cl-member" font-size="11">Attach<tspan class="t-muted cl-punct">(</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="642" y="94" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">void</text>
+            <rect x="342" y="100" width="308" height="78" rx="4" class="cl-zebra"/><rect x="350" y="103.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="357" y="114" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="370" y="114" class="t-primary cl-member" font-size="11">OnWebMessageReceived<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="383.2" y="134" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">object?,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="383.2" y="154" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">CoreWebView2WebMessageReceivedEventArgs</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="370" y="174" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">void</tspan></text>
           </g>
         </g>
 
         <g id="node-registry" data-node-id="registry" data-node-label="RequestCancellationRegistry" tabindex="0" role="button" aria-label="聚焦RequestCancellationRegistry，依 requestId 取消請求, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="依 requestId 取消請求" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>RequestCancellationRegistry · 依 requestId 取消請求 · 類別</title>
-          <rect x="835" y="60" width="340" height="104" rx="8" class="c-mask"/>
-          <rect x="835" y="60" width="340" height="104" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 843 60 H 1167 A 8 8 0 0 1 1175 68 V 94 H 835 V 68 A 8 8 0 0 1 843 60 Z"/>
-          <path class="cl-cap" d="M 847 61.4 H 1163" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="730" y="50" width="309" height="124" rx="8" class="c-mask"/>
+          <rect x="730" y="50" width="309" height="124" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 738 50 H 1031 A 8 8 0 0 1 1039 58 V 84 H 730 V 58 A 8 8 0 0 1 738 50 Z"/>
+          <path class="cl-cap" d="M 742 51.4 H 1027" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="847" y="69" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="855" y="80.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="742" y="59" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="750" y="70.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="1005" y="82" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">RequestCancellationRegistry</text>
+          <text data-node-label="" x="884.5" y="72" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">RequestCancellationRegistry</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="835" y1="94" x2="1175" y2="94" class="cl-rule" stroke-width="1"/>
-            <rect x="847" y="103.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="854" y="114" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="867" y="114" class="t-primary cl-member" font-size="11">RunAsync&lt;T&gt;<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="880.1999999999999" y="134" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">string, Func&lt;CancellationToken, Task&lt;T&gt;&gt;</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="867" y="154" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;T&gt;</tspan></text>
+            <line x1="730" y1="84" x2="1039" y2="84" class="cl-rule" stroke-width="1"/>
+            <rect x="742" y="93.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="749" y="104" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="762" y="104" class="t-primary cl-member" font-size="11">RunAsync&lt;T&gt;<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="775.1999999999999" y="124" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">string, Func&lt;CancellationToken,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="775.1999999999999" y="144" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">Task&lt;T&gt;&gt;</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="762" y="164" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;T&gt;</tspan></text>
           </g>
         </g>
 
         <g id="node-root" data-node-id="root" data-node-label="AppCompositionRoot" tabindex="0" role="button" aria-label="聚焦AppCompositionRoot，啟動時建立物件, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="啟動時建立物件" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>AppCompositionRoot · 啟動時建立物件 · 類別</title>
-          <rect x="37.5" y="268" width="280" height="104" rx="8" class="c-mask"/>
-          <rect x="37.5" y="268" width="280" height="104" rx="8" class="c-backend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 45.5 268 H 309.5 A 8 8 0 0 1 317.5 276 V 302 H 37.5 V 276 A 8 8 0 0 1 45.5 268 Z"/>
-          <path class="cl-cap" d="M 49.5 269.4 H 305.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="32" y="254" width="230" height="104" rx="8" class="c-mask"/>
+          <rect x="32" y="254" width="230" height="104" rx="8" class="c-backend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 40 254 H 254 A 8 8 0 0 1 262 262 V 288 H 32 V 262 A 8 8 0 0 1 40 254 Z"/>
+          <path class="cl-cap" d="M 44 255.4 H 250" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="49.5" y="277" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="57.5" y="288.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="44" y="263" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="274.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="177.5" y="290" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AppCompositionRoot</text>
+          <text data-node-label="" x="147" y="276" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AppCompositionRoot</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="37.5" y1="302" x2="317.5" y2="302" class="cl-rule" stroke-width="1"/>
-            <rect x="49.5" y="311.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="56.5" y="322" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="69.5" y="322" class="t-primary cl-member" font-size="11" style="text-decoration: underline">CreateRuntimeCore<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="82.69999999999999" y="342" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">IHostShell, string, …</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="69.5" y="362" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">JetApplicationRuntime</tspan></text>
+            <line x1="32" y1="288" x2="262" y2="288" class="cl-rule" stroke-width="1"/>
+            <rect x="44" y="297.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="308" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="308" class="t-primary cl-member" font-size="11" style="text-decoration: underline">CreateRuntime<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="328" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">IHostShell, string, …</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="348" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">JetApplicationRuntime</tspan></text>
           </g>
         </g>
 
         <g id="node-dispatcher" data-node-id="dispatcher" data-node-label="ActionDispatcher" tabindex="0" role="button" aria-label="聚焦ActionDispatcher，依 action 名稱找處理類別, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="依 action 名稱找處理類別" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>ActionDispatcher · 依 action 名稱找處理類別 · 類別</title>
-          <rect x="439" y="268" width="280" height="104" rx="8" class="c-mask"/>
-          <rect x="439" y="268" width="280" height="104" rx="8" class="c-backend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 447 268 H 711 A 8 8 0 0 1 719 276 V 302 H 439 V 276 A 8 8 0 0 1 447 268 Z"/>
-          <path class="cl-cap" d="M 451 269.4 H 707" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="356" y="254" width="280" height="104" rx="8" class="c-mask"/>
+          <rect x="356" y="254" width="280" height="104" rx="8" class="c-backend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 364 254 H 628 A 8 8 0 0 1 636 262 V 288 H 356 V 262 A 8 8 0 0 1 364 254 Z"/>
+          <path class="cl-cap" d="M 368 255.4 H 624" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="451" y="277" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="459" y="288.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="368" y="263" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="376" y="274.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="579" y="290" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ActionDispatcher</text>
+          <text data-node-label="" x="496" y="276" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ActionDispatcher</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="439" y1="302" x2="719" y2="302" class="cl-rule" stroke-width="1"/>
-            <rect x="451" y="311.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="458" y="322" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="471" y="322" class="t-primary cl-member" font-size="11">DispatchAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="484.2" y="342" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">string, JsonElement</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="471" y="362" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;object?&gt;</tspan></text>
+            <line x1="356" y1="288" x2="636" y2="288" class="cl-rule" stroke-width="1"/>
+            <rect x="368" y="297.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="375" y="308" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="388" y="308" class="t-primary cl-member" font-size="11">DispatchAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="401.2" y="328" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">string, JsonElement</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="388" y="348" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;object?&gt;</tspan></text>
           </g>
         </g>
 
         <g id="node-gate" data-node-id="gate" data-node-label="ActionExecutionGate" tabindex="0" role="button" aria-label="聚焦ActionExecutionGate，修改資料的作業一次一項, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="修改資料的作業一次一項" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>ActionExecutionGate · 修改資料的作業一次一項 · 類別</title>
-          <rect x="885.5" y="288" width="239" height="64" rx="8" class="c-mask"/>
-          <rect x="885.5" y="288" width="239" height="64" rx="8" class="c-backend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 893.5 288 H 1116.5 A 8 8 0 0 1 1124.5 296 V 322 H 885.5 V 296 A 8 8 0 0 1 893.5 288 Z"/>
-          <path class="cl-cap" d="M 897.5 289.4 H 1112.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="765" y="274" width="239" height="64" rx="8" class="c-mask"/>
+          <rect x="765" y="274" width="239" height="64" rx="8" class="c-backend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 773 274 H 996 A 8 8 0 0 1 1004 282 V 308 H 765 V 282 A 8 8 0 0 1 773 274 Z"/>
+          <path class="cl-cap" d="M 777 275.4 H 992" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="897.5" y="297" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="905.5" y="308.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="777" y="283" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="785" y="294.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="1005" y="310" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ActionExecutionGate</text>
+          <text data-node-label="" x="884.5" y="296" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ActionExecutionGate</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="885.5" y1="322" x2="1124.5" y2="322" class="cl-rule" stroke-width="1"/>
-            <rect x="897.5" y="331.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="904.5" y="342" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="917.5" y="342" class="t-primary cl-member" font-size="11">TryAcquire<tspan class="t-muted cl-punct">(</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1112.5" y="342" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">IDisposable?</text>
-          </g>
-        </g>
-
-        <g id="node-policy" data-node-id="policy" data-node-label="ActionExecutionPolicy" tabindex="0" role="button" aria-label="聚焦ActionExecutionPolicy，static，判斷互斥與背景執行, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="static，判斷互斥與背景執行" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>ActionExecutionPolicy · static，判斷互斥與背景執行 · 類別</title>
-          <rect x="877" y="486" width="256" height="84" rx="8" class="c-mask"/>
-          <rect x="877" y="486" width="256" height="84" rx="8" class="c-backend cl-type" data-animate="node" style="--step:5" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 885 486 H 1125 A 8 8 0 0 1 1133 494 V 520 H 877 V 494 A 8 8 0 0 1 885 486 Z"/>
-          <path class="cl-cap" d="M 889 487.4 H 1121" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="889" y="495" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="897" y="506.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
-          </g>
-          
-          <text data-node-label="" x="1005" y="508" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ActionExecutionPolicy</text>
-          <g data-detail="context" data-class-compartment="methods">
-            <line x1="877" y1="520" x2="1133" y2="520" class="cl-rule" stroke-width="1"/>
-            <rect x="889" y="529.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="896" y="540" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="909" y="540" class="t-primary cl-member" font-size="11" style="text-decoration: underline">IsExclusive<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">string</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1121" y="540" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="text-decoration: underline">bool</text>
-            <rect x="881" y="546" width="248" height="18" rx="4" class="cl-zebra"/><rect x="889" y="549.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="896" y="560" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="909" y="560" class="t-primary cl-member" font-size="11" style="text-decoration: underline">RunsInBackground<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">string</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1121" y="560" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="text-decoration: underline">bool</text>
+            <line x1="765" y1="308" x2="1004" y2="308" class="cl-rule" stroke-width="1"/>
+            <rect x="777" y="317.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="784" y="328" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="797" y="328" class="t-primary cl-member" font-size="11">TryAcquire<tspan class="t-muted cl-punct">(</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="992" y="328" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">IDisposable?</text>
           </g>
         </g>
 
         <g id="node-contract" data-node-id="contract" data-node-label="IApplicationActionHandler" tabindex="0" role="button" aria-label="聚焦IApplicationActionHandler，每個 action 一個實作, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="每個 action 一個實作" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
           <title>IApplicationActionHandler · 每個 action 一個實作 · 介面</title>
-          <rect x="433.5" y="456" width="291" height="144" rx="8" class="c-mask"/>
-          <rect x="433.5" y="456" width="291" height="144" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:6" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 441.5 456 H 716.5 A 8 8 0 0 1 724.5 464 V 500 H 433.5 V 464 A 8 8 0 0 1 441.5 456 Z"/>
-          <path class="cl-cap" d="M 445.5 457.4 H 712.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="338" y="428" width="316" height="104" rx="8" class="c-mask"/>
+          <rect x="338" y="428" width="316" height="104" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 346 428 H 646 A 8 8 0 0 1 654 436 V 472 H 338 V 436 A 8 8 0 0 1 346 428 Z"/>
+          <path class="cl-cap" d="M 350 429.4 H 642" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="445.5" y="470" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="453.5" y="481.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="350" y="442" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="358" y="453.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="579" y="472" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="579" y="490" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IApplicationActionHandler</text>
+          <text x="496" y="444" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="496" y="462" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IApplicationActionHandler</text>
           <g data-detail="context" data-class-compartment="attributes">
-            <line x1="433.5" y1="500" x2="724.5" y2="500" class="cl-rule" stroke-width="1"/>
-            <rect x="445.5" y="509.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="452.5" y="520" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="465.5" y="520" class="t-primary cl-member" font-size="11">Action</text><text data-detail="context" x="712.5" y="520" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">string</text>
+            <line x1="338" y1="472" x2="654" y2="472" class="cl-rule" stroke-width="1"/>
+            <rect x="350" y="481.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="357" y="492" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="370" y="492" class="t-primary cl-member" font-size="11">Action</text><text data-detail="context" x="642" y="492" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">string</text>
           </g>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="433.5" y1="530" x2="724.5" y2="530" class="cl-rule" stroke-width="1"/>
-            <rect x="437.5" y="536" width="283" height="58" rx="4" class="cl-zebra"/><rect x="445.5" y="539.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="452.5" y="550" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="465.5" y="550" class="t-primary cl-member" font-size="11" style="font-style: italic">HandleAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="478.7" y="570" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">JsonElement</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="465.5" y="590" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;object?&gt;</tspan></text>
+            <line x1="338" y1="502" x2="654" y2="502" class="cl-rule" stroke-width="1"/>
+            <rect x="342" y="508" width="308" height="18" rx="4" class="cl-zebra"/><rect x="350" y="511.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="357" y="522" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="370" y="522" class="t-primary cl-member" font-size="11" style="font-style: italic">HandleAsync<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">JsonElement</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="642" y="522" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="font-style: italic">Task&lt;object?&gt;</text>
           </g>
         </g>
 
-        <g id="node-save" data-node-id="save" data-node-label="FilterScenarioSaveHandler" tabindex="0" role="button" aria-label="聚焦FilterScenarioSaveHandler，filter.scenario.save, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="filter.scenario.save" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>FilterScenarioSaveHandler · filter.scenario.save · 類別</title>
-          <rect x="32" y="699" width="291" height="34" rx="8" class="c-mask"/>
-          <rect x="32" y="699" width="291" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:8" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 40 699 H 315 A 8 8 0 0 1 323 707 V 733 H 32 V 707 A 8 8 0 0 1 40 699 Z"/>
-          <path class="cl-cap" d="M 44 700.4 H 311" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-policy" data-node-id="policy" data-node-label="ActionExecutionPolicy" tabindex="0" role="button" aria-label="聚焦ActionExecutionPolicy，static，判斷互斥與背景執行, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="static，判斷互斥與背景執行" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>ActionExecutionPolicy · static，判斷互斥與背景執行 · 類別</title>
+          <rect x="756.5" y="438" width="256" height="84" rx="8" class="c-mask"/>
+          <rect x="756.5" y="438" width="256" height="84" rx="8" class="c-backend cl-type" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 764.5 438 H 1004.5 A 8 8 0 0 1 1012.5 446 V 472 H 756.5 V 446 A 8 8 0 0 1 764.5 438 Z"/>
+          <path class="cl-cap" d="M 768.5 439.4 H 1000.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="44" y="708" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="52" y="719.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="768.5" y="447" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="776.5" y="458.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="177.5" y="721" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">FilterScenarioSaveHandler</text>
-
-        </g>
-
-        <g id="node-importBase" data-node-id="importBase" data-node-label="ImportFromFileHandler" tabindex="0" role="button" aria-label="聚焦ImportFromFileHandler，GL 與 TB 匯入共用, 抽象類別" aria-pressed="false" data-node-kind="abstract" data-node-sublabel="GL 與 TB 匯入共用" data-node-context="抽象類別" data-class-kind="abstract" class="cl-hue-backend">
-          <title>ImportFromFileHandler · GL 與 TB 匯入共用 · 抽象類別</title>
-          <rect x="877" y="694" width="256" height="44" rx="8" class="c-mask"/>
-          <rect x="877" y="694" width="256" height="44" rx="8" class="c-backend cl-type" data-animate="node" style="--step:9" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 885 694 H 1125 A 8 8 0 0 1 1133 702 V 738 H 877 V 702 A 8 8 0 0 1 885 694 Z"/>
-          <path class="cl-cap" d="M 889 695.4 H 1121" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="889" y="708" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="897" y="719.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">A</text>
-          </g>
-          <text x="1005" y="710" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«abstract»</text>
-          <text data-node-label="" x="1005" y="728" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle" font-style="italic">ImportFromFileHandler</text>
-
-        </g>
-
-        <g id="node-export" data-node-id="export" data-node-label="ExportWorkingPaperStreamHandler" tabindex="0" role="button" aria-label="聚焦ExportWorkingPaperStreamHandler，export.workingPaperStream, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="export.workingPaperStream" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>ExportWorkingPaperStreamHandler · export.workingPaperStream · 類別</title>
-          <rect x="407" y="699" width="344" height="34" rx="8" class="c-mask"/>
-          <rect x="407" y="699" width="344" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:10" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 415 699 H 743 A 8 8 0 0 1 751 707 V 733 H 407 V 707 A 8 8 0 0 1 415 699 Z"/>
-          <path class="cl-cap" d="M 419 700.4 H 739" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="419" y="708" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="427" y="719.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
-          </g>
-          
-          <text data-node-label="" x="579" y="721" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ExportWorkingPaperStreamHandler</text>
-
-        </g>
-
-        <g id="node-importTb" data-node-id="importTb" data-node-label="ImportTbFromFileHandler" tabindex="0" role="button" aria-label="聚焦ImportTbFromFileHandler，import.tb.fromFile, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="import.tb.fromFile" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>ImportTbFromFileHandler · import.tb.fromFile · 類別</title>
-          <rect x="1259" y="684" width="330" height="64" rx="8" class="c-mask"/>
-          <rect x="1259" y="684" width="330" height="64" rx="8" class="c-backend cl-type" data-animate="node" style="--step:11" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 1267 684 H 1581 A 8 8 0 0 1 1589 692 V 718 H 1259 V 692 A 8 8 0 0 1 1267 684 Z"/>
-          <path class="cl-cap" d="M 1271 685.4 H 1577" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" class="cl-badge">
-            <rect x="1271" y="693" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="1279" y="704.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
-          </g>
-          
-          <text data-node-label="" x="1424" y="706" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ImportTbFromFileHandler</text>
-          <g data-detail="context" data-class-compartment="attributes">
-            <line x1="1259" y1="718" x2="1589" y2="718" class="cl-rule" stroke-width="1"/>
-            <rect x="1271" y="727.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="1278" y="738" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="attributes" x="1291" y="738" class="t-primary cl-member" font-size="11">Action = &quot;import.tb.fromFile&quot;</text><text data-detail="context" x="1577" y="738" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">string</text>
+          <text data-node-label="" x="884.5" y="460" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ActionExecutionPolicy</text>
+          <g data-detail="context" data-class-compartment="methods">
+            <line x1="756.5" y1="472" x2="1012.5" y2="472" class="cl-rule" stroke-width="1"/>
+            <rect x="768.5" y="481.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="775.5" y="492" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="788.5" y="492" class="t-primary cl-member" font-size="11" style="text-decoration: underline">IsExclusive<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">string</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1000.5" y="492" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="text-decoration: underline">bool</text>
+            <rect x="760.5" y="498" width="248" height="18" rx="4" class="cl-zebra"/><rect x="768.5" y="501.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="775.5" y="512" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="788.5" y="512" class="t-primary cl-member" font-size="11" style="text-decoration: underline">RunsInBackground<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">string</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="1000.5" y="512" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end" style="text-decoration: underline">bool</text>
           </g>
         </g>
 
         <!-- Relationship labels -->
         <g data-detail="context" data-edge-from="form" data-edge-to="bridge" data-edge-label="建立、Attach" data-edge-key="0" data-edge-id="form_bridge" data-class-relationship="dependency">
-          <rect x="300.41" y="96" width="80.67999999999999" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="340.75" y="106" class="t-muted" font-size="9.5" text-anchor="middle">建立、Attach</text>
+          <rect x="247.16" y="84" width="80.67999999999999" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="287.5" y="94" class="t-muted" font-size="9.5" text-anchor="middle">建立、Attach</text>
         </g>
         <g data-detail="context" data-edge-from="bridge" data-edge-to="registry" data-edge-label="RunAsync" data-edge-key="1" data-edge-id="bridge_registry" data-class-relationship="dependency">
-          <rect x="760.94" y="84" width="57.12" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="789.5" y="94" class="t-muted" font-size="9.5" text-anchor="middle">RunAsync</text>
+          <rect x="663.44" y="84" width="57.12" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="692" y="94" class="t-muted" font-size="9.5" text-anchor="middle">RunAsync</text>
         </g>
         <g data-detail="context" data-edge-from="bridge" data-edge-to="dispatcher" data-edge-label="DispatchAsync" data-edge-key="2" data-edge-id="bridge_dispatcher" data-class-relationship="dependency">
-          <rect x="585" y="220" width="86.57" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="628.285" y="230" class="t-muted" font-size="9.5" text-anchor="middle">DispatchAsync</text>
+          <rect x="502" y="213" width="86.57" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="545.285" y="223" class="t-muted" font-size="9.5" text-anchor="middle">DispatchAsync</text>
         </g>
         <g data-detail="context" data-edge-from="root" data-edge-to="dispatcher" data-edge-label="建立" data-edge-key="3" data-edge-id="root_dispatcher" data-class-relationship="dependency">
-          <rect x="361.47" y="304" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="378.25" y="314" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
+          <rect x="292.22" y="290" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="309" y="300" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
         </g>
         <g data-detail="context" data-edge-from="dispatcher" data-edge-to="gate" data-edge-label="TryAcquire" data-edge-key="4" data-edge-id="dispatcher_gate" data-class-relationship="dependency">
-          <rect x="767.8" y="291" width="68.9" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="802.25" y="301" class="t-muted" font-size="9.5" text-anchor="middle">TryAcquire</text>
+          <rect x="666.05" y="277" width="68.9" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="700.5" y="287" class="t-muted" font-size="9.5" text-anchor="middle">TryAcquire</text>
         </g>
         <g data-detail="context" data-edge-from="dispatcher" data-edge-to="policy" data-edge-label="IsExclusive" data-edge-key="5" data-edge-id="dispatcher_policy" data-class-relationship="dependency">
-          <rect x="804" y="424.5" width="74.79" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="841.395" y="434.5" class="t-muted" font-size="9.5" text-anchor="middle">IsExclusive</text>
+          <rect x="702.25" y="393.5" width="74.79" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="739.645" y="403.5" class="t-muted" font-size="9.5" text-anchor="middle">IsExclusive</text>
         </g>
         <g data-detail="context" data-edge-from="dispatcher" data-edge-to="contract" data-edge-label="HandleAsync" data-edge-key="6" data-edge-id="dispatcher_contract" data-class-relationship="dependency">
-          <rect x="585" y="408" width="74.79" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="622.395" y="418" class="t-muted" font-size="9.5" text-anchor="middle">HandleAsync</text>
+          <rect x="502" y="387" width="74.79" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="539.395" y="397" class="t-muted" font-size="9.5" text-anchor="middle">HandleAsync</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="770" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="790" data-legend-width="251">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="依賴：呼叫或建立，線上寫方法" x="18" y="775" width="263" height="22" rx="11"/><path d="M 26 786 L 56 786" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
-            <text x="66" y="790" class="t-muted" font-size="12" font-weight="500">依賴：呼叫或建立，線上寫方法</text>
-          </g>
-          <g data-legend-semantic-kind="inheritance" data-legend-x="297" data-legend-baseline="790" data-legend-width="72">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="繼承" x="291" y="775" width="84" height="22" rx="11"/><path d="M 299 786 L 329 786" class="a-default cl-relationship" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-            <text x="339" y="790" class="t-muted" font-size="12" font-weight="500">繼承</text>
-          </g>
-          <g data-legend-semantic-kind="realization" data-legend-x="391" data-legend-baseline="790" data-legend-width="102">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="實作介面" x="385" y="775" width="114" height="22" rx="11"/><path d="M 393 786 L 423 786" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-            <text x="433" y="790" class="t-muted" font-size="12" font-weight="500">實作介面</text>
+          <text x="24" y="554" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="574" data-legend-width="251">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="依賴：呼叫或建立，線上寫方法" x="18" y="559" width="263" height="22" rx="11"/><path d="M 26 570 L 56 570" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
+            <text x="66" y="574" class="t-muted" font-size="12" font-weight="500">依賴：呼叫或建立，線上寫方法</text>
           </g>
         </g>
       </svg>
@@ -5740,8 +5701,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>依操作名稱找到處理類別</h3>
         </div>
         <ul>
-          <li>ActionDispatcher 依 action 名稱呼叫 IApplicationActionHandler。圖中只列三個相關實作，JavaScript 的 JetApi 另見循序圖。</li>
-          <li>修改資料的作業同時只允許一項；已有作業時回錯誤，不排隊。</li>
+          <li>ActionDispatcher 依 action 名稱找到實作 IApplicationActionHandler 的處理類別，再呼叫它的 HandleAsync。各處理類別怎麼實作這個介面，見「處理類別實作的介面」。</li>
+          <li>修改資料的作業同時只允許一項；已有作業時回錯誤，不排隊。JavaScript 的 JetApi 怎麼送出訊息，見循序圖。</li>
         </ul>
       </div>
 
@@ -5932,6 +5893,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5948,6 +5910,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7371,6 +7334,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7386,6 +7350,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -10013,6 +9978,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12801,6 +12767,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12811,6 +12778,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12845,6 +12813,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13950,6 +13919,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14625,6 +14595,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14862,6 +14833,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

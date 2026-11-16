@@ -62,6 +62,38 @@ public sealed class ReportTemplateCellTextTests
             });
     }
 
+    [Fact]
+    public void SharedStringCellInWorkbookWithoutSharedStringTable_ThrowsInvalidDataNamingTheCell()
+    {
+        using var stream = new MemoryStream();
+        using var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook);
+        var workbookPart = document.AddWorkbookPart();
+        workbookPart.Workbook = new Workbook(new Sheets());
+        var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+        worksheetPart.Worksheet = new Worksheet(new SheetData(new Row(
+            new Cell { CellReference = "B4", DataType = CellValues.SharedString, CellValue = new CellValue("0") })));
+
+        var exception = Assert.Throws<InvalidDataException>(() => LegacyReportWriter.ReadTemplateCellText(worksheetPart, "B4"));
+        Assert.Contains("B4", exception.Message);
+    }
+
+    [Fact]
+    public void SharedStringCellWhoseValueIsNotAnIndex_ThrowsInvalidDataNamingTheCell()
+    {
+        WithWorksheet(
+            (data, shared) =>
+            {
+                shared.AppendChild(new SharedStringItem(new Text("條件的內容")));
+                data.AppendChild(new Row(
+                    new Cell { CellReference = "B4", DataType = CellValues.SharedString, CellValue = new CellValue("條件的內容") }));
+            },
+            part =>
+            {
+                var exception = Assert.Throws<InvalidDataException>(() => LegacyReportWriter.ReadTemplateCellText(part, "B4"));
+                Assert.Contains("B4", exception.Message);
+            });
+    }
+
     private static void WithWorksheet(Action<SheetData, SharedStringTable> build, Action<WorksheetPart> check)
     {
         using var stream = new MemoryStream();

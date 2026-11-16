@@ -47,8 +47,8 @@ public sealed class WorkingPaperExportFilterCompletenessTests
         var validation = await host.DispatchAsync("validate.run");
         var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
         var value = new string('X', 33_000);
-        // 底稿與報告的條件說明裡，欄位名稱加【】。
-        var expected = "【傳票摘要】 開頭符合「" + value + "」；空白不列入";
+        // 底稿與報告的條件說明裡，欄位名稱照原樣寫，不加任何符號。
+        var expected = "傳票摘要 開頭符合「" + value + "」；空白不列入";
         var scenario = new { name = "Long conditions", rationale = "Synthetic", groups = new[] { new { conditions = new[] {
             new { type = "fieldValue", field = "description", @operator = "startsWith", value, includeBlank = false }
         } } } };

@@ -47,7 +47,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>電腦環境與交付內容</title>
   <script>
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5203,7 +5246,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 1060 520" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5" data-reader-primary-text="14">
+      <svg viewBox="0 0 804 464" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5" data-reader-primary-text="14">
         <title id="archify-diagram-title">電腦環境與交付內容</title>
         <desc id="archify-diagram-description">由 Archify 產生的架構圖。</desc>
         <!-- Definitions -->
@@ -5250,204 +5293,204 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="隨發布資料夾交付" x="386" y="16" width="288" height="436" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="隨發布資料夾交付" x="284" y="16" width="224" height="380" rx="12" class="c-region" stroke-width="1"/>
 
         <!-- Connection paths (before components for correct z-order) -->
         <g data-graph-role="automatic-crossover" style="--step:0">
-          <path data-graph-role="automatic-crossover-underlay" d="M 530 112 L 530 200" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="package" data-edge-to="host" data-edge-label="啟動與載入" data-edge-key="0" data-edge-id="load" data-composition-points="530,112;530,200" data-composition-crossover="halo" data-composition-independent="true" d="M 530 112 L 530 200" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 396 104 L 396 176" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="package" data-edge-to="host" data-edge-label="啟動與載入" data-edge-key="0" data-edge-id="load" data-composition-points="396,104;396,176" data-composition-crossover="halo" data-composition-independent="true" d="M 396 104 L 396 176" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:1">
-          <path data-graph-role="automatic-crossover-underlay" d="M 544 200 L 544 184 Q 544 176 552 176 L 748 176 Q 756 176 756 168 L 756 84 Q 756 76 764 76 L 780 76" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="host" data-edge-to="webview" data-edge-label="WebMessage" data-edge-key="1" data-edge-id="ui" data-composition-points="544,200;544,176;756,176;756,76;780,76" data-composition-crossover="halo" data-composition-independent="true" d="M 544 200 L 544 184 Q 544 176 552 176 L 748 176 Q 756 176 756 168 L 756 84 Q 756 76 764 76 L 780 76" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 484 215 L 604 215" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="host" data-edge-to="webview" data-edge-label="WebMessage" data-edge-key="1" data-edge-id="ui" data-composition-points="484,215;604,215" data-composition-crossover="halo" data-composition-independent="true" d="M 484 215 L 604 215" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:2">
-          <path data-graph-role="automatic-crossover-underlay" d="M 280 243 L 410 243" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="inputs" data-edge-to="host" data-edge-label="讀取來源檔" data-edge-key="2" data-edge-id="read" data-composition-points="280,243;410,243" data-composition-crossover="halo" data-composition-independent="true" d="M 280 243 L 410 243" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 188 215 L 308 215" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="inputs" data-edge-to="host" data-edge-label="讀取來源檔" data-edge-key="2" data-edge-id="read" data-composition-points="188,215;308,215" data-composition-crossover="halo" data-composition-independent="true" d="M 188 215 L 308 215" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:3">
-          <path data-graph-role="automatic-crossover-underlay" d="M 410 229 L 353 229 Q 345 229 345 221 L 345 84 Q 345 76 337 76 L 280 76" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="host" data-edge-to="ace" data-edge-label="讀 Access" data-edge-key="3" data-edge-id="access" data-composition-points="410,229;345,229;345,76;280,76" data-composition-crossover="halo" data-composition-independent="true" d="M 410 229 L 353 229 Q 345 229 345 221 L 345 84 Q 345 76 337 76 L 280 76" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 308 201 L 256 201 Q 248 201 248 193 L 248 80 Q 248 72 240 72 L 188 72" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="host" data-edge-to="ace" data-edge-label="讀 Access" data-edge-key="3" data-edge-id="access" data-composition-points="308,201;248,201;248,72;188,72" data-composition-crossover="halo" data-composition-independent="true" d="M 308 201 L 256 201 Q 248 201 248 193 L 248 80 Q 248 72 240 72 L 188 72" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:4">
-          <path data-graph-role="automatic-crossover-underlay" d="M 530 272 L 530 360" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="host" data-edge-to="engine" data-edge-label="集合式 SQL" data-edge-key="4" data-edge-id="sql" data-composition-points="530,272;530,360" data-composition-crossover="halo" data-composition-independent="true" d="M 530 272 L 530 360" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 389 240 L 389 312" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="host" data-edge-to="engine" data-edge-label="集合式 SQL" data-edge-key="4" data-edge-id="sql" data-composition-points="389,240;389,312" data-composition-crossover="halo" data-composition-independent="true" d="M 389 240 L 389 312" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:5">
-          <path data-graph-role="automatic-crossover-underlay" d="M 650 403 L 780 403" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="engine" data-edge-to="case" data-edge-label="jet.db 或 jet.duckdb" data-edge-key="5" data-edge-id="db" data-composition-points="650,403;780,403" data-composition-crossover="halo" data-composition-independent="true" d="M 650 403 L 780 403" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 484 344 L 604 344" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="engine" data-edge-to="case" data-edge-label="jet.db" data-edge-key="5" data-edge-id="db" data-composition-points="484,344;604,344" data-composition-crossover="halo" data-composition-independent="true" d="M 484 344 L 604 344" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:6">
-          <path data-graph-role="automatic-crossover-underlay" d="M 650 250 L 707 250 Q 715 250 715 258 L 715 381 Q 715 389 723 389 L 780 389" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="host" data-edge-to="case" data-edge-label="project.json 與報告檔" data-edge-key="6" data-edge-id="files" data-composition-points="650,250;715,250;715,389;780,389" data-composition-crossover="halo" data-composition-independent="true" d="M 650 250 L 707 250 Q 715 250 715 258 L 715 381 Q 715 389 723 389 L 780 389" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 403 240 L 403 268 Q 403 276 411 276 L 676 276 Q 684 276 684 284 L 684 312" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="host" data-edge-to="case" data-edge-label="project.json 與報告檔" data-edge-key="6" data-edge-id="files" data-composition-points="403,240;403,276;684,276;684,312" data-composition-crossover="halo" data-composition-independent="true" d="M 403 240 L 403 268 Q 403 276 411 276 L 676 276 Q 684 276 684 284 L 684 312" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:7">
-          <path data-graph-role="automatic-crossover-underlay" d="M 650 236 L 780 236" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="host" data-edge-to="support" data-edge-label="匯出支援紀錄" data-edge-key="7" data-edge-id="log" data-composition-points="650,236;780,236" data-composition-crossover="halo" data-composition-independent="true" d="M 650 236 L 780 236" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-graph-role="automatic-crossover-underlay" d="M 484 201 L 536 201 Q 544 201 544 193 L 544 80 Q 544 72 552 72 L 604 72" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
+          <path data-edge-from="host" data-edge-to="support" data-edge-label="匯出支援紀錄" data-edge-key="7" data-edge-id="log" data-composition-points="484,201;544,201;544,72;604,72" data-composition-crossover="halo" data-composition-independent="true" d="M 484 201 L 536 201 Q 544 201 544 193 L 544 80 Q 544 72 552 72 L 604 72" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
 
         <!-- Components -->
-        <g id="node-package" data-node-id="package" data-node-label="發布資料夾" tabindex="0" role="button" aria-label="聚焦發布資料夾，JET.exe、設定、範本與 wwwroot, 隨發布資料夾交付" aria-pressed="false" data-node-kind="external" data-node-sublabel="JET.exe、設定、範本與 wwwroot" data-node-tag="隨發布交付" data-node-context="隨發布資料夾交付">
-          <title>發布資料夾 · JET.exe、設定、範本與 wwwroot · 隨發布資料夾交付 · 隨發布交付</title>
-          <rect x="410" y="40" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="410" y="40" width="240" height="72" rx="8" class="c-external" data-animate="node" style="--step:0" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(416 46) scale(0.6875)">
+        <g id="node-package" data-node-id="package" data-node-label="發布資料夾" tabindex="0" role="button" aria-label="聚焦發布資料夾，JET.exe、Excel 範本與 wwwroot, 隨發布資料夾交付" aria-pressed="false" data-node-kind="external" data-node-sublabel="JET.exe、Excel 範本與 wwwroot" data-node-tag="隨發布交付" data-node-context="隨發布資料夾交付">
+          <title>發布資料夾 · JET.exe、Excel 範本與 wwwroot · 隨發布資料夾交付 · 隨發布交付</title>
+          <rect x="308" y="40" width="176" height="64" rx="8" class="c-mask"/>
+          <rect x="308" y="40" width="176" height="64" rx="8" class="c-external" data-animate="node" style="--step:0" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(314 46) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="530" y="74" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">發布資料夾</text>
-        <text data-detail="context" x="530" y="90" class="t-muted" font-size="9" text-anchor="middle">JET.exe、設定、範本與 wwwroot</text>
-        <text data-detail="fine" x="530" y="104" class="t-external" font-size="7" text-anchor="middle">隨發布交付</text>
+          <text data-node-label="" data-detail-anchor="" x="396" y="70" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">發布資料夾</text>
+        <text data-detail="context" x="396" y="86" class="t-muted" font-size="9" text-anchor="middle">JET.exe、Excel 範本與 wwwroot</text>
+        <text data-detail="fine" x="396" y="96" class="t-external" font-size="7" text-anchor="middle">隨發布交付</text>
         </g>
 
         <g id="node-host" data-node-id="host" data-node-label="JET 桌面程序" tabindex="0" role="button" aria-label="聚焦JET 桌面程序，WinForms，.NET 10 自含式, 隨發布資料夾交付" aria-pressed="false" data-node-kind="backend" data-node-sublabel="WinForms，.NET 10 自含式" data-node-tag="隨發布交付" data-node-context="隨發布資料夾交付">
           <title>JET 桌面程序 · WinForms，.NET 10 自含式 · 隨發布資料夾交付 · 隨發布交付</title>
-          <rect x="410" y="200" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="410" y="200" width="240" height="72" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(416 206) scale(0.6875)">
+          <rect x="308" y="176" width="176" height="64" rx="8" class="c-mask"/>
+          <rect x="308" y="176" width="176" height="64" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(314 182) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="530" y="234" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">JET 桌面程序</text>
-        <text data-detail="context" x="530" y="250" class="t-muted" font-size="9" text-anchor="middle">WinForms，.NET 10 自含式</text>
-        <text data-detail="fine" x="530" y="264" class="t-backend" font-size="7" text-anchor="middle">隨發布交付</text>
+          <text data-node-label="" data-detail-anchor="" x="396" y="206" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">JET 桌面程序</text>
+        <text data-detail="context" x="396" y="222" class="t-muted" font-size="9" text-anchor="middle">WinForms，.NET 10 自含式</text>
+        <text data-detail="fine" x="396" y="232" class="t-backend" font-size="7" text-anchor="middle">隨發布交付</text>
         </g>
 
-        <g id="node-engine" data-node-id="engine" data-node-label="內嵌資料庫引擎" tabindex="0" role="button" aria-label="聚焦內嵌資料庫引擎，案件選 SQLite 或 DuckDB, 隨發布資料夾交付" aria-pressed="false" data-node-kind="database" data-node-sublabel="案件選 SQLite 或 DuckDB" data-node-tag="隨發布交付" data-node-context="隨發布資料夾交付">
-          <title>內嵌資料庫引擎 · 案件選 SQLite 或 DuckDB · 隨發布資料夾交付 · 隨發布交付</title>
-          <rect x="410" y="360" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="410" y="360" width="240" height="72" rx="8" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(416 366) scale(0.6875)">
+        <g id="node-engine" data-node-id="engine" data-node-label="內嵌資料庫引擎" tabindex="0" role="button" aria-label="聚焦內嵌資料庫引擎，SQLite，每個案件一個 jet.db, 隨發布資料夾交付" aria-pressed="false" data-node-kind="database" data-node-sublabel="SQLite，每個案件一個 jet.db" data-node-tag="隨發布交付" data-node-context="隨發布資料夾交付">
+          <title>內嵌資料庫引擎 · SQLite，每個案件一個 jet.db · 隨發布資料夾交付 · 隨發布交付</title>
+          <rect x="308" y="312" width="176" height="64" rx="8" class="c-mask"/>
+          <rect x="308" y="312" width="176" height="64" rx="8" class="c-database" data-animate="node" style="--step:5" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(314 318) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="530" y="394" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">內嵌資料庫引擎</text>
-        <text data-detail="context" x="530" y="410" class="t-muted" font-size="9" text-anchor="middle">案件選 SQLite 或 DuckDB</text>
-        <text data-detail="fine" x="530" y="424" class="t-database" font-size="7" text-anchor="middle">隨發布交付</text>
+          <text data-node-label="" data-detail-anchor="" x="396" y="342" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">內嵌資料庫引擎</text>
+        <text data-detail="context" x="396" y="358" class="t-muted" font-size="9" text-anchor="middle">SQLite，每個案件一個 jet.db</text>
+        <text data-detail="fine" x="396" y="368" class="t-database" font-size="7" text-anchor="middle">隨發布交付</text>
         </g>
 
         <g id="node-webview" data-node-id="webview" data-node-label="WebView2 執行階段" tabindex="0" role="button" aria-label="聚焦WebView2 執行階段，電腦須已具備, 架構元件" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="電腦須已具備" data-node-tag="環境前提" data-node-context="架構元件">
           <title>WebView2 執行階段 · 電腦須已具備 · 架構元件 · 環境前提</title>
-          <rect x="780" y="40" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="780" y="40" width="240" height="72" rx="8" class="c-frontend" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(786 46) scale(0.6875)">
+          <rect x="604" y="176" width="160" height="64" rx="8" class="c-mask"/>
+          <rect x="604" y="176" width="160" height="64" rx="8" class="c-frontend" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(610 182) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="900" y="74" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">WebView2 執行階段</text>
-        <text data-detail="context" x="900" y="90" class="t-muted" font-size="9" text-anchor="middle">電腦須已具備</text>
-        <text data-detail="fine" x="900" y="104" class="t-frontend" font-size="7" text-anchor="middle">環境前提</text>
+          <text data-node-label="" data-detail-anchor="" x="684" y="206" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">WebView2 執行階段</text>
+        <text data-detail="context" x="684" y="222" class="t-muted" font-size="9" text-anchor="middle">電腦須已具備</text>
+        <text data-detail="fine" x="684" y="232" class="t-frontend" font-size="7" text-anchor="middle">環境前提</text>
         </g>
 
         <g id="node-inputs" data-node-id="inputs" data-node-label="來源檔案" tabindex="0" role="button" aria-label="聚焦來源檔案，xlsx、xls、CSV 或 Access, 架構元件" aria-pressed="false" data-node-kind="external" data-node-sublabel="xlsx、xls、CSV 或 Access" data-node-context="架構元件">
           <title>來源檔案 · xlsx、xls、CSV 或 Access · 架構元件</title>
-          <rect x="40" y="200" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="40" y="200" width="240" height="72" rx="8" class="c-external" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(46 206) scale(0.6875)">
+          <rect x="40" y="176" width="148" height="64" rx="8" class="c-mask"/>
+          <rect x="40" y="176" width="148" height="64" rx="8" class="c-external" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(46 182) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="160" y="234" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">來源檔案</text>
-        <text data-detail="context" x="160" y="250" class="t-muted" font-size="9" text-anchor="middle">xlsx、xls、CSV 或 Access</text>
+          <text data-node-label="" data-detail-anchor="" x="114" y="206" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">來源檔案</text>
+        <text data-detail="context" x="114" y="222" class="t-muted" font-size="9" text-anchor="middle">xlsx、xls、CSV 或 Access</text>
         </g>
 
         <g id="node-ace" data-node-id="ace" data-node-label="x64 ACE 16" tabindex="0" role="button" aria-label="聚焦x64 ACE 16，只有讀 Access 時需要, 架構元件" aria-pressed="false" data-node-kind="external" data-node-sublabel="只有讀 Access 時需要" data-node-tag="環境前提" data-node-context="架構元件">
           <title>x64 ACE 16 · 只有讀 Access 時需要 · 架構元件 · 環境前提</title>
-          <rect x="40" y="40" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="40" y="40" width="240" height="72" rx="8" class="c-external" data-animate="node" style="--step:4" stroke-width="1.5"/>
+          <rect x="40" y="40" width="148" height="64" rx="8" class="c-mask"/>
+          <rect x="40" y="40" width="148" height="64" rx="8" class="c-external" data-animate="node" style="--step:4" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(46 46) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="160" y="74" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">x64 ACE 16</text>
-        <text data-detail="context" x="160" y="90" class="t-muted" font-size="9" text-anchor="middle">只有讀 Access 時需要</text>
-        <text data-detail="fine" x="160" y="104" class="t-external" font-size="7" text-anchor="middle">環境前提</text>
+          <text data-node-label="" data-detail-anchor="" x="114" y="70" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">x64 ACE 16</text>
+        <text data-detail="context" x="114" y="86" class="t-muted" font-size="9" text-anchor="middle">只有讀 Access 時需要</text>
+        <text data-detail="fine" x="114" y="96" class="t-external" font-size="7" text-anchor="middle">環境前提</text>
         </g>
 
-        <g id="node-case" data-node-id="case" data-node-label="完整案件資料夾" tabindex="0" role="button" aria-label="聚焦完整案件資料夾，project.json、資料庫與報告, 架構元件" aria-pressed="false" data-node-kind="database" data-node-sublabel="project.json、資料庫與報告" data-node-tag="案件資料" data-node-context="架構元件">
-          <title>完整案件資料夾 · project.json、資料庫與報告 · 架構元件 · 案件資料</title>
-          <rect x="780" y="360" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="780" y="360" width="240" height="72" rx="8" class="c-database" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(786 366) scale(0.6875)">
+        <g id="node-case" data-node-id="case" data-node-label="完整案件資料夾" tabindex="0" role="button" aria-label="聚焦完整案件資料夾，project.json、jet.db 與報告, 架構元件" aria-pressed="false" data-node-kind="database" data-node-sublabel="project.json、jet.db 與報告" data-node-tag="案件資料" data-node-context="架構元件">
+          <title>完整案件資料夾 · project.json、jet.db 與報告 · 架構元件 · 案件資料</title>
+          <rect x="604" y="312" width="160" height="64" rx="8" class="c-mask"/>
+          <rect x="604" y="312" width="160" height="64" rx="8" class="c-database" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(610 318) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="900" y="394" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">完整案件資料夾</text>
-        <text data-detail="context" x="900" y="410" class="t-muted" font-size="9" text-anchor="middle">project.json、資料庫與報告</text>
-        <text data-detail="fine" x="900" y="424" class="t-database" font-size="7" text-anchor="middle">案件資料</text>
+          <text data-node-label="" data-detail-anchor="" x="684" y="342" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">完整案件資料夾</text>
+        <text data-detail="context" x="684" y="358" class="t-muted" font-size="9" text-anchor="middle">project.json、jet.db 與報告</text>
+        <text data-detail="fine" x="684" y="368" class="t-database" font-size="7" text-anchor="middle">案件資料</text>
         </g>
 
         <g id="node-support" data-node-id="support" data-node-label="支援日誌" tabindex="0" role="button" aria-label="聚焦支援日誌，JET 日誌目錄或所選案件, 架構元件" aria-pressed="false" data-node-kind="external" data-node-sublabel="JET 日誌目錄或所選案件" data-node-context="架構元件">
           <title>支援日誌 · JET 日誌目錄或所選案件 · 架構元件</title>
-          <rect x="780" y="200" width="240" height="72" rx="8" class="c-mask"/>
-          <rect x="780" y="200" width="240" height="72" rx="8" class="c-external" data-animate="node" style="--step:8" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(786 206) scale(0.6875)">
+          <rect x="604" y="40" width="160" height="64" rx="8" class="c-mask"/>
+          <rect x="604" y="40" width="160" height="64" rx="8" class="c-external" data-animate="node" style="--step:8" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(610 46) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="900" y="234" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">支援日誌</text>
-        <text data-detail="context" x="900" y="250" class="t-muted" font-size="9" text-anchor="middle">JET 日誌目錄或所選案件</text>
+          <text data-node-label="" data-detail-anchor="" x="684" y="70" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">支援日誌</text>
+        <text data-detail="context" x="684" y="86" class="t-muted" font-size="9" text-anchor="middle">JET 日誌目錄或所選案件</text>
         </g>
 
         <!-- Connection labels -->
         <g data-detail="context" data-edge-from="package" data-edge-to="host" data-edge-label="啟動與載入" data-edge-key="0" data-edge-id="load">
-          <rect x="466" y="149" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="495" y="159" class="t-edge-default" font-size="8" text-anchor="middle">啟動與載入</text>
+          <rect x="332" y="133" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="361" y="143" class="t-edge-default" font-size="8" text-anchor="middle">啟動與載入</text>
         </g>
         <g data-detail="context" data-edge-from="host" data-edge-to="webview" data-edge-label="WebMessage" data-edge-key="1" data-edge-id="ui">
-          <rect x="621" y="156" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="650" y="166" class="t-edge-default" font-size="8" text-anchor="middle">WebMessage</text>
+          <rect x="515" y="225" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="544" y="235" class="t-edge-default" font-size="8" text-anchor="middle">WebMessage</text>
         </g>
         <g data-detail="context" data-edge-from="inputs" data-edge-to="host" data-edge-label="讀取來源檔" data-edge-key="2" data-edge-id="read">
-          <rect x="316" y="253" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="345" y="263" class="t-edge-default" font-size="8" text-anchor="middle">讀取來源檔</text>
+          <rect x="219" y="225" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="248" y="235" class="t-edge-default" font-size="8" text-anchor="middle">讀取來源檔</text>
         </g>
         <g data-detail="context" data-edge-from="host" data-edge-to="ace" data-edge-label="讀 Access" data-edge-key="3" data-edge-id="access">
-          <rect x="318.4" y="132.5" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-          <text x="345" y="142.5" class="t-edge-default" font-size="8" text-anchor="middle">讀 Access</text>
+          <rect x="221.4" y="116.5" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
+          <text x="248" y="126.5" class="t-edge-default" font-size="8" text-anchor="middle">讀 Access</text>
         </g>
         <g data-detail="context" data-edge-from="host" data-edge-to="engine" data-edge-label="集合式 SQL" data-edge-key="4" data-edge-id="sql">
-          <rect x="466" y="309" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="495" y="319" class="t-edge-default" font-size="8" text-anchor="middle">集合式 SQL</text>
+          <rect x="325" y="269" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="354" y="279" class="t-edge-default" font-size="8" text-anchor="middle">集合式 SQL</text>
         </g>
-        <g data-detail="context" data-edge-from="engine" data-edge-to="case" data-edge-label="jet.db 或 jet.duckdb" data-edge-key="5" data-edge-id="db">
-          <rect x="662" y="413" width="106" height="14" rx="3" class="c-mask"/>
-          <text x="715" y="423" class="t-edge-default" font-size="8" text-anchor="middle">jet.db 或 jet.duckdb</text>
+        <g data-detail="context" data-edge-from="engine" data-edge-to="case" data-edge-label="jet.db" data-edge-key="5" data-edge-id="db">
+          <rect x="524.6" y="324" width="38.8" height="14" rx="3" class="c-mask"/>
+          <text x="544" y="334" class="t-edge-default" font-size="8" text-anchor="middle">jet.db</text>
         </g>
         <g data-detail="context" data-edge-from="host" data-edge-to="case" data-edge-label="project.json 與報告檔" data-edge-key="6" data-edge-id="files">
-          <rect x="659.6" y="299.5" width="110.8" height="14" rx="3" class="c-mask"/>
-          <text x="715" y="309.5" class="t-edge-default" font-size="8" text-anchor="middle">project.json 與報告檔</text>
+          <rect x="488.1" y="256" width="110.8" height="14" rx="3" class="c-mask"/>
+          <text x="543.5" y="266" class="t-edge-default" font-size="8" text-anchor="middle">project.json 與報告檔</text>
         </g>
         <g data-detail="context" data-edge-from="host" data-edge-to="support" data-edge-label="匯出支援紀錄" data-edge-key="7" data-edge-id="log">
-          <rect x="681.2" y="216" width="67.6" height="14" rx="3" class="c-mask"/>
-          <text x="715" y="226" class="t-edge-default" font-size="8" text-anchor="middle">匯出支援紀錄</text>
+          <rect x="510.2" y="116.5" width="67.6" height="14" rx="3" class="c-mask"/>
+          <text x="544" y="126.5" class="t-edge-default" font-size="8" text-anchor="middle">匯出支援紀錄</text>
         </g>
 
         <!-- Boundary labels (foreground masks keep routes out of titles) -->
         <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="隨發布資料夾交付">
-          <rect data-graph-role="structural-frame-label-mask" x="390" y="20" width="96.39999999999999" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="394" y="33" class="t-cloud" font-size="9" font-weight="600">隨發布資料夾交付</text>
+          <rect data-graph-role="structural-frame-label-mask" x="288" y="20" width="96.39999999999999" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="292" y="33" class="t-cloud" font-size="9" font-weight="600">隨發布資料夾交付</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="40" y="484" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="畫面執行環境" data-legend-x="40" data-legend-baseline="504" data-legend-width="118">
-            <rect x="40" y="495" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1"/>
-            <text x="62" y="504" class="t-muted" font-size="10" font-weight="500">畫面執行環境</text>
+          <text x="40" y="428" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="畫面執行環境" data-legend-x="40" data-legend-baseline="448" data-legend-width="118">
+            <rect x="40" y="439" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1"/>
+            <text x="62" y="448" class="t-muted" font-size="10" font-weight="500">畫面執行環境</text>
           </g>
-          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="JET 程序" data-legend-x="180" data-legend-baseline="504" data-legend-width="93">
-            <rect x="180" y="495" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
-            <text x="202" y="504" class="t-muted" font-size="10" font-weight="500">JET 程序</text>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="JET 程序" data-legend-x="180" data-legend-baseline="448" data-legend-width="93">
+            <rect x="180" y="439" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
+            <text x="202" y="448" class="t-muted" font-size="10" font-weight="500">JET 程序</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="資料庫與案件資料" data-legend-x="295" data-legend-baseline="504" data-legend-width="143">
-            <rect x="295" y="495" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
-            <text x="317" y="504" class="t-muted" font-size="10" font-weight="500">資料庫與案件資料</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="資料庫與案件資料" data-legend-x="295" data-legend-baseline="448" data-legend-width="143">
+            <rect x="295" y="439" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
+            <text x="317" y="448" class="t-muted" font-size="10" font-weight="500">資料庫與案件資料</text>
           </g>
-          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="檔案或電腦上的其他元件" data-legend-x="460" data-legend-baseline="504" data-legend-width="180">
-            <rect x="460" y="495" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
-            <text x="482" y="504" class="t-muted" font-size="10" font-weight="500">檔案或電腦上的其他元件</text>
+          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="檔案或電腦上的其他元件" data-legend-x="460" data-legend-baseline="448" data-legend-width="180">
+            <rect x="460" y="439" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
+            <text x="482" y="448" class="t-muted" font-size="10" font-weight="500">檔案或電腦上的其他元件</text>
           </g>
         </g>
       </svg>
@@ -5633,8 +5676,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>交付完整發布資料夾</h3>
         </div>
         <ul>
-          <li>JET.exe、設定、範本與 wwwroot 一起交付。電腦需有 WebView2；讀 Access 時另需 x64 ACE 16。</li>
-          <li>正式環境的元件版本、安裝與發布權限仍待確認，不假設可取得管理員權限或外部 AI。</li>
+          <li>JET.exe、Excel 範本與 wwwroot 一起交付。電腦需有 WebView2；讀 Access 時另需 x64 ACE 16。</li>
+          <li>正式環境不能假設有系統管理員權限或外部 AI 服務；讀 Access 目前只在本機 x64 ACE 環境驗證過。</li>
         </ul>
       </div>
 
@@ -5644,7 +5687,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>案件與支援日誌</h3>
         </div>
         <ul>
-          <li>案件資料夾包含 project.json、資料庫與報告。SQLite 使用 jet.db，DuckDB 使用 jet.duckdb。</li>
+          <li>案件資料夾包含 project.json、SQLite 資料庫檔 jet.db 與報告。</li>
           <li>支援日誌可寫入所選案件或 JET 日誌目錄。案件清單的匯出按鈕僅 Debug 顯示，開案後在 Release 仍可匯出。</li>
         </ul>
       </div>
@@ -5826,6 +5869,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5842,6 +5886,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7265,6 +7310,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7280,6 +7326,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -9907,6 +9954,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12695,6 +12743,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12705,6 +12754,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12739,6 +12789,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13844,6 +13895,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14519,6 +14571,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14756,6 +14809,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

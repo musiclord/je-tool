@@ -38,9 +38,10 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
             }
 
             var worksheetPart = FindWorksheet(workbookPart, MappingMetadataFormat.WorksheetName) ?? throw FieldInfoSheetMissing();
-            var marker = ReadCell(workbookPart, worksheetPart, MappingMetadataFormat.MarkerCell);
-            var versionText = ReadCell(workbookPart, worksheetPart, MappingMetadataFormat.VersionCell);
-            var payload = ReadCell(workbookPart, worksheetPart, MappingMetadataFormat.PayloadCell);
+            var sheetName = MappingMetadataFormat.WorksheetName;
+            var marker = ReadCell(workbookPart, worksheetPart, sheetName, MappingMetadataFormat.MarkerCell);
+            var versionText = ReadCell(workbookPart, worksheetPart, sheetName, MappingMetadataFormat.VersionCell);
+            var payload = ReadCell(workbookPart, worksheetPart, sheetName, MappingMetadataFormat.PayloadCell);
             if (string.IsNullOrWhiteSpace(marker) && string.IsNullOrWhiteSpace(versionText) && string.IsNullOrWhiteSpace(payload))
             {
                 // F1:H1 三格都空白才算沒有隱藏紀錄，改讀看得見的配對前後欄位對照表。
@@ -127,19 +128,22 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         WorksheetPart worksheetPart,
         CancellationToken cancellationToken)
     {
-        if (!string.Equals(ReadCell(workbookPart, worksheetPart, "A1"), ReportWorkbookMetadataFormat.Marker, StringComparison.Ordinal))
+        string? ReadMetadataCell(string reference) =>
+            ReadCell(workbookPart, worksheetPart, ReportWorkbookMetadataFormat.WorksheetName, reference);
+
+        if (!string.Equals(ReadMetadataCell("A1"), ReportWorkbookMetadataFormat.Marker, StringComparison.Ordinal))
         {
             // 隱藏紀錄存在但標記不對，照舊整份不帶入。
             throw Invalid(InvalidFormatMessage);
         }
 
-        if (!int.TryParse(ReadCell(workbookPart, worksheetPart, "B1"), NumberStyles.None, CultureInfo.InvariantCulture, out var version)
+        if (!int.TryParse(ReadMetadataCell("B1"), NumberStyles.None, CultureInfo.InvariantCulture, out var version)
             || version != ReportWorkbookMetadataFormat.CurrentVersion)
         {
             throw Invalid(VersionUnsupportedMessage);
         }
 
-        if (!int.TryParse(ReadCell(workbookPart, worksheetPart, "C1"), NumberStyles.None, CultureInfo.InvariantCulture, out var chunks)
+        if (!int.TryParse(ReadMetadataCell("C1"), NumberStyles.None, CultureInfo.InvariantCulture, out var chunks)
             || chunks < 1)
         {
             throw Invalid(IncompleteMessage);
@@ -150,8 +154,8 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         {
             cancellationToken.ThrowIfCancellationRequested();
             var row = (index + 1).ToString(CultureInfo.InvariantCulture);
-            if (!string.Equals(ReadCell(workbookPart, worksheetPart, "A" + row), index.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
-                || ReadCell(workbookPart, worksheetPart, "B" + row) is not { } chunk)
+            if (!string.Equals(ReadMetadataCell("A" + row), index.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+                || ReadMetadataCell("B" + row) is not { } chunk)
             {
                 throw Invalid(IncompleteMessage);
             }
@@ -268,7 +272,8 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
                     grid[rowIndex] = cells;
                 }
 
-                cells[column - 1] = CellText(workbookPart, cell, sharedStrings);
+                var address = (char)('A' + column - 1) + rowIndex.ToString(CultureInfo.InvariantCulture);
+                cells[column - 1] = CellText(workbookPart, cell, sharedStrings, MappingMetadataFormat.WorksheetName, address);
             }
         }
 
@@ -323,17 +328,20 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
     private static string? ReadCell(
         WorkbookPart workbookPart,
         WorksheetPart worksheetPart,
+        string sheetName,
         string reference)
     {
         var cell = worksheetPart.Worksheet?.Descendants<Cell>()
             .SingleOrDefault(item => string.Equals(item.CellReference?.Value, reference, StringComparison.Ordinal));
-        return cell is null ? null : CellText(workbookPart, cell, sharedStrings: null);
+        return cell is null ? null : CellText(workbookPart, cell, sharedStrings: null, sheetName, reference);
     }
 
     private static string? CellText(
         WorkbookPart workbookPart,
         Cell cell,
-        IReadOnlyList<SharedStringItem>? sharedStrings)
+        IReadOnlyList<SharedStringItem>? sharedStrings,
+        string sheetName,
+        string cellAddress)
     {
         // JET 寫出與 Excel 另存的文字都用 _xHHHH_ 跳脫格式，讀回時還原，配對資訊裡的欄名才與匯入的欄名相同。
         if (cell.DataType?.Value == CellValues.InlineString)
@@ -342,17 +350,38 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         }
 
         var raw = cell.CellValue?.InnerText;
-        if (cell.DataType?.Value == CellValues.SharedString
-            && int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var index))
+        if (cell.DataType?.Value != CellValues.SharedString || string.IsNullOrWhiteSpace(raw))
         {
-            var item = sharedStrings is null
-                ? workbookPart.SharedStringTablePart?.SharedStringTable?.Elements<SharedStringItem>().ElementAtOrDefault(index)
-                : index < sharedStrings.Count ? sharedStrings[index] : null;
-            return item?.InnerText is { } shared ? ExcelText.Decode(shared) : null;
+            return raw;
         }
 
-        return raw;
+        // 共用字串格的值是共用字串表的編號，從 0 起算。找不到對應的文字時，這一格原本的內容已經讀不到；
+        // 當成空白會讓隱藏紀錄看起來不存在，或讓對照表少了欄名，所以停下來指出是哪一格。
+        SharedStringItem? item = null;
+        if (int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var index))
+        {
+            if (sharedStrings is null)
+            {
+                item = workbookPart.SharedStringTablePart?.SharedStringTable?.Elements<SharedStringItem>().ElementAtOrDefault(index);
+            }
+            else if (index < sharedStrings.Count)
+            {
+                item = sharedStrings[index];
+            }
+        }
+
+        if (item is null)
+        {
+            throw MissingSharedString(sheetName, cellAddress);
+        }
+
+        return ExcelText.Decode(item.InnerText);
     }
+
+    private static JetActionException MissingSharedString(string sheetName, string cellAddress) => new(
+        JetErrorCodes.FileReadError,
+        $"這份檔案的工作表「{sheetName}」儲存格 {cellAddress} 讀不到文字內容，檔案可能已損壞。"
+        + "請用 Excel 開啟這個檔案確認內容，另存新檔後再選一次，或直接在下方選擇欄位。");
 
     private static JetActionException FieldInfoSheetMissing() => new(
         JetErrorCodes.MappingMetadataMissing,

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "erd",
   "meta": {
-    "title": "SQLite：分類、情境與命中結果",
+    "title": "SQLite：科目分類與參考清單",
     "locale": "zh-TW",
     "output": "archify/rules-erd/rules-erd.html",
     "quality_profile": "standard",
@@ -30,76 +30,17 @@
   },
   "layout": {
     "mode": "grid",
-    "gapX": 120,
+    "gapX": 56,
     "gapY": 70,
-    "entityW": 340
+    "entityW": 220
   },
   "entities": [
     {
-      "id": "account_category_path",
-      "label": "account_category_path",
-      "row": 0,
-      "col": 0,
-      "attributes": [
-        {
-          "name": "ancestor_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "descendant_id",
-          "type": "TEXT",
-          "key": "pk"
-        }
-      ],
-      "tag": "科目分類",
-      "sublabel": "分類階層的祖先與子孫"
-    },
-    {
-      "id": "account_category",
-      "label": "account_category",
-      "row": 1,
-      "col": 0,
-      "attributes": [
-        {
-          "name": "category_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "label",
-          "type": "TEXT"
-        },
-        {
-          "name": "ordinal",
-          "type": "INTEGER",
-          "key": "uk"
-        },
-        {
-          "name": "semantic_role",
-          "type": "TEXT"
-        },
-        {
-          "name": "is_builtin",
-          "type": "INTEGER"
-        },
-        {
-          "name": "revision",
-          "type": "INTEGER"
-        },
-        {
-          "name": "parent_category_id",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "科目分類",
-      "sublabel": "科目分類定義"
-    },
-    {
       "id": "account_mapping",
       "label": "account_mapping",
-      "row": 2,
+      "row": 0,
       "col": 0,
+      "width": 270,
       "attributes": [
         {
           "name": "mapping_id",
@@ -136,142 +77,74 @@
           "type": "INTEGER"
         }
       ],
-      "tag": "科目分類",
+      "tag": "科目配對",
       "sublabel": "科目代碼對應到分類"
     },
     {
-      "id": "filter_scenario",
-      "label": "filter_scenario",
+      "id": "account_category",
+      "label": "account_category",
       "row": 0,
       "col": 1,
       "attributes": [
         {
-          "name": "scenario_id",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "position",
-          "type": "INTEGER"
-        },
-        {
-          "name": "name",
-          "type": "TEXT"
-        },
-        {
-          "name": "rationale",
-          "type": "TEXT"
-        },
-        {
-          "name": "definition_json",
-          "type": "TEXT"
-        },
-        {
-          "name": "saved_utc",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "篩選與抽樣",
-      "sublabel": "第五步已存的篩選情境"
-    },
-    {
-      "id": "filter_hit",
-      "label": "filter_hit",
-      "row": 1,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "scenario_id",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "entry_id",
-          "type": "INTEGER",
-          "key": "pk"
-        }
-      ],
-      "tag": "篩選與抽樣",
-      "sublabel": "每個情境命中的分錄"
-    },
-    {
-      "id": "filter_hit_condition",
-      "label": "filter_hit_condition",
-      "row": 0,
-      "col": 2,
-      "attributes": [
-        {
-          "name": "scenario_id",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "entry_id",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "group_no",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "condition_no",
-          "type": "INTEGER",
-          "key": "pk"
-        }
-      ],
-      "tag": "篩選與抽樣",
-      "sublabel": "命中傳票裡每筆分錄符合哪一條"
-    },
-    {
-      "id": "inf_sample",
-      "label": "inf_sample",
-      "row": 1,
-      "col": 2,
-      "attributes": [
-        {
-          "name": "result_id",
+          "name": "category_id",
           "type": "TEXT",
           "key": "pk"
         },
         {
-          "name": "entry_id",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "voucher_number",
+          "name": "label",
           "type": "TEXT"
         },
         {
-          "name": "line_item",
+          "name": "ordinal",
+          "type": "INTEGER",
+          "key": "uk"
+        },
+        {
+          "name": "semantic_role",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_builtin",
+          "type": "INTEGER"
+        },
+        {
+          "name": "revision",
+          "type": "INTEGER"
+        },
+        {
+          "name": "parent_category_id",
           "type": "TEXT"
         }
       ],
-      "tag": "篩選與抽樣",
-      "sublabel": "資料可靠性測試抽出的分錄"
+      "tag": "科目分類",
+      "sublabel": "科目分類定義"
     },
     {
-      "id": "gl",
-      "label": "gl",
-      "row": 2,
+      "id": "account_category_path",
+      "label": "account_category_path",
+      "row": 1,
       "col": 1,
-      "sublabel": "完整欄位見標準化資料的關聯圖",
-      "tag": "參照",
       "attributes": [
         {
-          "name": "entry_id",
-          "type": "INTEGER",
+          "name": "ancestor_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "descendant_id",
+          "type": "TEXT",
           "key": "pk"
         }
-      ]
+      ],
+      "tag": "科目分類",
+      "sublabel": "分類階層的祖先與子孫"
     },
     {
       "id": "authorized_preparer",
       "label": "authorized_preparer",
       "row": 0,
-      "col": 3,
+      "col": 2,
       "attributes": [
         {
           "name": "name",
@@ -280,13 +153,13 @@
         }
       ],
       "tag": "參考清單",
-      "sublabel": "授權編製人清單"
+      "sublabel": "授權編製人員清單"
     },
     {
       "id": "calendar_day",
       "label": "calendar_day",
       "row": 1,
-      "col": 3,
+      "col": 2,
       "attributes": [
         {
           "name": "day_type",
@@ -304,7 +177,7 @@
         }
       ],
       "tag": "參考清單",
-      "sublabel": "假日與補班日"
+      "sublabel": "國定假日與補班日"
     }
   ],
   "relationships": [
@@ -313,6 +186,8 @@
       "from": "account_category_path",
       "to": "account_category",
       "label": "ancestor_id、descendant_id",
+      "labelDx": 0,
+      "labelDy": -32,
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true,
@@ -329,70 +204,16 @@
       "fromOptional": true,
       "toOptional": true,
       "identifying": false
-    },
-    {
-      "id": "hit_scenario",
-      "from": "filter_hit",
-      "to": "filter_scenario",
-      "label": "scenario_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
-      "id": "condition_scenario",
-      "from": "filter_hit_condition",
-      "to": "filter_scenario",
-      "label": "scenario_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
-      "id": "hit_entry",
-      "from": "filter_hit",
-      "to": "gl",
-      "label": "entry_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
-      "id": "condition_entry",
-      "from": "filter_hit_condition",
-      "to": "gl",
-      "label": "entry_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
-      "id": "sample_entry",
-      "from": "inf_sample",
-      "to": "gl",
-      "label": "entry_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "從結果連回分錄",
+      "title": "科目對應到分類",
       "items": [
-        "命中與抽樣明細以 entry_id 連回 GL；命中再以 scenario_id 對應情境。重算單一情境時，先清除舊條件紀錄與命中。",
-        "科目以 category_id 對應分類。分類也可連至上層，圖中省略分類表的自身連線。"
+        "科目配對以 category_id 對應分類；分類階層表的兩個欄位都指向分類代碼。這些是程式在 SQL 裡使用的欄位，資料庫沒有宣告外鍵。分類也可連至上層，圖中省略分類表的自身連線。",
+        "authorized_preparer 與 calendar_day 存放審計員匯入的授權編製人員清單，以及國定假日與補班日。它們和科目配對一樣是匯入的參考資料，所以放在這張圖；圖中未畫它們與其他資料表的連線。",
+        "篩選情境、命中與抽樣的資料表見「SQLite：篩選情境、命中與抽樣」。"
       ]
     }
   ]

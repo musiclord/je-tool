@@ -45,7 +45,7 @@ public sealed class AccountMappingImportSummaryTests
         });
         try
         {
-            var handler = new ImportAccountMappingHandler(new OpenXmlSaxTableReader(), session, log.CreateLogger("mapping-test"));
+            var handler = new ImportAccountMappingFromFileHandler(new OpenXmlSaxTableReader(), session, log.CreateLogger("mapping-test"));
             var result = JsonSerializer.SerializeToElement(await handler.HandleAsync(
                 JsonSerializer.SerializeToElement(new { filePath = path }), cancellation.Token));
             Assert.False(differences.Token.CanBeCanceled);
@@ -91,7 +91,7 @@ public sealed class AccountMappingImportSummaryTests
         });
         try
         {
-            var handler = new ImportAccountMappingHandler(new OpenXmlSaxTableReader(), session, log.CreateLogger("mapping-test"));
+            var handler = new ImportAccountMappingFromFileHandler(new OpenXmlSaxTableReader(), session, log.CreateLogger("mapping-test"));
             var result = JsonSerializer.SerializeToElement(await handler.HandleAsync(
                 JsonSerializer.SerializeToElement(new { filePath = path }), CancellationToken.None));
 

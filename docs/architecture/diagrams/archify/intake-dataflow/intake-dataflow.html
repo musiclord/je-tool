@@ -47,7 +47,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>來源檔如何成為審計資料</title>
   <script>
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5203,7 +5246,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 1068 512" data-reader-fit="intrinsic-height" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-motion-choreography="stream">
+      <svg viewBox="0 0 853 430" data-reader-fit="intrinsic-height" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-motion-choreography="stream">
         <title id="archify-diagram-title">來源檔如何成為審計資料</title>
         <desc id="archify-diagram-description">由 Archify 產生的資料流圖。</desc>
         <!-- Definitions -->
@@ -5229,220 +5272,176 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Data Stages -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="0" x="16" y="46" width="168" height="392" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="0" x="16" y="46" width="168" height="310" rx="10" class="c-lane" stroke-width="1"/>
         <text x="100" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">01 / 來源檔案</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="1" x="231" y="46" width="168" height="392" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="315" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">02 / 匯入：逐列讀取</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="1" x="231" y="46" width="168" height="310" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="315" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">02 / 匯入：存成原始資料表</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="2" x="446" y="46" width="168" height="392" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="530" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">03 / 原始資料表</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="2" x="446" y="46" width="168" height="310" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="530" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">03 / 確認配對：轉成標準格式</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="3" x="661" y="46" width="168" height="392" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="745" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">04 / 確認配對：轉成標準格式</text>
-
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="4" x="876" y="46" width="168" height="392" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="960" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">05 / 標準化資料表</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="stage" data-composition-frame-id="3" x="661" y="46" width="168" height="310" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="745" y="68" class="t-dim" font-size="9" font-weight="600" text-anchor="middle">04 / 標準化資料表</text>
 
         <!-- Flow paths -->
-        <path data-edge-from="glfile" data-edge-to="glread" data-edge-label="來源列" data-edge-key="0" data-edge-id="gl_read" data-composition-points="156,157;259,157" d="M 156 157 L 259 157" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="glread" data-edge-to="glraw" data-edge-label="原始列 JSON" data-edge-key="1" data-edge-id="gl_stage" data-composition-points="371,157;474,157" d="M 371 157 L 474 157" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="glraw" data-edge-to="glmap" data-edge-label="逐列讀回" data-edge-key="2" data-edge-id="gl_back" data-composition-points="586,157;689,157" d="M 586 157 L 689 157" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="glmap" data-edge-to="gl" data-edge-label="標準分錄" data-edge-key="3" data-edge-id="gl_target" data-composition-points="801,157;904,157" d="M 801 157 L 904 157" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="tbfile" data-edge-to="tbread" data-edge-label="來源列" data-edge-key="4" data-edge-id="tb_read" data-composition-points="156,385;259,385" d="M 156 385 L 259 385" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="tbread" data-edge-to="tbraw" data-edge-label="原始列 JSON" data-edge-key="5" data-edge-id="tb_stage" data-composition-points="371,385;474,385" d="M 371 385 L 474 385" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="tbraw" data-edge-to="tbmap" data-edge-label="逐列讀回" data-edge-key="6" data-edge-id="tb_back" data-composition-points="586,385;689,385" d="M 586 385 L 689 385" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="tbmap" data-edge-to="tb" data-edge-label="標準餘額" data-edge-key="7" data-edge-id="tb_target" data-composition-points="801,385;904,385" d="M 801 385 L 904 385" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="auditor" data-edge-to="glmap" data-edge-label="GL 欄位配對" data-edge-key="8" data-edge-id="gl_mapping" data-composition-points="745,242;745,186" d="M 745 242 L 745 186" class="a-dashed" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="auditor" data-edge-to="tbmap" data-edge-label="TB 欄位配對" data-edge-key="9" data-edge-id="tb_mapping" data-composition-points="745,300;745,356" d="M 745 300 L 745 356" class="a-dashed" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="glfile" data-edge-to="glraw" data-edge-label="原始列 JSON" data-edge-key="0" data-edge-id="gl_stage" data-composition-points="156,126;259,126" d="M 156 126 L 259 126" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="glraw" data-edge-to="glmap" data-edge-label="逐列讀回" data-edge-key="1" data-edge-id="gl_back" data-composition-points="371,126;474,126" d="M 371 126 L 474 126" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="glmap" data-edge-to="gl" data-edge-label="標準分錄" data-edge-key="2" data-edge-id="gl_target" data-composition-points="586,126;689,126" d="M 586 126 L 689 126" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="tbfile" data-edge-to="tbraw" data-edge-label="原始列 JSON" data-edge-key="3" data-edge-id="tb_stage" data-composition-points="156,314;259,314" d="M 156 314 L 259 314" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="tbraw" data-edge-to="tbmap" data-edge-label="逐列讀回" data-edge-key="4" data-edge-id="tb_back" data-composition-points="371,314;474,314" d="M 371 314 L 474 314" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="tbmap" data-edge-to="tb" data-edge-label="標準餘額" data-edge-key="5" data-edge-id="tb_target" data-composition-points="586,314;689,314" d="M 586 314 L 689 314" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="auditor" data-edge-to="glmap" data-edge-label="GL 欄位配對" data-edge-key="6" data-edge-id="gl_mapping" data-composition-points="530,202;530,144" d="M 530 202 L 530 144" class="a-dashed" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="auditor" data-edge-to="tbmap" data-edge-label="TB 欄位配對" data-edge-key="7" data-edge-id="tb_mapping" data-composition-points="530,238;530,296" d="M 530 238 L 530 296" class="a-dashed" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Nodes -->
-        <g id="node-glfile" data-node-id="glfile" data-node-label="總帳檔案" tabindex="0" role="button" aria-label="聚焦總帳檔案，xlsx、xls、CSV 或 Access, 01 / 來源檔案" aria-pressed="false" data-node-kind="external" data-node-sublabel="xlsx、xls、CSV 或 Access" data-node-context="01 / 來源檔案">
-          <title>總帳檔案 · xlsx、xls、CSV 或 Access · 01 / 來源檔案</title>
-          <rect x="44" y="128" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="44" y="128" width="112" height="58" rx="6" class="c-external" data-animate="node" style="--step:0" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(50 134) scale(0.6875)">
+        <g id="node-glfile" data-node-id="glfile" data-node-label="總帳檔案" tabindex="0" role="button" aria-label="聚焦總帳檔案，01 / 來源檔案" aria-pressed="false" data-node-kind="external" data-node-context="01 / 來源檔案">
+          <title>總帳檔案 · 01 / 來源檔案</title>
+          <rect x="44" y="108" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="44" y="108" width="112" height="36" rx="6" class="c-external" data-animate="node" style="--step:0" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(50 114) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="100" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">總帳檔案</text>
-          <text data-detail="context" x="100" y="165" class="t-muted" font-size="7" text-anchor="middle">xlsx、xls、CSV 或 Access</text>
+          <text data-node-label="" x="100" y="129" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">總帳檔案</text>
         </g>
 
-        <g id="node-tbfile" data-node-id="tbfile" data-node-label="試算表檔案" tabindex="0" role="button" aria-label="聚焦試算表檔案，xlsx、xls、CSV 或 Access, 01 / 來源檔案" aria-pressed="false" data-node-kind="external" data-node-sublabel="xlsx、xls、CSV 或 Access" data-node-context="01 / 來源檔案">
-          <title>試算表檔案 · xlsx、xls、CSV 或 Access · 01 / 來源檔案</title>
-          <rect x="44" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="44" y="356" width="112" height="58" rx="6" class="c-external" data-animate="node" style="--step:4" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(50 362) scale(0.6875)">
+        <g id="node-tbfile" data-node-id="tbfile" data-node-label="試算表檔案" tabindex="0" role="button" aria-label="聚焦試算表檔案，01 / 來源檔案" aria-pressed="false" data-node-kind="external" data-node-context="01 / 來源檔案">
+          <title>試算表檔案 · 01 / 來源檔案</title>
+          <rect x="44" y="296" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="44" y="296" width="112" height="36" rx="6" class="c-external" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(50 302) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="100" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">試算表檔案</text>
-          <text data-detail="context" x="100" y="393" class="t-muted" font-size="7" text-anchor="middle">xlsx、xls、CSV 或 Access</text>
+          <text data-node-label="" x="100" y="317" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">試算表檔案</text>
         </g>
 
-        <g id="node-glread" data-node-id="glread" data-node-label="讀取 GL" tabindex="0" role="button" aria-label="聚焦讀取 GL，import.gl.fromFile, 02 / 匯入：逐列讀取" aria-pressed="false" data-node-kind="backend" data-node-sublabel="import.gl.fromFile" data-node-context="02 / 匯入：逐列讀取">
-          <title>讀取 GL · import.gl.fromFile · 02 / 匯入：逐列讀取</title>
-          <rect x="259" y="128" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="259" y="128" width="112" height="58" rx="6" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(265 134) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="315" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">讀取 GL</text>
-          <text data-detail="context" x="315" y="165" class="t-muted" font-size="7" text-anchor="middle">import.gl.fromFile</text>
-        </g>
-
-        <g id="node-tbread" data-node-id="tbread" data-node-label="讀取 TB" tabindex="0" role="button" aria-label="聚焦讀取 TB，import.tb.fromFile, 02 / 匯入：逐列讀取" aria-pressed="false" data-node-kind="backend" data-node-sublabel="import.tb.fromFile" data-node-context="02 / 匯入：逐列讀取">
-          <title>讀取 TB · import.tb.fromFile · 02 / 匯入：逐列讀取</title>
-          <rect x="259" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="259" y="356" width="112" height="58" rx="6" class="c-backend" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(265 362) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="315" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">讀取 TB</text>
-          <text data-detail="context" x="315" y="393" class="t-muted" font-size="7" text-anchor="middle">import.tb.fromFile</text>
-        </g>
-
-        <g id="node-glraw" data-node-id="glraw" data-node-label="PBC-GL" tabindex="0" role="button" aria-label="聚焦PBC-GL，pbc_gl, 03 / 原始資料表" aria-pressed="false" data-node-kind="database" data-node-sublabel="pbc_gl" data-node-context="03 / 原始資料表">
-          <title>PBC-GL · pbc_gl · 03 / 原始資料表</title>
-          <rect x="474" y="128" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="474" y="128" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(480 134) scale(0.6875)">
+        <g id="node-glraw" data-node-id="glraw" data-node-label="PBC-GL" tabindex="0" role="button" aria-label="聚焦PBC-GL，02 / 匯入：存成原始資料表" aria-pressed="false" data-node-kind="database" data-node-context="02 / 匯入：存成原始資料表">
+          <title>PBC-GL · 02 / 匯入：存成原始資料表</title>
+          <rect x="259" y="108" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="259" y="108" width="112" height="36" rx="6" class="c-database" data-animate="node" style="--step:1" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(265 114) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="530" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">PBC-GL</text>
-          <text data-detail="context" x="530" y="165" class="t-muted" font-size="7" text-anchor="middle">pbc_gl</text>
+          <text data-node-label="" x="315" y="129" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">PBC-GL</text>
         </g>
 
-        <g id="node-auditor" data-node-id="auditor" data-node-label="審計員確認配對" tabindex="0" role="button" aria-label="聚焦審計員確認配對，第三步, 04 / 確認配對：轉成標準格式" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="第三步" data-node-context="04 / 確認配對：轉成標準格式">
-          <title>審計員確認配對 · 第三步 · 04 / 確認配對：轉成標準格式</title>
-          <rect x="689" y="242" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="689" y="242" width="112" height="58" rx="6" class="c-frontend" data-animate="node" style="--step:8" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(695 248) scale(0.6875)">
+        <g id="node-tbraw" data-node-id="tbraw" data-node-label="PBC-TB" tabindex="0" role="button" aria-label="聚焦PBC-TB，02 / 匯入：存成原始資料表" aria-pressed="false" data-node-kind="database" data-node-context="02 / 匯入：存成原始資料表">
+          <title>PBC-TB · 02 / 匯入：存成原始資料表</title>
+          <rect x="259" y="296" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="259" y="296" width="112" height="36" rx="6" class="c-database" data-animate="node" style="--step:4" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(265 302) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="315" y="317" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">PBC-TB</text>
+        </g>
+
+        <g id="node-glmap" data-node-id="glmap" data-node-label="產生標準 GL" tabindex="0" role="button" aria-label="聚焦產生標準 GL，03 / 確認配對：轉成標準格式" aria-pressed="false" data-node-kind="backend" data-node-context="03 / 確認配對：轉成標準格式">
+          <title>產生標準 GL · 03 / 確認配對：轉成標準格式</title>
+          <rect x="474" y="108" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="474" y="108" width="112" height="36" rx="6" class="c-backend" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(480 114) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" x="530" y="129" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">產生標準 GL</text>
+        </g>
+
+        <g id="node-auditor" data-node-id="auditor" data-node-label="審計員確認配對" tabindex="0" role="button" aria-label="聚焦審計員確認配對，03 / 確認配對：轉成標準格式" aria-pressed="false" data-node-kind="frontend" data-node-context="03 / 確認配對：轉成標準格式">
+          <title>審計員確認配對 · 03 / 確認配對：轉成標準格式</title>
+          <rect x="474" y="202" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="474" y="202" width="112" height="36" rx="6" class="c-frontend" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(480 208) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="750" y="263" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">審計員確認配對</text>
-          <text data-detail="context" x="745" y="279" class="t-muted" font-size="7" text-anchor="middle">第三步</text>
+          <text data-node-label="" x="535" y="223" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">審計員確認配對</text>
         </g>
 
-        <g id="node-tbraw" data-node-id="tbraw" data-node-label="PBC-TB" tabindex="0" role="button" aria-label="聚焦PBC-TB，pbc_tb, 03 / 原始資料表" aria-pressed="false" data-node-kind="database" data-node-sublabel="pbc_tb" data-node-context="03 / 原始資料表">
-          <title>PBC-TB · pbc_tb · 03 / 原始資料表</title>
-          <rect x="474" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="474" y="356" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(480 362) scale(0.6875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="530" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">PBC-TB</text>
-          <text data-detail="context" x="530" y="393" class="t-muted" font-size="7" text-anchor="middle">pbc_tb</text>
-        </g>
-
-        <g id="node-glmap" data-node-id="glmap" data-node-label="產生標準 GL" tabindex="0" role="button" aria-label="聚焦產生標準 GL，mapping.commit.gl, 04 / 確認配對：轉成標準格式" aria-pressed="false" data-node-kind="backend" data-node-sublabel="mapping.commit.gl" data-node-context="04 / 確認配對：轉成標準格式">
-          <title>產生標準 GL · mapping.commit.gl · 04 / 確認配對：轉成標準格式</title>
-          <rect x="689" y="128" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="689" y="128" width="112" height="58" rx="6" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(695 134) scale(0.6875)">
+        <g id="node-tbmap" data-node-id="tbmap" data-node-label="產生標準 TB" tabindex="0" role="button" aria-label="聚焦產生標準 TB，03 / 確認配對：轉成標準格式" aria-pressed="false" data-node-kind="backend" data-node-context="03 / 確認配對：轉成標準格式">
+          <title>產生標準 TB · 03 / 確認配對：轉成標準格式</title>
+          <rect x="474" y="296" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="474" y="296" width="112" height="36" rx="6" class="c-backend" data-animate="node" style="--step:5" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(480 302) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="745" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">產生標準 GL</text>
-          <text data-detail="context" x="745" y="165" class="t-muted" font-size="7" text-anchor="middle">mapping.commit.gl</text>
+          <text data-node-label="" x="530" y="317" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">產生標準 TB</text>
         </g>
 
-        <g id="node-tbmap" data-node-id="tbmap" data-node-label="產生標準 TB" tabindex="0" role="button" aria-label="聚焦產生標準 TB，mapping.commit.tb, 04 / 確認配對：轉成標準格式" aria-pressed="false" data-node-kind="backend" data-node-sublabel="mapping.commit.tb" data-node-context="04 / 確認配對：轉成標準格式">
-          <title>產生標準 TB · mapping.commit.tb · 04 / 確認配對：轉成標準格式</title>
-          <rect x="689" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="689" y="356" width="112" height="58" rx="6" class="c-backend" data-animate="node" style="--step:7" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(695 362) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="745" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">產生標準 TB</text>
-          <text data-detail="context" x="745" y="393" class="t-muted" font-size="7" text-anchor="middle">mapping.commit.tb</text>
-        </g>
-
-        <g id="node-gl" data-node-id="gl" data-node-label="GL" tabindex="0" role="button" aria-label="聚焦GL，gl, 05 / 標準化資料表" aria-pressed="false" data-node-kind="database" data-node-sublabel="gl" data-node-context="05 / 標準化資料表">
-          <title>GL · gl · 05 / 標準化資料表</title>
-          <rect x="904" y="128" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="904" y="128" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:4" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(910 134) scale(0.6875)">
+        <g id="node-gl" data-node-id="gl" data-node-label="GL" tabindex="0" role="button" aria-label="聚焦GL，04 / 標準化資料表" aria-pressed="false" data-node-kind="database" data-node-context="04 / 標準化資料表">
+          <title>GL · 04 / 標準化資料表</title>
+          <rect x="689" y="108" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="689" y="108" width="112" height="36" rx="6" class="c-database" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(695 114) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="960" y="149" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">GL</text>
-          <text data-detail="context" x="960" y="165" class="t-muted" font-size="7" text-anchor="middle">gl</text>
+          <text data-node-label="" x="745" y="129" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">GL</text>
         </g>
 
-        <g id="node-tb" data-node-id="tb" data-node-label="TB" tabindex="0" role="button" aria-label="聚焦TB，tb, 05 / 標準化資料表" aria-pressed="false" data-node-kind="database" data-node-sublabel="tb" data-node-context="05 / 標準化資料表">
-          <title>TB · tb · 05 / 標準化資料表</title>
-          <rect x="904" y="356" width="112" height="58" rx="6" class="c-mask"/>
-          <rect x="904" y="356" width="112" height="58" rx="6" class="c-database" data-animate="node" style="--step:8" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(910 362) scale(0.6875)">
+        <g id="node-tb" data-node-id="tb" data-node-label="TB" tabindex="0" role="button" aria-label="聚焦TB，04 / 標準化資料表" aria-pressed="false" data-node-kind="database" data-node-context="04 / 標準化資料表">
+          <title>TB · 04 / 標準化資料表</title>
+          <rect x="689" y="296" width="112" height="36" rx="6" class="c-mask"/>
+          <rect x="689" y="296" width="112" height="36" rx="6" class="c-database" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(695 302) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="960" y="377" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">TB</text>
-          <text data-detail="context" x="960" y="393" class="t-muted" font-size="7" text-anchor="middle">tb</text>
+          <text data-node-label="" x="745" y="317" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">TB</text>
         </g>
 
         <!-- Flow labels -->
-        <g data-detail="context" data-edge-from="glfile" data-edge-to="glread" data-edge-label="來源列" data-edge-key="0" data-edge-id="gl_read">
-          <rect x="186.8" y="136" width="41.4" height="16" rx="4" class="c-mask"/>
-          <text x="207.5" y="147" class="t-edge-default" font-size="8" text-anchor="middle">來源列</text>
+        <g data-detail="context" data-edge-from="glfile" data-edge-to="glraw" data-edge-label="原始列 JSON" data-edge-key="0" data-edge-id="gl_stage">
+          <rect x="174.55" y="105" width="65.9" height="16" rx="4" class="c-mask"/>
+          <text x="207.5" y="116" class="t-edge-default" font-size="8" text-anchor="middle">原始列 JSON</text>
         </g>
-        <g data-detail="context" data-edge-from="glread" data-edge-to="glraw" data-edge-label="原始列 JSON" data-edge-key="1" data-edge-id="gl_stage">
-          <rect x="389.55" y="136" width="65.9" height="16" rx="4" class="c-mask"/>
-          <text x="422.5" y="147" class="t-edge-default" font-size="8" text-anchor="middle">原始列 JSON</text>
+        <g data-detail="context" data-edge-from="glraw" data-edge-to="glmap" data-edge-label="逐列讀回" data-edge-key="1" data-edge-id="gl_back">
+          <rect x="396.9" y="105" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="422.5" y="116" class="t-edge-default" font-size="8" text-anchor="middle">逐列讀回</text>
         </g>
-        <g data-detail="context" data-edge-from="glraw" data-edge-to="glmap" data-edge-label="逐列讀回" data-edge-key="2" data-edge-id="gl_back">
-          <rect x="611.9" y="136" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="637.5" y="147" class="t-edge-default" font-size="8" text-anchor="middle">逐列讀回</text>
+        <g data-detail="context" data-edge-from="glmap" data-edge-to="gl" data-edge-label="標準分錄" data-edge-key="2" data-edge-id="gl_target">
+          <rect x="611.9" y="105" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="637.5" y="116" class="t-edge-default" font-size="8" text-anchor="middle">標準分錄</text>
         </g>
-        <g data-detail="context" data-edge-from="glmap" data-edge-to="gl" data-edge-label="標準分錄" data-edge-key="3" data-edge-id="gl_target">
-          <rect x="826.9" y="136" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="852.5" y="147" class="t-edge-default" font-size="8" text-anchor="middle">標準分錄</text>
+        <g data-detail="context" data-edge-from="tbfile" data-edge-to="tbraw" data-edge-label="原始列 JSON" data-edge-key="3" data-edge-id="tb_stage">
+          <rect x="174.55" y="293" width="65.9" height="16" rx="4" class="c-mask"/>
+          <text x="207.5" y="304" class="t-edge-default" font-size="8" text-anchor="middle">原始列 JSON</text>
         </g>
-        <g data-detail="context" data-edge-from="tbfile" data-edge-to="tbread" data-edge-label="來源列" data-edge-key="4" data-edge-id="tb_read">
-          <rect x="186.8" y="364" width="41.4" height="16" rx="4" class="c-mask"/>
-          <text x="207.5" y="375" class="t-edge-default" font-size="8" text-anchor="middle">來源列</text>
+        <g data-detail="context" data-edge-from="tbraw" data-edge-to="tbmap" data-edge-label="逐列讀回" data-edge-key="4" data-edge-id="tb_back">
+          <rect x="396.9" y="293" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="422.5" y="304" class="t-edge-default" font-size="8" text-anchor="middle">逐列讀回</text>
         </g>
-        <g data-detail="context" data-edge-from="tbread" data-edge-to="tbraw" data-edge-label="原始列 JSON" data-edge-key="5" data-edge-id="tb_stage">
-          <rect x="389.55" y="364" width="65.9" height="16" rx="4" class="c-mask"/>
-          <text x="422.5" y="375" class="t-edge-default" font-size="8" text-anchor="middle">原始列 JSON</text>
+        <g data-detail="context" data-edge-from="tbmap" data-edge-to="tb" data-edge-label="標準餘額" data-edge-key="5" data-edge-id="tb_target">
+          <rect x="611.9" y="293" width="51.2" height="16" rx="4" class="c-mask"/>
+          <text x="637.5" y="304" class="t-edge-default" font-size="8" text-anchor="middle">標準餘額</text>
         </g>
-        <g data-detail="context" data-edge-from="tbraw" data-edge-to="tbmap" data-edge-label="逐列讀回" data-edge-key="6" data-edge-id="tb_back">
-          <rect x="611.9" y="364" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="637.5" y="375" class="t-edge-default" font-size="8" text-anchor="middle">逐列讀回</text>
+        <g data-detail="context" data-edge-from="auditor" data-edge-to="glmap" data-edge-label="GL 欄位配對" data-edge-key="6" data-edge-id="gl_mapping">
+          <rect x="497.05" y="152" width="65.9" height="16" rx="4" class="c-mask"/>
+          <text x="530" y="163" class="t-edge-dashed" font-size="8" text-anchor="middle">GL 欄位配對</text>
         </g>
-        <g data-detail="context" data-edge-from="tbmap" data-edge-to="tb" data-edge-label="標準餘額" data-edge-key="7" data-edge-id="tb_target">
-          <rect x="826.9" y="364" width="51.2" height="16" rx="4" class="c-mask"/>
-          <text x="852.5" y="375" class="t-edge-default" font-size="8" text-anchor="middle">標準餘額</text>
-        </g>
-        <g data-detail="context" data-edge-from="auditor" data-edge-to="glmap" data-edge-label="GL 欄位配對" data-edge-key="8" data-edge-id="gl_mapping">
-          <rect x="712.05" y="193" width="65.9" height="16" rx="4" class="c-mask"/>
-          <text x="745" y="204" class="t-edge-dashed" font-size="8" text-anchor="middle">GL 欄位配對</text>
-        </g>
-        <g data-detail="context" data-edge-from="auditor" data-edge-to="tbmap" data-edge-label="TB 欄位配對" data-edge-key="9" data-edge-id="tb_mapping">
-          <rect x="712.05" y="307" width="65.9" height="16" rx="4" class="c-mask"/>
-          <text x="745" y="318" class="t-edge-dashed" font-size="8" text-anchor="middle">TB 欄位配對</text>
+        <g data-detail="context" data-edge-from="auditor" data-edge-to="tbmap" data-edge-label="TB 欄位配對" data-edge-key="7" data-edge-id="tb_mapping">
+          <rect x="497.05" y="246" width="65.9" height="16" rx="4" class="c-mask"/>
+          <text x="530" y="257" class="t-edge-dashed" font-size="8" text-anchor="middle">TB 欄位配對</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="40" y="456" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="dashed" data-legend-x="40" data-legend-baseline="476" data-legend-width="192">
-            <path d="M 40 473 L 74 473" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-            <text x="83" y="476" class="t-muted" font-size="10" font-weight="500">只傳操作參數，不含資料列</text>
+          <text x="40" y="374" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="dashed" data-legend-x="40" data-legend-baseline="394" data-legend-width="192">
+            <path d="M 40 391 L 74 391" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+            <text x="83" y="394" class="t-muted" font-size="10" font-weight="500">只傳操作參數，不含資料列</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="資料儲存" data-legend-x="254" data-legend-baseline="476" data-legend-width="93">
-            <rect x="254" y="468" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-            <text x="276" y="476" class="t-muted" font-size="10" font-weight="500">資料儲存</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="資料儲存" data-legend-x="254" data-legend-baseline="394" data-legend-width="93">
+            <rect x="254" y="386" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+            <text x="276" y="394" class="t-muted" font-size="10" font-weight="500">資料儲存</text>
           </g>
-          <g data-legend-semantic-kind="default" data-legend-x="369" data-legend-baseline="476" data-legend-width="180">
-            <path d="M 369 473 L 403 473" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-            <text x="412" y="476" class="t-muted" font-size="10" font-weight="500">JET 逐列讀取，分批寫入</text>
+          <g data-legend-semantic-kind="default" data-legend-x="369" data-legend-baseline="394" data-legend-width="180">
+            <path d="M 369 391 L 403 391" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <text x="412" y="394" class="t-muted" font-size="10" font-weight="500">JET 逐列讀取，分批寫入</text>
           </g>
         </g>
       </svg>
@@ -5628,8 +5627,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>匯入與配對分開進行</h3>
         </div>
         <ul>
-          <li>匯入先儲存原始資料；審計員確認欄位配對後，才轉成標準 GL 與 TB。兩次操作各用一筆交易。</li>
-          <li>畫面只傳檔案與配對設定，資料列由後端處理。</li>
+          <li>匯入由 import.gl.fromFile 與 import.tb.fromFile 讀取 xlsx、xls、CSV 或 Access 檔；原始列 JSON、批次與欄位定義在同一筆交易寫入。</li>
+          <li>審計員在第三步確認欄位配對後，mapping.commit.gl 與 mapping.commit.tb 才轉成標準 GL 與 TB。兩次操作各用一筆交易。</li>
+          <li>PBC-GL 與 PBC-TB 的資料表是 pbc_gl 與 pbc_tb，GL 與 TB 的資料表是 gl 與 tb。畫面只傳檔案與配對設定，資料列由後端處理。</li>
         </ul>
       </div>
 
@@ -5821,6 +5821,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5837,6 +5838,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7260,6 +7262,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7275,6 +7278,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -9902,6 +9906,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12690,6 +12695,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12700,6 +12706,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12734,6 +12741,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13839,6 +13847,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14514,6 +14523,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14751,6 +14761,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

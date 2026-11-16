@@ -326,7 +326,7 @@ public sealed partial class LegacyReportWriter
                 else
                 {
                     cells.SetInlineString("D23", "N/A");
-                    cells.SetInlineString("E23", "未設定【傳票核准日】欄位");
+                    cells.SetInlineString("E23", "未設定傳票核准日欄位");
                 }
                 // 沒有 TB 時逐科目比對無法執行，比照核准日那一列寫 N/A 並註明原因。
                 if (projection.CompletenessNaNote is { } completenessNote)
@@ -421,7 +421,7 @@ public sealed partial class LegacyReportWriter
                     // 不然很長的 JSON 會把第 1 列撐高。
                     firstRow.Add(sheet.TextCell(1, 6, MappingMetadataFormat.Marker, 0));
                     firstRow.Add(sheet.NumberCell(1, 7, MappingMetadataFormat.CurrentVersion, 0));
-                    firstRow.Add(sheet.TextCell(1, 8, mappingMetadata, 0));
+                    firstRow.Add(sheet.VerbatimTextCell(1, 8, mappingMetadata, 0));
                 }
                 sheet.WriteFixedRow(1, firstRow);
                 // TB 與 GL 的標題列都不合併儲存格，和底稿一致。
@@ -566,6 +566,7 @@ public sealed partial class LegacyReportWriter
         var partNumber = 1;
         uint rowIndex = 17;
         var sheetName = WorkingPaperSheetCatalog.Step13;
+        var currentPart = templatePart;
         DirectTemplateStreamingSheetWriter? sheet =
             new(sheetName, templatePart, firstDynamicRow: 17, ensureProtection: true);
         try
@@ -588,6 +589,7 @@ public sealed partial class LegacyReportWriter
                             continuationPrototype,
                             sheetName,
                             cancellationToken);
+                        currentPart = continuationPart;
                         sheet = new DirectTemplateStreamingSheetWriter(
                             sheetName,
                             continuationPart,
@@ -596,6 +598,7 @@ public sealed partial class LegacyReportWriter
                     }
 
                     var cells = CompletenessDiffCells(
+                        currentPart,
                         rowIndex,
                         item,
                         context.MoneyScale,
@@ -642,14 +645,15 @@ public sealed partial class LegacyReportWriter
     }
 
     private static IReadOnlyList<Cell> CompletenessDiffCells(
+        WorksheetPart part,
         uint rowIndex,
         CompletenessDiffAccount item,
         int moneyScale,
         CompletenessDiffCellStyles styles) =>
         [
             DirectBlankCell(rowIndex, 1, styles.LeadingBlank),
-            DirectTextCell(rowIndex, 2, item.AccountNumber, styles.AccountNumber),
-            DirectTextCell(rowIndex, 3, item.AccountName, styles.AccountName),
+            DirectTextCell(part, rowIndex, 2, item.AccountNumber, styles.AccountNumber),
+            DirectTextCell(part, rowIndex, 3, item.AccountName, styles.AccountName),
             DirectNumberCell(rowIndex, 4, Display(item.DiffScaled, moneyScale), styles.Difference),
             DirectBlankCell(rowIndex, 5, styles.Explanation),
             DirectBlankCell(rowIndex, 6, styles.Reconciliation),
@@ -711,6 +715,7 @@ public sealed partial class LegacyReportWriter
         uint TrailingBlank);
 
     private static Cell DirectTextCell(
+        WorksheetPart part,
         uint row,
         uint column,
         string? value,
@@ -720,7 +725,7 @@ public sealed partial class LegacyReportWriter
         if (!string.IsNullOrEmpty(value))
         {
             cell.DataType = CellValues.InlineString;
-            cell.InlineString = ExcelText.InlineString(value);
+            cell.InlineString = ExcelText.InlineString(value, part);
         }
         return cell;
     }

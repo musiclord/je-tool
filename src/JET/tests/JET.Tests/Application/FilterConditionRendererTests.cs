@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using JET.Application;
 using Xunit;
 
@@ -645,10 +644,11 @@ public sealed class FilterConditionRendererTests
             FilterConditionRenderer.Render(document.RootElement, null, rdeLabels));
     }
 
-    // 底稿與報告的條件說明把欄位名稱用【】標示，值照舊用「」；畫面的讀回不加。
-    // 認不得的欄位寫的是替代句，不是欄位名稱，兩種寫法都不加【】。
+    // 底稿與報告的條件說明，欄位名稱照原樣寫，不加任何符號，值照舊用「」；畫面的讀回也不加。
+    // 兩種寫法只差在統計條件：畫面用「」包住欄位名稱，文件裡欄位名稱前後各留一個半形空白。
+    // 認不得的欄位寫的是替代句，兩種寫法相同。
     [Fact]
-    public void ForDocument_MarksFieldNamesOnly_AndScreenReadbackStaysUnmarked()
+    public void ForDocument_WritesFieldNamesWithoutSymbols_AndOnlyEntityFrequencyDiffersFromScreen()
     {
         const string rdeField = "rde.dddd0000dddd0000dddd0000dddd0000";
         var rdeLabels = new Dictionary<string, string>(StringComparer.Ordinal) { [rdeField] = "成本中心" };
@@ -671,26 +671,20 @@ public sealed class FilterConditionRendererTests
         var paper = FilterConditionRenderer.Render(document.RootElement, null, rdeLabels, forDocument: true);
 
         Assert.DoesNotContain("【", screen, StringComparison.Ordinal);
-        Assert.Contains("【傳票摘要】 包含「調整」", paper, StringComparison.Ordinal);
-        Assert.Contains("【金額】（絕對值） ≥ 1000", paper, StringComparison.Ordinal);
-        Assert.Contains("【總帳日期】 2024-01-01～…", paper, StringComparison.Ordinal);
-        Assert.Contains("【傳票摘要】 完全符合任一值「1101」（保留半形空白）", paper, StringComparison.Ordinal);
-        Assert.Contains("【金額】絕對值 介於「10」至「20」", paper, StringComparison.Ordinal);
-        Assert.Contains("【成本中心】 等於「X」", paper, StringComparison.Ordinal);
-        Assert.Contains("GL 中「", screen, StringComparison.Ordinal);
-        Assert.Contains("GL 中【", paper, StringComparison.Ordinal);
+        Assert.DoesNotContain("【", paper, StringComparison.Ordinal);
+        Assert.DoesNotContain("】", paper, StringComparison.Ordinal);
+        Assert.Contains("傳票摘要 包含「調整」", paper, StringComparison.Ordinal);
+        Assert.Contains("金額（絕對值） ≥ 1000", paper, StringComparison.Ordinal);
+        Assert.Contains("總帳日期 2024-01-01～…", paper, StringComparison.Ordinal);
+        Assert.Contains("傳票摘要 完全符合任一值「1101」（保留半形空白）", paper, StringComparison.Ordinal);
+        Assert.Contains("金額絕對值 介於「10」至「20」", paper, StringComparison.Ordinal);
+        Assert.Contains("成本中心 等於「X」", paper, StringComparison.Ordinal);
+        Assert.Contains("GL 中「傳票建立人員」分錄筆數", screen, StringComparison.Ordinal);
+        Assert.Contains("GL 中 傳票建立人員 分錄筆數", paper, StringComparison.Ordinal);
         Assert.Contains("已不存在的欄位 包含「x」", paper, StringComparison.Ordinal);
         Assert.Contains("已不在欄位配對中的攸關資料元素欄位 為空白", paper, StringComparison.Ordinal);
-
-        var marked = Regex.Matches(paper, "【([^】]*)】").Select(match => match.Groups[1].Value).ToArray();
-        Assert.Equal(7, marked.Length);
-        Assert.DoesNotContain("已不存在的欄位", marked);
-        Assert.DoesNotContain("已不在欄位配對中的攸關資料元素欄位", marked);
-        Assert.All(marked, name => Assert.DoesNotContain("「", name, StringComparison.Ordinal));
-        // 兩種寫法只差標示符號。
-        Assert.Equal(StripMarks(screen), StripMarks(paper));
+        Assert.Equal(
+            screen.Replace("GL 中「傳票建立人員」分錄筆數", "GL 中 傳票建立人員 分錄筆數", StringComparison.Ordinal),
+            paper);
     }
-
-    private static string StripMarks(string text) =>
-        text.Replace("【", "").Replace("】", "").Replace("「", "").Replace("」", "");
 }

@@ -23,12 +23,36 @@ public sealed class PrivateCaseAcceptanceTests
             manifest,
             provider);
 
+        // 通過與否都留下欄位對齊的數量，讓對不起來的欄看得到，不會無聲略過；只有報告種類、頁的位置與欄數。
+        TestContext.Current.TestOutputHelper?.WriteLine(BuildSafeAlignmentSummary(result));
         Assert.True(result.Passed, BuildSafeFailureSummary(result));
 
         var json = JsonSerializer.Serialize(result);
         Assert.DoesNotContain(root, json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(manifest, json, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static string BuildSafeAlignmentSummary(PrivateCaseAcceptanceResult result) =>
+        "私人案件欄位對齊與逐格比對：" + string.Join(
+            "；",
+            result.ReportComparison.Reports
+                .Select(static report => $"{report.Kind}:align="
+                    + string.Join(
+                        ",",
+                        report.ColumnAlignment.Select(static family =>
+                            $"f{family.FamilyPosition}[{family.AlignedColumnCount}/"
+                            + $"{family.UnalignedExpectedColumnCount}/"
+                            + $"{family.UnalignedActualColumnCount};d{family.DateColumnCount}]"))
+                    + ";cells="
+                    + string.Join(
+                        ",",
+                        report.ResultSheets.Select(static sheet =>
+                            $"s{sheet.SheetPosition}[{sheet.BlockingCellCount}/{sheet.ComparedCellCount};"
+                            + string.Join(
+                                "+",
+                                sheet.AcceptedCells.Select(static decision =>
+                                    $"{decision.DecisionId}:{decision.DifferenceCount}"))
+                            + "]"))));
 
     private static string BuildSafeFailureSummary(PrivateCaseAcceptanceResult result)
     {
@@ -85,6 +109,10 @@ public sealed class PrivateCaseAcceptanceTests
                         {
                             differences.Add(
                                 $"vouchers({scenario.ExpectedVoucherCount}->{scenario.ActualVoucherCount})");
+                        }
+                        if (!scenario.SummaryRowCountMatches)
+                        {
+                            differences.Add($"summaryRows({scenario.ActualSummaryRowCount})");
                         }
                         if (scenario.ExpandedVoucherRowCount.HasValue)
                         {
@@ -175,12 +203,13 @@ public sealed class PrivateCaseAcceptanceTests
                                 + string.Join(
                                     ",",
                                     report.BlockingContentColumnDetails
-                                        .Take(10)
+                                        .Take(20)
                                         .Select(static column =>
                                             $"f{column.FamilyPosition}.{column.ColumnRole}["
                                             + $"{column.ExpectedValueCount}->"
                                             + $"{column.ActualValueCount};"
                                             + $"{column.EstimatedDifferingValueCount}"
+                                            + (column.ValueRelation is null ? string.Empty : $";{column.ValueRelation}")
                                             + (column.ScenarioTagValues is null
                                                 ? string.Empty
                                                 : $";YNO="
@@ -192,6 +221,13 @@ public sealed class PrivateCaseAcceptanceTests
                                                     + $"{column.ScenarioTagValues.ActualOtherCount}")
                                             + "]"))
                                 + $";accepted={accepted}"
+                                + ";align="
+                                + string.Join(
+                                    ",",
+                                    report.ColumnAlignment.Select(static family =>
+                                        $"f{family.FamilyPosition}[{family.AlignedColumnCount}/"
+                                        + $"{family.UnalignedExpectedColumnCount}/"
+                                        + $"{family.UnalignedActualColumnCount}]"))
                                 + ")");
                         }
                         if (!report.AppearanceMatches)
@@ -218,6 +254,25 @@ public sealed class PrivateCaseAcceptanceTests
                                 $"appearance({report.UnclassifiedAppearanceDifferenceCount}/"
                                 + $"{report.AppearanceDifferenceCount};{groups};{details};"
                                 + $"accepted={accepted})");
+                        }
+                        if (!report.ResultCellsMatch)
+                        {
+                            differences.Add("cells(" + string.Join(
+                                ",",
+                                report.ResultSheets
+                                    .Where(static sheet => !sheet.Matches)
+                                    .Select(static sheet =>
+                                        $"s{sheet.SheetPosition}:{sheet.BlockingCellCount}/{sheet.ComparedCellCount}["
+                                        + string.Join(
+                                            " ",
+                                            sheet.BlockingCells.Select(static cell =>
+                                                $"{cell.Address}:{cell.ExpectedKind}>{cell.ActualKind}:{cell.Relation}"))
+                                        + ";by="
+                                        + string.Join(
+                                            " ",
+                                            sheet.BlockingByColumn.Select(static tally =>
+                                                $"{tally.Column}:{tally.Relation}*{tally.Count}"))
+                                        + "]")) + ")");
                         }
                         return $"{report.Kind}:{string.Join('+', differences)}";
                     }));

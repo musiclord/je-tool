@@ -310,7 +310,7 @@ public sealed partial class WorkingPaperWriter
             sheet.WriteRow(rowIndex,
             [
                 sheet.TextCell(rowIndex, 2, $"C{scenario.Position}" + (index == 0 ? "" : "（續）")),
-                sheet.TextCell(rowIndex, 3, part, WorkingPaperStyles.Wrap),
+                sheet.VerbatimTextCell(rowIndex, 3, part, WorkingPaperStyles.Wrap),
                 sheet.TextCell(rowIndex, 4, index == 0 ? scenario.Rationale : "", WorkingPaperStyles.Wrap),
                 index == 0 ? sheet.NumberCell(rowIndex, 5, scenario.VoucherHitCount) : sheet.BlankCell(rowIndex, 5)
             ]);

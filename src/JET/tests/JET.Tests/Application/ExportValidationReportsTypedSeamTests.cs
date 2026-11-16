@@ -70,7 +70,7 @@ public sealed class ExportValidationReportsTypedSeamTests
             tb:
             [
                 // 欄位事實帶來歷與對應的 JET 欄位，手工建的事實照投影器的寫法填入；
-                // 改名欄位的「配對前欄位名稱」加【】。
+                // 改名欄位的「配對前欄位名稱」寫來源欄名本身，不加任何符號。
                 new FieldInfo(2, "期末餘額", null, LegacyFieldKind.Number, null, 0),
                 new FieldInfo(1, "會計科目編號_TB", "客戶科目", LegacyFieldKind.Text, 20, null, FieldInfoOrigin.Renamed, JetFieldCatalog.TbAccountNumber)
             ],
@@ -137,7 +137,7 @@ public sealed class ExportValidationReportsTypedSeamTests
         Assert.Equal(
             new[]
             {
-                new FieldInfoRow("【客戶科目】", "文字型態", 20, null, "會計科目編號_TB"),
+                new FieldInfoRow("客戶科目", "文字型態", 20, null, "會計科目編號_TB"),
                 new FieldInfoRow("期末餘額", "數字型態", null, 0, null)
             },
             fieldInfo.TbRows);

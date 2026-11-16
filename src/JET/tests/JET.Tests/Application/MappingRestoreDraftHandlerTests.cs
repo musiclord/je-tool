@@ -562,9 +562,12 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 新版底稿沒有隱藏紀錄時，兩個名稱相同、來源欄不同的攸關資料元素都帶入，也能確認配對。
-    [Fact]
-    public async Task RestoreDraft_RelevantDataElementsWithTheSameName_AreBothRestoredAndCommitted()
+    // 新版 JET 的底稿沒有隱藏紀錄時，兩個名稱相同、來源欄不同的攸關資料元素都帶入，也能確認配對。
+    // 較早版本把欄名加【】，目前的寫法照來源欄名原樣寫，兩種都要認得。
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RestoreDraft_RelevantDataElementsWithTheSameName_AreBothRestoredAndCommitted(bool markedWriting)
     {
         using var host = new HandlerTestHost();
         await CreateSyntheticProjectAsync(host, "RESTORE-SAME-RDE-NAME");
@@ -573,17 +576,24 @@ public sealed class MappingRestoreDraftHandlerTests
             .AddRow("JV-1", "2025-03-01", "1101", "現金", "合成", "北區", "甲區", "100")
             .AddRow("JV-1", "2025-03-01", "4101", "收入", "合成", "北區", "甲區", "-100")
             .WriteWorkbook();
+        string Name(string sourceColumn) => markedWriting ? $"【{sourceColumn}】" : sourceColumn;
         var paperPath = FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.CurrentLayout(
             [],
             [
-                ["【Doc No】", "文字型態", "12", null, "傳票號碼_JE"],
-                ["【Post Date】", "日期型態", null, null, "總帳日期_JE"],
-                ["【Acct】", "文字型態", "10", null, "會計科目編號_JE"],
-                ["【Acct Name】", "文字型態", "20", null, "會計科目名稱_JE"],
-                ["【Memo】", "文字型態", "40", null, "傳票摘要_JE"],
-                ["【Region】", "文字型態", "10", null, "地區（Region）_JE"],
-                ["【Region 2】", "文字型態", "10", null, "地區（Region 2）_JE"],
-                ["【傳票金額_JE】由系統產生 : 【Amount】", "數字型態", null, "2", "傳票金額_JE"]
+                [Name("Doc No"), "文字型態", "12", null, "傳票號碼_JE"],
+                [Name("Post Date"), "日期型態", null, null, "總帳日期_JE"],
+                [Name("Acct"), "文字型態", "10", null, "會計科目編號_JE"],
+                [Name("Acct Name"), "文字型態", "20", null, "會計科目名稱_JE"],
+                [Name("Memo"), "文字型態", "40", null, "傳票摘要_JE"],
+                [Name("Region"), "文字型態", "10", null, "地區（Region）_JE"],
+                [Name("Region 2"), "文字型態", "10", null, "地區（Region 2）_JE"],
+                [
+                    markedWriting ? "【傳票金額_JE】由系統產生 : 【Amount】" : "傳票金額_JE 由系統產生 : Amount",
+                    "數字型態",
+                    null,
+                    "2",
+                    "傳票金額_JE"
+                ]
             ]));
         try
         {

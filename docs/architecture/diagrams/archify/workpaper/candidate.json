@@ -78,7 +78,8 @@
       "col": 2,
       "type": "database",
       "label": "確認篩選結果",
-      "sublabel": "過期時只重算選取的情境"
+      "sublabel": "過期時只重算選取情境",
+      "width": 104
     },
     {
       "id": "facts",
@@ -86,7 +87,8 @@
       "col": 3,
       "type": "backend",
       "label": "建立底稿計畫",
-      "sublabel": "規劃、讀資料與彙整"
+      "sublabel": "規劃、讀資料與彙整",
+      "width": 96
     },
     {
       "id": "stage",
@@ -94,7 +96,8 @@
       "col": 3,
       "type": "database",
       "label": "寫完暫存檔",
-      "sublabel": "依計畫分頁讀資料列"
+      "sublabel": "依計畫分頁讀資料列",
+      "width": 96
     },
     {
       "id": "rename",
@@ -132,7 +135,7 @@
     {
       "id": "cleanup",
       "lane": "fail",
-      "col": 3,
+      "col": 2,
       "type": "backend",
       "label": "刪除本次暫存檔",
       "sublabel": "寫入失敗或取消"
@@ -140,7 +143,7 @@
     {
       "id": "restore",
       "lane": "fail",
-      "col": 5,
+      "col": 4,
       "type": "backend",
       "label": "還原已改名的檔案",
       "sublabel": "還原失敗會保留備份"
@@ -148,7 +151,7 @@
     {
       "id": "report",
       "lane": "fail",
-      "col": 4,
+      "col": 3,
       "type": "frontend",
       "label": "回報可處理的原因",
       "sublabel": "既有底稿沒有被覆寫",
@@ -203,7 +206,9 @@
       "from": "stage",
       "to": "cleanup",
       "label": "失敗或取消",
-      "role": "error"
+      "role": "error",
+      "fromSide": "left",
+      "toSide": "top"
     },
     {
       "id": "cleanup_report",
@@ -215,14 +220,19 @@
       "from": "rename",
       "to": "restore",
       "label": "改名失敗",
-      "role": "error"
+      "role": "error",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 64
     },
     {
       "id": "manifest_restore",
       "from": "manifest",
       "to": "restore",
       "label": "更新清單失敗",
-      "role": "error"
+      "role": "error",
+      "fromSide": "bottom",
+      "toSide": "right"
     },
     {
       "id": "restore_report",

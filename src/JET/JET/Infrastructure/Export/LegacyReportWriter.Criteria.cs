@@ -226,13 +226,14 @@ public sealed partial class LegacyReportWriter
                     (uint)(CriteriaFirstScenarioRow + FilterScenarioLimits.MaxSavedScenarios + 1),
                     sheetData.Elements<Row>().Max(row => row.RowIndex?.Value ?? 0) + 2);
                 // 情境列下方的接續列：過長條件的分段與空白傳票號碼的說明，都沿用該情境 B 欄的格式。
+                // 條件的分段已經切成放得進一格的長度，其餘是程式固定的文字，所以照原樣寫出、不截斷。
                 void AppendContinuationRow(string label, string text, uint? style)
                 {
                     sheetData.Append(new Row(
                         new Cell { CellReference = $"A{nextConditionRow}", DataType = CellValues.InlineString,
-                            StyleIndex = style, InlineString = ExcelText.InlineString(label, preserveSpace: false) },
+                            StyleIndex = style, InlineString = ExcelText.VerbatimInlineString(label) },
                         new Cell { CellReference = $"B{nextConditionRow}", DataType = CellValues.InlineString,
-                            StyleIndex = style, InlineString = ExcelText.InlineString(text) })
+                            StyleIndex = style, InlineString = ExcelText.VerbatimInlineString(text) })
                         { RowIndex = nextConditionRow });
                     nextConditionRow++;
                     var dimension = worksheet.GetFirstChild<SheetDimension>();
@@ -260,7 +261,7 @@ public sealed partial class LegacyReportWriter
                         $"A{row}",
                         $"Criteria Selection {position}");
                     var conditionParts = FilterConditionExcelText.Parts(conditionLogic ?? scenario.Name);
-                    cells.SetInlineString($"B{row}", conditionParts.Count == 1 ? conditionParts[0]
+                    cells.SetVerbatimInlineString($"B{row}", conditionParts.Count == 1 ? conditionParts[0]
                         : $"完整條件見本頁第 {nextConditionRow} 列起，分段接續列出。");
                     var blankVoucherNumberRows = blankVoucherNumberHitRows.GetValueOrDefault(position);
                     if (conditionParts.Count > 1 || blankVoucherNumberRows > 0)

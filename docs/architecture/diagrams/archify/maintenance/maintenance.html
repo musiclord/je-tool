@@ -47,7 +47,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="archify 3.1.0">
+  <meta name="generator" content="archify 3.2.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
   <title>部署與維護程序草案</title>
   <script>
@@ -2780,19 +2780,31 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     }
     html[data-reader-rail="bottom"] .node-outline-head { padding: 1rem 2.5rem 0.375rem 0.25rem; }
     html[data-reader-rail="bottom"] .node-outline-list {
-      columns: 15rem;
-      column-gap: 1.75rem;
+      display: grid;
+      gap: 0.5rem;
       padding: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-    /* Named groups stay whole; a single unnamed group may split across columns,
-       where a continuous spine would read as a broken line. */
     html[data-reader-rail="bottom"] .node-outline-group + .node-outline-group { margin-top: 0; }
-    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { break-inside: avoid; padding-bottom: 0.25rem; }
-    html[data-reader-rail="bottom"] .node-outline-group:not(:has(> .node-outline-heading)) > ul::before { display: none; }
-    html[data-reader-rail="bottom"] .node-outline-group li { break-inside: avoid; }
+    html[data-reader-rail="bottom"] .node-outline-group:has(> .node-outline-heading) { padding-bottom: 0.25rem; }
+    html[data-reader-rail="bottom"] .node-outline-group > ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-group > ul::before { display: none; }
+    html[data-reader-rail="bottom"] .node-outline-group li {
+      flex: 0 1 auto;
+      min-width: min(100%, 12rem);
+      max-width: min(100%, 32rem);
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading {
+      justify-content: flex-start;
+      gap: 0.5rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-heading > span { overflow-wrap: anywhere; }
     .rail-controls { display: none; }
     html:is([data-reader-rail="true"], [data-reader-rail="overlay"], [data-reader-rail="bottom"]) .rail-controls {
       display: flex;
@@ -3008,6 +3020,37 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .node-outline-item:hover small,
     .node-outline-item[data-previewing] small,
     .node-outline-item[aria-current="true"] small { color: var(--text-muted); }
+
+    /* The desktop bottom rail is an index: compact rows keep related nodes
+       together while allowing full names and descriptions to wrap naturally. */
+    html[data-reader-rail="bottom"] .node-outline-item {
+      grid-template-columns: 0.625rem minmax(0, 1fr) 0.75rem;
+      align-items: first baseline;
+      column-gap: 0.375rem;
+      min-height: 0;
+      padding-block: 0.375rem;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong,
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item strong {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item small {
+      grid-column: 2;
+      grid-row: 2;
+      text-align: left;
+    }
+    html[data-reader-rail="bottom"] .node-outline-item::after {
+      grid-column: 3;
+      grid-row: 1;
+      align-self: center;
+    }
 
     .card-header {
       display: flex;
@@ -5203,7 +5246,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 942 528" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
+      <svg viewBox="0 0 816 528" data-reader-fit="width-first" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
         <title id="archify-diagram-title">部署與維護程序草案</title>
         <desc id="archify-diagram-description">由 Archify 產生的工作流程圖。</desc>
         <!-- Definitions -->
@@ -5250,13 +5293,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Swimlanes -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="886" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="760" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="74" class="t-muted" font-size="10" font-weight="600">01 / 部署前：建議，待公司確認</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="886" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="760" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="198" class="t-muted" font-size="10" font-weight="600">02 / 案件移轉：現行文件的前提</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="886" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="760" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="322" class="t-muted" font-size="10" font-weight="600">03 / 問題處理：建議，待驗證</text>
 
         <!-- Phase headers -->
@@ -5266,175 +5309,175 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
         <!-- Edge paths -->
-        <path data-edge-from="copy" data-edge-to="open" data-edge-key="0" data-edge-id="copy_open" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="354,243;386,243" d="M 354 243 L 386 243" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="exit" data-edge-to="copy" data-edge-key="1" data-edge-id="exit_copy" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="174,243;218,243" d="M 174 243 L 218 243" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="inventory" data-edge-to="package" data-edge-key="2" data-edge-id="inventory_package" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="208,119;240,119" d="M 208 119 L 240 119" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="open" data-edge-to="same" data-edge-key="3" data-edge-id="open_same" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="478,243;544,243" d="M 478 243 L 544 243" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="package" data-edge-to="smoke" data-edge-key="4" data-edge-id="package_smoke" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="332,119;386,119" d="M 332 119 L 386 119" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="record" data-edge-to="triage" data-edge-key="5" data-edge-id="record_triage" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="332,367;386,367" d="M 332 367 L 386 367" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="restore" data-edge-to="resume" data-edge-key="6" data-edge-id="restore_resume" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="670,367;702,367" d="M 670 367 L 702 367" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="same" data-edge-to="record" data-edge-label="不一致" data-edge-key="7" data-edge-id="same_record" data-composition-routing="workflow-v2-auto" data-edge-role="error" data-composition-points="590,269;590,314;286,314;286,341" d="M 590 269 L 590 306 Q 590 314 582 314 L 294 314 Q 286 314 286 322 L 286 341" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="same" data-edge-to="use" data-edge-label="一致" data-edge-key="8" data-edge-id="same_use" data-composition-routing="workflow-v2-auto" data-edge-role="branch" data-composition-points="636,243;702,243" d="M 636 243 L 702 243" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="smoke" data-edge-to="approve" data-edge-key="9" data-edge-id="smoke_approve" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="478,119;544,119" d="M 478 119 L 544 119" class="a-default" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="triage" data-edge-to="restore" data-edge-key="10" data-edge-id="triage_restore" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="478,367;510,367" d="M 478 367 L 510 367" class="a-default" data-animate="edge" style="--step:10" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="copy" data-edge-to="open" data-edge-key="0" data-edge-id="copy_open" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="292,243;324,243" d="M 292 243 L 324 243" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="exit" data-edge-to="copy" data-edge-key="1" data-edge-id="exit_copy" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="154,243;200,243" d="M 154 243 L 200 243" class="a-default" data-animate="edge" style="--step:1" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="inventory" data-edge-to="package" data-edge-key="2" data-edge-id="inventory_package" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="168,119;200,119" d="M 168 119 L 200 119" class="a-default" data-animate="edge" style="--step:2" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="open" data-edge-to="same" data-edge-key="3" data-edge-id="open_same" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="416,243;448,243" d="M 416 243 L 448 243" class="a-default" data-animate="edge" style="--step:3" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="package" data-edge-to="smoke" data-edge-key="4" data-edge-id="package_smoke" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="292,119;324,119" d="M 292 119 L 324 119" class="a-default" data-animate="edge" style="--step:4" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="record" data-edge-to="triage" data-edge-key="5" data-edge-id="record_triage" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="416,367;448,367" d="M 416 367 L 448 367" class="a-default" data-animate="edge" style="--step:5" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="restore" data-edge-to="resume" data-edge-key="6" data-edge-id="restore_resume" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="664,367;696,367" d="M 664 367 L 696 367" class="a-default" data-animate="edge" style="--step:6" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="same" data-edge-to="record" data-edge-label="不一致" data-edge-key="7" data-edge-id="same_record" data-edge-role="error" data-composition-points="494,269;494,290;370,290;370,341" d="M 494 269 L 494 282 Q 494 290 486 290 L 378 290 Q 370 290 370 298 L 370 341" class="a-default" data-animate="edge" style="--step:7" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="same" data-edge-to="use" data-edge-label="一致" data-edge-key="8" data-edge-id="same_use" data-edge-role="branch" data-composition-points="540,243;696,243" d="M 540 243 L 696 243" class="a-default" data-animate="edge" style="--step:8" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="smoke" data-edge-to="approve" data-edge-key="9" data-edge-id="smoke_approve" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="416,119;448,119" d="M 416 119 L 448 119" class="a-default" data-animate="edge" style="--step:9" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="triage" data-edge-to="restore" data-edge-key="10" data-edge-id="triage_restore" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="540,367;572,367" d="M 540 367 L 572 367" class="a-default" data-animate="edge" style="--step:10" stroke-width="1.4" marker-end="url(#arrowhead)"/>
 
         <!-- Nodes -->
         <g id="node-inventory" data-node-id="inventory" data-node-label="確認電腦環境" tabindex="0" role="button" aria-label="聚焦確認電腦環境，一般權限、WebView2、ACE, 部署前：建議，待公司確認" aria-pressed="false" data-node-kind="backend" data-node-sublabel="一般權限、WebView2、ACE" data-node-context="部署前：建議，待公司確認">
           <title>確認電腦環境 · 一般權限、WebView2、ACE · 部署前：建議，待公司確認</title>
-          <rect x="48" y="93" width="160" height="52" rx="8" class="c-mask"/>
-          <rect x="48" y="93" width="160" height="52" rx="8" class="c-backend" data-animate="node" style="--step:0" stroke-width="1.5"/>
+          <rect x="48" y="93" width="120" height="52" rx="8" class="c-mask"/>
+          <rect x="48" y="93" width="120" height="52" rx="8" class="c-backend" data-animate="node" style="--step:0" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(54 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="128" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認電腦環境</text>
-          <text data-detail="context" x="128" y="131" class="t-muted" font-size="8" text-anchor="middle">一般權限、WebView2、ACE</text>
+          <text data-node-label="" data-detail-anchor="" x="108" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認電腦環境</text>
+          <text data-detail="context" x="108" y="131" class="t-muted" font-size="8" text-anchor="middle">一般權限、WebView2、ACE</text>
         </g>
 
         <g id="node-package" data-node-id="package" data-node-label="核對發布資料夾" tabindex="0" role="button" aria-label="聚焦核對發布資料夾，完整內容與版本, 部署前：建議，待公司確認" aria-pressed="false" data-node-kind="backend" data-node-sublabel="完整內容與版本" data-node-context="部署前：建議，待公司確認">
           <title>核對發布資料夾 · 完整內容與版本 · 部署前：建議，待公司確認</title>
-          <rect x="240" y="93" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="240" y="93" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(246 99) scale(0.6875)">
+          <rect x="200" y="93" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="200" y="93" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:1" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(206 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="286" y="124" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">核對發布資料夾</text>
-          <text data-detail="context" x="286" y="138.6" class="t-muted" font-size="8" text-anchor="middle">完整內容與版本</text>
+          <text data-node-label="" data-detail-anchor="" x="246" y="124" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">核對發布資料夾</text>
+          <text data-detail="context" x="246" y="138.6" class="t-muted" font-size="8" text-anchor="middle">完整內容與版本</text>
         </g>
 
         <g id="node-smoke" data-node-id="smoke" data-node-label="用合成資料試跑" tabindex="0" role="button" aria-label="聚焦用合成資料試跑，匯入、篩選與匯出, 部署前：建議，待公司確認" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="匯入、篩選與匯出" data-node-context="部署前：建議，待公司確認">
           <title>用合成資料試跑 · 匯入、篩選與匯出 · 部署前：建議，待公司確認</title>
-          <rect x="386" y="93" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="386" y="93" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(392 99) scale(0.6875)">
+          <rect x="324" y="93" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="324" y="93" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(330 99) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="432" y="124" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">用合成資料試跑</text>
-          <text data-detail="context" x="432" y="138.6" class="t-muted" font-size="8" text-anchor="middle">匯入、篩選與匯出</text>
+          <text data-node-label="" data-detail-anchor="" x="370" y="124" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">用合成資料試跑</text>
+          <text data-detail="context" x="370" y="138.6" class="t-muted" font-size="8" text-anchor="middle">匯入、篩選與匯出</text>
         </g>
 
         <g id="node-approve" data-node-id="approve" data-node-label="確認部署安排" tabindex="0" role="button" aria-label="聚焦確認部署安排，負責人與審查待定, 部署前：建議，待公司確認" aria-pressed="false" data-node-kind="backend" data-node-sublabel="負責人與審查待定" data-node-context="部署前：建議，待公司確認">
           <title>確認部署安排 · 負責人與審查待定 · 部署前：建議，待公司確認</title>
-          <rect x="544" y="93" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="544" y="93" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(550 99) scale(0.6875)">
+          <rect x="448" y="93" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="448" y="93" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(454 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="590" y="125.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認部署安排</text>
-          <text data-detail="context" x="590" y="140.1" class="t-muted" font-size="8" text-anchor="middle">負責人與審查待定</text>
+          <text data-node-label="" data-detail-anchor="" x="494" y="125.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">確認部署安排</text>
+          <text data-detail="context" x="494" y="140.1" class="t-muted" font-size="8" text-anchor="middle">負責人與審查待定</text>
         </g>
 
         <g id="node-exit" data-node-id="exit" data-node-label="正常離開 JET" tabindex="0" role="button" aria-label="聚焦正常離開 JET，資料庫不再被開啟, 案件移轉：現行文件的前提" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="資料庫不再被開啟" data-node-context="案件移轉：現行文件的前提">
           <title>正常離開 JET · 資料庫不再被開啟 · 案件移轉：現行文件的前提</title>
-          <rect x="82" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="82" y="217" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:4" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(88 223) scale(0.6875)">
+          <rect x="62" y="217" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="62" y="217" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:4" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(68 223) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="128" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">正常離開 JET</text>
-          <text data-detail="context" x="128" y="264.1" class="t-muted" font-size="8" text-anchor="middle">資料庫不再被開啟</text>
+          <text data-node-label="" data-detail-anchor="" x="108" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">正常離開 JET</text>
+          <text data-detail="context" x="108" y="264.1" class="t-muted" font-size="8" text-anchor="middle">資料庫不再被開啟</text>
         </g>
 
-        <g id="node-copy" data-node-id="copy" data-node-label="複製完整案件" tabindex="0" role="button" aria-label="聚焦複製完整案件，project.json、資料庫與報告, 案件移轉：現行文件的前提" aria-pressed="false" data-node-kind="backend" data-node-sublabel="project.json、資料庫與報告" data-node-context="案件移轉：現行文件的前提">
-          <title>複製完整案件 · project.json、資料庫與報告 · 案件移轉：現行文件的前提</title>
-          <rect x="218" y="217" width="136" height="52" rx="8" class="c-mask"/>
-          <rect x="218" y="217" width="136" height="52" rx="8" class="c-backend" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(224 223) scale(0.6875)">
+        <g id="node-copy" data-node-id="copy" data-node-label="複製完整案件" tabindex="0" role="button" aria-label="聚焦複製完整案件，整個案件資料夾, 案件移轉：現行文件的前提" aria-pressed="false" data-node-kind="backend" data-node-sublabel="整個案件資料夾" data-node-context="案件移轉：現行文件的前提">
+          <title>複製完整案件 · 整個案件資料夾 · 案件移轉：現行文件的前提</title>
+          <rect x="200" y="217" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="200" y="217" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:5" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(206 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="286" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">複製完整案件</text>
-          <text data-detail="context" x="286" y="255" class="t-muted" font-size="8" text-anchor="middle">project.json、資料庫與報告</text>
+          <text data-node-label="" data-detail-anchor="" x="246" y="249.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">複製完整案件</text>
+          <text data-detail="context" x="246" y="264.1" class="t-muted" font-size="8" text-anchor="middle">整個案件資料夾</text>
         </g>
 
         <g id="node-open" data-node-id="open" data-node-label="在目的地開副本" tabindex="0" role="button" aria-label="聚焦在目的地開副本，原案件先保留, 案件移轉：現行文件的前提" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="原案件先保留" data-node-context="案件移轉：現行文件的前提">
           <title>在目的地開副本 · 原案件先保留 · 案件移轉：現行文件的前提</title>
-          <rect x="386" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="386" y="217" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(392 223) scale(0.6875)">
+          <rect x="324" y="217" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="324" y="217" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(330 223) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="432" y="248" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">在目的地開副本</text>
-          <text data-detail="context" x="432" y="262.6" class="t-muted" font-size="8" text-anchor="middle">原案件先保留</text>
+          <text data-node-label="" data-detail-anchor="" x="370" y="248" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">在目的地開副本</text>
+          <text data-detail="context" x="370" y="262.6" class="t-muted" font-size="8" text-anchor="middle">原案件先保留</text>
         </g>
 
-        <g id="node-same" data-node-id="same" data-node-label="結果一致？" tabindex="0" role="button" aria-label="聚焦結果一致？，比對範圍待公司決定, 案件移轉：現行文件的前提" aria-pressed="false" data-node-kind="backend" data-node-sublabel="比對範圍待公司決定" data-node-context="案件移轉：現行文件的前提">
-          <title>結果一致？ · 比對範圍待公司決定 · 案件移轉：現行文件的前提</title>
-          <rect x="544" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="544" y="217" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:7" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="decision" class="semantic-sigil s-backend" transform="translate(550 223) scale(0.6875)">
+        <g id="node-same" data-node-id="same" data-node-label="結果一致？" tabindex="0" role="button" aria-label="聚焦結果一致？，比對範圍待公司定, 案件移轉：現行文件的前提" aria-pressed="false" data-node-kind="backend" data-node-sublabel="比對範圍待公司定" data-node-context="案件移轉：現行文件的前提">
+          <title>結果一致？ · 比對範圍待公司定 · 案件移轉：現行文件的前提</title>
+          <rect x="448" y="217" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="448" y="217" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:7" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="decision" class="semantic-sigil s-backend" transform="translate(454 223) scale(0.6875)">
             <path d="M8 2.2 13.8 8 8 13.8 2.2 8Z"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="596" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">結果一致？</text>
-          <text data-detail="context" x="590" y="255" class="t-muted" font-size="7.7" text-anchor="middle">比對範圍待公司決定</text>
+          <text data-node-label="" data-detail-anchor="" x="500" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">結果一致？</text>
+          <text data-detail="context" x="494" y="255" class="t-muted" font-size="8" text-anchor="middle">比對範圍待公司定</text>
         </g>
 
         <g id="node-use" data-node-id="use" data-node-label="改用新位置" tabindex="0" role="button" aria-label="聚焦改用新位置，建議步驟, 案件移轉：現行文件的前提" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="建議步驟" data-node-context="案件移轉：現行文件的前提">
           <title>改用新位置 · 建議步驟 · 案件移轉：現行文件的前提</title>
-          <rect x="702" y="217" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="702" y="217" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:8" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(708 223) scale(0.6875)">
+          <rect x="696" y="217" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="696" y="217" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:8" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(702 223) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="754" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">改用新位置</text>
-          <text data-detail="context" x="748" y="255" class="t-muted" font-size="8" text-anchor="middle">建議步驟</text>
+          <text data-node-label="" data-detail-anchor="" x="748" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">改用新位置</text>
+          <text data-detail="context" x="742" y="255" class="t-muted" font-size="8" text-anchor="middle">建議步驟</text>
         </g>
 
         <g id="node-record" data-node-id="record" data-node-label="匯出支援日誌" tabindex="0" role="button" aria-label="聚焦匯出支援日誌，記下錯誤與版本, 問題處理：建議，待驗證" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="記下錯誤與版本" data-node-context="問題處理：建議，待驗證">
           <title>匯出支援日誌 · 記下錯誤與版本 · 問題處理：建議，待驗證</title>
-          <rect x="240" y="341" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="240" y="341" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:9" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(246 347) scale(0.6875)">
+          <rect x="324" y="341" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="324" y="341" width="92" height="52" rx="8" class="c-frontend" data-animate="node" style="--step:9" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(330 347) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="286" y="373.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">匯出支援日誌</text>
-          <text data-detail="context" x="286" y="388.1" class="t-muted" font-size="8" text-anchor="middle">記下錯誤與版本</text>
+          <text data-node-label="" data-detail-anchor="" x="370" y="373.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">匯出支援日誌</text>
+          <text data-detail="context" x="370" y="388.1" class="t-muted" font-size="8" text-anchor="middle">記下錯誤與版本</text>
         </g>
 
         <g id="node-triage" data-node-id="triage" data-node-label="區分問題來源" tabindex="0" role="button" aria-label="聚焦區分問題來源，環境、檔案或程式, 問題處理：建議，待驗證" aria-pressed="false" data-node-kind="backend" data-node-sublabel="環境、檔案或程式" data-node-context="問題處理：建議，待驗證">
           <title>區分問題來源 · 環境、檔案或程式 · 問題處理：建議，待驗證</title>
-          <rect x="386" y="341" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="386" y="341" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:10" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(392 347) scale(0.6875)">
+          <rect x="448" y="341" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="448" y="341" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:10" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(454 347) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="432" y="373.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">區分問題來源</text>
-          <text data-detail="context" x="432" y="388.1" class="t-muted" font-size="8" text-anchor="middle">環境、檔案或程式</text>
+          <text data-node-label="" data-detail-anchor="" x="494" y="373.2" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">區分問題來源</text>
+          <text data-detail="context" x="494" y="388.1" class="t-muted" font-size="8" text-anchor="middle">環境、檔案或程式</text>
         </g>
 
-        <g id="node-restore" data-node-id="restore" data-node-label="用副本演練復原" tabindex="0" role="button" aria-label="聚焦用副本演練復原，舊版不一定能讀新結構, 問題處理：建議，待驗證" aria-pressed="false" data-node-kind="backend" data-node-sublabel="舊版不一定能讀新結構" data-node-context="問題處理：建議，待驗證">
-          <title>用副本演練復原 · 舊版不一定能讀新結構 · 問題處理：建議，待驗證</title>
-          <rect x="510" y="341" width="160" height="52" rx="8" class="c-mask"/>
-          <rect x="510" y="341" width="160" height="52" rx="8" class="c-backend" data-animate="node" style="--step:11" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(516 347) scale(0.6875)">
+        <g id="node-restore" data-node-id="restore" data-node-label="用副本演練復原" tabindex="0" role="button" aria-label="聚焦用副本演練復原，舊版不一定相容, 問題處理：建議，待驗證" aria-pressed="false" data-node-kind="backend" data-node-sublabel="舊版不一定相容" data-node-context="問題處理：建議，待驗證">
+          <title>用副本演練復原 · 舊版不一定相容 · 問題處理：建議，待驗證</title>
+          <rect x="572" y="341" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="572" y="341" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:11" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(578 347) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="590" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">用副本演練復原</text>
-          <text data-detail="context" x="590" y="379" class="t-muted" font-size="8" text-anchor="middle">舊版不一定能讀新結構</text>
+          <text data-node-label="" data-detail-anchor="" x="618" y="372" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">用副本演練復原</text>
+          <text data-detail="context" x="618" y="386.6" class="t-muted" font-size="8" text-anchor="middle">舊版不一定相容</text>
         </g>
 
-        <g id="node-resume" data-node-id="resume" data-node-label="核對後恢復作業" tabindex="0" role="button" aria-label="聚焦核對後恢復作業，保留期限與責任待定, 問題處理：建議，待驗證" aria-pressed="false" data-node-kind="backend" data-node-sublabel="保留期限與責任待定" data-node-context="問題處理：建議，待驗證">
-          <title>核對後恢復作業 · 保留期限與責任待定 · 問題處理：建議，待驗證</title>
-          <rect x="702" y="341" width="92" height="52" rx="8" class="c-mask"/>
-          <rect x="702" y="341" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(708 347) scale(0.6875)">
+        <g id="node-resume" data-node-id="resume" data-node-label="核對後恢復作業" tabindex="0" role="button" aria-label="聚焦核對後恢復作業，保留期與責任待定, 問題處理：建議，待驗證" aria-pressed="false" data-node-kind="backend" data-node-sublabel="保留期與責任待定" data-node-context="問題處理：建議，待驗證">
+          <title>核對後恢復作業 · 保留期與責任待定 · 問題處理：建議，待驗證</title>
+          <rect x="696" y="341" width="92" height="52" rx="8" class="c-mask"/>
+          <rect x="696" y="341" width="92" height="52" rx="8" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(702 347) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="748" y="372" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">核對後恢復作業</text>
-          <text data-detail="context" x="748" y="386.3" class="t-muted" font-size="7.7" text-anchor="middle">保留期限與責任待定</text>
+          <text data-node-label="" data-detail-anchor="" x="742" y="372" class="t-primary" font-size="10" font-weight="600" text-anchor="middle">核對後恢復作業</text>
+          <text data-detail="context" x="742" y="386.6" class="t-muted" font-size="8" text-anchor="middle">保留期與責任待定</text>
         </g>
 
         <!-- Edge labels -->
@@ -5446,12 +5489,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
         <g data-detail="context" data-edge-from="same" data-edge-to="record" data-edge-label="不一致" data-edge-key="7" data-edge-id="same_record">
-          <rect x="570.6" y="271.5" width="38.8" height="14" rx="3" class="c-mask"/>
-          <text x="590" y="281.5" class="t-muted" font-size="8" text-anchor="middle">不一致</text>
+          <rect x="350.6" y="307.5" width="38.8" height="14" rx="3" class="c-mask"/>
+          <text x="370" y="317.5" class="t-muted" font-size="8" text-anchor="middle">不一致</text>
         </g>
         <g data-detail="context" data-edge-from="same" data-edge-to="use" data-edge-label="一致" data-edge-key="8" data-edge-id="same_use">
-          <rect x="654" y="223" width="30" height="14" rx="3" class="c-mask"/>
-          <text x="669" y="233" class="t-muted" font-size="8" text-anchor="middle">一致</text>
+          <rect x="603" y="223" width="30" height="14" rx="3" class="c-mask"/>
+          <text x="618" y="233" class="t-muted" font-size="8" text-anchor="middle">一致</text>
         </g>
 
 
@@ -5844,6 +5887,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         else open(false);
       });
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -5860,6 +5904,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab') { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         var available = options();
         var active = available.indexOf(document.activeElement);
         switch (e.key) {
@@ -7283,6 +7328,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       });
       // APG menu-button pattern: ArrowDown/ArrowUp on the trigger opens the menu.
       btn.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           if (!isOpen()) open(e.key === 'ArrowUp');
@@ -7298,6 +7344,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       menu.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
         if (e.key === 'Tab')    { close(false); return; }
+        if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
         var available = items().filter(function (i) { return !i.hidden && !i.disabled; });
         var current = available.indexOf(document.activeElement);
@@ -9925,6 +9972,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         syncRelationshipPreview();
       });
       relationshipList.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return;
         var buttons = Array.prototype.slice.call(relationshipList.querySelectorAll('[data-relationship-target]'));
         if (!buttons.length) return;
@@ -12713,6 +12761,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       closeBtn.addEventListener('click', function () { close(); });
       input.addEventListener('input', function () { render(input.value); });
       input.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         if (event.key === 'ArrowDown' && buttons.length) {
           event.preventDefault();
@@ -12723,6 +12772,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
       });
       results.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = resultButtons();
         var index = buttons.indexOf(document.activeElement);
         if (index < 0 || !buttons.length) return;
@@ -12757,6 +12807,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         count: items.length
       };
     })();
+
 
     /* ============================================================
        Node Outline — a rail index of the semantic nodes, grouped by their
@@ -13862,6 +13913,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         if (journeyPlaying && event.target.closest('[data-route-journey-index]')) pauseJourney({ preserveElapsed: true });
       });
       path.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var button = event.target.closest('[data-route-journey-index]');
         if (!button) return;
         var index = Number(button.getAttribute('data-route-journey-index'));
@@ -14537,6 +14589,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         select(button.getAttribute('data-kind'));
       });
       kindsRoot.addEventListener('keydown', function (event) {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
         var buttons = Array.prototype.slice.call(kindsRoot.querySelectorAll('button:not(:disabled)'));
         var index = buttons.indexOf(document.activeElement);
         var next = null;
@@ -14774,6 +14827,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) return;
       if (e.defaultPrevented) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;

@@ -49,7 +49,9 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
                 mode,
                 PayloadReader.GetOptionalString(payload, "sourceColumn")));
 
-        var request = TabularSourcePayload.Parse(payload, filePath);
+        // 有公式、卻沒有存計算結果的格數，匯入完成後寫進提醒。
+        var request = TabularSourcePayload.Parse(payload, filePath)
+            with { FormulasWithoutResult = new FormulaWithoutResultTally() };
         var source = new ImportSourceDescriptor(filePath, fileName, request.SheetName, null, null);
         // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒。
         var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
@@ -72,6 +74,11 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             },
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
+        string[] warnings =
+        [
+            .. openElsewhereWarnings,
+            .. ImportMessages.FormulaWithoutResult(fileName, request.FormulasWithoutResult)
+        ];
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
@@ -87,7 +94,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             duplicateRowCount = result.Import.DuplicateRowCount,
             matchedPreparerCount = result.Import.MatchedPreparerCount,
             // 和其他匯入一樣：warnings 是全部提醒，開著的檔案那則另外列一份，畫面放在清單的匯入結果旁。
-            warnings = openElsewhereWarnings,
+            warnings,
             openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
@@ -97,7 +104,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
     }
 }
 
-public sealed class ClearAuthorizedPreparerHandler(ProjectSession session, ILogger? logger = null)
+public sealed class ImportAuthorizedPreparerClearHandler(ProjectSession session, ILogger? logger = null)
     : IApplicationActionHandler
 {
     public string Action => "import.authorizedPreparer.clear";

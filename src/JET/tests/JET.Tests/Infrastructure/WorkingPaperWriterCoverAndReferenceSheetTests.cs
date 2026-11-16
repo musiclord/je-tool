@@ -95,8 +95,8 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             workbook.Worksheet(CoverSheet).Cell("A3").GetString());
         var step3 = workbook.Worksheet(Step3Sheet);
         Assert.Contains("2025-01-01 ~ 2025-12-31", step3.Cell("B7").GetString(), StringComparison.Ordinal);
-        // 這句用未納入原因的名稱「總帳日期空白」；底稿句子裡的欄位名稱用【】標示。
-        Assert.Contains("查核期間外與【總帳日期】空白的分錄", step3.Cell("B9").GetString(), StringComparison.Ordinal);
+        // 這句用未納入原因的名稱「總帳日期空白」；底稿句子裡的欄位名稱照原樣寫，不加任何符號。
+        Assert.Contains("查核期間外與總帳日期空白的分錄", step3.Cell("B9").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

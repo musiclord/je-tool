@@ -36,7 +36,7 @@ toc: true
 |---|---|
 | 功能 | 六個步驟的功能，見第 2 節。 |
 | 效能 | 資料處理方式見第 6 節的架構決策；前端僅載入摘要與分頁資料，每頁 200 筆。尚未建立效能基準，量測方式見第 14 節。 |
-| 可用性與延展性 | 不適用。JET 為單機桌面應用程式，無常駐服務；每個案件使用一個資料庫檔。 |
+| 可用性與延展性 | 不適用，JET 為單機桌面應用程式，無常駐服務；每個案件使用一個資料庫檔。 |
 | 無障礙 | 未訂定無障礙標準。文字對比的規則見 Design Principle.docx 第 2 節。 |
 | 安全 | 見第 12 節。 |
 | 相容性 | Windows 11 64 位元。匯入 Excel（.xlsx、.xlsm、.xls）、文字檔（.csv、.txt）與 Access（.mdb、.accdb）；輸出 Excel（.xlsx）。 |
@@ -72,7 +72,7 @@ toc: true
 | 相依關係 | 下表為直接引用的元件；間接引用的 14 個套件未逐項列出。 |
 | 產生方式 | 未使用 SBOM 產生工具。依開發環境的套件還原結果整理，授權依各元件的宣告核對。 |
 | 格式 | 表列。尚未產出 SPDX 或 CycloneDX 格式的 SBOM。 |
-| 存放與保存期限 | 清冊列於本節；套件與版本宣告於 JET/JET.csproj 與 tests/JET.Tests/JET.Tests.csproj。存取方式與保存期限：未訂定。 |
+| 存放與保存期限 | 清冊列於本節；套件與版本宣告於 JET/JET.csproj 與 tests/JET.Tests/JET.Tests.csproj。存取方式與保存期限：待填 |
 | 追溯 | 對應 JET 1.0.0.0。commit ID、build ID 與發布檔雜湊值：待填 |
 
 所列元件無須另購商業授權。授權聲明檔的現況見第 19 節。
@@ -100,14 +100,14 @@ toc: true
 | 工具與範圍 | .NET 10 SDK 的 NuGet 套件弱點查詢（dotnet package list）；範圍為應用程式專案直接與間接引用的 NuGet 套件，不含發布檔內含的 .NET runtime 與前端的第三方元件。 |
 | 資料來源 | nuget.org 提供的公開弱點資料。 |
 | 查詢日期與結果 | 2026-11-06 查詢，未發現已知弱點。 |
-| 已處置事項 | GitHub 公告 GHSA-2m69-gcr7-jv3q：SQLitePCLRaw.lib.e_sqlite3 2.1.11 及更早的版本內含受 CVE-2025-6965（CVSS 4.0 分數 7.2）影響的 SQLite，建議升級至 SQLite 3.50.2 以上。專案直接引用 SQLitePCLRaw.bundle_e_sqlite3 3.0.5，取代 Microsoft.Data.Sqlite 10.0.13 宣告引用的 2.1.13；套件還原結果不含公告所列的套件，SQLite 為 3.53.4。 |
+| 已處置事項 | GitHub 公告 GHSA-2m69-gcr7-jv3q：SQLitePCLRaw.lib.e_sqlite3 2.1.11 及更早的版本內含受 CVE-2025-6965（CVSS 4.0 分數 7.2）影響的 SQLite；公告的修正方式為升級至 SQLite 3.50.2 以上。專案直接引用 SQLitePCLRaw.bundle_e_sqlite3 3.0.5，取代 Microsoft.Data.Sqlite 10.0.13 宣告引用的 2.1.13；套件還原結果不含公告所列的套件，SQLite 為 3.53.4。 |
 | 授權檢查 | 逐一核對直接與間接引用元件的授權。直接引用元件的結果見第 5.1 節；間接引用的 14 個套件為 MIT 9 個、Apache-2.0 4 個，以及公有領域的 SQLite。 |
 | 停止維護元件的檢查 | 未執行。 |
 | 誤判 | 無。 |
-| 處置責任與期限 | 開發人員更新套件後重新查詢。處置期限：未訂定。 |
+| 處置責任與期限 | 開發人員更新套件後重新查詢。處置期限：待填 |
 | 複核與例外核准的責任 | 待填 |
-| 元件核准與授權政策 | 未訂定。 |
-| 合併與發布的阻擋條件 | 未訂定。 |
+| 元件核准與授權政策 | 待填 |
+| 合併與發布的阻擋條件 | 待填 |
 | 例外核准 | 無。 |
 
 查詢命令：
@@ -126,8 +126,8 @@ dotnet package list --project JET/JET.csproj `
 |---|---|
 | 1.0.0.0 的元件清冊與查詢結果 | 見第 5.1 節與第 5.2 節。 |
 | 發布前的弱點查詢 | 待填 |
-| 查詢報告的保存 | 未訂定。 |
-| 發布後出現新弱點時的重新評估 | 未訂定。 |
+| 查詢報告的保存 | 待填 |
+| 發布後出現新弱點時的重新評估 | 待填 |
 | 未結事項與例外核准 | 無。 |
 | 核准決定與簽核日期 | 待填 |
 
@@ -204,7 +204,7 @@ dotnet build JET.slnx -c Debug
 dotnet run --project JET/JET.csproj -c Debug
 ```
 
-JET 讀取的環境變數僅 JET_PROJECTS_ROOT 一項，用於指定案件根資料夾，例如 `D:\JET`；未設定時為 `%USERPROFILE%\JET`。除各案件的設定檔 project.json（見第 10 節）外，JET 無其他設定檔。開發環境與正式環境僅建置組態不同。
+JET 讀取的環境變數僅 JET_PROJECTS_ROOT 一項，用於指定案件根資料夾，例如 `D:\JET`；未設定時為 `%USERPROFILE%\JET`。除各案件的設定檔 project.json（見第 10 節）外，JET 無其他設定檔。JET 在開發環境與正式環境僅建置組態不同。
 
 ## 10. Data Design & Management
 
@@ -313,7 +313,7 @@ JET 未提供對外的 API。前端與後端以 WebView2 的 Web 訊息通道交
 | 效能測試 | 以 1,000,000 筆合成 GL 量測完整流程的耗時與記憶體用量，未訂定通過門檻。效能測試不在下列命令的範圍，量測結果未列入 Unit test Report.xlsx。 |
 | 安全測試 | NuGet 套件弱點查詢，見第 5.2 節。 |
 
-測試環境為開發環境，見第 9 節。後端測試於建置後執行，前端測試無須建置。下列命令執行的測試使用合成測試資料。命令排除標記為 Scale 的效能測試。
+自動化測試於開發環境執行，環境見第 9 節。後端測試於建置後執行，前端測試無須建置。下列命令執行的測試使用合成測試資料。命令排除標記為 Scale 的效能測試。
 
 ```
 dotnet build JET.slnx -c Debug
@@ -360,7 +360,7 @@ JET 1.0.0.0 為 repository 的首次 commit，無先前的修訂。Git commit �
 | Commit | 首次 commit。commit ID：待填 |
 | 受影響模組 | 全部原始碼。 |
 | 原因與實作摘要 | 首次發布，功能見第 2 節。 |
-| 第三方元件變更 | 不適用，元件清冊見第 5.1 節。 |
+| 第三方元件變更 | 不適用，無先前版本；元件清冊見第 5.1 節。 |
 | 測試佐證 | Code Review/Unit test Report.xlsx |
 | 相容性影響 | 不適用，無先前版本。 |
 

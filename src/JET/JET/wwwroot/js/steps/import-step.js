@@ -478,7 +478,7 @@
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
               Store.applyMutationEffects(data);
-              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒。
+              // 後端回的提醒逐則記進訊息面板，例如來源檔正被 Excel 開著，或有公式、卻沒有存計算結果的儲存格。
               (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
               return data;
             });
@@ -514,7 +514,7 @@
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
               Store.applyMutationEffects(data);
-              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒。
+              // 後端回的提醒逐則記進訊息面板，例如來源檔正被 Excel 開著，或有公式、卻沒有存計算結果的儲存格。
               (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
               return data;
             });
@@ -1200,6 +1200,8 @@
 
       return global.JetApi.importPreviewFile(payload).then(function (data) {
         item.previewData = { columns: data.columns || [], sampleRows: data.sampleRows || [] };
+        // 預覽也會帶回提醒，例如讀到的列裡有公式、卻沒有存計算結果；和 refreshSource 一樣整份換新。
+        item.notices = data.notices || [];
         Store.touch();
       }).catch(function (error) {
         item.previewOpen = false; // 失敗則收合，避免卡在「載入中」

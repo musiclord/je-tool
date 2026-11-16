@@ -47,6 +47,11 @@ packages/
 project.lock.json
 .dotnet/
 
+# Tool installs and virtual environments are machine-specific.
+node_modules/
+.venv/
+venv/
+
 # Python bytecode written when harness scripts run.
 __pycache__/
 *.py[cod]
@@ -63,6 +68,10 @@ EBWebView/
 # ===== Legacy application artifacts =====
 *.frx
 *.accdb
+
+# Local working records stay on this machine: detailed process notes, records the
+# verification framework keeps for resuming work, and any observation about a real case.
+/local/
 
 # Agent transcripts and raw execution dumps are not project documentation.
 docs/specs/*-execution-details.md

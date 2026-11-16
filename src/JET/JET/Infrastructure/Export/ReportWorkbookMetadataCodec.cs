@@ -217,7 +217,7 @@ internal static class ReportWorkbookMetadataWorksheet
     {
         CellReference = reference,
         DataType = CellValues.InlineString,
-        InlineString = ExcelText.InlineString(value)
+        InlineString = ExcelText.VerbatimInlineString(value)
     };
 
     private static Cell Number(string reference, int value) => new()

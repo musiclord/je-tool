@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "erd",
   "meta": {
-    "title": "SQLite：欄位配對與標準化資料",
+    "title": "SQLite：欄位配對、TB 與批次來源",
     "locale": "zh-TW",
     "output": "archify/projection-erd/projection-erd.html",
     "quality_profile": "standard",
@@ -30,9 +30,10 @@
   },
   "layout": {
     "mode": "grid",
-    "gapX": 120,
+    "gapX": 56,
     "gapY": 70,
-    "entityW": 340
+    "entityW": 230,
+    "rowH": 18
   },
   "entities": [
     {
@@ -114,124 +115,11 @@
       "sublabel": "重新匯入前的上一版配對"
     },
     {
-      "id": "import_batch",
-      "label": "import_batch",
-      "row": 2,
-      "col": 0,
-      "sublabel": "完整欄位見匯入批次的關聯圖",
-      "tag": "參照",
-      "attributes": [
-        {
-          "name": "batch_id",
-          "type": "TEXT",
-          "key": "pk"
-        }
-      ]
-    },
-    {
-      "id": "gl",
-      "label": "gl",
-      "row": 0,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "entry_id",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "batch_id",
-          "type": "TEXT"
-        },
-        {
-          "name": "source_row_number",
-          "type": "INTEGER"
-        },
-        {
-          "name": "voucher_number",
-          "type": "TEXT"
-        },
-        {
-          "name": "line_item",
-          "type": "TEXT"
-        },
-        {
-          "name": "line_item_numeric_sort_key",
-          "type": "TEXT"
-        },
-        {
-          "name": "gl_date",
-          "type": "TEXT"
-        },
-        {
-          "name": "approval_date",
-          "type": "TEXT"
-        },
-        {
-          "name": "account_number",
-          "type": "TEXT"
-        },
-        {
-          "name": "account_name",
-          "type": "TEXT"
-        },
-        {
-          "name": "description",
-          "type": "TEXT"
-        },
-        {
-          "name": "source_module",
-          "type": "TEXT"
-        },
-        {
-          "name": "created_by",
-          "type": "TEXT"
-        },
-        {
-          "name": "approved_by",
-          "type": "TEXT"
-        },
-        {
-          "name": "is_manual",
-          "type": "INTEGER"
-        },
-        {
-          "name": "amount_scaled",
-          "type": "INTEGER"
-        },
-        {
-          "name": "debit_amount_scaled",
-          "type": "INTEGER"
-        },
-        {
-          "name": "credit_amount_scaled",
-          "type": "INTEGER"
-        },
-        {
-          "name": "dr_cr",
-          "type": "TEXT"
-        },
-        {
-          "name": "posting_status",
-          "type": "TEXT"
-        },
-        {
-          "name": "is_excluded",
-          "type": "INTEGER"
-        },
-        {
-          "name": "exclusion_reason",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "標準化資料",
-      "sublabel": "GL 與 GL(未納入測試) 的分錄"
-    },
-    {
       "id": "tb",
       "label": "tb",
-      "row": 1,
+      "row": 0,
       "col": 1,
+      "width": 330,
       "attributes": [
         {
           "name": "balance_id",
@@ -265,8 +153,9 @@
     {
       "id": "gl_control_total",
       "label": "gl_control_total",
-      "row": 2,
+      "row": 1,
       "col": 1,
+      "width": 330,
       "attributes": [
         {
           "name": "singleton",
@@ -314,75 +203,35 @@
       "sublabel": "存入筆數與合計核對的數字"
     },
     {
-      "id": "gl_rde_field",
-      "label": "gl_rde_field",
+      "id": "import_batch",
+      "label": "import_batch",
       "row": 0,
       "col": 2,
+      "width": 170,
+      "sublabel": "只畫連接欄位 batch_id",
+      "tag": "參照",
       "attributes": [
         {
-          "name": "field_id",
+          "name": "batch_id",
           "type": "TEXT",
           "key": "pk"
-        },
-        {
-          "name": "source_column",
-          "type": "TEXT"
-        },
-        {
-          "name": "label",
-          "type": "TEXT"
-        },
-        {
-          "name": "value_type",
-          "type": "TEXT"
-        },
-        {
-          "name": "ordinal",
-          "type": "INTEGER"
-        },
-        {
-          "name": "is_rde",
-          "type": "INTEGER"
         }
-      ],
-      "tag": "動態欄位",
-      "sublabel": "GL 攸關資料元素欄位的定義"
+      ]
     },
     {
-      "id": "gl_rde_value",
-      "label": "gl_rde_value",
+      "id": "gl",
+      "label": "gl",
       "row": 1,
       "col": 2,
+      "width": 170,
+      "sublabel": "只畫連接欄位 batch_id",
+      "tag": "參照",
       "attributes": [
         {
-          "name": "entry_id",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "field_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "value_type",
+          "name": "batch_id",
           "type": "TEXT"
-        },
-        {
-          "name": "text_value",
-          "type": "TEXT"
-        },
-        {
-          "name": "date_value",
-          "type": "TEXT"
-        },
-        {
-          "name": "amount_scaled",
-          "type": "INTEGER"
         }
-      ],
-      "tag": "動態欄位",
-      "sublabel": "每筆分錄的攸關資料元素值"
+      ]
     }
   ],
   "relationships": [
@@ -398,17 +247,6 @@
       "identifying": false
     },
     {
-      "id": "gl_batch",
-      "from": "gl",
-      "to": "import_batch",
-      "label": "batch_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
       "id": "tb_batch",
       "from": "tb",
       "to": "import_batch",
@@ -420,21 +258,10 @@
       "identifying": false
     },
     {
-      "id": "rde_entry",
-      "from": "gl_rde_value",
-      "to": "gl",
-      "label": "entry_id",
-      "fromCardinality": "many",
-      "toCardinality": "one",
-      "fromOptional": true,
-      "toOptional": false,
-      "identifying": false
-    },
-    {
-      "id": "rde_field",
-      "from": "gl_rde_value",
-      "to": "gl_rde_field",
-      "label": "field_id",
+      "id": "gl_batch",
+      "from": "gl",
+      "to": "import_batch",
+      "label": "batch_id",
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true,
@@ -447,8 +274,8 @@
       "dot": "cyan",
       "title": "保留資料的來源",
       "items": [
-        "標準 GL 與 TB 沿用原始資料的 batch_id。攸關資料元素以 entry_id 與 field_id 對應分錄及欄位。",
-        "重新匯入時，原配對移到上一版。"
+        "標準 GL 與 TB 沿用原始資料的 batch_id；這是程式在 SQL 裡使用的欄位，資料庫沒有宣告外鍵。重新匯入時，原配對移到上一版。",
+        "import_batch 與 gl 只畫連接欄位 batch_id。完整欄位分別見「SQLite：匯入批次、來源檔與欄位定義」與「SQLite：GL 分錄與攸關資料元素欄位」。"
       ]
     }
   ]
