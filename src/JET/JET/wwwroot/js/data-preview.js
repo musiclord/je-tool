@@ -497,7 +497,7 @@
         '<strong>載入失敗</strong>' +
         '<span>' + Ui.esc(message) + '</span>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-data-preview" ' +
-          'data-dataset="' + Ui.esc(dataset) + '">重試</button>' +
+          'data-dataset="' + Ui.esc(dataset) + '">重新載入</button>' +
       '</div>';
     if (elNote) { elNote.innerHTML = ''; }
   }
@@ -571,7 +571,7 @@
             errorBlock.className = 'data-preview__status data-preview__status--error';
             errorBlock.setAttribute('role', 'alert');
             errorBlock.innerHTML = '<span>' + Ui.esc(Ui.errorText(error, '換頁失敗。')) + '</span>' +
-              '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-data-preview" data-dataset="' + Ui.esc(dataset) + '">重試</button>';
+              '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-data-preview" data-dataset="' + Ui.esc(dataset) + '">重新載入</button>';
             elBody.appendChild(errorBlock);
           } else { renderPreviewError(dataset, error); }
           throw error;

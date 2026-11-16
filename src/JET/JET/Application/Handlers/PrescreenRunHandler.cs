@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// prescreen.run：預篩選規則以 set-based SQL 執行，wire key 見 <see cref="PrescreenRuleKeys"/>。
-/// 前置條件不足時標 na，由 AuditCore 的 Plan 階段決定：
-/// 0 命中也標 na（count 仍回 0）；naReason 只在前置不足時提供。
-/// 完整 response 存 prescreen_result 供 resume。
+/// prescreen.run：用集合式 SQL 執行預篩選規則；回應裡每條規則的 JSON 欄位名稱見 <see cref="PrescreenRuleKeys"/>。
+/// 規則需要的資料不齊時狀態是 na，由 AuditCore 規劃時決定，naReason 寫原因。
+/// 命中 0 筆時狀態也是 na，count 照樣回 0，這時沒有 naReason。
+/// 整份回應存進 prescreen_result，重新載入案件時讀回。
 /// </summary>
 public sealed class PrescreenRunHandler : IApplicationActionHandler
 {
@@ -190,8 +190,8 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
     }
 
     /// <summary>
-    /// 集中度分析（總覽區塊⑤）。所有顯示用彙總已由 AuditCore 算好，這裡只做 wire 命名；
-    /// 不適用時 preparers／rareAccounts／distinctAccountCount 一律為 null，不以 0 冒充。
+    /// 集中度分析（總覽區塊⑤）。顯示用的彙總都已經由 AuditCore 算好，這裡只換成回應的欄位名稱。
+    /// 不適用時 preparers、rareAccounts 與 distinctAccountCount 都是 null，不用 0 代替。
     /// </summary>
     private static object ConcentrationWire(PrescreenConcentration concentration) => new
     {
@@ -221,8 +221,8 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
     };
 
     /// <summary>
-    /// 預篩選 row-tag 的全期命中分布。AuditCore 已完成適用性、分母與占比的判定；
-    /// handler 僅轉成 camelCase wire。N/A 規則的三個數值欄皆為 null。
+    /// 逐筆標記的預篩選規則在整個查核期間各命中多少。規則適不適用、分母與占比都已經由 AuditCore 算好；
+    /// 這裡只換成 camelCase 的回應欄位。不適用的規則，hitLines、hitVouchers 與 ratePct 三個數值都是 null。
     /// </summary>
     private static object RulePeriodWire(PrescreenRulePeriod rulePeriod) => new
     {
@@ -237,7 +237,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         }).ToArray()
     };
 
-    /// <summary>AuditCore 的定位文案只在此轉成 camelCase wire，不在 Application 改寫語意。</summary>
+    /// <summary>AuditCore 寫好的預篩選定位說明，這裡只換成 camelCase 的回應欄位，不改文字的意思。</summary>
     private static object PositioningWire(PrescreenPositioning positioning) => new
     {
         aggregateGuidance = positioning.AggregateGuidance,

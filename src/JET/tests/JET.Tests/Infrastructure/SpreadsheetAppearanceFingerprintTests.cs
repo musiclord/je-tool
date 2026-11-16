@@ -6,22 +6,11 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using Xunit;
 using SpreadsheetColor = DocumentFormat.OpenXml.Spreadsheet.Color;
 using SpreadsheetFont = DocumentFormat.OpenXml.Spreadsheet.Font;
-using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Infrastructure;
 
-public sealed class SpreadsheetAppearanceFingerprintTests
+public sealed partial class SpreadsheetAppearanceFingerprintTests
 {
-    private static readonly string[] ReportTemplateNames =
-    [
-        "AccountMapping.xlsx",
-        "CriteriaSelectionReport.xlsx",
-        "INFReport.xlsx",
-        "PrescreeningReport.xlsx",
-        "ValidationReport.xlsx",
-        "WorkingPaper.xlsx"
-    ];
-
     [Fact]
     public void SyntheticWorkbook_ProducesTheHandCalculatedAppearanceFingerprint()
     {
@@ -341,26 +330,6 @@ public sealed class SpreadsheetAppearanceFingerprintTests
         Assert.Null(stale.Value("Rows!A1", "font.name"));
         Assert.Equal("Calibri", applied.Value("Rows!row:1", "style.font.name"));
         Assert.Equal("Calibri", applied.Value("Rows!A1", "font.name"));
-    }
-
-    [Fact]
-    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
-    public void SixReportTemplates_ProduceByteIdenticalJsonOnRepeatedCapture()
-    {
-        var dataRoot = Path.Combine(TestRepositoryPaths.RepositoryRoot, "data");
-
-        foreach (var templateName in ReportTemplateNames)
-        {
-            var path = Path.Combine(dataRoot, templateName);
-            Assert.True(File.Exists(path), $"Missing report template: data/{templateName}");
-
-            var first = SpreadsheetAppearanceFingerprint.Capture(path);
-            var second = SpreadsheetAppearanceFingerprint.Capture(path);
-
-            Assert.NotEmpty(first.Entries);
-            Assert.Equal(first.JsonBytes, second.JsonBytes);
-            Assert.Null(first.DescribeFirstDifference(second));
-        }
     }
 
     private static void WriteSyntheticWorkbook(string path, bool bold)

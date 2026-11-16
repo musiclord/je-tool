@@ -107,7 +107,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.DoesNotContain("TEXT_SET_MAX_VALUES", values, StringComparison.Ordinal);
 
         Assert.Contains("最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值，空行不列入。'", values, StringComparison.Ordinal);
-        // 第九節 E 移除自製月曆，改在加入日期前擋下已滿清單，仍引用同一上限。
+        // 加入日期前先擋下已滿的清單，引用同一個上限。
         // 100 筆與重複日期由 frontend-shared-controls.test.cjs 操作驗證。
         Assert.Contains("!duplicate && selected.length >= Ui.TYPED_SET_MAX_VALUES", values, StringComparison.Ordinal);
         Assert.Contains("'最多選取 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同日期，請先移除不需要的日期。'", values, StringComparison.Ordinal);

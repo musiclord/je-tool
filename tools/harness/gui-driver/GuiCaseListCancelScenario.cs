@@ -31,7 +31,7 @@ internal static partial class GuiScenarios
         outcome.RecordStage("unopenable_case_listed_with_reason");
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-missing-database-project", "seed.completed", ct);
-        // 啟動時讀的案件清單可能早於預先建案；審計員按「重新整理本機」讀回目前的清單。
+        // 啟動時讀的案件清單可能早於預先建案；審計員按「重新整理案件清單」讀回目前的清單。
         await Click("[data-action=picker-refresh-local]");
         await Check("state.view==='picker' && !state.pickerFeedback" +
             " && (()=>{var e=document.querySelector('" + missingRow + " .project-row__load-error');return !!e && e.textContent===" +

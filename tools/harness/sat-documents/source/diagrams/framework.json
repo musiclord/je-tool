@@ -1,16 +1,16 @@
 {
-  "title": "JET 系統組成圖",
+  "title": "JE Tool 系統架構圖",
   "sourceRoot": "src/JET/JET",
   "pathPrefix": "JET/",
   "componentSpec": "component.json",
   "host": {
-    "label": "WinForms 主機",
+    "label": "Host",
     "component": "host"
   },
   "layers": [
     {
       "group": "presentation",
-      "label": "展示層",
+      "label": "Presentation Layer",
       "nodes": [
         "frontend",
         "bridge"
@@ -18,46 +18,70 @@
     },
     {
       "group": "applicationLayer",
-      "label": "應用層",
+      "label": "Application Layer",
       "nodes": [
         "application"
       ]
     },
     {
       "group": "domainLayer",
-      "label": "領域層",
+      "label": "Domain Layer",
       "nodes": [
         "core"
       ]
     },
     {
       "group": "infrastructureLayer",
-      "label": "基礎設施層",
+      "label": "Infrastructure Layer",
       "nodes": [
         "infrastructure"
       ]
     }
   ],
   "outside": [
-    "auditor",
+    "user",
+    "adsi",
     "sources",
     "database",
     "reports"
   ],
   "nodes": [
     {
-      "id": "auditor",
+      "id": "user",
       "name": [
-        "審計員"
+        "使用者"
       ],
       "at": [
-        40,
+        -20,
         80
       ],
       "evidence": [
         {
           "file": "wwwroot/index.html",
           "text": "<button"
+        }
+      ]
+    },
+    {
+      "id": "adsi",
+      "name": [
+        "Windows ADSI"
+      ],
+      "detail": [
+        "WinNT 提供者"
+      ],
+      "at": [
+        -20,
+        256
+      ],
+      "evidence": [
+        {
+          "file": "UserFullNameLookup.cs",
+          "text": "Marshal.BindToMoniker(path)"
+        },
+        {
+          "file": "UserFullNameLookup.cs",
+          "text": "return readFullName($\"WinNT://"
         }
       ]
     },
@@ -108,13 +132,14 @@
         "Domain"
       ],
       "at": [
-        548,
-        242
+        530,
+        256
       ],
       "components": [
         "auditcore",
         "domain"
-      ]
+      ],
+      "width": 150
     },
     {
       "id": "infrastructure",
@@ -122,15 +147,16 @@
         "Infrastructure"
       ],
       "at": [
-        340,
-        242
+        270,
+        256
       ],
       "components": [
         "persistence",
         "fileio",
         "export",
         "diagnostics"
-      ]
+      ],
+      "width": 190
     },
     {
       "id": "sources",
@@ -141,8 +167,8 @@
         "Excel、文字檔、Access"
       ],
       "at": [
-        155,
-        380
+        86,
+        430
       ],
       "evidence": [
         {
@@ -160,8 +186,8 @@
         "jet.db"
       ],
       "at": [
-        340,
-        380
+        270,
+        430
       ],
       "evidence": [
         {
@@ -180,8 +206,8 @@
         "Excel 報告與工作底稿"
       ],
       "at": [
-        534,
-        380
+        466,
+        430
       ],
       "evidence": [
         {
@@ -197,7 +223,7 @@
   ],
   "flows": [
     {
-      "from": "auditor",
+      "from": "user",
       "to": "frontend",
       "label": [
         "操作"
@@ -240,7 +266,7 @@
       "to": "core",
       "label": [
         "使用",
-        "審計規則"
+        "查核邏輯"
       ],
       "basis": [
         {
@@ -255,6 +281,16 @@
             "to": "domain"
           }
         }
+      ],
+      "via": [
+        [
+          576,
+          138
+        ]
+      ],
+      "labelAt": [
+        542,
+        170
       ]
     },
     {
@@ -263,31 +299,44 @@
       "label": [
         "讀寫資料與檔案"
       ],
-      "labelSide": "left",
       "basis": [
         {
-          "interface": "IDataAccess",
+          "interface": "CaseDataInterfaces",
           "usedBy": "application"
         },
         {
-          "interface": "ITabularFileReader",
+          "interface": "FileAccessInterfaces",
           "usedBy": "application"
         },
         {
-          "interface": "IWorkingPaperPlanWriter",
+          "interface": "ReportOutputInterfaces",
           "usedBy": "application"
         },
         {
           "interface": "ISupportDiagnosticLogStore",
           "usedBy": "application"
         }
+      ],
+      "via": [
+        [
+          520,
+          138
+        ],
+        [
+          346,
+          138
+        ]
+      ],
+      "labelAt": [
+        433,
+        152
       ]
     },
     {
       "from": "infrastructure",
       "to": "core",
       "label": [
-        "取用",
+        "使用",
         "SQL 片段"
       ],
       "basis": [
@@ -305,7 +354,6 @@
       "label": [
         "讀取"
       ],
-      "labelSide": "left",
       "basis": [
         {
           "component": "fileio"
@@ -314,6 +362,20 @@
           "file": "Infrastructure/FileIO/CompositeTabularFileReader.cs",
           "text": "class CompositeTabularFileReader(params ITabularFileReader[] readers) : ITabularFileReader"
         }
+      ],
+      "via": [
+        [
+          230,
+          332
+        ],
+        [
+          86,
+          332
+        ]
+      ],
+      "labelAt": [
+        109,
+        368
       ]
     },
     {
@@ -330,13 +392,17 @@
           "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
           "text": "connection.BeginTransactionAsync("
         }
+      ],
+      "labelAt": [
+        293,
+        368
       ]
     },
     {
       "from": "infrastructure",
       "to": "reports",
       "label": [
-        "寫出"
+        "輸出"
       ],
       "basis": [
         {
@@ -350,7 +416,39 @@
           "file": "Infrastructure/Export/LegacyReportWriter.cs",
           "text": "partial class LegacyReportWriter("
         }
+      ],
+      "via": [
+        [
+          310,
+          332
+        ],
+        [
+          466,
+          332
+        ]
+      ],
+      "labelAt": [
+        443,
+        368
+      ]
+    },
+    {
+      "from": "host",
+      "to": "adsi",
+      "label": [
+        "查詢",
+        "使用者全名"
+      ],
+      "basis": [
+        {
+          "component": "host"
+        },
+        {
+          "file": "AppCompositionRoot.cs",
+          "text": "UserFullNameLookup.Start(windowsAccount)"
+        }
       ]
     }
-  ]
+  ],
+  "maxCrossings": 0
 }

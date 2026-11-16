@@ -86,7 +86,7 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal(0, await StaleFlagAsync(host, context.ProjectId, provider));
     }
 
-    // ── 修正前會失敗的情況（設計第 5.1 節第 1 到 5 項）──────────────────────────────
+    // ── 還有情境不能套用規則時，仍能單獨儲存、移除與重新檢查 ──────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -176,7 +176,7 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal(JsonValueKind.Null, response.GetProperty("resultRef").ValueKind);
     }
 
-    // ── 修正後要成立的情境（設計第 5.2 節）──────────────────────────────────────
+    // ── 最後一個有問題的情境改好或移除後解鎖，以及單獨變更的其他規則 ──────────────
 
     [Theory]
     [InlineData("sqlite")]

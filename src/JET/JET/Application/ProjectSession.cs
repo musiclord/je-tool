@@ -60,8 +60,8 @@ public sealed class ProjectSession : IProjectSessionPublisher
         Enter(projectId, repositories);
 
     /// <summary>
-    /// 只有目前案件仍等於呼叫端捕捉的值時才離開。這個 compare-and-clear 防止延遲的 release/delete
-    /// 清掉其間已由另一個成功動作切換的新案件。
+    /// 只有目前案件仍是 <paramref name="expectedProjectId"/> 時才清除並回傳 true；已經換成別的案件時不動，回傳 false。
+    /// 這樣比較晚才執行的放鎖或刪除，不會把這段期間已經切換過去的新案件清掉。
     /// </summary>
     public bool Leave(string expectedProjectId)
     {

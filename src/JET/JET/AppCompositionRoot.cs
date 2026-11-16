@@ -7,6 +7,11 @@ using Microsoft.Extensions.Logging;
 
 namespace JET;
 
+/// <summary>
+/// 程式啟動時建立各層物件並把它們接在一起的地方。這裡建立案件設定檔的存取、SQLite 案件資料庫、整組 repository、
+/// 日誌、全部的 action handler 與 <see cref="ActionDispatcher"/>，再包成 <see cref="JetApplicationRuntime"/> 交給視窗。
+/// 這些物件只在這個類別建立；視窗只呼叫 <c>CreateRuntime</c>。
+/// </summary>
 public static partial class AppCompositionRoot
 {
     /// <summary>診斷日誌 ring buffer 容量（dev-only;滿則覆寫最舊）。</summary>
@@ -29,7 +34,7 @@ public static partial class AppCompositionRoot
     }
 
     /// <summary>
-    /// 測試可注入 temp projects root 與開發工具旗標（測試預設啟用以涵蓋 dev.db.* 契約）。
+    /// 測試可以指定暫存的案件根目錄與開發工具開關；開關預設開啟，測試才涵蓋得到 dev.db.* 這些 action。
     /// 呼叫端也可以包裝每個 action handler，並交給 runtime 一段啟動後在背景執行的工作；桌面程式本身兩者都不用。
     /// </summary>
     public static JetApplicationRuntime CreateRuntime(
@@ -42,31 +47,50 @@ public static partial class AppCompositionRoot
         string? principalName = null,
         string? userProfileDirectory = null,
         Func<IApplicationActionHandler, ProjectSession, IApplicationActionHandler>? decorateHandler = null,
-        Func<ActionDispatcher, CancellationToken, Task>? startupWork = null)
+        Func<ActionDispatcher, CancellationToken, Task>? startupWork = null,
+        string? userFullName = null)
     {
         var folder = new JetProjectFolder(projectsRootPath);
         var projectStore = new JsonFileProjectStore(folder);
         // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
         var sqliteDatabase = new SqliteProjectDatabase(folder);
 
-        // 專案工作鎖是跨程序檔案鎖。鎖 handle 由 runtime 擁有，關窗／測試 host dispose 時一定釋放。
+        // 專案工作鎖是跨程序檔案鎖。鎖的 handle 由 runtime 擁有，關閉視窗或測試的 host dispose 時一定釋放。
         var localFileLockService = new LocalFileLockService(folder);
 
         // 操作人員使用執行主機的 Windows 帳號，不接受前端 operatorId 覆寫。
         // 保留網域或機器名稱，避免不同主機的同名本機帳號被合併；目前不另設企業認證前置。
-        // 測試以 principalName 覆寫成隔離身分。
-        var currentPrincipal = new CurrentPrincipal(principalName ?? QualifiedWindowsName());
+        // 建案者記的使用者全名在背景開始查，不拖慢視窗出現。
+        // 測試以 principalName 覆寫成隔離身分時不查這台電腦的帳號，使用者全名只用 userFullName 傳入的合成值，
+        // 開發者的真實姓名才不會寫進測試案件與報告。
+        CurrentPrincipal currentPrincipal;
+        if (principalName is null)
+        {
+            var windowsAccount = QualifiedWindowsName();
+            currentPrincipal = new CurrentPrincipal(windowsAccount)
+            {
+                UserFullName = UserFullNameLookup.Start(windowsAccount)
+            };
+        }
+        else
+        {
+            currentPrincipal = new CurrentPrincipal(principalName)
+            {
+                UserFullName = userFullName is null ? null : Task.FromResult<string?>(userFullName)
+            };
+        }
 
-        // Release-safe 支援日誌永遠註冊，只收 Information+ allowlist 並在寫入 buffer 前去識別；Debug
-        // 另掛原有完整 ring/file sink。Release minimum level=Information，不格式化 sql/tx 的 Debug 內容。
+        // 支援日誌在 Debug 與 Release 都註冊，只收 Information 以上、列在允許清單裡的事件，寫進 buffer 前先去識別。
+        // Debug 另外掛上完整的診斷日誌，寫到 ring buffer 與檔案。Release 的最低層級是 Information，
+        // 不會格式化 sql、tx 這些 Debug 層級的內容。
         // 屬於案件的事件另外附加到案件資料夾的支援紀錄，跨次開啟仍匯出得到。
         var supportCaseHistory = new SupportCaseHistoryStore(folder);
         var supportDiagnostic = new SupportRingBufferLoggerProvider(SupportLogCapacity, supportCaseHistory);
         var diagnostic = enableDevTools
             ? diagnosticLoggerProvider ?? new RingBufferLoggerProvider(DiagnosticLogCapacity)
             : null;
-        // 診斷日誌檔案 sink(dev-only):與 ring buffer 並列,app 跑完後可以直接讀 NDJSON 執行時日誌。
-        // 僅在啟用 dev 工具且指定目錄時建立；Release 不建立 raw sink，另有去識別 support buffer。
+        // 診斷日誌的檔案輸出只給開發用，和 ring buffer 同時收日誌；程式結束後可以直接讀這份 NDJSON 格式的執行紀錄。
+        // 只有啟用開發工具而且指定了目錄才建立。Release 不建立這份沒有去識別的檔案，只有上面去識別過的支援日誌。
         var diagnosticFile = diagnostic is not null && diagnosticLogDirectory is not null
             ? new NdjsonFileLoggerProvider(diagnosticLogDirectory)
             : null;

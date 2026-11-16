@@ -3,7 +3,7 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Plan 階段所需的案件事實快照；不攜帶 GL/TB 完整列集。<paramref name="AvailableGlFields"/> 是
+/// 呼叫 Plan 時要用的案件現況；不帶 GL 與 TB 的資料列。<paramref name="AvailableGlFields"/> 是
 /// <see cref="JetFieldCatalog.AvailableGlFields"/> 算出的可用欄位，null 只供沒有配對資料的獨立測試，不檢查 GL 欄位；
 /// <paramref name="CategoryLabels"/> 是原因裡的分類名稱，null 時用內建名稱。
 /// </summary>
@@ -55,17 +55,17 @@ public sealed record AuditExecutionPlan(
     IReadOnlyList<ProcedureVerdict> Procedures);
 
 /// <summary>
-/// 公開 review finalizer 的相容 outcome。Validation typed finalizer 由 raw facts
-/// 建立 ValidationRunResult／PrescreenRunResult 後再包裝；public review finalizer
-/// 仍以此有界 outcome 保持既有相容入口。
+/// 交給公開的 <c>JetAuditProgram.Finalize</c> 的執行結果，資料驗證或預篩選擇一填入。
+/// 資料驗證與預篩選各自的 Finalize 先用資料庫查回的數字組出 <see cref="ValidationRunResult"/> 或
+/// <see cref="PrescreenRunResult"/>，再包成這個型別，交給公開的 Finalize 定出每項程序的狀態。
 /// </summary>
 public sealed record AuditOutcome(
     ValidationRunResult? Validation = null,
     PrescreenRunResult? Prescreen = null);
 
 /// <summary>
-/// Finalize 產生的記憶體執行證據。Plan 保留案件與參數，Procedures 保留每項程序的
-/// V/na、N/A 原因與計數；不持久化，也不攜帶有界明細列。
+/// Finalize 產生的執行紀錄，只留在記憶體裡，不存進資料庫。<c>Plan</c> 保留案件現況與參數；
+/// <c>Procedures</c> 保留每項程序的 V 或 na、N/A 原因與計數。它不帶明細列。
 /// </summary>
 public sealed record AuditRunManifest(
     AuditExecutionPlan Plan,

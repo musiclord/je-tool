@@ -5,8 +5,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// field_info 持久化。所有 mutation 都接受 caller transaction，
-/// 讓 staging、batch count 與欄位定義維持同一原子邊界。
+/// 讀寫 field_info。所有寫入的方法都用呼叫端傳入的交易，
+/// 讓匯入暫存表、批次的列數與欄位定義一起成功或一起回復。
 /// </summary>
 internal static class LocalFieldInfoPersistence
 {
@@ -156,7 +156,7 @@ internal static class FieldInfoOriginStorage
     };
 }
 
-/// <summary>Legacy 欄位定義 facts port。</summary>
+/// <summary>讀出 GL 或 TB 最新一個匯入批次的欄位定義；欄位型態沿用舊版 JET 的分類 <see cref="LegacyFieldKind"/>。</summary>
 internal sealed class LocalFieldInfoFactsPort(ILocalProjectDatabase database)
     : IFieldInfoFactsPort
 {

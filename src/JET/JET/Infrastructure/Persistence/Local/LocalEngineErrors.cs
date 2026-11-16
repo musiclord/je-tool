@@ -5,8 +5,8 @@ using System.Text.Json;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite 引擎錯誤的單一映射點。只接受明確的 SQLite result code；
-/// 未知例外維持 dispatcher 的 bridge_error fallback。
+/// 把 SQLite 的錯誤轉成 JET 的錯誤碼與訊息，程式裡只有這一處做這件事。只轉這裡列出的 SQLite result code；
+/// 認不得的例外不轉，仍由 dispatcher 回 bridge_error。
 /// </summary>
 public static class LocalEngineErrors
 {
@@ -25,7 +25,7 @@ public static class LocalEngineErrors
     /// <summary>SQLITE_IOERR_NOMEM：讀寫時配置不到記憶體，算記憶體不足，不算讀寫錯誤。</summary>
     private const int SqliteIoErrorNoMemory = SqliteIoError | (12 << 8);
 
-    /// <summary>沿 InnerException 鏈尋找本地引擎例外；不可辨識時回 null。</summary>
+    /// <summary>從這個例外一路往 InnerException 找 SQLite 的例外並轉換；找不到或認不得時回 null。</summary>
     public static JetActionException? TryTranslate(Exception exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)

@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// 驗證結果可用性的 typed facts。HasCurrentValidationResult 代表目前資料世代仍有
-/// 未被失效矩陣移除的 validation run；其餘欄位只承接該 run 已保存的存入筆數與合計核對、逐科目比對結果。
+/// 判斷資料驗證結果能不能沿用時要看的資料。HasCurrentValidationResult 表示目前這份資料還有一筆
+/// 沒有因為上游修改而失效的資料驗證結果；其他欄位是那一次結果存下來的存入筆數與合計核對，以及逐科目比對的結果。
 /// </summary>
 internal sealed record CompletenessEligibilityFacts(
     bool HasCurrentValidationResult,

@@ -1,8 +1,8 @@
 namespace JET.AuditCore;
 
 /// <summary>
-/// Validation workbook planning 的 bounded input。各 count 來自已驗證為 current 的
-/// validation run；不攜帶 wire JSON、GL／TB rows 或 OpenXML layout。
+/// 規劃驗證報告時的輸入。各項筆數取自已確認仍然有效的那一次資料驗證結果；
+/// 不帶 action 的 JSON、GL 與 TB 的資料列，也不帶 OpenXML 版面。
 /// <see cref="ApprovalDateNotInPeriodCount"/> 為 null 表示驗證時傳票核准日不可用，沒有明細可讀。
 /// </summary>
 internal sealed record ValidationReportRequest(
@@ -16,8 +16,8 @@ internal sealed record ValidationReportRequest(
     long? ApprovalDateNotInPeriodCount);
 
 /// <summary>
-/// Workbook detail 的 provider-neutral semantic identity。Legacy 工作表名稱、欄位與
-/// 落點仍由 Infrastructure writer 持有，AuditCore 只判定是否讀取／輸出明細。
+/// 驗證報告裡有哪幾類明細，不綁特定資料庫。舊版格式的工作表名稱、欄位與寫入位置仍由 Infrastructure 的寫出程式決定；
+/// AuditCore 只判定每類明細要不要讀、要不要寫。
 /// </summary>
 internal enum ValidationReportDetailKind
 {
@@ -31,7 +31,7 @@ internal enum ValidationReportDetailKind
 
 /// <summary>
 /// <see cref="Omit"/> 表示零筆而不建表；<see cref="Emit"/> 表示可讀取並輸出；
-/// <see cref="SummaryOnly"/> 表示保留摘要 count、Excel 路徑不得讀取明細 repository。
+/// <see cref="SummaryOnly"/> 表示只保留摘要上的筆數，寫 Excel 時不得讀明細。
 /// </summary>
 internal enum ValidationReportDetailDisposition
 {
@@ -40,7 +40,7 @@ internal enum ValidationReportDetailDisposition
     SummaryOnly
 }
 
-/// <summary>一個 validation detail family 的 finalized workbook decision。</summary>
+/// <summary>驗證報告裡一類明細的決定：筆數，以及明細要怎麼寫。</summary>
 internal sealed record ValidationReportDetailPlan(
     ValidationReportDetailKind Kind,
     long Count,
@@ -53,14 +53,14 @@ internal sealed record ValidationReportDetailPlan(
 }
 
 /// <summary>
-/// Infrastructure planning port 回傳的 raw fact。它是借貸不平傳票回接本期 GL 後的
-/// 原始明細列數，不是 distinct voucher count，也不進入 public validation schema。
+/// 規劃驗證報告時 Infrastructure 查回的數字：借貸不平的傳票接回本期 GL 之後的明細列數。
+/// 它不是不平傳票的張數，也不屬於對外的資料驗證結果。
 /// </summary>
 internal sealed record ValidationReportPlanningFacts(long UnbalancedDetailRowCount);
 
 /// <summary>
-/// Validation workbook 的 in-memory plan。Plan 先綁定 request；
-/// Finalize 才依 provider raw detail count 產生每一明細 family 的 ordered decision。
+/// 驗證報告的計畫，只留在記憶體裡。Plan 先記下輸入；
+/// Finalize 才依資料庫查回的明細列數，照固定順序定出每類明細要怎麼寫。
 /// </summary>
 internal sealed record ValidationReportPlan(
     ValidationReportRequest Request,
@@ -80,8 +80,8 @@ internal sealed record ValidationReportPlan(
 }
 
 /// <summary>
-/// Validation workbook 的 typed planning facts port。實作只執行 parameterized、
-/// set-based raw detail count；明細分頁、raw-row 回取與 OpenXML 不屬於此 port。
+/// 規劃驗證報告時查列數的介面，由 Infrastructure 實作。實作只用參數化的集合式 SQL 算明細列數；
+/// 分頁讀明細、取回來源檔原始列與 OpenXML 都不在這個介面。
 /// </summary>
 internal interface IValidationReportPlanningFactsPort
 {
@@ -99,7 +99,7 @@ public static partial class JetAuditProgram
         Array.AsReadOnly(Array.Empty<ValidationReportDetailPlan>());
 
     /// <summary>
-    /// 綁定已保存的 validation counts；不在 Plan 階段查 provider 或重算 public result。
+    /// 記下已保存的資料驗證筆數；這一步不查資料庫，也不重算資料驗證結果。
     /// </summary>
     internal static ValidationReportPlan Plan(ValidationReportRequest request)
     {
@@ -116,9 +116,9 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// 依保存 count 與 provider-neutral raw detail count finalize workbook policy。
-    /// 四個 null categories 為 1–10,000 emit、超量 summary-only；
-    /// unbalanced GL raw rows 為 1–9,999 emit、10,000 起 summary-only。
+    /// 依已保存的筆數與查回的明細列數，決定每類明細要怎麼寫。
+    /// 資料缺漏輔助檢視的四個類別是 1 到 10,000 筆寫明細，超過只寫摘要；
+    /// 借貸不平的 GL 明細是 1 到 9,999 列寫明細，10,000 列以上只寫摘要。
     /// </summary>
     internal static ValidationReportPlan Finalize(
         ValidationReportPlan plan,

@@ -4,12 +4,15 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// log.append：前端「狀態與訊息」的持久化。
-/// 訊息是 UX 輔助紀錄，非審計留痕；需要 active project。
+/// log.append：把前端「狀態與訊息」的一則訊息存進案件。
+/// 訊息只是方便審計員回看的紀錄，不是審計軌跡；要先開啟案件才能用。
 /// </summary>
 public sealed class LogAppendHandler(ProjectSession session) : IApplicationActionHandler
 {
-    /// <summary>超長訊息（如 column_mismatch 雙向差集）截斷而非拒絕——持久化不該因訊息太長而失敗。</summary>
+    /// <summary>
+    /// 訊息超過這個長度就截斷，不拒絕。例如 column_mismatch 的訊息會列出兩邊各自多出的欄位，可能很長；
+    /// 存訊息不該因為太長而失敗。
+    /// </summary>
     public const int MaxTextLength = 4000;
 
     // 訊息分三級：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
@@ -38,7 +41,7 @@ public sealed class LogAppendHandler(ProjectSession session) : IApplicationActio
     }
 }
 
-/// <summary>log.recent：最近持久化訊息（新→舊），供 project.load 後還原訊息面板歷史。</summary>
+/// <summary>log.recent：讀回最近存下的訊息，從新到舊排列；前端在 project.load 之後用它還原訊息面板的歷史。</summary>
 public sealed class LogRecentHandler(ProjectSession session) : IApplicationActionHandler
 {
     public string Action => "log.recent";

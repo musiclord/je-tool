@@ -3,7 +3,7 @@ using JET.Domain;
 
 namespace JET.Application;
 
-/// <summary>單筆 demo GL 分錄(flag 模式:金額為絕對值 + 借方旗標)。</summary>
+/// <summary>示範資料的一筆 GL 分錄。金額欄是絕對值，借貸方向另外用借方旗標表示，對應 GL 金額方式的 flag。</summary>
 public sealed record DemoGlRow(
     DateOnly GlDate,
     string VoucherNumber,
@@ -60,9 +60,9 @@ public sealed record DemoProjectData(
     IReadOnlyList<string> MakeupDays);
 
 /// <summary>
-/// 內部 deterministic 測試資料生成器，分 baseline 與 seed 兩層：
-/// baseline 不觸發任何規則、每個 seed 群組貢獻已知命中數 → 測試可以精確斷言每條規則的命中數。
-/// 確定性:固定 LCG、無時間種子;Create() 記憶化(同行程同一不可變單例)。
+/// 產生示範案件與測試用的資料，每次產生的內容都相同。傳票分成兩種：一般傳票不命中任何規則，程式裡叫 baseline；
+/// 每一組特意安排的傳票只命中指定的規則，程式裡叫 seed，命中數是已知的，測試因此可以核對每條規則確切的命中數。
+/// 亂數用固定常數的線性同餘產生器，不用時間當種子。Create() 只產生一次，同一個程序裡每次都回傳同一份不可變的資料。
 /// </summary>
 public static class DemoDataFactory
 {
@@ -71,13 +71,13 @@ public static class DemoDataFactory
     public const int TbAccountCount = 150;
     public const int LinesPerVoucher = 2;
 
-    // ── seed 群組張數(測試預期值依此計算)──
+    // ── 各組特意安排的傳票張數（測試的預期值依這些數字計算）──
     public const int PrepPeriodApprovalVouchers = 20;
     public const int SuspiciousKeywordVouchers = 25;
     public const int UnexpectedPairVouchers = 30;
-    // 賒銷（Receivables 借＋Revenue 貸）：unexpected_account_pair 否定面「不命中」的對照組
-    // （有正常對方 → 不命中 R3、亦不命中「收入無一般對方科目」），並供 specialAccountCategoryPair drAndCr
-    // 的 demo 母體。與 UnexpectedPairVouchers 並存驗證否定面。
+    // 賒銷傳票：借方是應收款項（Receivables），貸方是收入（Revenue）。收入有一般的對方科目，
+    // 所以不命中 R3（unexpected_account_pair），也不命中「貸方為收入但借方非一般對方科目」，
+    // 用來和 UnexpectedPairVouchers 那一組對照。也給 specialAccountCategoryPair 的 drAndCr 示範用。
     public const int CreditSaleVouchers = 12;
     public const int TrailingZerosVouchers = 15;
     public const int WeekendPostingVouchers = 12;
@@ -92,10 +92,11 @@ public static class DemoDataFactory
     public const int RareAccountCount = 3;
     public const int RareAccountVouchersEach = 2;
 
-    // 期外總帳日期對照組，用來驗證查核期間界定：總帳日期 2026-01-05（期後）的兩張傳票，
-    // 刻意造成「若未界定期間會被誤納」的多重命中——借貸不平、摘要關鍵字、空白摘要、期外核准、
-    // 完整性 GL≠TB。兩張互為鏡像的不平對，全域借貸淨額仍為 0；用固定值（不動任何 cursor / RNG），
-    // 對其餘 seed 與 baseline 的確定性零影響。期間界定生效後四母體皆排除 → 所有規則命中數回原值。
+    // 總帳日期在查核期間之後的對照組，用來核對查核期間的界定：兩張總帳日期 2026-01-05 的傳票。
+    // 如果沒有照查核期間排除，它們會多命中好幾項：借貸不平、摘要關鍵字、空白摘要、期外核准，完整性測試的 GL 與 TB 也會不合。
+    // 兩張傳票各自借貸不平，金額剛好對調，所以全部分錄的借貸淨額仍是 0。兩張都用固定的值，不取用亂數，
+    // 也不動輪流取日期、科目與人員的游標，其他各組與一般傳票產生的內容不受影響。
+    // 照查核期間排除後，四個母體都不含這兩張，所有規則的命中數和沒有這兩張時相同。
     public const int OutOfPeriodVouchers = 2;
 
     public const int SeedVoucherCount =
@@ -115,7 +116,7 @@ public static class DemoDataFactory
     private static readonly string[] AuthorizedHighFreqPreparers =
         ["王小明", "李美麗", "陳大文", "張雅婷", "林志強", "黃淑芬"];
 
-    // 授權清單 = 6 高頻 + 1 較少使用(未授權者不在內)
+    // 授權清單是 6 位常出現的編製人員加 1 位較少出現的；「未授權者」不在清單內。
     private static readonly string[] AuthorizedPreparerList =
         [.. AuthorizedHighFreqPreparers, RarePreparer];
 
@@ -124,7 +125,7 @@ public static class DemoDataFactory
         "進貨", "銷貨收入", "薪資費用", "租金支出", "水電費",
         "收回應收帳款", "支付應付帳款", "折舊提列", "利息收入", "運費"
     ];
-    private const string KeywordDescription = "調整分錄"; // 含 suspicious 關鍵字「調整」
+    private const string KeywordDescription = "調整分錄"; // 含預設的摘要關鍵字「調整」
 
     private static readonly (string Code, string Name)[] NamedAccounts =
     [
@@ -141,10 +142,10 @@ public static class DemoDataFactory
     private static readonly (string Code, string Name)[] RareAccounts =
         [("7901", "稀有科目-甲"), ("7902", "稀有科目-乙"), ("7903", "稀有科目-丙")];
 
-    // baseline/seed 共用高頻科目(各遠 > 11 列)
-    // R3 否定面 seed 的借方：固定用一個高頻 Others 費用科目（非 Receivables/Cash/ReceiptInAdvance），
-    // 使傳票「貸收入卻無正常對方借方」→ 命中 unexpected_account_pair 新方向。固定科目、不動 debitCursor，
-    // 對其餘 seed 的確定性零影響。
+    // 一般傳票與各組共用的常用科目，每個科目的分錄都遠超過 11 筆。
+    // R3 那一組的借方固定用一個常用的費用科目，分類是 Others，不是 Receivables、Cash 或 ReceiptInAdvance。
+    // 這樣傳票的貸方是收入、借方卻沒有一般的對方科目，會命中 unexpected_account_pair。
+    // 科目是固定的，不動 debitCursor，其他各組產生的內容不受影響。
     private static readonly (string Code, string Name) UnexpectedPairDebitAccount = ("6101", "薪資費用");
     private static readonly (string Code, string Name) ReceivableAccount = ("1131", "應收帳款");
     private static readonly (string Code, string Name) RevenueAccount = ("4101", "銷貨收入");
@@ -167,8 +168,8 @@ public static class DemoDataFactory
     ];
     private static readonly string[] MakeupDays2025 = ["2025-02-08"];
 
-    // seed 專用日期(皆已驗證:週六非補班/平日假日/期外核准,只觸發目標規則)
-    private static readonly DateOnly PrepPeriodApprovalDate = new(2026, 1, 15);   // 週四,非假日 → 僅 R1
+    // 各組專用的日期。這些日期分別是不補班的週六、落在平日的假日與查核期間之後的核准日，只會命中各自要測的規則。
+    private static readonly DateOnly PrepPeriodApprovalDate = new(2026, 1, 15);   // 週四，不是假日，只命中 R1
     private static readonly DateOnly[] WeekendPostingDates =
         [new(2025, 3, 8), new(2025, 3, 15), new(2025, 3, 22)];                    // 週六,非假日非補班
     private static readonly DateOnly WeekendApprovalDate = new(2025, 6, 14);      // 週六
@@ -178,7 +179,7 @@ public static class DemoDataFactory
     // 期外對照組：總帳日期 2026-01-05(週一、非 2025 假日、期後)、核准日 2026-01-20(期後)。
     private static readonly DateOnly OutOfPeriodGlDate = new(2026, 1, 5);
     private static readonly DateOnly OutOfPeriodApprovalDate = new(2026, 1, 20);
-    // 會計期間(對齊 DemoProjectData 的 PeriodStart/End 字串;供 TB 本期變動彙總過濾)。
+    // 會計期間，和 DemoProjectData 的 PeriodStart、PeriodEnd 字串是同一段期間；彙總 TB 本期變動時用來挑出期間內的分錄。
     private static readonly DateOnly PeriodStartDate = new(2025, 1, 1);
     private static readonly DateOnly PeriodEndDate = new(2025, 12, 31);
 
@@ -247,7 +248,7 @@ public static class DemoDataFactory
             MakeupDays: MakeupDays2025);
     }
 
-    /// <summary>MockDataLoader 在進階篩選步驟套用的示範條件 AST(維持原樣)。</summary>
+    /// <summary>示範用的篩選情境，放在 project.loadDemo 回應的 demoScenario。</summary>
     public static object BuildDemoScenario() => new
     {
         name = "示範情境:高風險摘要或假日過帳且金額顯著",
@@ -287,7 +288,7 @@ public static class DemoDataFactory
         return accounts.ToArray();
     }
 
-    /// <summary>科目 → 標準化分類(固定分類白名單，另加 2251 預收、4 開頭收入)。</summary>
+    /// <summary>每個科目的標準化分類：1101、1102 是現金，1131、1141 是應收款項，2251 是預收款，4 開頭是收入，其他都是 Others。</summary>
     private static IReadOnlyList<DemoAccountMappingRow> BuildAccountMappingRows(
         (string Code, string Name)[] accounts)
     {
@@ -310,7 +311,7 @@ public static class DemoDataFactory
         var weekdayCursor = 0;
         DateOnly NextWeekday() => WeekdayPool[weekdayCursor++ % WeekdayPool.Count];
 
-        // 非百萬倍數金額:1.00 .. ~50000.99(永遠 < 1,000,000 → 不命中連續零尾數門檻 6)
+        // 一般金額：1.00 到 50,000.99，不是一百萬的倍數，而且一定小於 1,000,000，所以不會命中連續零尾數 6 個 0 的門檻。
         decimal NextAmount() => (seq.Next(5_000_000) + 100) / 100m;
 
         var preparerCursor = 0;
@@ -342,9 +343,9 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), KeywordDescription, SafeDesc());
         }
 
-        // R3 未預期借貸組合(否定面):借 費用類 Others / 貸 銷貨收入,
-        // 同傳票無任何 Receivables/Cash/ReceiptInAdvance 借方 → 收入貸記缺正常對方科目才命中,
-        // 命中標記只落在 Revenue 貸方列(每張 1 列)。
+        // R3 未預期借貸組合：借方是分類為 Others 的費用科目，貸方是銷貨收入。
+        // 同一張傳票沒有任何 Receivables、Cash 或 ReceiptInAdvance 的借方，收入的貸方缺一般的對方科目，所以命中。
+        // 只有收入的貸方那一筆算命中，每張 1 筆。
         for (var i = 0; i < UnexpectedPairVouchers; i++)
         {
             var post = NextWeekday();
@@ -352,8 +353,8 @@ public static class DemoDataFactory
                 NextPreparer(), UnexpectedPairDebitAccount, RevenueAccount, NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // 賒銷對照組:借 應收帳款(Receivables) / 貸 銷貨收入(Revenue) → 有正常對方,
-        // unexpected_account_pair 否定面下不命中(R3⊆C:兩者皆不命中);供 drAndCr demo 母體。
+        // 賒銷對照組：借方是應收帳款（Receivables），貸方是銷貨收入（Revenue）。收入有一般的對方科目，
+        // 所以不命中 unexpected_account_pair，也不命中「貸方為收入但借方非一般對方科目」。也給 drAndCr 示範用。
         for (var i = 0; i < CreditSaleVouchers; i++)
         {
             var post = NextWeekday();
@@ -369,7 +370,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), 2_000_000m, SafeDesc(), SafeDesc());
         }
 
-        // R7 週末過帳:過帳日週六;核准日改平日(避免共觸發週末核准)
+        // 週末過帳:過帳日週六;核准日改平日(避免同時命中週末核准)
         for (var i = 0; i < WeekendPostingVouchers; i++)
         {
             var post = WeekendPostingDates[i % WeekendPostingDates.Length];
@@ -377,7 +378,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // R7 週末核准:核准日週六;過帳平日
+        // 週末核准:核准日週六;過帳平日
         for (var i = 0; i < WeekendApprovalVouchers; i++)
         {
             var post = NextWeekday();
@@ -385,7 +386,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // R8 假日過帳:過帳日為平日假日;核准平日
+        // 假日過帳:過帳日為平日假日;核准平日
         for (var i = 0; i < HolidayPostingVouchers; i++)
         {
             var post = HolidayPostingDates[i % HolidayPostingDates.Length];
@@ -393,7 +394,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // R8 假日核准:核准日為平日假日(< 期末);過帳平日
+        // 假日核准:核准日為平日假日(< 期末);過帳平日
         for (var i = 0; i < HolidayApprovalVouchers; i++)
         {
             var post = NextWeekday();
@@ -401,7 +402,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // descNull 空白摘要:借方行的摘要留空(設計內共觸發 V4 blankDescription)
+        // 空白摘要：借方那一筆的摘要留空。資料驗證「資料缺漏輔助檢視」的空白摘要也會算到這幾筆，這是刻意安排的。
         for (var i = 0; i < BlankDescriptionVouchers; i++)
         {
             var post = NextWeekday();
@@ -417,7 +418,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // R10 非授權編製人員:created_by = 未授權者(16×2 = 32 > 11 → 非較少使用)
+        // 非授權編製人員：created_by 是「未授權者」。16 張各 2 筆共 32 筆，超過 11 筆，不算較少使用的編製人員。
         for (var i = 0; i < NonAuthorizedVouchers; i++)
         {
             var post = NextWeekday();
@@ -444,17 +445,17 @@ public static class DemoDataFactory
             }
         }
 
-        // 期外總帳日期對照組：兩張 gl_date=2026-01-05(期後)的傳票,固定值、不動 cursor。
-        // 各自借≠貸(不平),互為鏡像使全域淨額為 0;借方一列帶 suspicious 關鍵字、另一張借方摘要空白;
-        // 核准日 2026-01-20(期後,同時觸發期外核准與期末後核准)。期間界定生效後全數排除。
-        // 用 6101/2101/6111/2111 皆高頻共用科目(不影響較少使用科目/罕用科目判定);王小明為授權高頻編製者
-        // (不影響非授權/較少使用編製者判定)。
+        // 期外總帳日期對照組：兩張 gl_date 為 2026-01-05 的傳票，在查核期間之後。用固定的值，不動游標。
+        // 兩張各自借貸不平，金額剛好對調，全部分錄的借貸淨額仍是 0。一張的借方摘要帶預設的摘要關鍵字，另一張的借方摘要空白。
+        // 核准日 2026-01-20 也在查核期間之後，同時命中期外核准與期末後核准。照查核期間排除後，這兩張都不算。
+        // 科目用 6101、2101、6111、2111，都是常用的共用科目，不影響較少使用科目的判定；
+        // 編製人員王小明在授權清單內而且常出現，不影響非授權與較少使用編製人員的判定。
         AddUnbalancedVoucher(rows, ref voucherSeq, OutOfPeriodGlDate, OutOfPeriodApprovalDate,
             "王小明", ("6101", "薪資費用"), 15234m, KeywordDescription, ("2101", "應付帳款"), 12876m, "銷貨收入");
         AddUnbalancedVoucher(rows, ref voucherSeq, OutOfPeriodGlDate, OutOfPeriodApprovalDate,
             "王小明", ("6111", "租金費用"), 12876m, string.Empty, ("2111", "應付票據"), 15234m, "進貨");
 
-        // baseline:不觸發任何規則
+        // 一般傳票：不命中任何規則
         for (var i = 0; i < BaselineVoucherCount; i++)
         {
             var post = NextWeekday();
@@ -490,8 +491,9 @@ public static class DemoDataFactory
             amount, false, createdBy, approvalDate, isManual));
     }
 
-    /// <summary>加一張 2 行「借≠貸」不平傳票（期外對照組用）：借方 debitAmount、貸方 creditAmount 各異。
-    /// 傳票淨額 = debitAmount − creditAmount ≠ 0（借貸不平測試命中）；由呼叫端造鏡像對維持全域淨額為 0。</summary>
+    /// <summary>加一張 2 筆、借貸不平的傳票，給期外對照組用：借方金額 debitAmount 與貸方金額 creditAmount 不同。
+    /// 傳票淨額是 debitAmount 減 creditAmount，不等於 0，借貸不平的檢查會命中。
+    /// 呼叫端另外加一張金額對調的傳票，讓全部分錄的借貸淨額維持 0。</summary>
     private static void AddUnbalancedVoucher(
         List<DemoGlRow> rows,
         ref int voucherSeq,
@@ -535,8 +537,8 @@ public static class DemoDataFactory
         (string Code, string Name)[] accounts,
         IReadOnlyList<DemoGlRow> glRows)
     {
-        // TB「本期變動」= 本期(gl_date ∈ 會計期間)GL 借貸彙總（完整性的 GL 彙總限本期，才對得上 TB 本期變動）。
-        // 期外對照組（2026 過帳）不計入 TB，與期間界定後的完整性 GL 側口徑一致（否則會造成假性差異）。
+        // TB 的本期變動是 gl_date 在會計期間內的 GL 借貸合計。完整性測試的 GL 合計只算本期，TB 也只算本期才對得上。
+        // 期外對照組在 2026 年過帳，不計入 TB；這和完整性測試照查核期間排除後的 GL 算法一致，否則會出現不是真正差異的差額。
         var inPeriod = glRows
             .Where(r => r.GlDate >= PeriodStartDate && r.GlDate <= PeriodEndDate)
             .ToList();
@@ -562,7 +564,7 @@ public static class DemoDataFactory
         return rows;
     }
 
-    /// <summary>固定常數 LCG:跨 .NET 版本序列恆定。</summary>
+    /// <summary>固定常數的線性同餘產生器；不同的 .NET 版本產生的數列都相同。</summary>
     private sealed class DeterministicSequence(ulong seed)
     {
         private ulong _state = seed;

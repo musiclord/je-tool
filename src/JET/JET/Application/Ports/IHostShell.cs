@@ -24,14 +24,14 @@ public interface IHostShell
 
     /// <summary>
     /// 在檔案總管揭示檔案或開啟資料夾（host.openFolder）。
-    /// 純 host I/O；路徑只由後端依目前 session 或專案報告清單解析，前端不得傳入路徑。
+    /// 這裡只負責開啟。路徑由後端依目前 session 或案件的報告清單決定，前端不得傳入路徑。
     /// </summary>
     Task RevealInExplorerAsync(string path, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// Project-aware native dialog overloads. This seam is internal so the WebView wire contract
-/// cannot supply an initial directory; Application resolves it from the active project session.
+/// 可以指定起始資料夾的檔案對話框。這個介面是 internal，前端送來的 payload 沒有辦法指定起始資料夾；
+/// 起始資料夾由 Application 依目前開啟的案件決定。
 /// </summary>
 internal interface IProjectAwareHostShell : IHostShell
 {
@@ -49,8 +49,8 @@ internal interface IProjectAwareHostShell : IHostShell
 }
 
 /// <summary>
-/// Resolves the current project directory at dialog invocation time. It deliberately returns
-/// <see langword="null"/> when no project is active so Windows keeps its normal dialog default.
+/// 開啟對話框的當下才查目前案件的資料夾。沒有開啟案件時回 <see langword="null"/>，
+/// 讓 Windows 用它自己預設的起始位置。
 /// </summary>
 internal sealed class HostDialogProjectContext(
     ProjectSession session,

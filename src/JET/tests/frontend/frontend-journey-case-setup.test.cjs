@@ -117,7 +117,7 @@ test('creating a case sends exactly the entered details without an operator, the
   assert.equal(f.$('[data-bind="case-id"]').textContent, '合成案件甲');
   assert.equal(f.$('[data-bind="case-client"]').textContent, '合成客戶股份有限公司');
 
-  // 建好以後第一步顯示建案者是後端記下的帳號。
+  // 建好以後第一步顯示建案者是後端記下的名稱。
   const summary = f.draw('create').querySelector('.kv-list').textContent;
   assert.match(summary, /合成案件甲/);
   assert.match(summary, /合成審計員/);
@@ -220,7 +220,7 @@ test('a failed save of the case details marks the preparation date only when the
   }
 });
 
-// Windows 身分晚到時只更新操作人員那一行，不重繪整個表單，還沒儲存的輸入才不會被清掉。
+// Windows 身分晚到時只更新「目前帳號」那一行，不重繪整個表單，還沒儲存的輸入才不會被清掉。
 test('a late Windows identity updates only the account line and keeps the typed case name, its selection and focus', () => {
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('workflow');
   const step = f.store.STEPS[0];
@@ -558,8 +558,8 @@ test('messages: holiday and make-up day imports log their day counts with the el
   const f = importFixture();
   f.click('[data-task-toggle="calendar"]');
   for (const [action, importAction, count, expected] of [
-    ['import-holiday', 'importHolidayFromFile', 3, '國定假日匯入完成：3 天'],
-    ['import-makeup', 'importMakeupDayFromFile', 1, '補班日匯入完成：1 天']]) {
+    ['import-holiday', 'importHolidayFromFile', 3, '國定假日清單上傳完成：3 天'],
+    ['import-makeup', 'importMakeupDayFromFile', 1, '補班日清單上傳完成：1 天']]) {
     f.click('[data-action="' + action + '"]');
     f.requests.filter(r => r.action === 'hostSelectFile').at(-1).resolve({ filePath: 'synthetic\\calendar.xlsx', fileName: 'calendar.xlsx' }); await settle();
     f.request(importAction).resolve({ count }); await settle(); await settle();

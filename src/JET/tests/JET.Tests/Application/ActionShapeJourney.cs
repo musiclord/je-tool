@@ -290,7 +290,7 @@ internal static class ActionShapeJourney
             var firstGlCommit = await Send("mapping.commit.gl", GlCommit(misMapped, amountMode, newRdeFields));
             var rdeFields = CommittedRdeFields(firstGlCommit);
             // 審計員先試借方、貸方金額分開的配對，不配傳票項次，另配分錄來源與過帳狀態（只認列已過帳，空白也算），
-            // 人工代碼只列自動的一側、其餘算人工，空白不分類。重開案件看一次，再改回單一金額欄的配對。
+            // 人工/自動分錄只指定自動代碼、其餘算人工，空白不分類。重開案件看一次，再改回單一金額欄的配對。
             // mapping-step.js 有配過帳狀態時一併送 postingStatusPolicy；沒有配傳票核准日時 approvalDateMode 送 unmapped。
             var dualMapping = new[]
             {

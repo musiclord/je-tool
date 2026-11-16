@@ -6,8 +6,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 沿用傳票預覽的 QueryRevision/Key 游標外包方式。內層 keyset 游標與 SQL 不變，
-/// 外層只把頁面綁在同一案件、資料、情境及查詢條件，避免新舊頁面混用。
+/// 篩選結果分頁的游標多包一層，做法和傳票預覽相同：外層記這次查詢的識別碼 QueryRevision，內層 Key 是原本接續下一頁用的游標，
+/// 內層游標與 SQL 都不變。QueryRevision 由案件、action、情境位置、資料版本、情境版本、排序與搜尋文字算出；
+/// 換頁時只要其中一項不同就回 stale_result，新舊頁面不會混在一起。
 /// </summary>
 internal sealed record FilterResultQuerySnapshot(
     string DataRevision,
@@ -43,7 +44,7 @@ internal sealed record FilterResultQuerySnapshot(
             }
             catch (JsonException exception)
             {
-                // 不是這個外包格式的 token（例如其他查詢的游標或被改動的字串）一律回第一頁，不猜測其來源。
+                // 游標不是這裡包的格式時（例如其他查詢的游標或被改動過的字串），一律回 stale_result，請畫面從第一頁重新載入，不猜它的來源。
                 throw Stale(exception);
             }
         }

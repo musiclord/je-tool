@@ -43,9 +43,11 @@ const noCardScenario = name => ({ name, rationale: '合成舊版動機', source:
 // 並依選項換掉夾具預設的已存情境、版本、驗證結果與待修正清單。只服務這個檔，所以留在這裡。
 function savedFixture(options = {}) {
   const { saved = [], resultRef = saved.length ? REF : null, check = null, stale = null, reports = [], rdeFields = null,
-    validated = true, step = 'filter', pane = null } = options;
+    validated = true, step = 'filter', pane = null, features = {} } = options;
   const f = F.usageJourneyFixture(step, { redraw: true });
   const { window, store, dom } = f;
+  // features 是這個版本隱藏的功能開關（Ui.FEATURES）；下面設定案件狀態時第五步會重畫，開關跟著生效。
+  Object.assign(window.JetUi.FEATURES, features);
   window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
   window.JetFocus = {
     defer(target) { const node = target(); if (node && node.focus) node.focus(); },
@@ -129,10 +131,11 @@ for (const operation of ['new', 'edit', 'copy']) test('successful ' + operation 
 });
 
 // 「從情境範例開始」托盤在同一次開案內記住開合；條件列的「查找說明」跟著草稿收起。
+// 情境範例在這個版本隱藏，這個測試先把開關打開，托盤才會畫出來。
 // 儲存、取消編輯與移除編輯中的情境時，托盤維持開著，查找說明收起。
 // 查找說明的鍵以 rule-help- 開頭，這裡直接放一個合成的鍵代表。
 test('the example tray stays open for the whole case opening while condition help folds with each draft', async () => {
-  const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')] });
+  const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], features: { scenarioTemplates: true } });
   const view = () => f.window.JetUi.FilterStep.viewState;
   const tray = () => f.$('details.filter-template-tray');
   assert.equal(tray().hasAttribute('open'), false, 'the tray starts folded');
@@ -456,7 +459,7 @@ const savedFirstPage = (voucherNumber, counts = { voucherCount: 2, summaryRowCou
   ...counts, countsWholeVoucherRows: false });
 const HIGH_RISK_SUMMARY = { scenarios: [{ position: 1, name: '甲', voucherHitCount: 2, rowHitCount: 3, summaryRowCount: 3 }, { position: 2, name: '乙', voucherHitCount: 0, rowHitCount: 0, summaryRowCount: 0 }] };
 
-// 「載入失敗」「重試讀取結果」「請收合後再展開以重試」不是已定案的文字，只比對意思。
+// 「載入失敗」「請收合後再展開以重試」不是已定案的文字，只比對意思。
 test('a saved scenario and the high-risk summary fail in place and can be retried; the failure also reaches the message panel once', async () => {
   const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
   const body = () => f.$('[data-bind="scenario-preview-0"]');
@@ -709,8 +712,8 @@ test('previewing or editing one saved scenario keeps its common source, an old-v
     editorOrigins: authoredOrigins } });
   assertNoScreenKeys(f.request('filterScenarioSave').payload, 'the self-authored edit');
 
-  // 改成和另一個已存情境同名：不送出並說明；另存副本不受同名限制，名稱加上「（副本）」。
-  // 重名不得影響唯一性，儲存時才檢查重名，另存副本略過。
+  // 改成和另一個已存情境同名：不送出並說明；「另存為新情境」不受同名限制，名稱加上「（副本）」。
+  // 重名不得影響唯一性，儲存時才檢查重名，「另存為新情境」略過。
   f.request('filterScenarioSave').reject(new Error('合成儲存失敗。')); await settle(); await settle();
   f.type('[data-bind="scenario-name"]', '空白摘要情境');
   f.click('[data-action="save-scenario"]'); await settle();
@@ -1295,7 +1298,8 @@ const assertCurrentTypes = (types, label) => {
   for (const type of types) assert.ok(CURRENT_TYPES.includes(type) && !LEGACY_TYPES.includes(type), label + ' adds the current type ' + type);
 };
 test('no entry for adding a condition offers an old-style condition type', () => {
-  const f = savedFixture({ rdeFields: RDE_FIELDS });
+  // 情境範例在這個版本隱藏；這個測試也要逐一套用範例，所以先把開關打開。
+  const f = savedFixture({ rdeFields: RDE_FIELDS, features: { scenarioTemplates: true } });
   f.store.setAuthorizedPreparerState({ rowCount: 2 });
   // 每一段從空白草稿開始；空白草稿換掉時不會詢問是否儲存。
   const reset = () => f.store.setFilterDraft(null);
@@ -1386,7 +1390,7 @@ test('each saved scenario\'s actions menu opens from its button or the keyboard,
   assert.equal(toggle(0).textContent, '操作');
   assert.equal(menu(0).getAttribute('role'), 'menu');
   assert.equal(menu(0).hidden, true);
-  assert.deepEqual(items(0).map(item => item.textContent), ['編輯', '另存副本', '移除']);
+  assert.deepEqual(items(0).map(item => item.textContent), ['編輯', '複製', '移除']);
   for (const item of items(0)) assert.equal(item.getAttribute('tabindex'), '-1');
 
   // 鍵盤：方向鍵下打開並停在第一項，上下循環，Home、End 到頭尾，Esc 關閉並回到按鈕；方向鍵上打開時停在最後一項，Tab 關閉。

@@ -43,7 +43,7 @@ namespace JET
 
         public Form1()
         {
-            // 不能用 this(...) ctor chaining：constructor initializer 內不可引用 this
+            // 不能改成用 this(...) 呼叫另一個建構子：建構子的初始設定式裡不能引用 this
             _runtime = AppCompositionRoot.CreateRuntime(this, _eventPublisher);
             _dispatcher = _runtime.Dispatcher;
             _webViewUserDataFolder = GetDefaultWebViewUserDataFolder();
@@ -208,19 +208,19 @@ namespace JET
         }
 
         /// <summary>
-        /// 在 WebView2 事件處理常式返回後、於 UI 訊息泵的下一個回合才彈出 modal 對話框,避免 reentrancy 崩潰。
+        /// 等 WebView2 的事件處理常式返回之後，在 UI 訊息迴圈的下一輪才開啟對話框，避免重入造成崩潰。
         ///
-        /// WebView2 不支援在它的事件處理常式(含 <c>WebMessageReceived</c>,bridge 由此進入)內**同步**開啟
-        /// modal UI / 巢狀訊息迴圈(如 <c>OpenFileDialog.ShowDialog</c>)。這麼做會觸發 reentrancy,瀏覽器程序
-        /// 以 <c>0x80000003</c> 崩潰、整個 app 閃退(無 .NET 例外可見)。權威:WebView2「Threading model」的
-        /// Reentrancy 章節明載「請把工作排到事件處理常式完成之後再執行」;社群同簽章重現見 WebView2Feedback
-        /// #2946 / #4648 / #3028。
+        /// WebView2 不支援在它的事件處理常式裡同步開啟強制回應的對話框或巢狀訊息迴圈，例如
+        /// <c>OpenFileDialog.ShowDialog</c>；bridge 就是從 <c>WebMessageReceived</c> 這個事件處理常式進來的。
+        /// 這麼做會造成重入，瀏覽器程序以 <c>0x80000003</c> 崩潰，整個程式直接關閉，也看不到 .NET 例外。
+        /// WebView2 文件「Threading model」的 Reentrancy 一節寫明「請把工作排到事件處理常式完成之後再執行」；
+        /// WebView2Feedback 的 #2946、#4648、#3028 是同一種崩潰的回報。
         ///
-        /// 作法:用 <see cref="System.Windows.Forms.Control.BeginInvoke(Delegate)"/> 把對話框排進 UI 訊息泵的
-        /// 下一回合。bridge 端 <c>await</c> 這個尚未完成的 Task 時,<c>WebMessageReceived</c> 會先返回、原生回呼
-        /// 退棧,排入的對話框才在頂層(非重入)執行,結果再經 Task 回傳。語意等同官方範例的
-        /// <c>SynchronizationContext.Current.Post</c>,但 <c>BeginInvoke</c> 不依賴 <c>SynchronizationContext.Current</c>
-        /// 非空、可從任何執行緒穩健 marshal 回 UI 緒,並與本檔 <see cref="RequestExit"/> 既有的延遲手法一致。
+        /// 作法是用 <see cref="System.Windows.Forms.Control.BeginInvoke(Delegate)"/> 把對話框排進 UI 訊息迴圈的下一輪。
+        /// bridge 端 <c>await</c> 這個還沒完成的 Task 時，<c>WebMessageReceived</c> 會先返回，原生回呼也跟著結束，
+        /// 排進去的對話框才在最外層執行，不再是重入；結果經 Task 傳回。效果和官方範例的
+        /// <c>SynchronizationContext.Current.Post</c> 相同，但 <c>BeginInvoke</c> 不需要 <c>SynchronizationContext.Current</c>
+        /// 有值，從任何執行緒都能轉回 UI 執行緒，也和本檔 <see cref="RequestExit"/> 延後執行的作法一致。
         /// </summary>
         private Task<T> ShowDialogDeferredAsync<T>(
             Func<T> showDialog,
@@ -305,8 +305,8 @@ namespace JET
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            // 原生標題列 X 也必須走前端的 save → releaseLock → host.exitApp 離場鏈。
-            // busy 時 exitApp 會留在原畫面，使用既有訊息 rail 引導先取消再重試。
+            // 按視窗標題列的關閉鈕，也要走前端的離開流程：先儲存，再 releaseLock，最後才是 host.exitApp。
+            // 作業還在進行時 exitApp 會留在原畫面，並在訊息區提示先取消作業再試一次。
             if (!_hostExitRequested && !_webViewUnusable && e.CloseReason == CloseReason.UserClosing && _runtime is not null)
             {
                 e.Cancel = true;
@@ -367,14 +367,14 @@ namespace JET
                     "(function () { if (window.JetUi && window.JetApi && window.JetApi.isReady && window.JetApi.isReady()) { window.JetUi.exitApp(); return true; } return false; })();");
                 if (!string.Equals(invoked, "true", StringComparison.Ordinal))
                 {
-                    // WebView 尚未 ready 時沒有案件 action 可安全交錯；仍由下次 OnFormClosing 的
-                    // shared-gate check 與 runtime request drain 保護直接離場。
+                    // 前端還沒準備好時，沒有案件的 action 會和關閉交錯，所以直接關閉。下一次 OnFormClosing
+                    // 仍會先取共用的閘，runtime 也會等進行中的請求結束。
                     RequestExit();
                 }
             }
             catch (Exception)
             {
-                // WebView 已拆除／初始化失敗時只能走 host fallback；實際 Close 仍必須先取共用閘。
+                // WebView 已經拆除或初始化失敗時，只能由 host 直接關閉；真正 Close 之前仍要先取得共用的閘。
                 RequestExit();
             }
             finally
@@ -465,8 +465,8 @@ namespace JET
             _bridge = new JetWebMessageBridge(_webView.CoreWebView2, _dispatcher);
             _bridge.Attach();
 
-            // 事件推播綁定（host→web）：在 UI 執行緒捕捉 SynchronizationContext，
-            // 供背景緒的 Publish marshal 回 UI 執行緒呼叫 PostWebMessageAsJson
+            // 綁定從 host 推給前端的事件：在 UI 執行緒記下 SynchronizationContext，
+            // 背景執行緒呼叫 Publish 時才能轉回 UI 執行緒呼叫 PostWebMessageAsJson
             if (SynchronizationContext.Current is { } uiContext)
             {
                 _eventPublisher.Bind(_webView.CoreWebView2, uiContext);

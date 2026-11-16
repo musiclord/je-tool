@@ -4,9 +4,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Production WorkingPaper planning adapter. It reads only the bounded first-row
-/// existence facts and the at-most-ten scenario count map required by AuditCore;
-/// workbook rows remain on the writer's existing keyset streaming path.
+/// 匯出工作底稿前，替 AuditCore 的 <see cref="WorkingPaperPlan"/> 查幾件事：完整性有沒有差異科目、
+/// 有沒有借貸不平的傳票（兩者都只讀第一筆，看有沒有）、每個已存情境的命中數（情境最多十個），以及 GL 與 TB 的欄位定義。
+/// 底稿各工作表的資料列不在這裡讀，由寫底稿的程式另外分頁讀取。
 /// </summary>
 internal sealed class WorkingPaperPlanningFactsPort(
     ICompletenessDiffPageRepository completenessDiffs,

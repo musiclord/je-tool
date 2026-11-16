@@ -6,9 +6,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// current validation summary 的持久化／resume／正式報表共同 shape guard。
-/// logicVersion 只證明版本宣告；本守衛另拒絕缺漏、重複、錯型別或互斥欄位不一致，
-/// 避免以 0、false 或空陣列補造目前版本的審計事實。
+/// 檢查已儲存的驗證結果摘要與預篩選結果摘要是不是目前版本的形狀；重新載入案件、後續步驟讀取結果與產生正式報表都用這裡檢查。
+/// logicVersion 只說明摘要自稱是哪個版本。這裡另外檢查欄位有沒有缺、有沒有重複、型別對不對，
+/// 以及不能同時成立的欄位有沒有互相矛盾；不合格就拒絕，不用 0、false 或空陣列補出目前版本的結果。
 /// </summary>
 internal static class ValidationSummaryShapeValidator
 {

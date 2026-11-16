@@ -41,7 +41,7 @@
         <span class="badge" data-bind="user-identity" title="目前登入的使用者與編號">偵測中</span>
       </div>
       <div class="app-header__status">
-        <!-- 流程總覽（4b）開啟鈕：僅 workflow 視圖顯示（比照 back-picker 的 hidden 切換）。
+        <!-- 流程總覽開啟鈕：僅 workflow 視圖顯示（比照 back-picker 的 hidden 切換）。
              6 點點陣圖示（第 5 點訊號紅），純 CSS/HTML，不引入圖檔或 icon 字型。 -->
         <button type="button" class="btn btn--ghost overview-btn" data-action="overview-open"
           title="開啟流程總覽：查看六步進度、目前焦點與 GL 摘要" hidden>
@@ -52,7 +52,7 @@
           <span class="overview-btn__text">總覽</span>
         </button>
         <button type="button" class="btn btn--ghost" data-action="open-project-folder"
-          title="在檔案總管開啟目前案件的資料夾" hidden>開啟案件資料夾</button>
+          title="在檔案總管開啟目前案件的資料夾" hidden>開啟資料夾</button>
         <button type="button" class="btn btn--ghost" data-action="app-back-picker" data-bind="back-picker"
           title="回到案件清單" hidden>回首頁</button>
         <button type="button" class="btn btn--ghost" data-action="app-exit"
@@ -100,9 +100,9 @@
               <ul class="messages__list" data-bind="message-list"></ul>
               <div class="messages__header-actions">
                 <button type="button" class="messages__copy" data-action="messages-copy"
-                  title="複製最近 100 則操作紀錄" aria-label="複製最近 100 則操作紀錄">複製紀錄</button>
+                  title="複製最近 100 則訊息" aria-label="複製紀錄（最近 100 則訊息）">複製紀錄</button>
                 <button type="button" class="messages__copy" data-action="support-log-export"
-                  title="輸出去識別的支援日誌" aria-label="輸出去識別的支援日誌">輸出支援日誌</button>
+                  title="輸出去識別的支援日誌">輸出支援日誌</button>
               </div>
             </div>
             <button type="button" class="messages__rail" data-action="messages-toggle"
@@ -142,7 +142,7 @@
       </div>
     </div>
 
-    <!-- 流程總覽（4b）：標題列「流程總覽」開啟的補充視窗（modal overlay）。
+    <!-- 流程總覽：標題列「流程總覽」開啟的補充視窗（modal overlay）。
          純檢視、不改變流程狀態（導航除外）；資料全讀既有 state（見 app.js renderOverview）。
          背景遮罩不是控制項，不掛 data-action；點擊關閉由 app.js 的 bindOverviewDialog 依 class 綁定。卡片內的 ✕ 與內容由 app.js 於開啟時填入。
          顯示與否由純 UI 狀態 state.overviewOpen 驅動（app.js 切 [hidden]）。 -->

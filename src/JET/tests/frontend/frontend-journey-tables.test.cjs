@@ -5,7 +5,7 @@
 // 本檔分兩部分，每個測試都載入正式的 wwwroot 腳本，操作畫面後看送出的請求、畫出的節點與 Store 狀態。
 //
 // 第一部分　情境 20「明細表：翻頁、排序、查號碼與金額」
-//   審計員在第四步與第五步的各種明細表點表頭排序、輸入號碼查看、按清除；讀取中又按了兩次查看；讀取失敗；
+//   審計員在第四步與第五步的各種明細表點表頭排序、輸入號碼查看、按清除；讀取中又按了兩次「搜尋」；讀取失敗；
 //   看各處的金額；看各處一頁讀幾筆。
 //
 // 第二部分　情境 21「右側資料預覽」
@@ -56,7 +56,7 @@ function validationJourney(mutate = () => {}) {
   return { ...f, data, root, detailOf, toggleFor, requestsOf };
 }
 
-// 送出搜尋表單（正式的「查看」按鈕是 submit）。
+// 送出搜尋表單（正式的「搜尋」按鈕是 submit）。
 function submitSearch(scope, text) {
   const form = scope.querySelector('[data-page-search]'); assert.ok(form, 'search form rendered');
   form.querySelector('[data-page-search-input]').value = text;
@@ -124,7 +124,7 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
     assert.equal(f.requestsOf(action).length, 1);
     assert.deepEqual(plain(f.requestsOf(action)[0].payload), { ...extra, cursor: null, pageSize: 200, sort: { key, direction: 'asc' }, search: null });
 
-    // 讀取中再點表頭、再按查看、再按下一頁，都不送第二個請求（查看會在讀完後才接著做，見下一組測試）。
+    // 讀取中再點表頭、再按「搜尋」、再按下一頁，都不送第二個請求（搜尋會在讀完後才接著做，見下一組測試）。
     sortButton.fire('click'); detail.querySelector('[data-page-next]').fire('click');
     assert.equal(f.requests.length, 1, 'nothing else is sent while the table is reading');
 
@@ -424,7 +424,7 @@ test('the high-risk summary retains the full long scenario title and has no entr
   assert.equal(f.requestsOf('queryHighRiskSummaryRowPage').length, 0);
 });
 
-// 讀取中按「查看」或「清除」不會被忽略：只記住最後一次，讀完後接著做。
+// 讀取中按「搜尋」或「清除」不會被忽略：只記住最後一次，讀完後接著做。
 // 狀態列的說明句用字沒有定案，只比對意思（讀完後接著查看或清除）。
 test('searching while a table is reading waits for the current read and keeps only the last text, even after a failure', async () => {
   const f = validationJourney(), detail = f.detailOf('voucherBalance');
@@ -471,7 +471,7 @@ test('a failed sort or search keeps the old rows, restores the header and box, a
   assert.equal(input.value, '', 'the search box returns to the last successful search');
   const status = detail.querySelector('[data-page-status]');
   assert.match(status.textContent, /失敗/); assert.match(status.textContent, /重試/);
-  const retry = detail.querySelectorAll('button').find(button => button.textContent === '重試' && !button.hidden);
+  const retry = detail.querySelectorAll('button').find(button => button.textContent === '重新載入' && !button.hidden);
   assert.ok(retry, 'a retry button is shown next to the table');
   retry.fire('click');
   assert.deepEqual(plain(f.requestsOf('queryVoucherBalancePage')[2].payload), { cursor: null, pageSize: 200, sort: null, search: 'JV-404' });

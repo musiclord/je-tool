@@ -3,14 +3,14 @@ using System.Globalization;
 namespace JET.Domain;
 
 /// <summary>
-/// 將 invariant finite-number lexeme 正規化成固定 40 字元、可用 ordinal
-/// 文字比較還原數值升冪的 key。這個 key 只供 target GL 的持久化排序使用；
-/// 可見值仍保留原本的 <c>line_item</c>。
+/// 把一個數字的文字寫法轉成固定 40 個字元的排序鍵；排序鍵用 ordinal 文字比較排出來的順序，就是數值由小到大的順序。
+/// 數字的寫法以 invariant culture 為準，而且必須是有限的數。這個排序鍵只存在 <c>gl</c> 裡供排序使用；
+/// 看得到的值仍是原本的 <c>line_item</c>。
 /// </summary>
 internal static class LineItemNumericSortKey
 {
-    // XLSX native Number 先經 double parse：decimal normalization 最多 29 位有效數字，
-    // overflow fallback 的 round-trip double 最多 17 位。CSV/TXT 固定為 Text。
+    // XLSX 的數值儲存格會先解析成 double：能轉成 decimal 的，正規化後最多 29 位有效數字；
+    // 超出 decimal 範圍的改用 double 的 round-trip 寫法，最多 17 位。CSV 與 TXT 的值一律當文字。
     internal const int SignificantDigitCapacity = 29;
     internal const int KeyLength = 1 + 10 + SignificantDigitCapacity;
 

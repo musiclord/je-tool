@@ -34,7 +34,7 @@
          版本不得低於 CVE-2025-6965(GHSA-2m69-gcr7-jv3q)建議的 3.50.2;公告列為受影響的
          SQLitePCLRaw.lib.e_sqlite3 因此不在套件還原結果內。 -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
-    <!-- 診斷日誌（第三層、dev-only）：M.E.Logging + LoggerMessage 來源產生器 -->
+    <!-- 診斷日誌用 Microsoft.Extensions.Logging 與 LoggerMessage 來源產生器 -->
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.13" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />

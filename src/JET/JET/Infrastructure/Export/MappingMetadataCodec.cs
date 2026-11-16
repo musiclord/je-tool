@@ -6,8 +6,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 兩套報告 writer 與 OpenXML reader 共用的 mapping metadata JSON codec。
-/// 固定 marker/version/cell 位置在 Domain；writer 與 reader 都只接受目前的第 2 版。
+/// 把已確認的 GL 與 TB 欄位配對編成 JSON，以及從 JSON 讀回來。寫出報告的程式、寫出底稿的程式與讀回 Excel 的程式共用這一份。
+/// 辨識標記、版本號與存放的儲存格位置定義在 Domain 的 <see cref="MappingMetadataFormat"/>；寫出與讀回都只接受目前的第 2 版。
 /// </summary>
 internal static class MappingMetadataCodec
 {
@@ -256,7 +256,10 @@ internal static class MappingMetadataCodec
     private delegate bool TryParseMode<TMode>(string? name, out TMode mode);
 }
 
-/// <summary>DB <c>options_json</c> 與 metadata v2 GL options 共用的嚴格 codec。</summary>
+/// <summary>
+/// GL 配對選項的 JSON 編碼與解碼，資料庫的 <c>options_json</c> 欄與第 2 版配對中繼資料裡的 GL 選項共用。
+/// 解碼時不接受註解、多餘的逗號、重複的屬性與清單以外的屬性。
+/// </summary>
 internal static class GlMappingOptionsJsonCodec
 {
     private static readonly JsonDocumentOptions StrictDocumentOptions = new()

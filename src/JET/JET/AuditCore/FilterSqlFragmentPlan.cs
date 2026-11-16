@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Provider-neutral SQL fragment produced by AuditCore. Parameter order is part of the
-/// execution contract; Infrastructure binds these values to its DbCommand in this order.
+/// AuditCore 組出的 SQL 片段，不綁特定資料庫。參數的順序是約定的一部分：
+/// Infrastructure 照這個順序把值綁到 DbCommand。
 /// </summary>
 internal sealed record FilterSqlFragmentPlan(
     string Sql,
@@ -17,13 +17,12 @@ internal sealed record FilterSqlFragmentPlan(
 /// <summary>一條條件自己的述詞；<paramref name="Voucher"/> 為真表示它是整張傳票條件，否則是決定命中列的主要條件。</summary>
 internal sealed record FilterConditionEvidenceSql(FilterConditionPosition Position, bool Voucher, string Predicate);
 
-/// <summary>One named value in an ordered filter SQL parameter plan.</summary>
+/// <summary>篩選 SQL 參數清單裡的一個具名值；清單的順序就是綁定的順序。</summary>
 internal sealed record FilterSqlParameter(string Name, object Value);
 
 /// <summary>
-/// Accumulates ordered SQL values without depending on System.Data.Common. Named scope
-/// parameters may be added idempotently; generated parameters continue from the total
-/// number already present so existing @pN numbering remains stable.
+/// 依序累積 SQL 參數值，不依賴 System.Data.Common。具名參數可以重複加入，已經有同名的就不再加一次。
+/// 自動命名的參數從目前的參數總數接著編號，所以先前發出去的 @pN 編號不會變。
 /// </summary>
 internal sealed class FilterSqlParameterPlanBuilder(
     ISqlDialect dialect,

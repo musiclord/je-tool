@@ -1,12 +1,11 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 
 namespace JET.Tests.Application;
 
-/// <summary>合成預覽由真實 action 產生；固定答案先通過，明示要求時才輸出到 ignored 目錄。</summary>
-public sealed class FrontendPreviewFixtureTests
+/// <summary>合成預覽由真實 action 產生，固定答案要先通過。</summary>
+public sealed partial class FrontendPreviewFixtureTests
 {
     [Fact]
     public async Task DateAndAmountPreview_MatchesFixedAnswers_AndExportsOnRequest()
@@ -93,30 +92,9 @@ public sealed class FrontendPreviewFixtureTests
                 ["preview"] = JsonNode.Parse(preview.GetRawText()), ["page"] = JsonNode.Parse(page.GetRawText()), ["detail"] = detail
             });
         }
-        if (Environment.GetEnvironmentVariable("JET_FRONTEND_PREVIEW_EXPORT") != "1") return;
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "tools", "verify.ps1"))) root = root.Parent;
-        Assert.NotNull(root);
-        var hashes = new JsonObject();
-        // 所有產品 C# 與 bridge 契約改變都要求重建；CSS 與其他 UI JS 可即時迭代。
-        var product = Path.Combine(root.FullName, "src", "JET", "JET");
-        var files = Directory.EnumerateFiles(product, "*.cs", SearchOption.AllDirectories)
-            .Where(path => !Path.GetRelativePath(product, path).Split(Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj"))
-            .Append(Path.Combine(product, "wwwroot", "js", "jet-api.js"));
-        foreach (var path in files.Order(StringComparer.Ordinal))
-        {
-            Assert.True(new FileInfo(path).Length <= 512 * 1024 * 1024);
-            hashes[Path.GetRelativePath(root.FullName, path).Replace('\\', '/')] = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
-        }
-        var bundle = new JsonObject {
-            ["schemaVersion"] = 1, ["synthetic"] = true, ["generatedUtc"] = DateTimeOffset.UtcNow.ToString("O"),
-            ["sourceHashes"] = hashes, ["loaded"] = JsonNode.Parse(loaded.GetRawText()), ["fixtures"] = fixtures,
-            ["accountMappingPage"] = JsonNode.Parse(accountPage.GetRawText()), ["mappingValueProfiles"] = mappingProfiles
-        };
-        var directory = Path.Combine(root.FullName, "artifacts", "frontend-preview");
-        Directory.CreateDirectory(directory);
-        var target = Path.Combine(directory, "fixtures.json");
-        await File.WriteAllTextAsync(target + ".tmp", bundle.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-        File.Move(target + ".tmp", target, true);
+        ExportPreviewBundle(loaded, accountPage, mappingProfiles, fixtures);
     }
+
+    /// <summary>把這組合成資料另存成檔案的接點。沒有另外提供實作時，上面的呼叫不做任何事。</summary>
+    static partial void ExportPreviewBundle(JsonElement loaded, JsonElement accountPage, JsonArray mappingProfiles, JsonArray fixtures);
 }

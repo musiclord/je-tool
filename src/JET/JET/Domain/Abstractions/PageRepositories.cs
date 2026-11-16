@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 目前成功 GL generation 的總帳日期空白 findings。現階段 closed category 只有 blankGlDate；
-/// 它刻意讀 raw target（含 period-excluded row），排序鍵 entry_id ASC。
+/// 目前這一版成功建立的 GL 資料裡，總帳日期空白的分錄。類別是固定的清單，目前只有 blankGlDate。
+/// 這個查詢刻意讀整張 <c>gl</c>，因為期間而未納入測試的分錄也看；沒有指定排序時依 entry_id 由小到大。
 /// </summary>
 public interface ISourceQualityPageRepository
 {

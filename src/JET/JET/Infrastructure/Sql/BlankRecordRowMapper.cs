@@ -4,15 +4,15 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// null-record 分頁的 reader 映射。category SQL 語意位於 AuditCore；本類只把已執行的結果列
-/// 轉成既有 Domain row，避免核心持有資料庫 reader 職責。
+/// 把資料缺漏輔助檢視分頁查詢的結果列轉成 <see cref="BlankRecordRow"/>。每個類別的 SQL 條件定義在 AuditCore；
+/// 這裡只讀已經執行完的結果，AuditCore 就不必接觸資料庫的 reader。
 /// </summary>
 internal static class BlankRecordRowMapper
 {
     /// <summary>
-    /// reader 前四欄 → <see cref="BlankRecordRow"/> 顯示四值;旗標欄以本頁 category 對應者置 true,
-    /// 其餘 false(Page 版只輸出顯示欄,旗標非 wire 必要,填 category 對應即可)。第五欄 entry_id 寫入 row 供分頁游標使用,
-    /// 第六欄是傳票核准日。
+    /// reader 的前四欄依序填進 <see cref="BlankRecordRow"/> 的四個顯示值。四個旗標裡只有這一頁查的類別是 true，
+    /// 其餘是 false；分頁的回應只輸出顯示欄，不輸出旗標，所以這樣填就夠了。
+    /// 第五欄 entry_id 給分頁游標用，第六欄是傳票核准日。
     /// </summary>
     public static BlankRecordRow MapRow(DbDataReader reader, BlankRecordCategory category) => new(
         reader.IsDBNull(0) ? null : reader.GetString(0),

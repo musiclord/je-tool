@@ -5,9 +5,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 持久化規則摘要、篩選情境與即時明細 SQL 的相容版本。只要 validation／prescreen／filter
-/// 的判定或明細集合語意改變，必須推進對應常數；舊摘要／情境隨即視為 stale，避免升版後
-/// 拿舊定義搭配新 SQL 產報告。
+/// 規則邏輯的版本，記在已儲存的驗證結果、預篩選結果與篩選情境裡，用來判斷它們和目前查明細的 SQL 還對不對得上。
+/// 資料驗證、預篩選或篩選的判斷方式改了，或明細包含哪些分錄改了，就要換掉對應的常數。
+/// 換掉之後，舊的結果摘要與情境立刻算過期，不會拿舊的定義配新的 SQL 產生報告。
 /// </summary>
 internal static class RuleLogicVersions
 {
@@ -15,7 +15,7 @@ internal static class RuleLogicVersions
     public const string Validation = "validation-2026-10-23-v6";
     // 這一版沒有傳票日期與回溯過帳：預篩選沒有這條規則，篩選不接受回溯過帳條件，兩者的版本都跟著推進。
     public const string Prescreen = "prescreen-2026-10-08-v10";
-    // 第九節：每條條件只表達一件事；停用的寫法列為待修正，保留原文。
+    // 這一版每條條件只表達一件事；停用的寫法列為待修正，保留原文。
     public const string Filter = "filter-2026-10-14-v20";
 
     public static string? ExpectedFor(ResultKind kind) => kind switch
@@ -48,8 +48,9 @@ internal static class RuleLogicVersions
     }
 
     /// <summary>
-    /// 在已存 scenario JSON 內寫入後端權威的篩選邏輯版本。不相信 caller 同名欄位；
-    /// 其他屬性原樣複製，resume 仍可回放使用者定義。
+    /// 在要儲存的情境 JSON 寫入目前的篩選邏輯版本 logicVersion，並把 populationScope 寫成 auditPeriod。
+    /// 傳進來的 JSON 即使已經有這兩個欄位也不採用，一律由這裡重寫。
+    /// 其他屬性原樣複製，重新載入案件時仍能還原使用者設定的情境。
     /// </summary>
     public static string StampFilterDefinition(JsonElement scenario)
     {

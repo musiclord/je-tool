@@ -5,8 +5,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 正式 WorkingPaper：固定完整工作表，只接受 validation／filter reference 與所選情境位置；
-/// 產物由案件資料夾內的報告 store 原子發布，caller 不得指定工作表或路徑。
+/// export.workingPaperStream：匯出正式的工作底稿。工作表固定是完整的一套；payload 只收驗證結果的 validationResultId、
+/// 篩選情境的 scenarioRevision 與選定的情境位置。呼叫端不能指定工作表或路徑，帶了 sheets 或 outputPath 就回 invalid_payload。
+/// 檔案交給案件資料夾裡的報告 store 發布，發布不是整份成功，就是完全不留下。
 /// </summary>
 public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
 {

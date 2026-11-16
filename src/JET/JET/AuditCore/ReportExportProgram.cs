@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Formal report export source identity after Application has validated the current
-/// run or scenario revision. It does not carry paths, workbook rows, or wire JSON.
+/// 正式報告匯出要引用哪些來源。Application 先確認這些驗證結果、預篩選結果或情境版本是目前有效的，
+/// 才組出這份輸入。它不帶路徑、活頁簿的資料列，也不帶 action 的 JSON。
 /// </summary>
 internal sealed record ReportExportRequest(
     string ActionName,
@@ -18,8 +18,8 @@ internal sealed record ReportExportRequest(
     string? FilterDataRevision = null);
 
 /// <summary>
-/// AuditCore-owned report set, source references, and atomicity for one included
-/// export action. Content writers and report persistence remain outside AuditCore.
+/// 一個匯出動作的計畫，由 AuditCore 決定三件事：要出哪幾份報告、引用哪些來源、是否整批一起發布。
+/// 報告內容的寫出與存檔不在 AuditCore。
 /// </summary>
 internal sealed record ReportExportPlan(
     ReportExportRequest Request,
@@ -41,9 +41,8 @@ internal sealed record ReportExportResult(
     string? OperationLogWarning = null);
 
 /// <summary>
-/// Mechanical report publication port. Application supplies the already-shaped
-/// content writers; the implementation preserves the existing single/batch store
-/// boundary selected by <see cref="ReportExportPlan"/>.
+/// 發布報告的介面，只照計畫執行，不做判斷。Application 提供已經備好的內容寫出程式；
+/// 實作依 <see cref="ReportExportPlan"/> 的 <c>UseAtomicBatch</c>，用報告儲存區的單份發布或整批發布。
 /// </summary>
 internal interface IReportExportFactsPort
 {
@@ -138,8 +137,8 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(facts);
         ArgumentNullException.ThrowIfNull(facts.Reports);
 
-        // Content requests are checked before the store call. Do not add a new
-        // post-publication failure boundary by revalidating store output here.
+        // 報告內容的要求在呼叫報告儲存區之前已經檢查過。這裡不再檢查儲存區的回傳，
+        // 以免報告發布之後又多出一個會失敗的地方。
         return new ReportExportResult(plan, facts.Reports, facts.OperationLogWarning);
     }
 

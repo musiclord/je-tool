@@ -42,7 +42,7 @@ internal sealed record IntakeRequest(
     IReadOnlyList<IntakeSourceRequest> Sources,
     string Mode)
 {
-    // 保留既有單來源 typed lifecycle constructor，既有測試與 caller 不需改形狀。
+    // 只有一個來源檔時用的建構式，呼叫端不必自己組來源清單。
     internal IntakeRequest(
         string ActionName,
         string ProjectId,
@@ -260,7 +260,7 @@ internal sealed class AccountMappingProjection
             return;
         }
 
-        // 相同科目代號維持既有 last-wins 語意；Dictionary 的原始插入順序不變。
+        // 同一個科目代號重複出現時，後面的列蓋掉前面的列；它在 Dictionary 裡的位置維持第一次出現時的順序。
         projected[code] = new AccountMappingRow(
             row.SourceRowNumber,
             code,
@@ -652,7 +652,7 @@ internal interface IProjectCreateBackendPort
         CancellationToken cancellationToken);
 }
 
-/// <summary>案件建立、資料匯入、欄位配對與參考資料的 typed lifecycle。</summary>
+/// <summary>案件建立、資料匯入、欄位配對與參考資料這幾類動作的規劃與結果判定。</summary>
 public static partial class JetAuditProgram
 {
     internal static IntakePlan Plan(IntakeRequest request)

@@ -55,7 +55,7 @@ public sealed class DemoRuleOracleTests
         // R4 連續零尾數:借貸金額皆為 2,000,000(兩行皆命中)。
         Assert.Equal(Lines(DemoDataFactory.TrailingZerosVouchers), Count(p, "trailingZeros"));
 
-        // R7 週末:過帳/核准分屬不同 seed,各以 postingCount / approvalCount 回報。
+        // 週末過帳與週末核准:過帳/核准分屬不同 seed,各以 postingCount / approvalCount 回報。
         Assert.Equal(
             Lines(DemoDataFactory.WeekendPostingVouchers),
             p.GetProperty("weekendActivity").GetProperty("postingCount").GetInt64());
@@ -63,7 +63,7 @@ public sealed class DemoRuleOracleTests
             Lines(DemoDataFactory.WeekendApprovalVouchers),
             p.GetProperty("weekendActivity").GetProperty("approvalCount").GetInt64());
 
-        // R8 假日:過帳/核准分屬不同 seed。
+        // 假日過帳與假日核准:過帳/核准分屬不同 seed。
         Assert.Equal(
             Lines(DemoDataFactory.HolidayPostingVouchers),
             p.GetProperty("holidayActivity").GetProperty("postingCount").GetInt64());
@@ -75,7 +75,7 @@ public sealed class DemoRuleOracleTests
         Assert.Equal((long)DemoDataFactory.BlankDescriptionVouchers, Count(p, "blankDescription"));
         // 預篩選結果沒有 backdatedPosting。
         Assert.False(p.TryGetProperty("backdatedPosting", out _));
-        // R10 非授權編製人員:兩行同 created_by 皆命中。
+        // 非授權編製人員:兩行同 created_by 皆命中。
         Assert.Equal(Lines(DemoDataFactory.NonAuthorizedVouchers), Count(p, "nonAuthorizedPreparer"));
         // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目這兩條規則,預篩選結果沒有 rarePreparer 與 rareAccount。
         Assert.False(p.TryGetProperty("rarePreparer", out _));

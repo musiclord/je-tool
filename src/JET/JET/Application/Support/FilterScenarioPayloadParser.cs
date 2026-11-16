@@ -5,10 +5,10 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 前端 Query Builder 的 scenario JSON → FilterScenarioSpec。
-/// 此層只處理「形狀」（型別字串、金額轉 scaled、關鍵字分割）；
-/// 業務規則（白名單、必填、邊界）由 Domain FilterScenarioValidator 負責。
-/// 形狀錯誤一律擲 invalid_scenario。只有存檔損毀或程式送錯資料才會出現的形狀錯誤，畫面只寫
+/// 把前端條件編輯器送來的情境 JSON 解析成 FilterScenarioSpec。
+/// 這裡只檢查並轉換資料的形狀：辨認條件類型、把金額換算成整數、拆開關鍵字。
+/// 哪些值可以用、哪些欄位必填、上下限是多少，由 Domain 的 FilterScenarioValidator 檢查。
+/// 形狀不對時一律丟出 invalid_scenario。只有存檔損毀或程式送錯資料才會出現的形狀錯誤，畫面只寫
 /// <see cref="FilterScenarioCorruption.RuleMessage"/>，原因代號記進支援日誌；
 /// 審計員看得懂、也做得到的原因（已停用的條件類型與比較方式、金額不是數字）照確認的句子寫。
 /// 條件的錯誤帶「第 N 組第 M 條」位置，儲存時才標得到那一條條件。
@@ -47,8 +47,8 @@ public static class FilterScenarioPayloadParser
         var name = ReadString(scenario, "name") ?? string.Empty;
         var rationale = ReadString(scenario, "rationale") ?? string.Empty;
 
-        // 選填來源標記（wire 欄位 scenario.source）：ReadString 已 trim 並把空白正規化為 null，
-        // 故未知/空白來源自然落為「查核員手寫」（Domain 只認得 "common"，其餘等同 null，包括舊代碼）。
+        // 情境的來源標記是選填的 source 欄位。ReadString 會去掉前後空白，全是空白時回 null。
+        // Domain 只認得 "common"；其他值（包括舊的代碼）都和 null 一樣，當成審計員自己寫的情境。
         var source = ReadString(scenario, "source");
 
         var groups = new List<FilterGroupSpec>();
@@ -108,8 +108,8 @@ public static class FilterScenarioPayloadParser
         }
     }
 
-    // Editing provenance is structurally checked, but never used by the rule compiler.
-    // 只接受第 2 版，逐條記卡片代號。
+    // editorOrigins 記的是每一條條件在編輯器裡由哪一張卡片加入。這裡只檢查它的結構，編譯條件時不會用到它。
+    // 只接受第 2 版，每一條條件記一個卡片代號或 null。
     private static void ValidateEditorOrigins(JsonElement scenario, IReadOnlyList<FilterGroupSpec> groups)
     {
         if (!scenario.TryGetProperty("editorOrigins", out var origins)) return;
@@ -242,9 +242,9 @@ public static class FilterScenarioPayloadParser
         IReadOnlyList<string>? typedValues = null;
         if (type is FilterConditionType.TypedField or FilterConditionType.FieldValue)
         {
-            // typed 的 operand carrier 必須是非 null 字串；null、非字串或
-            // 非字串陣列在形狀層就 fail loud。原始拼法（含空白）原樣保留，closed token 的
-            // 正準性與 carrier 適用性由 Domain validator 依欄位型別判定。
+            // typed 條件與欄位值條件裡放比較值的屬性（value、from、to、values）必須是字串或字串陣列；
+            // 是 null 或其他型別時，這裡就丟出條件內容損毀的錯誤。字串照原樣保留，前後空白也不去掉。
+            // 運算子這類固定代號寫得對不對、這個運算子該帶哪一種比較值，由 Domain 的驗證依欄位型別判斷。
             fieldId = ReadTypedString(rule, "fieldId", label);
             typedOperator = ReadTypedString(rule, "operator", label);
             if (type == FilterConditionType.TypedField && typedOperator is not null && !TypedFieldOperatorSets.All.Contains(typedOperator))
@@ -330,10 +330,10 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// typed 條件的字串屬性讀取：保留原始拼法與 presence（缺欄回 null）；present 但為
-    /// null、數字、布林等非字串 JSON 值一律 fail loud——typed 條件的 operand carrier 必須是
-    /// 非 null 字串，這裡不得沿用 ReadString 的「空白正規化為 null」（會把「帶了空白值」
-    /// 誤讀成「沒帶」，讓 blank operator 帶 operand 的錯誤靜默通過）。
+    /// 讀 <c>typed</c> 條件與欄位值條件的字串屬性。字串照原樣回傳；沒有這個屬性時回 null。
+    /// 屬性存在但值是 null、數字、布林等不是字串的 JSON 值時，丟出條件內容損毀的錯誤，因為這些條件的比較值必須是字串。
+    /// 這裡不能用 ReadString：ReadString 會把全是空白的字串當成 null，「帶了空白值」就會被讀成「沒帶」，
+    /// 「是空白」這類不需要比較值的運算子帶了比較值時就檢查不出來。
     /// </summary>
     private static string? ReadTypedString(JsonElement rule, string name, string label)
     {
@@ -350,7 +350,11 @@ public static class FilterScenarioPayloadParser
         return property.GetString() ?? string.Empty;
     }
 
-    /// <summary>typed `in`／`notIn` 的 values：null＝沒帶陣列；1–100 個字串（形狀層先擋上限）。</summary>
+    /// <summary>
+    /// <c>typed</c> 條件與欄位值條件的 values 陣列，元素都必須是字串。沒有這個屬性時回 null。
+    /// 個數超過上限時在這裡就丟出條件內容損毀的錯誤：<c>typed</c> 條件的上限是 <see cref="FilterScenarioLimits.MaxTypedInValuesPerRule"/>，
+    /// 欄位值條件的上限是 <see cref="FilterScenarioLimits.MaxCompiledParameters"/>。
+    /// </summary>
     private static IReadOnlyList<string>? ParseTypedValues(JsonElement rule, string label, bool newValueRule = false)
     {
         if (rule.ValueKind != JsonValueKind.Object || !rule.TryGetProperty("values", out var values))
@@ -383,8 +387,8 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// 科目配對單側的分類身分陣列。回傳 null 代表 wire 沒有帶這個 key，呼叫端當成空集合；
-    /// 明示帶了空陣列是「使用者沒有選任何分類」，回傳空集合並由 validator 以 invalid_scenario 擋下，
+    /// 科目配對條件借方或貸方一側所選的分類 ID 陣列。回傳 null 代表 JSON 裡沒有這個屬性，呼叫端當成空集合。
+    /// 帶了空陣列代表使用者沒有選任何分類，回傳空集合，再由驗證回 invalid_scenario。
     /// 兩種情形都不讀單選分類欄位 debitCategory、creditCategory，那兩個欄位照未知欄位處理。
     /// </summary>
     private static IReadOnlyList<string>? ParseCategoryIds(JsonElement rule, string property, string label)
@@ -479,9 +483,9 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// join 結合方式：AND/OR 不分大小寫；缺欄、null、空白預設 AND，讓省略這個欄位的條件照 AND 連接。
-    /// 其他值不在這裡擲錯——materialize 會重新解析已存 JSON 且不經驗證，解析層必須容忍；
-    /// 未知值以 UnknownJoin 帶回原始字串，由 Domain 驗證層擋成 invalid_scenario。
+    /// 讀連接詞 join：AND 與 OR 不分大小寫；沒有這個屬性、是 null 或空白時當成 AND，讓省略這個欄位的條件照 AND 連接。
+    /// 其他值不在這裡丟錯誤：已儲存的 JSON 在重算結果與查詢時還會由這裡重新解析，而且不再經過驗證，所以解析要能容忍。
+    /// 認不得的值放在 UnknownJoin 原樣帶回，由 Domain 的驗證回 invalid_scenario。
     /// </summary>
     private static (FilterJoin Join, string? UnknownJoin) ParseJoin(JsonElement element)
     {
@@ -552,11 +556,11 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// Closed discriminator tokens are persisted from the original wire JSON for read-back.
-    /// Do not trim a nonblank token here: accepting a padded canonical token for execution while
-    /// preserving its raw spelling would let renderer/replay display a different meaning.
-    /// Missing, non-string, null, and whitespace-only values keep their documented defaults;
-    /// any other non-canonical spelling reaches the closed switch/Domain validator and fails loud.
+    /// 讀只接受固定幾個代號的屬性，例如 type 與 mode。代號照原始 JSON 的寫法保存，供讀回文字使用。
+    /// 不是空白的值在這裡不去掉前後空白：如果執行時把前後多了空白的代號當成標準寫法接受，保存的卻是原始寫法，
+    /// 讀回文字與重新解析時就可能顯示成另一個意思。
+    /// 沒有這個屬性、不是字串、是 null 或全是空白時回 null，由呼叫端套用預設值；
+    /// 其他不是標準寫法的值原樣交給後面的 switch 或 Domain 的驗證，在那裡回錯誤。
     /// </summary>
     private static string? ReadClosedToken(JsonElement element, string name)
     {

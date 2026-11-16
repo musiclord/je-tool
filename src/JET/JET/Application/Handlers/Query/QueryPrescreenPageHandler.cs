@@ -4,7 +4,10 @@ using JET.Domain;
 
 namespace JET.Application;
 
-/// <summary>query.prescreenPage：單一預篩選 row-tag 的完整命中 keyset 分頁。</summary>
+/// <summary>
+/// query.prescreenPage：分頁列出一條逐筆標記的預篩選規則命中的全部分錄。
+/// 下一頁從上一頁最後一筆的排序鍵接著讀（keyset 分頁）。
+/// </summary>
 public sealed class QueryPrescreenPageHandler(
     IProjectStore projectStore,
     ProjectSession session) : IApplicationActionHandler

@@ -3,9 +3,9 @@ using System.Data.Common;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 投影錯誤定位用的來源標籤（「檔名」或「檔名 [工作表]」）。
-/// 單來源批次回傳 null：錯誤訊息維持與單檔時代一字不差，
-/// 只有多來源批次才需要指出「哪個檔案的第幾列」。
+/// 確認配對時回報資料列錯誤要用的來源標籤，寫成「檔名」或「檔名 [工作表]」。
+/// 批次只有一個來源時回傳 null，錯誤訊息不加來源標籤；
+/// 批次有多個來源時才需要指出是哪個檔案的第幾列。
 /// </summary>
 internal static class ProjectionSourceLabels
 {

@@ -8,7 +8,7 @@
 | 成品（在 docs/SAT 底下） | 來源 | 產生腳本 |
 |---|---|---|
 | Technical Document.docx、Design Principle.docx、Code Review/Code review rule.docx | source 的同名 Markdown | Build-Documents.py |
-| Code Review/Code review.xlsx | Build-ReviewData.py 內的檢查項目、核心審計規則與固定值清單 | Build-ReviewData.py、Build-Workbooks.mjs |
+| Code Review/Code review.xlsx | Build-ReviewData.py 內的檢查項目、核心查核邏輯與固定值清單 | Build-ReviewData.py、Build-Workbooks.mjs |
 | Code Review/Unit test Report.xlsx | 測試程式的結果檔 | Export-SatEvidence.py、Build-Workbooks.mjs |
 | 版本更新紀錄.xlsx | source/release-notes.json | Build-Workbooks.mjs |
 | Workflow.xlsx | source/workflow.json | Build-Workflow.py |
@@ -16,7 +16,7 @@
 | Diagrams/Structure Diagrams/Class Diagram.txt 與同名 .png | source/diagrams/uml.json | Build-Diagrams.mjs |
 | Diagrams/Structure Diagrams/Component Diagram.txt 與同名 .png | source/diagrams/component.json | Build-Diagrams.mjs |
 | Diagrams/Behavior diagrams/Activity Diagram.txt 與同名 .png | source/diagrams/activity.json | Build-Diagrams.mjs |
-| Technical Document 第 6 節的系統組成圖 source/diagrams/framework.png | source/diagrams/framework.json | Build-Diagrams.mjs |
+| Technical Document 第 6 節的系統架構圖 source/diagrams/framework.png | source/diagrams/framework.json | Build-Diagrams.mjs |
 | 程式修訂紀錄/git_code_changes_log.txt | 直接編輯，見下方「提交紀錄」 | 無 |
 | Github Security Reports | GitHub 匯出的檔案，見下方「GitHub 安全報告」 | 無 |
 
@@ -32,27 +32,33 @@ Node.js 找不到套件時，先確認這個目錄裡的 `node/node_modules` 是
 
 ## 更新測試紀錄
 
-報告的數字要和技術文件第 14 節寫的命令一致，所以直接執行測試程式並排除三組標記，再用 Node.js 執行 `src/JET/tests/frontend` 的前端測試，
-把兩份結果檔交給轉換工具。
+報告的數字要和技術文件第 14 節寫的命令一致。那三行命令寫的是只有 `src/JET` 時的做法；這個儲存庫用 `tools/verify.ps1` 建置出來的測試程式
+另外編進了 `tools/harness/development-repository-tests/` 的測試，不能拿來算報告的數字。所以測試紀錄在儲存庫外、只有 `src/JET` 的副本產生：
+把 `src/JET` 複製到儲存庫外的新資料夾，在副本裡建置、執行後端測試並排除 `Scale` 標記，再用 Node.js 執行前端測試，
+最後回到專案根目錄，把三份結果檔交給轉換工具。副本的路徑要以 `\src\JET` 結尾，轉換工具靠路徑裡的 `/src/JET/JET/` 辨認涵蓋率檔的原始檔。
 先清掉 `tools/harness/lanes.json` 的 `environmentVariablesToRemove` 列出的環境變數，然後在專案根目錄執行：
 
 ```powershell
-pwsh -NoProfile -File tools/verify.ps1 -Command Build -Configuration Debug
-$out = Join-Path (Get-Location) 'artifacts/sat-test-record'
-src\JET\tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-directory $out `
+$work = '<儲存庫外的新資料夾，完整路徑>'
+$copy = Join-Path $work 'src\JET'
+$out = Join-Path $work 'results'
+robocopy src\JET $copy /E /XD bin obj node_modules .vs /NFL /NDL /NJH /NJS /NP   # 結束碼小於 8 都是成功
+Push-Location $copy
+dotnet build JET.slnx -c Debug
+tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-directory $out `
   --report-trx --report-trx-filename result.trx `
   --coverage --coverage-output-format cobertura --coverage-output "$out/jet.cobertura.xml" `
-  --filter-not-trait "TestProfile=PrivateCase" "TestProfile=Scale" "TestProfile=DevelopmentRepository"
+  --filter-not-trait "TestProfile=Scale"
 Remove-Item Env:JET_FRONTEND_TEST_WWWROOT -ErrorAction SilentlyContinue
-node --test --test-concurrency=4 --test-reporter=junit "--test-reporter-destination=$out/frontend.junit.xml" src/JET/tests/frontend/
+node --test --test-concurrency=4 --test-reporter=junit "--test-reporter-destination=$out/frontend.junit.xml" tests/frontend/
+Pop-Location
 python tools/harness/sat-documents/Export-SatEvidence.py --trx "$out/result.trx" --coverage "$out/jet.cobertura.xml" `
   --frontend-junit "$out/frontend.junit.xml"
 ```
 
-結果資料夾要給完整路徑；給相對路徑時，測試結果檔會寫到測試程式所在的資料夾底下。
+結果資料夾要給完整路徑；給相對路徑時，測試結果檔會寫到測試程式所在的資料夾底下。副本與結果檔用完可以刪除。
 
-第三組標記 `DevelopmentRepository` 是要讀 `src/JET` 以外檔案的測試，只有 `src/JET` 時執行不了，所以不列進報告；
-開發時這些測試仍由 `Public` 執行。轉換工具也接受 `Public -CollectCoverage` 的收據，但那份結果多出這一組測試，
+轉換工具也接受 `Public -CollectCoverage` 的收據，但那份結果多出 `tools/harness/development-repository-tests/` 的測試，
 不用來產生送審的報告。
 
 若另已完成原生 Excel 驗證，可在轉換命令加上 `--excel-receipt <該次 receipt.json 路徑>`，結果只記在 source/test-record.json，不寫進報告。
@@ -60,22 +66,24 @@ python tools/harness/sat-documents/Export-SatEvidence.py --trx "$out/result.trx"
 轉換工具讀 TRX 的案例數與每個案例的結果、前端測試 JUnit 結果的案例數，再從 Cobertura 彙整程式行涵蓋率。
 報告列 `src/JET/tests/JET.Tests` 與 `src/JET/tests/frontend` 的結果；JUnit 結果裡的檔案路徑不寫進紀錄。留在 `tools/tests` 的前端測試與 Excel 驗證
 由 `tools/` 的工具執行，不在送審範圍，不寫進報告。它不執行測試，也不會把失敗改成通過。
-結果檔放在 Git 忽略的 artifacts，不放真實案件資料。
+結果檔放在儲存庫外，不放真實案件資料。
 
 報告的「測試環境」是轉換工具在轉換當下查的：作業系統、`dotnet --version`、`node --version`，以及測試專案檔裡 xUnit 與涵蓋率工具的版本。
 所以轉換要和執行測試在同一台電腦、同一天做。報告的「執行命令」寫在 Export-SatEvidence.py 的 `COMMANDS`，要和 Technical Document 第 14 節的命令一致。
 
 涵蓋率依來源檔與行號去重，只計本次列出的產品 C# 程式，排除產生碼。
 
-複核規則要求測試在提交複核的那個版本上通過。Unit test Report 的「提交識別碼（commit ID）」欄留給部門儲存庫的提交：首次提交完成後，在那個提交上重新執行測試、重新產生報告，再填入識別碼。直接執行測試程式時，source/test-record.json 不記提交識別碼。
+複核規則要求測試在送交複核的那個版本上通過。Unit test Report 的「Commit ID」欄留給部門儲存庫的 commit：首次 commit 完成後，在那個 commit 上重新執行測試、重新產生報告，再填入 commit ID。直接執行測試程式時，source/test-record.json 不記 commit ID。
+
+報告的標題、測試資料、驗收條件、涵蓋率量測方式與模組名稱「Host（JET 資料夾最上層的原始檔）」寫在 Export-SatEvidence.py，轉換時寫進 source/test-record.json。只改文字、不重新執行測試時，腳本與 JSON 兩邊要改成一樣。
 
 ## 更新 Word、Excel 與圖表
 
 1. 修改 source 的 Markdown 或資料來源。Build-ReviewData.py 會確認固定值清單的每一項仍在程式裡，也確認複核範圍列的測試類別仍在測試專案裡；找不到時腳本停止。複核人員填過的 Code review.xlsx 要另存，重新產生會蓋掉填寫的內容。
-2. 執行 Build-Documents.py，產生三份 Word 文件。再執行 Update-WordFields.ps1，在背景用 Word 更新目錄與功能變數、重新分頁並存檔。Word 存檔時會把這台電腦的 Office 使用者名稱寫進「上次儲存者」，所以腳本在 Word 結束後把文件屬性的作者與上次儲存者改成 JET，再檢查每份文件的內部 XML；找到 Windows 使用者名稱、Office 使用者名稱、電腦名稱或本機路徑時報錯。最後轉成 PDF，逐頁檢查排版。要先看結果再覆蓋 docs/SAT 時，Build-Documents.py 加 `--output <資料夾>`，Update-WordFields.ps1 加 `-Root <資料夾>`。
+2. 執行 Build-Documents.py，產生三份 Word 文件。封面、頁首與文件屬性的產品名稱與版本寫在腳本開頭的 `PRODUCT` 與 `VERSION`。Markdown 裡連續的「1. 」編號行會變成一份 Word 自動編號的清單，數字由 Word 產生，段落文字不含數字；公司的 Code review rule 靠這個做法讓段落文字和原文相同。圖片寫成 `![圖名](檔案)`，圖名同時是圖片的替代文字與圖下方的圖名。再執行 Update-WordFields.ps1，在背景用 Word 更新目錄與功能變數、重新分頁並存檔。Word 存檔時會把這台電腦的 Office 使用者名稱寫進「上次儲存者」，所以腳本在 Word 結束後把文件屬性的作者與上次儲存者改成 JET，再檢查每份文件的內部 XML；找到 Windows 使用者名稱、Office 使用者名稱、電腦名稱或本機路徑時報錯。最後轉成 PDF，逐頁檢查排版。要先看結果再覆蓋 docs/SAT 時，Build-Documents.py 加 `--output <資料夾>`，Update-WordFields.ps1 加 `-Root <資料夾>`。
 3. 執行 Build-Workbooks.mjs，產生三份 Excel 文件，再執行 Set-WorkbookPrint.py 設定列印範圍與分頁；活頁簿多了沒有列印規則的工作表時，Set-WorkbookPrint.py 會停止。產生套件會用自己的產品名稱替活頁簿內嵌的佈景主題命名，Set-WorkbookPrint.py 把主題名稱改成 Office，並確認每個內部檔案都搜尋不到那幾個產品名稱，找到時停止。它也替沒有檢視設定的工作表補上 sheetViews，少了這一段時 Excel 會把列高讀成一半；把產生套件留下的預設字型改成 Microsoft JhengHei，並把欄寬換算回原設計，因為換字型後 Excel 會把欄寬放大約 6%；每張工作表加上置中的頁尾「第 N 頁，共 M 頁」。用 Excel 核對下拉選單、公式及列印版面。
-4. 執行 Build-Diagrams.mjs，產生實體關聯圖、類別圖、元件圖、活動圖與系統組成圖。資料表與欄位直接讀產品程式的建表語句；每個類別、元件、關係與活動節點都在來源的 JSON 記了可核對的檔案與字串，在程式裡找不到時腳本停止。元件圖另外掃描程式裡各元件之間的引用：每一組引用都要畫在圖上、寫在註記，或列在 component.json 的 undrawn 並說明原因，否則腳本停止。系統組成圖要先產生，Build-Documents.py 才嵌得到新圖。
-5. 執行 Build-Workflow.py，產生 Workflow.xlsx。來源 source/workflow.json 記錄泳道、階段帶、每個圖形的種類、文字與位置，以及每條連接線的起點、終點、折點與 Pass、Fail 標籤；座標的寫法在檔案開頭的「說明」。流程圖是 Excel 的原生圖形與肘形接點，版面是橫向 A4 縮成一頁。圖形重疊、連接線的起點或終點不存在、連接線穿過圖形時，腳本停止，不產生檔案。產生後用 Excel 在背景開啟並轉成 PDF，確認沒有修復提示、箭頭方向正確。
+4. 執行 Build-Diagrams.mjs，產生實體關聯圖、類別圖、元件圖、活動圖與系統架構圖。資料表與欄位直接讀產品程式的建表語句；每個類別、元件、關係與活動節點都在來源的 JSON 記了可核對的檔案與字串，在程式裡找不到時腳本停止。元件圖另外掃描程式裡各元件之間的引用：每一組引用都要畫在圖上、寫在註記，或列在 component.json 的 undrawn 並說明原因，否則腳本停止。系統架構圖要先產生，Build-Documents.py 才嵌得到新圖。
+5. 執行 Build-Workflow.py，產生 Workflow.xlsx。來源 source/workflow.json 記錄泳道、階段帶、每個圖形的種類、文字與位置，以及每條連接線的起點、終點、折點與 Pass、Fail 標籤；座標的寫法在檔案開頭的「說明」。`cells` 記錄公司範本裡不屬於泳道、階段帶與連接線標籤的儲存格，可以只合併不寫字，也可以指定靠左或用標籤的字級；圖形文字裡的換行會寫成同一個段落裡的分行，和公司範本相同。流程圖是 Excel 的原生圖形與肘形接點，版面是橫向 A4 縮成一頁。圖形重疊、連接線的起點或終點不存在、連接線穿過圖形時，腳本停止，不產生檔案。產生後用 Excel 在背景開啟並轉成 PDF，確認沒有修復提示、箭頭方向正確。
 6. 執行文件檢查。
 
 ```powershell
@@ -104,12 +112,12 @@ Copy-Item -LiteralPath 'tools/harness/sat-documents/Build-Workbooks.mjs', 'tools
 
 這個連接點只讓暫存腳本讀取既有套件，不變更套件目錄。
 
-五張圖都由 Build-Diagrams.mjs 以 Graphviz 繪製。系統組成圖的來源是 source/diagrams/framework.json，嵌入 Technical Document 第 6 節，不另外放進 docs/SAT。其餘四張同時輸出 PlantUML 格式的文字定義；這台電腦沒有 PlantUML，文字定義沒有實際轉過圖，改語法時要對照 plantuml.com 的官方說明。
+五張圖都由 Build-Diagrams.mjs 以 Graphviz 繪製。系統架構圖的來源是 source/diagrams/framework.json，嵌入 Technical Document 第 6 節，不另外放進 docs/SAT。其餘四張同時輸出 PlantUML 格式的文字定義；這台電腦沒有 PlantUML，文字定義沒有實際轉過圖，改語法時要對照 plantuml.com 的官方說明。
 
 ## 提交紀錄
 
-對部門來說，JET 1.0.0.0 是儲存庫的第一筆提交，所以 git_code_changes_log.txt 只記一筆「首次提交」，照 `git log` 的樣子寫 commit、Author、Date 三行，值先寫待填。
-開發期間在個人儲存庫的提交不列進這份紀錄。首次提交完成後，在部門儲存庫執行下面的命令，用輸出取代檔案內容：
+對部門來說，JET 1.0.0.0 是儲存庫的第一筆 commit，所以 git_code_changes_log.txt 只記一筆，commit message 寫「首次提交：JET 1.0.0.0」，照 `git log` 的樣子寫 commit、Author、Date 三行，值先寫待填。
+開發期間在個人儲存庫的 commit 不列進這份紀錄。首次 commit 完成後，在部門儲存庫執行下面的命令，用輸出取代檔案內容：
 
 ```powershell
 git log --date=short --stat

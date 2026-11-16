@@ -115,16 +115,18 @@ internal sealed class ReportTemplateCatalog
 }
 
 /// <summary>
-/// 先複製範本，再讓 bounded/SAX writer 直接改寫已授權的 worksheet parts。
-/// 大型明細不建立第二個 workbook，也不把完整 worksheet 載入記憶體。
+/// 把範本複製到輸出串流，再直接改寫其中允許改寫的工作表。
+/// 大型明細一列一列寫進這一份活頁簿，不另外建立第二份活頁簿，也不把整張工作表載入記憶體。
 /// </summary>
 internal static class ReportTemplatePackage
 {
     /// <summary>
-    /// 複製固定範本後，只把 allowlist 內既有 worksheet parts 交給 forward-only editor。
-    /// 這條路徑不建立 current-result workbook；既有 style index 不移動。新增 dynamic sheet
-    /// 如需 writer 樣式，只能經 WorkbookStyleMap 以 bounded append 取得新索引；protection
-    /// variant 則由 editor 的既有 prototype 派生。
+    /// 複製固定範本後，建立只能改寫 <paramref name="allowedWorksheetNames"/> 所列工作表的
+    /// <see cref="DirectTemplateWorkbookEditor"/>，交給 <paramref name="fill"/> 填資料。
+    /// 資料直接寫進範本的這份複本，不先另外產生一份放結果的活頁簿。範本既有的樣式索引不會移動：
+    /// 新增的資料工作表要用寫出程式自己的樣式時，只能用 <see cref="WorkbookStyleMap"/> 把樣式接在樣式表最後面，取得新索引；
+    /// 鎖定與不鎖定的樣式，由 editor 複製範本既有的樣式再改保護設定而來。
+    /// <paramref name="fill"/> 結束時，所列的工作表必須每一張都改寫過，否則丟出例外。
     /// </summary>
     internal static Task<ExportStats> FillDirectAsync(
         ReportTemplateCatalog catalog,
@@ -146,9 +148,8 @@ internal static class ReportTemplatePackage
     }
 
     /// <summary>
-    /// Direct-template 的 async streaming 入口。與 <see cref="FillDirectAsync"/>
-    /// 共用同一 copy/open/allowlist/package 邊界，只讓 callback 在既有 package 內
-    /// 逐頁取得資料並直接寫 worksheet parts。
+    /// 和 <see cref="FillDirectAsync"/> 做同一件事，差別是 <paramref name="fill"/> 是非同步方法。
+    /// 複製範本、開啟活頁簿與限制可改寫工作表的做法都相同；<paramref name="fill"/> 可以一邊分頁讀取資料，一邊把資料列直接寫進工作表。
     /// </summary>
     internal static Task<ExportStats> FillDirectStreamingAsync(
         ReportTemplateCatalog catalog,
@@ -200,9 +201,8 @@ internal static class ReportTemplatePackage
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            // Streaming writers have already opened rewritten worksheet entries in
-            // package Update mode. Reopen once before touching every worksheet DOM;
-            // the packaging API does not permit opening the same entry twice in one pass.
+            // 前面逐列寫出的程式已經用更新模式開過被改寫的工作表。統一字型時要載入每一張工作表，
+            // 而封裝 API 不允許在同一次開啟裡把同一個項目開兩次，所以先關閉活頁簿，再重新開啟一次。
             using (var target = SpreadsheetDocument.Open(
                        output,
                        true,
@@ -294,8 +294,8 @@ internal static class ReportTemplatePackage
 }
 
 /// <summary>
-/// 對既有 template cellXf 做 component-level、append-only 的外觀 patch。
-/// null 表示保留 prototype；既有 font/fill/cellXf 索引永不搬動。
+/// 以範本既有的一個 cellXf 為底，指定要改哪幾項外觀：字型名稱、字級、粗體、字色、底色、自動換行、數字格式與去掉框線。
+/// 欄位是 null 表示那一項照範本原樣。套用時只在樣式表最後面追加新的 font、fill 與 cellXf，既有的索引不會移動。
 /// </summary>
 internal sealed record WorkbookStylePatch(
     string? FontName = null,
@@ -322,8 +322,8 @@ internal sealed record WorkbookStylePatch(
 }
 
 /// <summary>
-/// 由 template style prototype 派生 bounded 外觀 variant。每組 prototype/patch
-/// 只追加一次，且只切換被要求的 cellXf component。
+/// 依 <see cref="WorkbookStylePatch"/> 從範本既有的樣式產生新樣式。同一個範本樣式配同一組修改只追加一次，
+/// 所以新增的樣式數量有上限；新樣式只改被要求的那幾項，其餘照範本的樣式。
 /// </summary>
 internal sealed class WorkbookStylePatcher
 {
@@ -410,8 +410,9 @@ internal sealed class WorkbookStylePatcher
     }
 
     /// <summary>
-    /// 以 writer source style 保留資料格式、單行對齊與 protection，只把範本 prototype
-    /// 的 fill／border component 帶回來。兩組 component 的 ownership 不互相覆蓋。
+    /// 產生一個新樣式：底色與框線照 <paramref name="templateStyleIndex"/>，也就是範本原本的樣式；
+    /// 其餘都照 <paramref name="sourceStyleIndex"/>，也就是寫出程式用的樣式，包含資料格式、單行對齊與保護設定。
+    /// 兩邊的底色與框線本來就相同時，直接回傳寫出程式的樣式，不新增。
     /// </summary>
     internal uint PreserveTemplateFillAndBorder(
         uint templateStyleIndex,
@@ -623,8 +624,9 @@ internal sealed class WorkbookStylePatcher
 }
 
 /// <summary>
-/// 將 current writer 的 cellXfs 與相依 font/fill/border/numFmt 追加到範本樣式表，
-/// 只讓新增的動態 sheet／cell 使用新索引；範本既有 style index 完全不搬動。
+/// 把寫出程式自己的樣式表加進範本的樣式表：cellXfs 以及它們用到的 font、fill、border 與 numFmt
+/// 都接在範本既有項目的後面，再用 <see cref="Map"/> 把原本的樣式索引換成新的索引。
+/// 只有新增的資料工作表與儲存格使用新索引，範本既有的樣式索引不會移動。
 /// </summary>
 internal sealed class WorkbookStyleMap
 {

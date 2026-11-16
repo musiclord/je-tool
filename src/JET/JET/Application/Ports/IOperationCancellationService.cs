@@ -1,8 +1,8 @@
 namespace JET.Application;
 
 /// <summary>
-/// 依 bridge requestId 請求取消在途作業的窄介面。Application 只知道「要求取消」，
-/// requestId 與 CancellationTokenSource 的生命週期由 Bridge adapter 管理。
+/// 依請求的 requestId 要求取消一個還在進行的作業。Application 只負責提出取消；
+/// requestId 對應的 CancellationTokenSource 何時建立與釋放，由 Bridge 管理。
 /// </summary>
 public interface IOperationCancellationService
 {

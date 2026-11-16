@@ -294,7 +294,7 @@ public sealed class PrescreenRuleFixedAnswerTests
             scenario = new
             {
                 name = "固定答案",
-                rationale = "階段九的同一個數字",
+                rationale = "各種寫法的同一個數字",
                 groups = new object[] { new { join = "AND", conditions = new[] { rule } } }
             }
         }));

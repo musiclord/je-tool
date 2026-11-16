@@ -4,7 +4,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 建案與修改案件畫面輸入時就近顯示的準備日提醒，是後端 <see cref="ProjectMetadataRules"/> 的副本；這裡比對句子。
+/// 建案與修改案件畫面輸入時就近顯示的準備日提醒，以及建案畫面送出前檢查查核期間年份的兩句訊息，
+/// 都是後端 <see cref="ProjectMetadataRules"/> 的副本；這裡比對句子。
 /// 判斷邊界兩邊各有固定答案：後端在 <c>ProjectCreationValidationTests</c>，前端在前端測試。
 /// </summary>
 public sealed class ProjectMetadataRuleMirrorFrontendTests
@@ -16,6 +17,21 @@ public sealed class ProjectMetadataRuleMirrorFrontendTests
 
         Assert.Contains(
             "warning.textContent = '" + ProjectMetadataRules.PreparationDateWarning + "';",
+            create,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PeriodYearMessages_FrontendCopiesMatchBackendWordForWord()
+    {
+        var create = ReadFrontend("js", "steps", "create-step.js");
+
+        Assert.Contains(
+            "periodStart: '" + ProjectMetadataRules.PeriodStartYearOutOfRange + "'",
+            create,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "periodEnd: '" + ProjectMetadataRules.PeriodEndYearOutOfRange + "'",
             create,
             StringComparison.Ordinal);
     }

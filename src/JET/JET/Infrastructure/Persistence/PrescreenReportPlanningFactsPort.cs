@@ -4,8 +4,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Pre-screening workbook planning adapter。沿用 provider-routed page repository 的
-/// set-based count query；N/A family 不發出查詢，也不讀取 detail page。
+/// 匯出預篩選報告前，替 AuditCore 的 <see cref="PrescreenReportPlan"/> 查每一種明細的命中筆數。
+/// 筆數由 <see cref="IPrescreenPageRepository"/> 用集合式 SQL 計算；
+/// 不適用的明細不查，這裡也不讀任何明細列。
 /// </summary>
 internal sealed class PrescreenReportPlanningFactsPort(IPrescreenPageRepository pages)
     : IPrescreenReportPlanningFactsPort

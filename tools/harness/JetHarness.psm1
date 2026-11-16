@@ -471,11 +471,17 @@ function Invoke-JetHarness {
                         $steps.Add($selected)
                     }
                     if ($steps.Count -gt 0 -and $steps[$steps.Count - 1].status -ceq 'passed') {
+                        # 這一步只跑指定命名空間的測試，所以只要求這些命名空間裡的類別。
+                        $guardRequiredClasses = @($registry.testSettings.developmentRepositoryRequiredTestClasses | Where-Object {
+                                $requiredClass = [string]$_
+                                @($registry.testSettings.focusedGuardNamespaces | Where-Object {
+                                        $requiredClass.StartsWith("$([string]$_).", [StringComparison]::Ordinal) }).Count -gt 0 })
                         $guards = Invoke-JetTestStep `
                             -RepositoryRoot $repositoryFull `
                             -RunDirectory $context.RunDirectory `
                             -Configuration $Configuration `
                             -Name 'focused-guards' `
+                            -RequiredTestClasses $guardRequiredClasses `
                             -MinimumExpectedTests 1 `
                             -Registry $registry `
                             -TimeoutSeconds $parsedTimeoutSeconds `
@@ -503,6 +509,7 @@ function Invoke-JetHarness {
                             -Configuration $Configuration `
                             -Name 'public-tests' `
                             -CollectCoverage:$CollectCoverage `
+                            -RequiredTestClasses @($registry.testSettings.developmentRepositoryRequiredTestClasses) `
                             -MinimumExpectedTests ([int]$registry.testSettings.publicMinimumExpectedTests) `
                             -Registry $registry `
                             -TimeoutSeconds $parsedTimeoutSeconds `

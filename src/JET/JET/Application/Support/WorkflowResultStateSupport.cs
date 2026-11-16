@@ -4,7 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
-/// <summary>Writes return the backend impact and current state; the UI only mirrors these bounded facts.</summary>
+/// <summary>
+/// 會改資料的 action 寫入之後，回應裡附上這次寫入作廢了哪些結果，以及目前的結果狀態與報告清單。
+/// 畫面只照這些內容顯示，不自己推算。
+/// </summary>
 internal static partial class WorkflowResultStateSupport
 {
     /// <summary>
@@ -67,7 +70,7 @@ internal static partial class WorkflowResultStateSupport
             try { revision = FilterPopulationScopeParser.RequireCurrentRevision(scenarios); }
             catch (JetActionException exception) when (exception.Code == JetErrorCodes.StaleResult)
             {
-                // Keep definitions available for correction, but never publish their old hits as current.
+                // 情境的定義留著讓審計員修正，但舊的命中不當成目前的結果：版本留 null，下面把篩選結果標成過期。
             }
         }
         return new CurrentSnapshot(
@@ -117,7 +120,7 @@ internal static partial class WorkflowResultStateSupport
             effects?.InvalidateFilterHits ?? false, effects?.InvalidateFilterScenarioDefinitions ?? false,
             effects?.ClearAccountMapping ?? false);
 
-        // The mutation has committed. A late caller cancellation must not discard its authoritative state.
+        // 變更已經提交。之後才到的取消不能讓寫入後的狀態回不到畫面，所以讀狀態時不帶呼叫端的取消。
         CurrentSnapshot current;
         try
         {

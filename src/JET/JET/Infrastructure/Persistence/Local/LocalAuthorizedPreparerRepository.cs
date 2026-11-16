@@ -7,9 +7,10 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 授權編製人員清單的匯入與計數（import.authorizedPreparer.fromFile）。
-/// 授權清單就是一個 name 集合——staging 寫入與 target 投影在**同一 transaction**完成。
-/// 鏡射 <see cref="LocalAccountMappingRepository"/> 但不寫 import_batch（不入 dataset_kind 體系，
-/// 也就不必改 CHECK 約束）；batchId 僅供 response、不持久化。replace-only。
+/// 授權清單只是一組姓名。寫匯入暫存表 <c>pbc_authorized_preparer</c> 與寫 <c>authorized_preparer</c> 在同一個交易裡完成。
+/// 做法和 <see cref="LocalAccountMappingRepository"/> 相同，但不寫 import_batch：
+/// import_batch.dataset_kind 的 CHECK 只允許 gl、tb 與 account_mapping。
+/// batchId 只寫在匯入暫存表的 batch_id 欄與回應裡，沒有批次紀錄可以查回。只支援取代匯入。
 /// </summary>
 public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase database)
     : IAuthorizedPreparerStore, IAuthorizedPreparerImportPersistence
@@ -66,7 +67,7 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        // replace 語意：同一 transaction 清舊 staging 與 target。
+        // 取代匯入：在同一個交易裡清掉舊的匯入暫存表 pbc_authorized_preparer 與 authorized_preparer。
         await using (var cleanup = connection.CreateCommand())
         {
             cleanup.Transaction = transaction;
@@ -85,7 +86,7 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
             cancellationToken,
             AuditMutation.AuthorizedPreparer);
 
-        // 串流寫 staging,同步收集去重後姓名集合（TRIM、空白略過）。
+        // 一邊讀來源一邊寫匯入暫存表，同時把每一列交給 projection 收集姓名：去掉前後空白、略過空白列、重複的只留一個。
         var rowCount = 0;
 
         await using (var insertRow = connection.CreateCommand())

@@ -3,8 +3,8 @@ using System.Globalization;
 namespace JET.Domain;
 
 /// <summary>
-/// 六份正式報表共用的 hidden workbook metadata 契約。內容只包含有界的案件政策、
-/// 科目分類 revision 與目前 committed mapping snapshot，不攜帶任何 GL/TB 資料列。
+/// 六份正式報表共用、藏在工作簿裡的 metadata。內容只有少量的案件設定、科目分類的 revision
+/// 與目前已確認的欄位配對快照，不帶任何 GL 或 TB 資料列。
 /// </summary>
 internal sealed record ReportWorkbookMetadata(
     string PeriodStart,
@@ -21,7 +21,7 @@ internal static class ReportWorkbookMetadataFormat
     public const int MaximumChunkLength = 30_000;
 }
 
-/// <summary>AuditCore plan 與 Infrastructure codec 共用的 fail-closed invariant。</summary>
+/// <summary>AuditCore 排計畫與 Infrastructure 編碼、解碼 metadata 時共用的檢查；內容不合規定就丟例外，不繼續。</summary>
 internal static class ReportWorkbookMetadataInvariant
 {
     public static void Validate(ReportWorkbookMetadata metadata)

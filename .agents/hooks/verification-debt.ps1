@@ -10,7 +10,8 @@
 
     1. 驗證欠帳。比較工作樹中已改動檔案的最後修改時間，與 `artifacts/harness/runs/` 中對應命令最近一次
        `passed` 收據的完成時間；收據較舊就算未重跑。
-    2. 測試斷言變動。`src/JET/tests/` 有改動時，比對 HEAD 與工作樹，數出移除的 `Assert.`、移除的
+    2. 測試斷言變動。`src/JET/tests/` 或 `tools/harness/development-repository-tests/` 有改動時，
+       比對 HEAD 與工作樹，數出移除的 `Assert.`、移除的
        `[Fact]` 或 `[Theory]`，以及新增的 `Skip =`。對應 `AGENTS.md`「測試」邊界。
 
     2026-10-02 起依使用者裁定不再擋住結束：先前「第一次擋一次」的做法以 session 為單位記狀態，
@@ -56,6 +57,8 @@ try {
     }
     foreach ($path in $changed) {
         if ($managedDocs -contains $path) { $areas['Documentation'].Paths += $path; continue }
+        # 放在驗證框架底下、只在開發儲存庫才用得到的測試由 Public 執行。
+        if ($path.StartsWith('tools/harness/development-repository-tests/')) { $areas['Public'].Paths += $path; continue }
         if ($path.StartsWith('tools/')) { $areas['Contract'].Paths += $path; continue }
         if ($path.StartsWith('src/')) { $areas['Public'].Paths += $path; continue }
     }
@@ -118,8 +121,9 @@ try {
 
     # ---- 2. 測試斷言變動 ---------------------------------------------------
     $driftNote = $null
-    if (@($changed | Where-Object { $_.StartsWith('src/JET/tests/') }).Count -gt 0) {
-        $diff = @(& git -C $root diff HEAD --unified=0 --no-color -- src/JET/tests 2>$null)
+    if (@($changed | Where-Object { $_.StartsWith('src/JET/tests/') -or
+                $_.StartsWith('tools/harness/development-repository-tests/') }).Count -gt 0) {
+        $diff = @(& git -C $root diff HEAD --unified=0 --no-color -- src/JET/tests tools/harness/development-repository-tests 2>$null)
         if ($LASTEXITCODE -eq 0) {
             $assertRemoved = 0; $factRemoved = 0; $skipAdded = 0
             foreach ($line in $diff) {

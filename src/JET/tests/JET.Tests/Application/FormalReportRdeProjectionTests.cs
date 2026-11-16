@@ -109,6 +109,8 @@ public sealed class FormalReportRdeProjectionTests
             .ToArray();
         Assert.Equal(new[] { TextHeader, DateHeader }, step2Headers);
         Assert.DoesNotContain(MoneyHeader, step2Headers);
+        // 攸關資料元素欄從 U 欄起，第 49 列的標題由 JET 寫。
+        Assert.Equal("所選高風險條件引用RDE", step2.Cell(49, 21).GetString());
         var step2DocumentColumn = FindHeaderColumn(step2, 51, "傳票號碼\n(分錄編號)");
         var step2TextColumn = FindHeaderColumn(step2, 51, TextHeader);
         var step2DateColumn = FindHeaderColumn(step2, 51, DateHeader);

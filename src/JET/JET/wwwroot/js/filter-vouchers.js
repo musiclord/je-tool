@@ -243,7 +243,7 @@
       var page = view.page;
       var searchHtml = Ui.pageSearchHtml('依傳票號碼查看');
       var errorHtml = view.error ? '<p class="form-notice" role="alert">' + Ui.esc(view.error) +
-        '</p><button type="button" class="btn btn--ghost btn--tiny" data-voucher-retry>重試</button>' : '';
+        '</p><button type="button" class="btn btn--ghost btn--tiny" data-voucher-retry>重新載入</button>' : '';
       if (!page.rows.length) {
         host.innerHTML = (view.search ? searchHtml : '') + errorHtml + '<p class="empty-state" data-motion-key="' + Ui.esc(id + '-empty') + '">' + (view.search ? '沒有符合「' + Ui.esc(view.search) + '」的符合條件傳票。' : '沒有符合的傳票。調整條件後可再次查看。') + '</p>';
         bindSortAndSearch();

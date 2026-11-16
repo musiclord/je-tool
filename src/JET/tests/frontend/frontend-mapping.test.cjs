@@ -472,8 +472,8 @@ test('one-sided manual policy and explicit blank choice survive editing and load
   assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy), { manualValues: ['1'], automaticValues: ['0'] });
 });
 
-// 人工/自動區只顯示判定方式需要的那一側代碼，
-// 順序固定為判定方式、代碼、來源值、來源空白時；預設政策不寫入兩項補集設定。
+// 人工/自動區只顯示「如何區分人工與自動」需要的那一側代碼，
+// 順序固定為「如何區分人工與自動」、代碼、來源值、來源空白時；預設政策不寫入兩項補集設定。
 test('manual policy shows only the code side its mode needs and keeps the default policy untouched', () => {
   const f = fixture();
   f.store.setMappingDraft('gl', 'isManual', 'Manual');
@@ -967,7 +967,7 @@ test('preflight names conflicts outside the display plus known blank and unclass
   assert.match(warning, /Ghost/); assert.match(warning, /人工與自動.*重複/);
   assert.match(warning, /空白.*3.*來源空白時/);
   assert.match(warning, /Unassigned.*未歸類|未歸類.*Unassigned/);
-  assert.match(html, /只列一側/);
+  assert.match(html, /只指定一側的代碼/);
   assert.ok(html.includes('data-action="commit-gl">'));
 });
 
@@ -1333,7 +1333,7 @@ test('late whoAmI does not rebuild other workflow steps or overwrite the recorde
   assert.equal(create.operator.outerHTML, 'recorded original-preparer');
 });
 
-// 只列一側時，清單代碼還沒和來源核對就要在確認前提醒，而且不擋確認。
+// 只指定一側的代碼時，清單代碼還沒和來源核對就要在確認前提醒，而且不擋確認。
 // 讀取來源值後，由「來源裡沒有這個值」接手。
 test('single-side codes not yet checked against the source are named before confirming without blocking', async () => {
   const f = readyGlMappingFixture();
@@ -1376,7 +1376,7 @@ test('single-side codes not yet checked against the source are named before conf
   await settle();
   html = failed.render().html;
   assert.match(html, /讀取來源值失敗/);
-  assert.match(preflight(html), /人工分錄代碼「1」尚未與來源核對；來源沒有此代碼時，有值的列都會視為自動分錄。讀取來源值失敗，可按「再試一次」。/);
+  assert.match(preflight(html), /人工分錄代碼「1」尚未與來源核對；來源沒有此代碼時，有值的列都會視為自動分錄。讀取來源值失敗，可按「重新載入」。/);
   assert.ok(html.includes('data-action="commit-gl">'));
 });
 

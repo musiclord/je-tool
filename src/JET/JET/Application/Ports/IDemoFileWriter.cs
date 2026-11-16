@@ -3,8 +3,8 @@ namespace JET.Application;
 public sealed record DemoExportedFile(string FilePath, string FileName);
 
 /// <summary>
-/// 將 demo 測試案件寫成實體 xlsx（host 能力，仿 IHostShell 前例）。
-/// Demo 必須走與使用者上傳相同的 file-based import pipeline，才能驗到真實匯入路徑。
+/// 把示範案件的資料寫成實際的 xlsx 檔。介面放在 Application、實作放在外層，和 IHostShell 相同；實作是 Infrastructure 的 DemoWorkbookWriter。
+/// 示範資料要和使用者選檔匯入走同一條從檔案匯入的流程，才測得到真正的匯入路徑。
 /// </summary>
 public interface IDemoFileWriter
 {

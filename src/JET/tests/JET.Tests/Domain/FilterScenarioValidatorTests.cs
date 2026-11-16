@@ -259,7 +259,6 @@ public sealed class FilterScenarioValidatorTests
         var scenario = Scenario(rules: PrescreenRule(PrescreenRuleKeys.UnexpectedAccountPair));
 
         // 有效 fixture 須有收入及至少一種對方分類，沿第四步定義。
-        // Assert.Empty 目的不變。
         Assert.Empty(FilterScenarioValidator.Validate(
             scenario, Ready with { HasAccountMapping = true, HasRevenueCategory = true, HasCounterpartCategory = true }));
     }

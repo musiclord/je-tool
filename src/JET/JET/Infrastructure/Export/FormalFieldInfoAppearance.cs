@@ -32,7 +32,7 @@ internal static class FormalFieldInfoAppearance
         ExcelDisplayWidth.WrappedLineCount(name, nameColumnWidth);
 }
 
-/// <summary>Validation 欄位資訊頁只需的 borderless regular／bold／換行基底，字級和報告其他頁同為 10 點。</summary>
+/// <summary>資料驗證報告的欄位資訊頁用到的三種無框線樣式：一般、粗體與自動換行。字級和報告其他頁一樣是 10 點。</summary>
 internal static class FormalFieldInfoStyles
 {
     internal const uint Default = 0;

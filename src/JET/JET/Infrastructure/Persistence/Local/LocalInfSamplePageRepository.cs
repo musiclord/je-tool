@@ -4,10 +4,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// INF 抽樣行層明細 keyset 分頁(本地引擎)。JOIN gl 取顯示欄(借/貸拆欄);
-/// 以 caller 指定 resultId 限定樣本；排序鍵 entry_id ASC、
-/// 游標展開布林式 <c>AND g.entry_id &gt; @cursor</c>(@cursor 綁 long,首頁省略)、limit 由注入的
-/// <see cref="ISqlDialect"/> 出。SELECT 末欄取 g.entry_id 供編游標,不放進 wire row。
+/// 分頁讀出 INF 抽樣的樣本分錄明細，分頁用 keyset 方式：用上一頁最後一筆的排序鍵接下一頁。
+/// 從 inf_sample JOIN gl 取要顯示的欄位，借方與貸方金額各一欄；只讀呼叫端指定的 resultId 那一次抽出的樣本。
+/// 排序、搜尋與換頁條件由 <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.InfSample</c> 組出，沒有指定排序時依 entry_id 升冪；
+/// LIMIT 的寫法取自 <see cref="ISqlDialect"/>。SELECT 多取 g.entry_id，用來編下一頁的 cursor；它不是回給前端的欄位。
 /// </summary>
 public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
     : IInfSamplePageRepository

@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 有界查詢共用的請求解析：<c>cursor</c>、<c>pageSize</c>、<c>sort</c>（{ key, direction }）與 <c>search</c>。
+/// 分頁查詢共用的請求解析：<c>cursor</c>、<c>pageSize</c>、<c>sort</c>（{ key, direction }）與 <c>search</c>。
 /// 排序鍵對照該查詢的 <see cref="PageSortCatalog"/> 白名單，不在白名單就報 invalid_payload 並列出允許的鍵；
 /// 搜尋文字只做長度上限，比對哪一欄由查詢決定。
 /// </summary>

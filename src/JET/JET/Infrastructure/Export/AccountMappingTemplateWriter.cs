@@ -6,9 +6,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// legacy AccountMapping 版型：資料自第 4 列開始，A/B 鎖定，只有 C4:C(last) 解鎖並套分類下拉；
-/// 第二張 List 保存目前專案的科目分類 labels，不鎖定，審計員可以在清單最後加上新的分類名稱。
-/// production 先複製固定範本，再 forward-only 重寫兩張授權 worksheet。
+/// 寫出舊版 JET 版型的科目配對範本。AccountMapping 工作表的資料從第 4 列開始，A、B 欄鎖定，
+/// 只有 C 欄從第 4 列到最後一筆資料不鎖定，並套上分類的下拉選單。
+/// 第二張 List 工作表放目前專案的科目分類名稱，不鎖定，審計員可以在清單最後加上新的分類名稱。
+/// 寫出時先複製固定範本，再由上往下依序重寫 AccountMapping 與 List 這兩張工作表；範本的其他工作表不能改。
 /// </summary>
 public sealed class AccountMappingTemplateWriter :
     IAccountMappingTemplateWriter,
@@ -96,8 +97,8 @@ public sealed class AccountMappingTemplateWriter :
             .ToArray();
         if (rows.Count > MaxDataRowsPerWorkbook)
         {
-            // AccountMapping 的匯入契約只接受單一權威工作表；自動分頁會讓回匯遺漏後續頁。
-            // 因此在建立 package 前明確拒絕，而不是讓 uint 列號越界或產出部分檔案。
+            // 匯入科目配對時只讀一張 AccountMapping 工作表；資料如果自動分到第二張，匯回來時後面幾張會漏掉。
+            // 所以列數超過一張工作表放得下的上限時，在開始寫檔之前就丟出例外，不讓列號超出範圍，也不產出只有部分資料的檔案。
             throw new ArgumentOutOfRangeException(
                 nameof(rows),
                 $"AccountMapping supports at most {MaxDataRowsPerWorkbook:N0} data rows in one workbook.");

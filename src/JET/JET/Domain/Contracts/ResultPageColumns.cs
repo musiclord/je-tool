@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// Filter／INF result page 的 backend column registry entry。公開 wire renderer 逐欄投影為
-/// <c>{ key, label, valueType, isCustom }</c>；SourceColumn 不屬於此契約。
+/// 篩選結果與 INF 抽樣明細表的一個欄位定義，有哪些欄由後端決定。回應裡每一欄寫成
+/// <c>{ key, label, valueType, isCustom }</c>；SourceColumn 不在這份定義裡。
 /// </summary>
 public sealed record ResultPageColumn(
     string Key,
@@ -11,8 +11,8 @@ public sealed record ResultPageColumn(
     bool IsCustom);
 
 /// <summary>
-/// 一個已保存 RDE cell 的 provider-neutral typed value。空白 RDE 沒有資料列；因此本型別只代表
-/// present cell，缺值由 renderer 依 column registry 補成 explicit null。
+/// 一格已儲存的 RDE 值，帶著值的型別，和用哪一種資料庫無關。空白的 RDE 沒有資料列，所以這個型別只代表有值的格子；
+/// 沒有值的格子，由組回應的程式依欄位定義補成 null。
 /// </summary>
 public sealed record ResultPageRdeValue(
     long EntryId,
@@ -22,7 +22,10 @@ public sealed record ResultPageRdeValue(
     string? DateValue,
     long? AmountScaled);
 
-/// <summary>RDE page port 的 entry-id batch 守衛；只允許單一 keyset page 的唯一正整數 id。</summary>
+/// <summary>
+/// 檢查交給 <c>IResultPageRdeValuesPort</c> 的那一批 entry id：數量不能超過一頁的上限，
+/// 每個 id 都要大於 0，而且不能重複。
+/// </summary>
 public static class ResultPageRdeValueBatch
 {
     public static IReadOnlyList<long> Validate(IReadOnlyList<long> entryIds)

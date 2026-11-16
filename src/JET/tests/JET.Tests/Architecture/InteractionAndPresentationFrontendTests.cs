@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using JET.Tests.Infrastructure;
-using JET.Tests.TestInfrastructure;
 using Xunit;
 
 namespace JET.Tests.Architecture;
@@ -9,7 +8,7 @@ namespace JET.Tests.Architecture;
 /// UX 項目的前端來源守衛。這些斷言只鎖交互與呈現，
 /// 不新增 wire、schema 或審計語意。
 /// </summary>
-public sealed class InteractionAndPresentationFrontendTests
+public sealed partial class InteractionAndPresentationFrontendTests
 {
     [Fact]
     public void ProjectDeleteDialog_UsesSiblingNativeControlsAndCompleteKeyboardFocusLifecycle()
@@ -55,31 +54,6 @@ public sealed class InteractionAndPresentationFrontendTests
         Assert.Matches(
             new Regex(@"\.stepflow-item\[data-step-nav\]:focus-visible[\s\S]*?outline:\s*2px", RegexOptions.CultureInvariant),
             css);
-    }
-
-    // 桌面情境測試的假選檔器靠選檔視窗的標題認出是哪一張卡片在選檔，標題對不上時改開真的 Windows 選檔視窗，測試要等到逾時才失敗。
-    // 所以假選檔器寫的每個標題，都要在前端程式裡逐字出現。假選檔器屬於驗證框架，只在開發儲存庫裡。
-    [Fact]
-    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
-    public void AgentGuiFileChooserFixtures_UseTheTitlesTheScreensPass()
-    {
-        var fixtures = File.ReadAllText(Path.Combine(
-            TestRepositoryPaths.RepositoryRoot, "tools", "harness", "agent-gui-test", "AgentGuiTestFixtures.cs"));
-        var scripts = string.Join(
-            "\n",
-            Directory.GetFiles(Path.Combine(SolutionRoot(), "JET", "wwwroot", "js"), "*.js", SearchOption.AllDirectories)
-                .Select(File.ReadAllText));
-        var titles = Regex.Matches(fixtures, @"private const string \w+Title = ""([^""]+)"";")
-            .Select(match => match.Groups[1].Value)
-            .ToArray();
-
-        Assert.Equal(3, titles.Length);
-        foreach (var title in titles)
-        {
-            Assert.True(
-                scripts.Contains("'" + title + "'", StringComparison.Ordinal),
-                $"假選檔器的標題「{title}」在前端程式裡找不到。");
-        }
     }
 
     [Fact]

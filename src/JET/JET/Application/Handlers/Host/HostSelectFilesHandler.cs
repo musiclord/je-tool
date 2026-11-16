@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace JET.Application;
 
 /// <summary>
-/// host.selectFiles：多選版本的原生檔案對話框（匯入精靈一次選多個來源檔）。
-/// 取消 = 空陣列。獨立 action 而非 selectFile 的旗標，避免同一 action 兩種 response 形狀。
+/// host.selectFiles：開啟可以多選的 Windows 檔案對話框，匯入精靈用它一次選多個來源檔。
+/// 審計員取消時回空陣列。它是獨立的 action，沒有做成 host.selectFile 的選項，這樣同一個 action 的回應不會有兩種形狀。
 /// </summary>
 public sealed class HostSelectFilesHandler : IApplicationActionHandler
 {

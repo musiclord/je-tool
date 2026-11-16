@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// 規則的結果形狀：資料驗證 summary、預篩選 row-tag（可作進階篩選列述詞）、
-/// 預篩選彙總（僅供判讀，不可作列述詞）。
+/// 規則的結果是哪一種。Validation 是資料驗證的摘要；RowTag 是逐筆標記分錄的預篩選規則，可以當成進階篩選的條件；
+/// Aggregate 是彙總型的預篩選規則，只供判讀，不能當成條件。
 /// </summary>
 internal enum RuleShape
 {
@@ -14,9 +14,9 @@ internal enum RuleShape
 }
 
 /// <summary>
-/// 規則命名登錄表的單筆描述：slug（資料表/追溯）、
-/// wire key（JSON 屬性與 prescreenKey）、中文顯示名（UI 與工作底稿分頁）、
-/// 歷史代號（僅供回查 legacy 文件，不得進入 UI / wire / 資料表名）。
+/// 規則命名登錄表的一筆。<c>Slug</c> 用在資料表與追溯；<c>WireKey</c> 是 JSON 屬性名與 prescreenKey 的值；
+/// <c>DisplayName</c> 是畫面與工作底稿分頁上的中文名稱；<c>LegacyCode</c> 是舊代號，只用來回查舊版文件，
+/// 不得出現在畫面、action 的 JSON 或資料表名。
 /// </summary>
 internal sealed record RuleDescriptor(
     string Slug,

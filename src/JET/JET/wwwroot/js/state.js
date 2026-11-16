@@ -649,7 +649,7 @@
     },
 
     setFilterDraft: function (draft) {
-      // 同一份草稿改了條件才提示「條件已變更」；換成新草稿（新增情境、取消編輯、開啟已存情境、套用範例）
+      // 同一份草稿改了條件才提示「條件已變更」；換成新草稿（新增情境、取消編輯、編輯已存情境、套用範例）
       // 時重新開始，不沿用上一份草稿的預覽狀態。
       var sameDraft = !!draft && draft === state.filter.draft;
       state.filter.draft = draft || { name: '', rationale: '', groups: [] };

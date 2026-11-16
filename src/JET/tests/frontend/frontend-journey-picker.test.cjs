@@ -1,7 +1,7 @@
 'use strict';
 // 情境 1：案件清單。
 //
-// 審計員的操作：開啟 JET 看到本機案件清單；按「重新整理本機」，成功與失敗；刪除一個案件，失敗、成功、
+// 審計員的操作：開啟 JET 看到本機案件清單；按「重新整理案件清單」，成功與失敗；刪除一個案件，失敗、成功、
 // 資料夾沒刪乾淨；開一個會失敗的案件後輸出支援日誌；清單還在讀取時想開案或新增案件；按「退出」但視窗關不掉，回到案件清單；
 // 開著 JET 切到其他程式再回來。
 //
@@ -9,7 +9,7 @@
 // 整個 index.html 的 body 標記與全部前端腳本，正式的 jet-api.js 經假的 chrome.webview 收發，app.js 照瀏覽器執行正式的 init()。
 // remapAppFixture 把 app.js 切成幾段載入、不跑 init()，案件清單第一次讀取與 jet-api.js 的請求都看不到，所以這裡用整個畫面。
 //
-// 逐字比對的只有已定案的用字；「重新整理本機」這類按鈕文字的用字沒有定案，
+// 逐字比對的只有已定案的用字；「重新整理案件清單」以外的按鈕文字用字沒有定案，
 // 按鈕用 data-action 找，文字只比對意思。預期值一律寫死；action payload 用 deepEqual 精確比對；
 // 斷言的失敗值不是假 DOM 節點（節點只用 === 轉成布林）。
 // 作業名稱（Ui.run 的 label）只有「讀取案件清單」、「開啟案件」與「刪除案件」的用字已定案，
@@ -41,8 +41,8 @@ test('JET starts from the local list only, and refreshing asks only for the loca
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案', '合成乙案']);
   assert.ok(f.$('[data-motion-list="online"]') === null, 'there is no online list');
   assert.ok(f.$('[data-action="picker-sync-online"]') === null, 'there is no online sync button');
-  // 重新整理的按鈕說明是本機（只比對意思）。
-  assert.match(f.$('[data-action="picker-refresh-local"]').textContent, /本機/);
+  // 重新整理的按鈕和後端請審計員按的按鈕同名，逐字比對。
+  assert.equal(f.$('[data-action="picker-refresh-local"]').textContent, '重新整理案件清單');
 
   f.click('[data-action="picker-refresh-local"]');
   f.reply('project.listLocal', { projects: [LOCAL_B] }); await flush();
@@ -60,7 +60,7 @@ test('the case list has only the local section and the title has no sentence res
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
 });
 
-// 按「重新整理本機」後讀取失敗。作業名稱「讀取案件清單」的用字已定案，逐字比對。
+// 按「重新整理案件清單」後讀取失敗。作業名稱「讀取案件清單」的用字已定案，逐字比對。
 test('a failed refresh keeps the local rows, puts the reason above the list as an alert, and the next refresh clears it at once', async () => {
   const f = await boot([LOCAL_A]);
   f.click('[data-action="picker-refresh-local"]');

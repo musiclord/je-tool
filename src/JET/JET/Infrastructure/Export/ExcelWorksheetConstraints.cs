@@ -1,8 +1,8 @@
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Excel worksheet 的硬上限與續頁命名。正式 writer 不得寫出超界的 row／column reference；
-/// 大型明細在抵達上限前由各自的 orchestration emitter 換到下一張工作表。
+/// Excel 工作表的列數、欄數與名稱長度上限，以及續頁工作表的命名。寫出報告與底稿的程式不能寫出超過上限的列號或欄號；
+/// 大型明細在到達列數上限之前，由各自的寫出流程換到下一張工作表。
 /// </summary>
 internal static class ExcelWorksheetConstraints
 {

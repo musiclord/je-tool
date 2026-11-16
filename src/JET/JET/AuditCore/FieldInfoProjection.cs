@@ -10,7 +10,7 @@ internal sealed record FieldInfoRow(
     int? DecimalPlaces,
     string? ActualFieldName);
 
-/// <summary>從 target TableDef facts 產生的完整 TB／GL 欄位投影。</summary>
+/// <summary>Field Info 工作表的全部內容：TB 與 GL 配對後的欄位各一組，由配對後的欄位定義產生。</summary>
 internal sealed record FieldInfoProjection(
     IReadOnlyList<FieldInfoRow> TbRows,
     IReadOnlyList<FieldInfoRow> GlRows);
@@ -18,8 +18,8 @@ internal sealed record FieldInfoProjection(
 public static partial class JetAuditProgram
 {
     /// <summary>
-    /// 依 target scope 的 1-based ordinal 產生唯一 Field Info 投影。
-    /// 呼叫端負責讀取 Target facts；本方法只做 provider-neutral、bounded shaping。
+    /// 把配對後的欄位定義依欄位序號（從 1 起算）排好，轉成 Field Info 的列。
+    /// 欄位定義由呼叫端讀出；這個方法不查資料庫，只做轉換。
     /// </summary>
     internal static FieldInfoProjection ProjectFieldInfo(
         IReadOnlyList<FieldInfo> targetTbDefinitions,

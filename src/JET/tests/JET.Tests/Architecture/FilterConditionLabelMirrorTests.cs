@@ -7,8 +7,8 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 條件中文標籤的漂移守衛（比照 <see cref="SupportedActionsParityTests"/> 的樣式）：Domain 的
 /// <see cref="FilterConditionLabels"/> 為正本，前端 <c>ui-core.js</c> 的標籤常數必須與之逐鍵相等。
-/// 前端沒有自動測試——標籤只改一邊時，Criteria summary 與前端藍色 read-back
-/// 會漂移；這條守衛把該缺口升級為 CI 可擋。<c>PRESCREEN_RULES</c> 為雙向比對，故新增 row-tag 鍵卻
+/// 標籤只改一邊時，Criteria summary 與前端藍色 read-back
+/// 會漂移；這裡逐鍵比對兩邊，漂移時測試失敗。<c>PRESCREEN_RULES</c> 為雙向比對，故新增 row-tag 鍵卻
 /// 漏接前端（如 <c>nonAuthorizedPreparer</c>）會立即失敗。
 /// </summary>
 public sealed class FilterConditionLabelMirrorTests

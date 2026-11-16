@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// filter.preview：解析條件 AST → Domain 驗證 → 參數化 SQL set-based 評估
-/// （無狀態，previewRows ≤ 50）。
+/// filter.preview：預覽一個還沒儲存的情境。先把前端送來的條件樹（AST）解析成規格，交給 Domain 驗證，
+/// 再用參數化的集合式 SQL 算出符合的傳票數、分錄數與前幾筆分錄。不儲存任何東西，previewRows 最多 50 筆。
 /// </summary>
 public sealed class FilterPreviewHandler : IApplicationActionHandler
 {
@@ -117,8 +117,8 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
 }
 
 /// <summary>
-/// filter.commit：保存情境定義（replace-all、≤10、名稱不可重複、逐情境重驗）。
-/// 保存時以同一 AST set-based 落地命中，並回傳這一批的版本（見 FilterScenarioRevision）。
+/// filter.commit：把已儲存的情境整批換成送來的這一批。最多 10 個，名稱不可重複，每個情境都重新驗證。
+/// 儲存時用同一份條件樹，以集合式 SQL 算出命中的分錄並寫進 filter_hit，回應帶這一批的版本（見 FilterScenarioRevision）。
 /// </summary>
 public sealed class FilterCommitHandler : IApplicationActionHandler
 {
@@ -257,8 +257,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             validationContext),
             saved);
 
-        // definitions 與命中 entry_id 由 provider repository 在同一 transaction 整批發布；
-        // 只有原子 commit 成功後才可能推進步驟。
+        // 情境定義與命中的 entry_id 由資料庫實作在同一個交易裡整批寫入；
+        // 交易提交成功後才會推進步驟。
         SupportOperationStage.Enter("filter_facts");
         var facts = await repositories.FilterFacts.ExecuteAsync(
             plan,
@@ -308,7 +308,7 @@ internal readonly record struct FilterCalendarLists(bool HasHolidays, bool HasMa
 }
 
 /// <summary>
-/// Preview 與 commit 的單一 mapping-aware validation context 組裝點。
+/// 預覽與儲存情境都從這裡建立驗證條件時要用的案件狀況（FilterValidationContext），內容依已確認的 GL 配對而定，不在別處另外組一份。
 /// 能使用哪些 GL 欄位只由欄位目錄判定（<see cref="JetFieldCatalog.AvailableGlFields"/>），每條條件需要什麼只由規則需求表判定。
 /// </summary>
 internal static class FilterValidationContextFactory

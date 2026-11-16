@@ -7,8 +7,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 使用者資料預覽（query.dataPreview）：有界唯讀查詢，絕不回完整母體。
-/// 統計（COUNT / MIN / MAX）一律 set-based SQL；金額顯示值由 C# decimal 自 scaled 換算（精確）。
+/// 資料預覽（query.dataPreview）用的唯讀查詢。一次最多回 200 列，不會回整份資料。
+/// 筆數、最小值與最大值都用集合式 SQL 在資料庫裡算；金額的顯示值由 C# 的 decimal 從放大成整數的金額換算，結果精確。
 /// </summary>
 public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) : IDataPreviewRepository
 {
@@ -20,7 +20,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
     private static readonly string[] CalendarColumns = ["date", "dayType", "dayName"];
 
-    /// <summary>結構總覽固定欄位（rows 由 <see cref="JetSchemaCatalog"/> 驅動，非資料表列）。</summary>
+    /// <summary>資料庫結構總覽的固定欄位。各列的內容來自 <see cref="JetSchemaCatalog"/>，不是從資料表讀出來的。</summary>
     private static readonly string[] SchemaOverviewColumns =
         ["canonicalName", "physicalName", "layer", "audience", "browsable"];
 
@@ -46,7 +46,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         limit = Math.Clamp(limit, 1, 200);
         offset = Math.Max(0, offset);
 
-        // schemaOverview 由 catalog metadata 驅動，不需資料庫——提早回，避免無謂連線。
+        // schemaOverview 的內容來自 JetSchemaCatalog，不用讀資料庫，所以在開連線之前就回傳。
         if (dataset == DataPreviewDataset.SchemaOverview)
         {
             var overview = SchemaOverviewPreview();
@@ -74,13 +74,13 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     }
 
     /// <summary>
-    /// 資料庫結構總覽：rows 來自 <see cref="JetSchemaCatalog"/>（DataView + StructureOnly，Hidden 不列），
-    /// 非任何資料表的列資料。一份 catalog 驅動成列——不在此硬列每張表（消滅 special case）。
+    /// 資料庫結構總覽。各列來自 <see cref="JetSchemaCatalog"/> 裡標成 DataView 與 StructureOnly 的資料表，標成 Hidden 的不列；
+    /// 內容不是任何資料表的列資料。要列哪些表只看 catalog，這裡不逐張寫死。
     /// </summary>
     private static DataPreviewResult SchemaOverviewPreview() =>
         DataPreviewSchemaOverview.Build(SchemaOverviewColumns);
 
-    /// <summary>已匯入的事務所假日／補班日（依日期升冪；無統計）。</summary>
+    /// <summary>已匯入的國定假日與補班日，依日期升冪；這一頁沒有概況統計。</summary>
     private static async Task<DataPreviewResult> CalendarPreviewAsync(
         DbConnection connection,
         int limit,
@@ -126,7 +126,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     }
 
     /// <summary>
-    /// 已存科目配對的有界預覽，不重新判讀舊匯入檔案。
+    /// 已存科目配對的預覽，一次只讀一頁。直接讀存好的科目配對，不重新解讀當初匯入的檔案。
     /// </summary>
     private Task<DataPreviewResult> AccountMappingsPreviewAsync(
         DbConnection connection, int limit, CancellationToken cancellationToken, int offset = 0) =>
@@ -171,8 +171,8 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     }
 
     /// <summary>
-    /// PBC-GL、PBC-TB：columns = 該 dataset 最新批次的正規化欄名（與欄位配對下拉一字不差），
-    /// rows = staging row_json 依批次排序鍵取前 N 列（cell 缺漏 → null）。
+    /// PBC-GL 與 PBC-TB 的預覽。columns 是這份資料最新一個批次的正規化欄名，和欄位配對下拉選單裡的完全相同；
+    /// rows 從匯入暫存表的 row_json 依 row_number 讀出一頁，某一列沒有的欄位回 null。
     /// </summary>
     private static async Task<DataPreviewResult> StagingPreviewAsync(
         DbConnection connection,
@@ -255,7 +255,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         long? totalCount = null;
         GlPreviewStats? stats = null;
 
-        // 總數與概況統計一次取得（set-based；空表時 MIN/MAX 為 NULL → stats 維持 null）。
+        // 總數與概況統計用一句集合式 SQL 一次取得；資料表是空的時 MIN 與 MAX 是 NULL，stats 就維持 null。
         // 只在第一頁計算；換頁沿用第一頁的數字，不再每頁重掃整份 GL。
         if (offset == 0)
         {

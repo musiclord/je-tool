@@ -17,6 +17,10 @@ const { contractJetApi, unchecked } = require('./support/action-contract.cjs');
 const UPSTREAM_RESET_MESSAGE = '前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。';
 // 已存滿 10 個情境時的提醒。
 const SCENARIO_LIMIT_MESSAGE = '最多可儲存 10 個篩選情境，請先移除不需要的情境。';
+// 「從情境範例開始」在這個版本隱藏（Ui.FEATURES.scenarioTemplates 預設關著）；要用範例的測試用 examplesFixture，
+// 或把 EXAMPLES_ON 交給夾具，先把開關打開，托盤與範例才會畫出來。
+const EXAMPLES_ON = { scenarioTemplates: true };
+const examplesFixture = (options = {}) => filterOperationFixture({ ...options, features: EXAMPLES_ON });
 
 // 科目配對編輯器用分類樹與共用搜尋框。
 // 這裡解析正式畫面的標記取得控制項，不另外手寫。
@@ -823,7 +827,7 @@ test('pending account categories ask before leaving the validation step and hono
   assert.equal(f.state.filter.savedScenarios.length, 0, 'saving categories clears the saved scenarios');
 });
 
-// 回首頁或結束時選「不儲存」，只詢問一次就繼續離開；改動不保留是對話框寫明的結果。
+// 回首頁或退出時選「不儲存」，只詢問一次就繼續離開；改動不保留是對話框寫明的結果。
 test('leaving the case with unsaved account categories asks once and then departs', async () => {
   const f = usageJourneyFixture('validate');
   f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
@@ -835,7 +839,7 @@ test('leaving the case with unsaved account categories asks once and then depart
   const modals = () => f.dom.document.body.querySelectorAll('[data-bind="account-pending-modal"]');
   f.window.JetUi.backToPickerFromHeader();
   assert.equal(modals().length, 1);
-  assert.match(modals()[0].textContent, /離開案件後，這些改動不會保留。/);
+  assert.match(modals()[0].textContent, /回首頁後，這些改動不會保留。/);
   const dialog = modals()[0];
   dialog.fire('click', { target: dialog.querySelector('[data-pending-choice="continue"]') }); await settle();
   assert.equal(modals().length, 0, 'choosing not to save does not ask again');
@@ -935,7 +939,7 @@ test('running prescreen asks first only when account categories are unsaved', as
   f.ui.accountMappingEditor.pendingCount = () => 2;
   f.ui.accountMappingEditor.confirmPending = (consequence, label) => { calls.push([consequence, label]); return Promise.resolve(answer); };
   f.controls().click('[data-action="run-prescreen"]'); await settle();
-  assert.deepEqual(calls, [['預篩選只會使用已儲存的分類。', '先不儲存，直接執行']]);
+  assert.deepEqual(calls, [['預篩選只會使用已儲存的分類。', '先不儲存']]);
   assert.equal(f.requests.filter(r => r.action === 'prescreenRun').length, 0, 'staying keeps prescreen from running');
   answer = true;
   f.controls().click('[data-action="run-prescreen"]'); await settle();
@@ -1321,7 +1325,7 @@ test('both sides of a prescreen detail load; a failed side can retry without rel
   assert.equal(f.requests.length, 2, 'opening two sides must actually issue both queries');
   f.requests[1].reject(new Error('synthetic query failure')); await settle();
   assert.match(page.blocks[0].body.innerHTML, /0/);
-  assert.match(page.blocks[1].body.textContent, /重試/);
+  assert.match(page.blocks[1].body.textContent, /重新載入/);
   page.toggle(); page.toggle();
   assert.equal(f.requests.length, 3);
   f.requests[2].resolve({ rows: [], nextCursor: null }); await settle();
@@ -1368,7 +1372,7 @@ function pagedReadFixture(options = {}) {
     clearRows() { rows.length = 0; }, appendRows(data) { rows.push(...data); } });
   return { store, wrapper, table, more: wrapper.querySelector('[data-page-next]'), form, input, clear, sort, requests, rows,
     start: () => controller.ensureLoaded(), previous: wrapper.querySelector('[data-page-previous]'),
-    position: wrapper.querySelector('[data-page-position]'), retry: wrapper.children.find(node => node.textContent === '重試') };
+    position: wrapper.querySelector('[data-page-position]'), retry: wrapper.children.find(node => node.textContent === '重新載入') };
 }
 
 test('paged read ignores late data after a source change and never acquires the global busy state', async () => {
@@ -1416,7 +1420,7 @@ test('paged sorting and search retry the exact failed request without discarding
   f.input.value = 'JV'; f.form.fire('submit');
   f.requests[2].reject(new Error('search failed')); await settle();
   assert.deepEqual(f.rows, ['sorted']); assert.equal(f.input.value, '');
-  const retry = f.wrapper.children.find(node => node.textContent === '重試');
+  const retry = f.wrapper.children.find(node => node.textContent === '重新載入');
   retry.fire('click');
   assert.equal(f.requests[3].search, 'JV'); assert.equal(f.requests[3].cursor, null);
   assert.deepEqual(JSON.parse(JSON.stringify(f.requests[3].sort)), { key: 'amount', direction: 'asc' });
@@ -2467,6 +2471,35 @@ test('project creation blocks whitespace names and reversed periods before sendi
   sameDay.submit(); assert.equal(f.creates.length, 1, 'same-day periods remain valid');
 });
 
+// 查核期間的年份限制在 1900 到 2100；句子和後端相同，寫出要修正的欄位與下一步。
+// 年份多於四位數的值也用同一句，不落到「起始日不能晚於截止日」。
+test('project creation blocks audit period years outside 1900 to 2100 before sending an action', () => {
+  const sentence = { periodStart: '查核起始日的年份須在 1900 到 2100 之間。請修正年份後再建立案件。',
+    periodEnd: '查核截止日的年份須在 1900 到 2100 之間。請修正年份後再建立案件。' };
+  const other = { periodStart: 'periodEnd', periodEnd: 'periodStart' };
+  for (const [field, values] of [
+    ['periodStart', { periodStart: '1899-12-31' }], ['periodStart', { periodStart: '0202-01-01' }],
+    ['periodStart', { periodStart: '122222-01-01' }],
+    ['periodEnd', { periodEnd: '2101-01-01' }], ['periodEnd', { periodEnd: '9999-12-31' }],
+    ['periodEnd', { periodEnd: '122222-12-31' }],
+    ['periodStart', { periodStart: '1899-01-01', periodEnd: '2101-12-31' }],
+    ['periodStart', { periodStart: '2101-01-01', periodEnd: '2101-12-31' }]]) {
+    const f = projectMetadataFixture(), page = f.render({ ...validCreateValues(), ...values });
+    const label = JSON.stringify(values);
+    page.submit(); assert.equal(f.creates.length, 0, label);
+    assert.equal(page.node('[data-bind="create-error"]').textContent, sentence[field], label);
+    assert.equal(page.node('[data-bind="create-error"]').hidden, false, label);
+    assert.equal(page.form.elements[field].attributes['aria-invalid'], 'true', label);
+    assert.equal(page.form.elements[other[field]].attributes['aria-invalid'], undefined, label);
+  }
+  for (const [periodStart, periodEnd] of [['1900-01-01', '1900-12-31'], ['2100-01-01', '2100-12-31'], ['1900-01-01', '2100-12-31']]) {
+    const f = projectMetadataFixture(), page = f.render({ ...validCreateValues(), periodStart, periodEnd });
+    page.submit(); assert.equal(f.creates.length, 1, periodStart + ' to ' + periodEnd + ' stays valid');
+    assert.equal(f.creates[0].payload.periodStart, periodStart);
+    assert.equal(f.creates[0].payload.periodEnd, periodEnd);
+  }
+});
+
 test('project preparation-date warnings use exact calendar-year limits including leap years and never block create', () => {
   for (const [value, warns] of [['2023-12-31', true], ['2024-01-01', false], ['2025-02-28', false], ['2025-03-01', true], ['', false]]) {
     const f = projectMetadataFixture(), page = f.render(validCreateValues());
@@ -3427,7 +3460,7 @@ test('report buttons execute export, preserve failure, retry, show the catalog a
   const reports = validationReportList(); f.requests[1].resolve({ publishedReports: reports, reports }); await settle();
   assert.deepEqual(plain(f.store.getState().reports), reports);
   const html = f.v.validationReportsHtml(f.store.getState(), data);
-  assert.match(html, /重新產生兩份報告/); assert.match(html, /validationReport\.xlsx/); assert.match(html, /infReport\.xlsx/);
+  assert.match(html, /重新產生報告與抽樣清單/); assert.match(html, /validationReport\.xlsx/); assert.match(html, /infReport\.xlsx/);
   assert.match(f.store.getState().messages.map(message => message.text).join('\n'), /案件資料夾/);
   page = f.controls(html); page.click('[data-open-report="b8-validationReport"]');
   assert.equal(f.requests[2].action, 'hostOpenFolder'); assert.deepEqual(plain(f.requests[2].payload), { reportId: 'b8-validationReport' });
@@ -3928,7 +3961,7 @@ for (const kind of ['ordinary', 'dynamic', 'prescreen']) test('pager failure sur
   f.requests.at(-1).resolve(f.response(['FIRST'], 'next')); await settle(); page.more.fire('click');
   f.requests.at(-1).reject(new Error('Synthetic next page failure')); await settle();
   f.store.touch(); page = f.draw(); assert.match(page.tbody?.textContent || '', /FIRST/);
-  const retry = [...page.panel.querySelectorAll('button')].find(button => button.textContent === '重試' && !button.hidden);
+  const retry = [...page.panel.querySelectorAll('button')].find(button => button.textContent === '重新載入' && !button.hidden);
   assert.ok(retry, 'the retry action remains next to the retained table'); retry.fire('click');
   assert.equal(f.requests.at(-1).payload.cursor, 'next'); f.requests.at(-1).resolve(f.response(['SECOND'], null)); await settle();
   assert.match(f.view().tbody.textContent, /SECOND/); assert.doesNotMatch(f.view().tbody.textContent, /FIRST/); assert.equal(f.view().more.disabled, true);
@@ -4567,7 +4600,7 @@ test('mapping differences load only on demand, preserve paging and retry, and ig
  assert.match(page.textContent,/X.*Outside/);
  page.querySelector('[data-mapping-difference="unmapped"]').fire('click');f.pending[2].reject(new Error('synthetic retry'));await settle();
  const list=page.querySelector('[data-difference-list="unmapped"]');assert.match(list.textContent,/讀取失敗/);
- list.querySelectorAll('button').find(b=>b.textContent==='重試').fire('click');assert.equal(f.pending[3].payload.cursor,null);
+ list.querySelectorAll('button').find(b=>b.textContent==='重新載入').fire('click');assert.equal(f.pending[3].payload.cursor,null);
  f.store.setProject({projectId:'other'});f.store.setAccountMappingState({batchId:'other',rowCount:1});page=f.render();
  f.pending[3].resolve({rows:[{accountNumber:'OLD',accountName:'old result'}],nextCursor:null,totalCount:9});await settle();
  assert.doesNotMatch(page.textContent,/OLD|old result/);assert.match(page.textContent,/尚未核對/);
@@ -4964,7 +4997,7 @@ test('cancelling project metadata editing sends no write and preserves saved sce
 });
 
 test('editing then applying an example creates a new scenario, keeps metadata visible and preserves the original', async () => {
-  const f = filterOperationFixture({ saved: [savedBlankDescription()] });
+  const f = examplesFixture({ saved: [savedBlankDescription()] });
   f.click('[data-action="edit-scenario"][data-index="0"]');
   assert.equal(f.draft().__editingIndex, 0);
   assert.equal(f.$('[data-save-panel]').hidden, false, 'metadata is always visible');
@@ -5047,7 +5080,7 @@ test('clicking the revenue card off, the fixed-asset card on and off, and the re
 });
 
 // 逐張點擊前五張卡，核對各自的動機；固定資產與費用那張卡另外核對加入的條件，再點一次就取消。
-// 卡片以代號點選，身分標記記代號。測試名稱由 GuiScenarioCoverageTests 核對，改名時一起改。
+// 卡片以代號點選，身分標記記代號。
 test('clicking each card with a default rationale alone fills its own rationale, the fixed-asset card adds its account category pair, and clicking again removes it', () => {
   const f = filterOperationFixture();
   const expected = { [REVENUE]: REVENUE_RATIONALE, [FIXED_ASSET]: FIXED_ASSET_RATIONALE, revenueWithoutNormalCounterpart: COUNTERPART_RATIONALE,
@@ -5066,7 +5099,7 @@ test('clicking each card with a default rationale alone fills its own rationale,
   }
 });
 
-// 名稱期望值是卡片名稱加數字。測試名稱由 GuiScenarioCoverageTests 核對，改名時一起改。
+// 名稱期望值是卡片名稱加數字。
 test('an automatic card name already used by a saved scenario gets a number and saves', async () => {
   const f = filterOperationFixture({ saved: [savedBlankDescription()] });
   f.click(cardSelector(BLANK));
@@ -5957,7 +5990,7 @@ test('cancellation through the actual export button retains a completed prescree
 });
 
 test('applying an example replaces all existing conditions and focuses the first missing value', () => {
-  const f = filterOperationFixture(), deferred = []; f.window.JetFocus.defer = fn => deferred.push(fn);
+  const f = examplesFixture(), deferred = []; f.window.JetFocus.defer = fn => deferred.push(fn);
   f.click(cardSelector(BLANK)); f.click('[data-action="add-set"]'); f.click(cardSelector(TRAILING)); assert.equal(f.draft().groups.length, 2); const oldRationale = f.draft().rationale;
   // 還沒儲存的條件被範例換掉前先詢問，這裡選「不儲存，直接套用」。
   f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
@@ -5976,7 +6009,7 @@ test('applying an example replaces all existing conditions and focuses the first
 
 test('an unavailable department example preserves a populated draft and explains the missing field locally', () => {
   // 沒有文字型攸關資料元素欄位時，範例直接停用，並在該項下方寫原因。
-  const f = filterOperationFixture(); f.click(cardSelector(BLANK)); const before = f.draft(), json = JSON.stringify(before);
+  const f = examplesFixture(); f.click(cardSelector(BLANK)); const before = f.draft(), json = JSON.stringify(before);
   // 範例清單不用打開任何東西就列出。
   assert.equal(f.$('[data-example-list]').hidden, false, 'the examples are listed without opening anything');
   const example = f.$('[data-template-key="manualDepartment"]');
@@ -6164,8 +6197,8 @@ function pickShape(actual, expected) {
   return actual;
 }
 
-function customPaneFixture({ rdeFields = [], mapping = {} } = {}) {
-  const f = filterOperationFixture();
+function customPaneFixture({ rdeFields = [], mapping = {}, features = {} } = {}) {
+  const f = filterOperationFixture({ features });
   f.store.setMappingCommitted('gl', { mapping, mode: 'signed', options: { rdeFields } });
   // 欄位條件分頁的識別是 field；夾具名稱裡的 custom 指的就是這個分頁。
   f.click('[data-condition-source="field"]');
@@ -6293,7 +6326,7 @@ test('every common check adds its fixed rule shape to the active group', () => {
     approvalDateNonBusinessDay: { type: 'fieldValue', field: 'approvalDate', operator: 'isNonBusinessDay' },
     approvalDateRange: { type: 'fieldValue', field: 'approvalDate', operator: 'between', from: '', to: '' },
     prepPeriodApproval: { type: 'prescreen', prescreenKey: 'prepPeriodApproval' },
-    largeAmount: { type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' },
+    largeAmount: { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', amountBasis: 'absolute' },
     trailingZeros: { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '5', amountBasis: 'absolute' },
     // 空白摘要卡用欄位條件。
     descriptionKeywords: { type: 'fieldValue', field: 'description', operator: 'contains', values: DEFAULT_KEYWORDS },
@@ -6428,7 +6461,7 @@ test('the group heading adds a bracket or a voucher condition to its own group e
 // 這裡核對清單在托盤裡、不在任何條件總覽分頁、托盤一開始收起而且打開後重畫照樣開著、沒有展開按鈕、十一個名稱，
 // 以及套用後清單仍在。
 test('examples sit in the folded tray above the condition groups with eleven plain names and a one-line notice, and apply under the example name', () => {
-  const f = filterOperationFixture(), list = () => f.$('[data-example-list]'), tray = () => f.$('details.filter-template-tray');
+  const f = examplesFixture(), list = () => f.$('[data-example-list]'), tray = () => f.$('details.filter-template-tray');
   assert.equal(list().hidden, false);
   assert.equal(list().closest('[data-condition-pane]'), null, 'the examples are not on a condition source tab');
   assert.equal(list().closest('details.filter-template-tray'), tray());
@@ -6458,7 +6491,7 @@ test('examples sit in the folded tray above the condition groups with eleven pla
 });
 
 test('examples disable for missing approver mapping, preparation date or period end and leave the draft untouched', () => {
-  const f = filterOperationFixture();
+  const f = examplesFixture();
   f.store.setProject({ projectId: 'example-requirements', periodEnd: '' });
   // 前端讀後端算好的可用欄位，這裡給一份沒有傳票核准人員與
   // 傳票建立人員的清單，表示這兩個欄位未配對；欄位的原因接上和第四步相同的下一步。
@@ -6487,7 +6520,7 @@ test('examples disable for missing approver mapping, preparation date or period 
 for (const count of [1, 2]) test('the department example with ' + count + ' text field(s) ' + (count === 1 ? 'fills it automatically' : 'asks in place and cancelling or Esc keeps the draft'), () => {
   const rdeFields = [{ fieldId: 'rde.dept', sourceColumn: 'Dept', label: '部門', valueType: 'text' },
     { fieldId: 'rde.unit', sourceColumn: 'Unit', label: '部門', valueType: 'text' }].slice(0, count);
-  const f = customPaneFixture({ rdeFields });
+  const f = customPaneFixture({ rdeFields, features: EXAMPLES_ON });
   f.dom.document.body = f.dom.element('body'); f.dom.document.removeEventListener = () => {};
   f.click('[data-add-field="description"]');
   const before = f.draft(), json = JSON.stringify(before);
@@ -6599,6 +6632,10 @@ test('common checks and examples keep the rule structure of the matching retired
       assert.deepEqual(plain(pickShape(current[i], expected)), expected, entry.code + ' → ' + entry.key);
     });
   }
+  // 「指定借貸科目組合的大額分錄」的借貸方向寫法和舊目錄不同，由等價案例核對；金額門檻那一條仍和舊目錄逐鍵相同。
+  const legacyThreshold = catalogue.examples.find(example => example.key === 'example3').conditions.at(-1);
+  const exampleThreshold = ui.FILTER_SCENARIO_TEMPLATES.find(template => template.key === 'accountPairLargeAmount').groups[0].conditions.at(-1);
+  assert.deepEqual(plain(pickShape(exampleThreshold, legacyThreshold)), legacyThreshold, 'example3 amount threshold');
   // 範例 4 和「金額尾數連續多個 0」重複，不另列範例。
   assert.equal(ui.FILTER_SCENARIO_TEMPLATES.some(t => t.groups.some(g => g.conditions.some(r => r.prescreenKey === 'trailingZeros'))), false);
 });
@@ -6639,7 +6676,7 @@ test('common checks and examples use only rule types and operators the screen al
 // 條件總覽只放一次加入一條條件的入口，情境範例放在右側條件組合上方的「從情境範例開始」托盤。
 // 這裡核對清單不在條件總覽、放在條件組合正上方的托盤、也不在條件組合的卡片裡，套用後只替換草稿、不動已儲存情境。
 test('examples sit in the tray right above the condition groups and still replace only the draft', () => {
-  const f = filterOperationFixture({ saved: [savedBlankDescription()] });
+  const f = examplesFixture({ saved: [savedBlankDescription()] });
   // 範例清單不用按任何按鈕就列出。
   assert.equal(f.$('.filter-entry [data-example-list]'), null);
   const tray = f.$('details.filter-template-tray');
@@ -6800,7 +6837,7 @@ function pendingScenarioFixture(saved = [savedManual('甲情境'), savedManual('
 }
 
 test('drafts without changes switch at once from every entry point', () => {
-  const f = pendingScenarioFixture();
+  const f = pendingScenarioFixture(undefined, examplesFixture);
   f.click('[data-action="edit-scenario"][data-index="0"]');
   assert.equal(f.modal(), null); assert.equal(f.draft().__editingIndex, 0); assert.equal(f.draft().name, '甲情境');
   
@@ -6824,8 +6861,8 @@ test('opening a saved scenario over unsaved conditions asks first and staying ke
   assert.equal(f.modals().length, 1);
   // 這句的用字已定案。
   assert.equal(f.modal().querySelector('.modal__title').textContent, '篩選情境尚未儲存');
-  assert.equal(f.body(), '目前的條件尚未儲存為情境。開啟「乙情境」會換掉這些條件。');
-  assert.deepEqual(f.buttons(), ['留在這裡', '不儲存，直接開啟', '儲存並開啟']);
+  assert.equal(f.body(), '目前的條件尚未儲存為情境。編輯「乙情境」會換掉這些條件。');
+  assert.deepEqual(f.buttons(), ['留在這裡', '不儲存，直接編輯', '儲存並編輯']);
   assert.equal(f.dom.document.activeElement.getAttribute('data-pending-choice'), 'save', 'saving a scenario clears nothing, so it is the default');
   assert.equal(f.draft(), draft, 'nothing changes before the auditor chooses');
   f.click('[data-action="edit-scenario"][data-index="0"]');
@@ -6846,7 +6883,7 @@ test('save and open updates the edited scenario first and opens the next one onl
   f.type('[data-bind="scenario-name"]', '甲情境（修改）');
   f.click('[data-action="edit-scenario"][data-index="1"]');
   // 這句的用字已定案。
-  assert.equal(f.body(), '情境「甲情境」的修改尚未儲存。開啟「乙情境」會換掉這些修改。');
+  assert.equal(f.body(), '情境「甲情境」的修改尚未儲存。編輯「乙情境」會換掉這些修改。');
   f.choose('save');
   assert.equal(f.modal(), null, 'the dialog closes while saving');
   assert.equal(f.commits.length, 1);
@@ -6875,7 +6912,7 @@ test('save and open stays when the save is blocked by the ten scenario limit', a
 });
 
 test('copy and examples ask with their own wording; saving clears the draft', async () => {
-  const f = pendingScenarioFixture();
+  const f = pendingScenarioFixture(undefined, examplesFixture);
   f.click('[data-action="edit-scenario"][data-index="0"]');
   f.type('[data-bind="scenario-name"]', '甲情境（修改）');
   f.click('[data-action="copy-scenario"][data-index="1"]');
@@ -6914,7 +6951,7 @@ test('cancelling an edit discards the change without asking', () => {
 test('an example that needs a field asks only when the chosen field is about to replace the draft', () => {
   const rdeFields = [{ fieldId: 'rde.dept', sourceColumn: 'Dept', label: '部門', valueType: 'text' },
     { fieldId: 'rde.unit', sourceColumn: 'Unit', label: '部門', valueType: 'text' }];
-  const f = pendingScenarioFixture([], () => customPaneFixture({ rdeFields }));
+  const f = pendingScenarioFixture([], () => customPaneFixture({ rdeFields, features: EXAMPLES_ON }));
   f.click('[data-add-field="description"]');
   const before = f.draft(), json = JSON.stringify(before);
   // 範例在右側預設收起的「從情境範例開始」托盤，不在常用篩選條件分頁；
@@ -7035,7 +7072,7 @@ for (const marked of [true, false]) test('a failed preview ' + (marked ? 'marked
     assert.ok(failure === null, 'no step notice when the rule row already shows the reason');
   } else {
     assert.ok(failure !== null, 'the preview failure is shown in the step');
-    assert.equal(failure.message, '預覽篩選情境失敗：合成預覽失敗。');
+    assert.equal(failure.message, '查看符合的傳票失敗：合成預覽失敗。');
   }
 });
 

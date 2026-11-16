@@ -30,8 +30,8 @@ internal sealed record ReportPageSetup(
     uint? FitToHeight = null);
 
 /// <summary>
-/// 報表工作表可被本地範本結構盤點證明的顯示／列印設定。未指定的屬性不寫入，
-/// 避免把未觀察到的 Excel 偏好臆造成版型契約。
+/// 報表工作表的顯示與列印設定，只包含範本裡看得到的項目。沒有指定的屬性不寫進檔案，
+/// 不替範本沒有的設定自行決定一個值。
 /// </summary>
 internal sealed record ReportSheetOptions(
     bool? ShowGridLines = null,
@@ -43,7 +43,7 @@ internal sealed record ReportSheetOptions(
     ReportPageMargins? PageMargins = null,
     ReportPageSetup? PageSetup = null);
 
-/// <summary>六份報告共用的 forward-only worksheet 原語。</summary>
+/// <summary>六份報告共用的工作表寫出工具：由上往下一列一列寫，寫過的列不能回頭改。</summary>
 internal sealed class ReportSheetWriter : IDisposable
 {
     private readonly string _name;
@@ -310,8 +310,8 @@ internal sealed class ReportSheetWriter : IDisposable
 
     private void WriteSheetView(ReportSheetOptions? options)
     {
-        // Excel 在高 DPI 環境開啟沒有 sheetViews 的新工作表時可能把列高折半。
-        // 保留標準視圖參照，未指定的偏好仍不寫入。
+        // Excel 在高 DPI 環境開啟沒有 sheetViews 的新工作表時，可能把列高折半。
+        // 所以一定寫出一個指向活頁簿第一個檢視的 sheetView；沒有指定的顯示設定仍然不寫。
         options ??= new ReportSheetOptions();
 
         if (options.FreezeRows >= ExcelWorksheetConstraints.MaxRows

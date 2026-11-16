@@ -3,9 +3,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 行事曆(假日/補班)逐日讀回(本地引擎,匯出底稿 sheet 14)。自 <c>calendar_day</c>
-/// 取指定 day_type 的每一日(日期 + 名稱),日期升冪。日數有界(一年百列上下),全載入、不分頁。
-/// 讀回的是匯入時 staging 的原樣(<see cref="ICalendarStore.ReplaceDaysAsync"/> 寫入),與計數 <see cref="ICalendarStore.CountAsync"/> 同表。
+/// 逐日讀出國定假日或補班日，供工作底稿的「自動化工具-假期假日資訊」工作表（第 14 張）使用。從 <c>calendar_day</c>
+/// 取指定 day_type 的每一天（日期與名稱），依日期升冪。天數不多（一年一百列上下），一次全部讀進來，不分頁。
+/// 讀到的就是匯入時 <see cref="ICalendarStore.ReplaceDaysAsync"/> 寫進去的內容，和 <see cref="ICalendarStore.CountAsync"/> 計數的是同一張表。
 /// </summary>
 public sealed class LocalCalendarExportRepository(ILocalProjectDatabase database)
     : ICalendarExportRepository

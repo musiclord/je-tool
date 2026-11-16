@@ -260,10 +260,14 @@
     var editing = typeof draft.__editingIndex === 'number';
     // 情境範例放在條件組合上方的托盤，和左側條件總覽同一種材質：托盤放可按的鍵，紙上是組出來的條件。
     // 托盤預設收起，按標題打開；開合狀態記在 viewState.disclosures，同一次開案內記住。
-    return '<details class="filter-template-tray" data-motion-key="template-tray"' + disclosureAttributes('templates') + '>' +
-        '<summary class="filter-template-tray__title">從情境範例開始</summary>' +
-        '<div class="filter-example-list" data-example-list data-motion-key="examples">' + exampleListHtml() + '</div>' +
-      '</details>' +
+    // 情境範例在這個版本隱藏：Ui.FEATURES.scenarioTemplates 關著時整個托盤不畫，條件組合照常。
+    var templateTray = Ui.FEATURES.scenarioTemplates
+      ? '<details class="filter-template-tray" data-motion-key="template-tray"' + disclosureAttributes('templates') + '>' +
+          '<summary class="filter-template-tray__title">從情境範例開始</summary>' +
+          '<div class="filter-example-list" data-example-list data-motion-key="examples">' + exampleListHtml() + '</div>' +
+        '</details>'
+      : '';
+    return templateTray +
       '<section class="rule-card scenario-builder" data-builder-title tabindex="-1" aria-label="條件組合">' +
       (editing ? '<div class="filter-builder-heading" data-motion-key="editing-heading"><h3 class="rule-card__title" data-bind="editing-scenario-name">編輯情境：' + Ui.esc(draft.name) + '</h3></div>' : '') +
       // 編輯情境時「編輯情境：名稱」是工作面標題，「條件組合」降一層。
@@ -357,8 +361,8 @@
     if (rule.type === 'group' && !insideVoucher) { choices += '<option value="type:voucher">整張傳票條件</option>'; }
     return '<div class="rule-row rule-row--compound' + (FilterStep.selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + path + '"><div class="filter-rule-heading">' +
       (FilterStep.selectedRule === rule ? '<span class="filter-rule-selected" data-motion="inline">選取中</span>' : '') + '<strong>' +
-      (rule.type === 'voucher' ? '整張傳票條件' : '子條件組') + '</strong><button type="button" class="rule-row__remove" data-compound-remove>移除</button></div>' + config + children +
-      '<label>加入子條件<select data-child-kind>' + choices + '</select></label><button type="button" class="btn btn--ghost btn--tiny" data-child-add>加入</button></div>';
+      (rule.type === 'voucher' ? '整張傳票條件' : '子條件組') + '</strong><button type="button" class="rule-row__remove" data-compound-remove aria-label="移除這條條件" title="移除這條條件">移除</button></div>' + config + children +
+      '<label>加入子條件<select data-child-kind>' + choices + '</select></label><button type="button" class="btn btn--ghost btn--tiny" data-child-add aria-label="加入子條件">加入</button></div>';
   }
 
   // 條件本身缺前置條件時，在卡片上寫後端同一句原因；每一種條件都寫在同一個位置，樣態選單只寫條件的名稱。
@@ -502,8 +506,8 @@
     }).join(Ui.FILTER_CATEGORY_LIST_SEPARATOR);
   }
 
-  // 「選取依據」屬於科目分類的上下層級，第一個正式版隱藏；新條件照舊用「包含下層分類」，
-  // 分類都是平的一層時，它和「僅分類本身」選到的分類相同。Ui.FEATURES.categoryHierarchy 改成 true 就恢復。
+  // 「選取依據」屬於科目分類的上下層級，這個版本隱藏，Ui.FEATURES.categoryHierarchy 是 true 時才畫出來；
+  // 新條件照舊用「包含下層分類」，分類都是平的一層時，它和「僅分類本身」選到的分類相同。
   function categorySelectionHtml(rule) {
     if (!Ui.FEATURES.categoryHierarchy) { return ''; }
     return '<label>選取依據<select data-rule-bind="categorySelection">' + [['role','相同分類用途'],['node','僅分類本身'],['subtree','包含下層分類']].map(function (item) {

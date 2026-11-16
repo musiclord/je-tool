@@ -12,7 +12,7 @@ namespace JET.Infrastructure;
 /// </summary>
 internal static class LocalDbCommandExtensions
 {
-    /// <summary>加一個具名參數並設值（null → <see cref="DBNull"/>），回傳該參數。</summary>
+    /// <summary>加一個具名參數並設值，值是 null 時設成 <see cref="DBNull"/>；回傳這個參數。</summary>
     public static DbParameter AddWithValue(this DbCommand command, string name, object? value)
     {
         var parameter = command.CreateParameter();

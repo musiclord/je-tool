@@ -1,13 +1,13 @@
 namespace JET.AuditCore;
 
 /// <summary>
-/// 三層審計資料模型的「層」。承襲 legacy Excel-VBA 工具的 Source / ETL-Staging / Target-Report
-/// 三層結構,外加純系統表的 System 層。
+/// 資料表在審計資料流裡屬於哪一層。沿用舊版 Excel-VBA 工具的三層：來源（Source）、標準化暫存（ETL-Staging）、
+/// 可報導的結果（Target-Report），另外加上只放系統表的 System 層。
 ///
-/// 注意:這是**審計語義的層**(資料從客戶提供 → 標準化暫存 → 可報導結果),不從實體表名推得。
+/// 這裡分的是審計上的層，也就是資料從客戶提供、經過標準化、到成為可報導結果的三個階段，不能從實體表名推出來。
 /// 實體表名不帶分層字首,直接取畫面的名稱,或舊版工具(Excel-VBA 工具或 IDEA 版 JET)對這份資料的稱呼,
 /// 例如 <c>account_mapping</c> 與 <c>calendar_day</c> 在審計語義上都是 Source(客戶提供的科目對照與假日曆)。
-/// 故本列舉表達的是審計層,以正準名(canonical)而非 physical 名分層。
+/// 所以分層依的是正準審計名，不是實體表名。
 /// </summary>
 internal enum SchemaLayer
 {
@@ -17,7 +17,7 @@ internal enum SchemaLayer
     /// <summary>暫存層(ETL):標準化後的 GL 與 TB。</summary>
     Staging,
 
-    /// <summary>報表層:可供判讀 / 報導的測試結果摘要與命中(VALIDATION_OVERVIEW…)。</summary>
+    /// <summary>報表層：可以判讀、報導的測試結果摘要與命中結果，例如 VALIDATION_OVERVIEW。</summary>
     Target,
 
     /// <summary>系統層:組態、匯入批次與純引擎用表,不屬審計三層資料流。</summary>
@@ -25,30 +25,29 @@ internal enum SchemaLayer
 }
 
 /// <summary>
-/// 實體表對「資料預覽 / 結構總覽」的曝光程度。決定下一個任務(資料預覽改顯正準名)該怎麼呈現,
-/// 本任務只建目錄、不改前端。
+/// 實體表在資料預覽與結構總覽的曝光程度。結構總覽依這個值決定列出哪些表，並標出哪些表可以逐列瀏覽。
 /// </summary>
 internal enum SchemaAudience
 {
     /// <summary>可逐列瀏覽,且出現在結構總覽(審計工作流程會直接接觸的資料)。</summary>
     DataView,
 
-    /// <summary>出現在結構總覽,但此處不開放逐列瀏覽(結果 / 組態,語義以摘要或專用頁呈現)。</summary>
+    /// <summary>出現在結構總覽，但不開放逐列瀏覽。這類是結果表與設定表，內容由摘要或專用頁面呈現。</summary>
     StructureOnly,
 
-    /// <summary>純系統 / 暫存 scratch,完全不對外曝光。</summary>
+    /// <summary>只給系統用的表與暫存表，不出現在資料預覽與結構總覽。</summary>
     Hidden
 }
 
 /// <summary>
-/// 中央三層表名登錄的單筆條目:實體表名 → 正準審計名 + 層 + 曝光 + 中文說明。
+/// 資料表登錄的一筆：一張實體表對應的正準審計名、層、曝光程度與中文說明。
 /// </summary>
-/// <param name="PhysicalName">實體表名(CREATE TABLE 的權威名)。</param>
-/// <param name="CanonicalName">正準審計名,只用於資料表摘要顯示(如 PBC-GL、GL)。資料名稱全系統統一,
-/// legacy Excel-VBA 工具的 JE_PBC、TB_PBC、JE 對應 PBC-GL、PBC-TB、GL;不是 SQL 識別字或檔名。</param>
-/// <param name="Layer">審計三層 + System。</param>
-/// <param name="Audience">資料預覽 / 結構總覽的曝光程度。</param>
-/// <param name="Description">一句中文說明(用途 / 由來)。</param>
+/// <param name="PhysicalName">實體表名，就是 CREATE TABLE 用的名稱。</param>
+/// <param name="CanonicalName">正準審計名，只用在資料表摘要的顯示，例如 PBC-GL、GL；它不是 SQL 識別字，也不是檔名。
+/// 資料名稱全系統一致：舊版 Excel-VBA 工具的 JE_PBC、TB_PBC、JE，在這裡是 PBC-GL、PBC-TB、GL。</param>
+/// <param name="Layer">所屬的層：審計三層之一，或 System。</param>
+/// <param name="Audience">在資料預覽與結構總覽的曝光程度。</param>
+/// <param name="Description">一句中文說明，寫用途或由來。</param>
 internal sealed record SchemaTableEntry(
     string PhysicalName,
     string CanonicalName,
@@ -57,21 +56,19 @@ internal sealed record SchemaTableEntry(
     string Description);
 
 /// <summary>
-/// 中央三層表名登錄——專案 DB 每一張實體表 → 正準審計名 / 層 / 曝光 / 說明的**單一事實來源**。
+/// 專案資料庫每一張實體表的登錄：正準審計名、層、曝光程度與說明都只定義在這裡。
 ///
-/// 為什麼存在:審計方法學承襲 legacy Excel-VBA 工具乾淨的三層結構(Source / ETL-Staging /
-/// Target-Report)與審計詞彙表名(JE_PBC、JE、ACCOUNT_MAPPING…);現行實體表名是資料預覽名稱的轉寫
-/// (<c>pbc_gl</c>、<c>gl</c>…)。
-/// 本目錄把兩套名稱併列,讓資料預覽能以審計人員熟悉的正準名呈現。
+/// 審計方法沿用舊版 Excel-VBA 工具的三層結構（Source、ETL-Staging、Target-Report）與審計用的表名，
+/// 例如 JE_PBC、JE、ACCOUNT_MAPPING。現行的實體表名則是從資料預覽的名稱轉寫而來，例如 <c>pbc_gl</c>、<c>gl</c>。
+/// 這份登錄把兩套名稱並列，資料預覽才能用審計人員熟悉的正準名顯示。
 ///
-/// 深模組:對外只給窄查詢介面(<see cref="All"/> / <see cref="ByAudience"/> /
-/// <see cref="ResolveCanonical"/> / <see cref="TryGet"/>),內部是一份宣告式 <see cref="All"/> 表;
-/// 新增規則 = 加一列,不是散落的 if。實體表清單以 Infrastructure 的 SchemaSql 為準逐一登錄,
-/// 漏登錄時 Infrastructure 的漂移守門測試(查 sqlite_master 比對本目錄)會失敗。
+/// 對外只有幾個查詢入口：<see cref="All"/>、<see cref="ByAudience"/>、<see cref="ResolveCanonical"/> 與 <see cref="TryGet"/>。
+/// 內容全部寫在 <see cref="All"/> 這一張表裡，新增資料表時加一列即可，不必在各處加判斷。
+/// 實體表要照 Infrastructure 的 SchemaSql 逐一登錄；漏登錄時，拿 sqlite_master 比對這份登錄的測試會失敗。
 ///
-/// 註:legacy Excel-VBA 工具的 <c>COMPLETENESS_CALCULATED / DIFF / DETAIL</c>、<c>JE_IN_PERIOD /
-/// JE_NOT_IN_PERIOD</c>、各 <c>*_OVERVIEW</c> 是查詢時即算的**計算檢視(衍生,不落表)**
-/// (CTE 於 ValidationProcedures、或 query 層的期間切分),不是實體表,故不在本目錄內。
+/// 舊版 Excel-VBA 工具的 <c>COMPLETENESS_CALCULATED / DIFF / DETAIL</c>、<c>JE_IN_PERIOD /
+/// JE_NOT_IN_PERIOD</c> 與各個 <c>*_OVERVIEW</c>，在 JET 是查詢時才算出來的結果，不存成資料表，所以不在這份登錄裡。
+/// 它們由 ValidationProcedures 的 CTE 算出，或在查詢時依查核期間切分。
 /// </summary>
 internal static class JetSchemaCatalog
 {
@@ -82,11 +79,11 @@ internal static class JetSchemaCatalog
     public const string GlTableName = "gl";
 
     /// <summary>
-    /// 宣告式登錄表:專案 DB 每一張實體表恰好一列。順序大致依資料流(來源 → 暫存 → 報表 → 系統)。
+    /// 登錄表：專案資料庫的每一張實體表剛好一列。順序大致照資料流：來源、暫存、報表、系統。
     /// </summary>
     public static readonly IReadOnlyList<SchemaTableEntry> All =
     [
-        // ── Source:客戶提供 / 匯入原貌(DataView) ─────────────────────────────
+        // ── Source:客戶提供、照匯入原樣保存的資料(DataView) ──────────────────
         new("pbc_gl", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView,
             "PBC-GL（匯入的總帳明細原樣，未經欄位配對整理）"),
         new("pbc_tb", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView,
@@ -132,7 +129,7 @@ internal static class JetSchemaCatalog
         new("import_batch_source", "IMPORT_BATCH_SOURCE", SchemaLayer.System, SchemaAudience.StructureOnly,
             "匯入批次的多來源明細(一個資料集可由多檔 / 多工作表組成)"),
 
-        // ── System / Staging:純系統或暫存 scratch(Hidden,完全不曝光) ──────────
+        // ── System 與 Staging:只給系統用的表與暫存表(Hidden,完全不曝光) ──────
         new("field_info", "FIELD_INFO", SchemaLayer.System, SchemaAudience.Hidden,
             "Legacy 等價欄位定義(source / post-mapping target；供 internal facts port 使用)"),
         new("gl_rde_field", "GL_RDE_FIELD", SchemaLayer.System, SchemaAudience.Hidden,
@@ -155,7 +152,7 @@ internal static class JetSchemaCatalog
             "GL entry 的非空白 typed RDE 值(文字、日期或 scaled 金額)"),
     ];
 
-    /// <summary>指定曝光程度的條目(資料預覽 / 結構總覽日後依此取表)。</summary>
+    /// <summary>指定曝光程度的條目。</summary>
     public static IEnumerable<SchemaTableEntry> ByAudience(SchemaAudience audience) =>
         All.Where(entry => entry.Audience == audience);
 
@@ -163,7 +160,7 @@ internal static class JetSchemaCatalog
     public static IEnumerable<SchemaTableEntry> ByLayer(SchemaLayer layer) =>
         All.Where(entry => entry.Layer == layer);
 
-    /// <summary>實體表名 → 條目(序數比對;未登錄回 false,不臆造)。</summary>
+    /// <summary>用實體表名找登錄的條目，大小寫要完全相同。沒有登錄的表回 false，不自行編一筆。</summary>
     public static bool TryGet(string physicalName, out SchemaTableEntry entry)
     {
         foreach (var candidate in All)
@@ -179,7 +176,7 @@ internal static class JetSchemaCatalog
         return false;
     }
 
-    /// <summary>實體表名 → 正準審計名;未登錄回 null(呼叫端自行決定 fallback)。</summary>
+    /// <summary>用實體表名找正準審計名。沒有登錄的表回 null，要顯示什麼由呼叫端決定。</summary>
     public static string? ResolveCanonical(string physicalName) =>
         TryGet(physicalName, out var entry) ? entry.CanonicalName : null;
 }

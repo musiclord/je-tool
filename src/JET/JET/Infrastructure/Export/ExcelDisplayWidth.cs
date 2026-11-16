@@ -3,9 +3,8 @@ using System.Text;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// OpenXML cannot execute Excel's <c>EntireColumn.AutoFit</c>. This deterministic
-/// measurement keeps the legacy full-data behavior while leaving enough glyph
-/// headroom for Microsoft JhengHei and formatted numeric display.
+/// OpenXML 沒辦法執行 Excel 的 <c>EntireColumn.AutoFit</c>，所以這裡自己估欄寬；同樣的文字每次估出來的寬度都相同。
+/// 做法照舊版 JET，用全部資料裡最寬的內容決定欄寬，並多留一些寬度，讓微軟正黑體與套了格式的數字不會被切掉。
 /// </summary>
 internal static class ExcelDisplayWidth
 {
@@ -71,7 +70,7 @@ internal static class ExcelDisplayWidth
         };
 }
 
-/// <summary>Tracks a bounded column schema while callers stream or spool rows.</summary>
+/// <summary>呼叫端逐列寫出或先寫到暫存檔時，記下固定幾個欄位各自出現過的最寬內容，最後換算成欄寬。</summary>
 internal sealed class ExcelDisplayWidthTracker
 {
     private readonly double[] _maximums;

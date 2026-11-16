@@ -140,7 +140,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     {
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
-        // R7 種子:過帳日為週六(非補班)共 WeekendPostingVouchers 張、兩行皆命中;
+        // 週末過帳的種子:過帳日為週六(非補班)共 WeekendPostingVouchers 張、兩行皆命中;
         // baseline 與其餘種子過帳日皆走平日池,不命中週末過帳。
         Assert.Equal(
             DemoDataFactory.WeekendPostingVouchers * DemoDataFactory.LinesPerVoucher,

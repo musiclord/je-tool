@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace JET.Application;
 
 /// <summary>
-/// host.exitApp：請求 host 關閉應用程式視窗。
-/// 純 host capability；進度保存由前端先行呼叫 project.saveProgress 完成。
+/// host.exitApp：要求關閉 JET 的視窗。
+/// 這裡只關視窗，不儲存進度；前端要先呼叫 project.saveProgress 存好進度。
 /// </summary>
 public sealed class HostExitAppHandler(IHostShell hostShell) : IApplicationActionHandler
 {

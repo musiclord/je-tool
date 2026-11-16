@@ -4,10 +4,11 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 已存篩選情境命中行層明細 keyset 分頁(本地引擎)。JOIN filter_hit 取該 position 的命中 entry_id,
-/// 再 JOIN gl 取顯示欄;預設排序鍵 entry_id ASC，排序、搜尋與游標述詞由 <see cref="KeysetPaging"/>
-/// 依 <see cref="ResultPageSorting.GlEntryRows"/> 組出、limit 由注入的 <see cref="ISqlDialect"/> 出。
-/// SELECT 末欄取 g.entry_id 供編游標,不放進 wire row。情境位置經 filter_scenario 對到 scenario_id，位置與游標皆參數綁定。
+/// 分頁讀出一個已存篩選情境命中的分錄明細。分頁用 keyset 方式：用上一頁最後一筆的排序鍵接下一頁。
+/// 先用情境位置從 filter_scenario 找到 scenario_id，JOIN filter_hit 取這個情境命中的 entry_id，再 JOIN gl 取要顯示的欄位。
+/// 預設依 entry_id 升冪；排序、搜尋與換頁條件由 <see cref="KeysetPaging"/> 依 <see cref="ResultPageSorting.GlEntryRows"/> 組出，
+/// LIMIT 的寫法取自 <see cref="ISqlDialect"/>。
+/// SELECT 多取一欄 g.entry_id，用來編下一頁的 cursor；它不是回給前端的欄位。情境位置與 cursor 都用參數傳。
 /// </summary>
 public sealed class LocalFilterHitsPageRepository(ILocalProjectDatabase database)
     : IFilterHitsPageRepository

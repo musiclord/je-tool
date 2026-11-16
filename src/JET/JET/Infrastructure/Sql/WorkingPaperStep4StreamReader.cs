@@ -9,9 +9,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Finalized WorkingPaper step4 的單一 hit-first statement。先由已保存的 filter hits
-/// 收斂 distinct (voucher, position)，再只對命中傳票聚合完整 GL；結果以一個
-/// forward-only reader 輸出，不依 200-row UI page size 重算全母體。
+/// 用一個查詢讀完正式工作底稿 step4 的資料。查詢先從已保存的 filter_hit 找出不重複的傳票號碼與情境位置，
+/// 再只對命中的傳票彙總它在 GL 的全部分錄；傳票號碼是 NULL 的命中分錄各自輸出一列。
+/// 結果由一個只能往前讀的 reader 逐列輸出，不像畫面那樣每 200 列一頁、每一頁都重新掃過整個 GL。
 /// </summary>
 internal static class WorkingPaperStep4StreamReader
 {
@@ -52,7 +52,8 @@ internal static class WorkingPaperStep4StreamReader
             "JOIN hit_voucher h ON h.voucher_number = g.voucher_number " +
             $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} " +
             "GROUP BY g.voucher_number, h.tag_mask " +
-            // Keep both joins equijoins. An OR across voucher and entry keys can turn large exports into a nested-loop join.
+            // 有傳票號碼的和傳票號碼是 NULL 的各用一個等值 JOIN，再用 UNION ALL 合併。
+            // 如果合成一個 JOIN、用 OR 同時比對傳票號碼與 entry_id，資料量大時資料庫可能改用巢狀迴圈，匯出會很慢。
             "UNION ALL SELECT g.voucher_number, g.gl_date, g.created_by, " +
             "       g.debit_amount_scaled, h.tag_mask, h.blank_entry_id " +
             $"FROM {schemaPrefix}gl g JOIN hit_voucher h ON h.blank_entry_id = g.entry_id " +

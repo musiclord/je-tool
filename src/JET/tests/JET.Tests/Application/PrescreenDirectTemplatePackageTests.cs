@@ -418,10 +418,10 @@ public sealed class PrescreenDirectTemplatePackageTests
             Assert.All(
                 summary.Range("A3:D3").Cells(),
                 cell => Assert.True(cell.IsEmpty()));
-            Assert.True(summary.Cell("A4").IsEmpty());
+            Assert.Equal("編號", summary.Cell("A4").GetString());
             Assert.Equal("條件的內容", summary.Cell("B4").GetString());
-            Assert.True(summary.Cell("C4").IsEmpty());
-            Assert.True(summary.Cell("D4").IsEmpty());
+            Assert.Equal("符合條件的傳票數量", summary.Cell("C4").GetString());
+            Assert.Equal("符合條件的分錄筆數", summary.Cell("D4").GetString());
             Assert.Equal(9, summary.Cell("C5").GetValue<long>());
             Assert.Equal(9, summary.Cell("D5").GetValue<long>());
             Assert.Equal(9, summary.Cell("C6").GetValue<long>());

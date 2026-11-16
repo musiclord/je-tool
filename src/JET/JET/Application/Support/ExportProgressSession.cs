@@ -3,9 +3,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// Owns the single monotonic clock and the per-report lifecycle for one formal
-/// export action. Writer callbacks remain sheet-local; this adapter is the only
-/// place that shapes the cumulative wire contract.
+/// 一次正式匯出 action 的進度回報。這裡握有唯一一個只增不減的計時，並管理每一份報告從準備資料到發布的進度階段。
+/// 寫檔的程式回報進度時只知道自己正在寫的那一張工作表；累計的工作表張數與列數由 <see cref="ExportReportProgress"/> 算，
+/// 經過時間由這裡算，export.progress 事件也只在這裡送出。
 /// </summary>
 internal sealed class ExportProgressSession
 {
@@ -64,9 +64,8 @@ internal sealed class ExportProgressSession
             elapsedMilliseconds = elapsed
         });
 
-        // A synchronous publisher (including the isolated GUI fixture) may
-        // request cancellation while observing this event. Do not allow the
-        // action to advance to another phase in that case.
+        // 事件發布者如果是同步執行的，可能在處理這個事件時就要求取消，測試用的發布者也是這樣。
+        // 這時不讓 action 繼續進到下一個階段。
         _cancellationToken.ThrowIfCancellationRequested();
     }
 }

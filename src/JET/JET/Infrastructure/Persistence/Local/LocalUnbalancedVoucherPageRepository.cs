@@ -4,9 +4,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 本地 provider 的借貸不平傳票完整 GL 分錄 keyset 分頁。先以與 validate.run 同源的
-/// <see cref="ValidationProcedures.UnbalancedCore"/> 找出不平傳票，再回傳其有效 entry_id；
-/// writer 以一頁 ids 回取 staging 原始列，避免把整份 GL 載入記憶體。
+/// 分頁讀出借貸不平傳票裡每一筆納入測試分錄的 entry_id，依 entry_id 升冪，下一頁從上一頁最後一個 entry_id 之後接著讀。
+/// 不平的傳票用 <see cref="ValidationProcedures.UnbalancedCore"/> 找出，和 validate.run 是同一段 SQL。
+/// 寫報告的程式再用一頁的 entry_id 去讀匯入暫存表的原始列，不必把整份 GL 讀進記憶體。
 /// </summary>
 public sealed class LocalUnbalancedVoucherPageRepository(ILocalProjectDatabase database)
     : IUnbalancedVoucherPageRepository

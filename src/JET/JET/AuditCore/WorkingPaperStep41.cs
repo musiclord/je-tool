@@ -3,8 +3,9 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// WorkingPaper step4-1 export-only row。EntryId 只作 deterministic tie-break 與
-/// opaque cursor，不是可見欄；RawJson 只供 finalized actual raw 欄投影。
+/// 工作底稿 step4-1 匯出專用的一列分錄。<c>EntryId</c> 不是底稿上看得到的欄，只有兩個用途：
+/// 其他排序欄都相同時用它決定先後，讓每次匯出的順序相同；另外它也是分頁游標的一部分。
+/// <c>RawJson</c> 是來源檔的原始列，只給值取自來源檔的那幾欄使用。
 /// </summary>
 internal sealed record WorkingPaperStep41SourceRow(
     long EntryId,
@@ -24,14 +25,14 @@ internal sealed record WorkingPaperStep41SourceRow(
     IReadOnlyList<int> MatchedPositions,
     string? PostingStatus = null);
 
-/// <summary>一頁 export-only step4-1 rows；NextCursor 是不透明 composite keyset cursor。</summary>
+/// <summary>匯出專用的一頁 step4-1 分錄。<c>NextCursor</c> 是讀下一頁用的游標，由多個排序欄的值組成，呼叫端不解讀它的內容。</summary>
 internal sealed record WorkingPaperStep41Page(
     IReadOnlyList<WorkingPaperStep41SourceRow> Rows,
     string? NextCursor);
 
 /// <summary>
-/// step4-1 專用 typed row port。公開 query.highRiskSummaryRowPage 保持 entry_id ASC 與既有 wire，
-/// 本 port 才採 document number、line item、entry_id 的最終輸出順序。
+/// step4-1 專用的分錄分頁讀取介面。畫面用的 <c>query.highRiskSummaryRowPage</c> 維持依 entry_id 由小到大排序，
+/// 回應格式也不變；只有這個介面依底稿最後的輸出順序排序，依序是傳票號碼、項次、entry_id。
 /// </summary>
 internal interface IWorkingPaperStep41PageRepository
 {
@@ -45,9 +46,9 @@ internal interface IWorkingPaperStep41PageRepository
 }
 
 /// <summary>
-/// Finalized WorkingPaper step4-1 的 prepared export session。
-/// Production 以一條連線／一個交易完成 set materialization，並只允許一次 ordered
-/// forward-only reader；分頁讀取介面只留給 frozen baseline 測試。
+/// 工作底稿 step4-1 匯出用的 prepared session。
+/// 正式匯出用一條連線、一個交易，以集合式 SQL 把要匯出的列先寫進暫存表，之後只能依排序從頭到尾讀一次；
+/// 分頁讀取介面 <see cref="IWorkingPaperStep41PageRepository"/> 只有測試使用。
 /// </summary>
 internal interface IWorkingPaperStep41PreparedSessionFactory
 {
@@ -82,7 +83,7 @@ internal interface IWorkingPaperStep41PreparedSessionFactory
     }
 }
 
-/// <summary>一次性 prepared session；dispose 必須清除 connection-scoped temp state。</summary>
+/// <summary>只能用一次的 prepared session；dispose 時必須清掉留在這條連線上的暫存表等暫存狀態。</summary>
 internal interface IWorkingPaperStep41PreparedSession : IAsyncDisposable
 {
     WorkingPaperStep41PreparedSessionMetrics Metrics { get; }
@@ -92,8 +93,8 @@ internal interface IWorkingPaperStep41PreparedSession : IAsyncDisposable
 }
 
 /// <summary>
-/// Step4-1 結構性驗收 instrumentation。每個欄位計數的是實際執行嘗試；
-/// 數量必須與輸出列數／Excel continuation page 數無關。
+/// Step4-1 匯出時各種資料庫動作的次數，供測試核對。每個欄位計數的是實際執行嘗試；
+/// 數量必須與輸出列數、Excel 續頁工作表的數量無關。
 /// </summary>
 internal sealed class WorkingPaperStep41PreparedSessionMetrics(string provider)
 {

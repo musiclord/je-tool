@@ -5,14 +5,14 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.highRiskSummaryScenarios:多情境高風險條件彙總的情境摘要(底稿方法學 step4 概觀)。
-/// 回全部已存情境(position/name,依 position 升冪),每個附傳票層命中數
-/// (COUNT(DISTINCT voucher_number))與行層命中數(COUNT(*)),即時從 filter_hit 算;
-/// 無命中的情境仍列出、count=0。summaryRowCount 是畫面上的「符合條件的分錄筆數」，
-/// 口徑與 Criteria Selection 摘要相同；只有一條「未預期借貸組合」條件的情境用整張命中傳票的分錄數。
+/// query.highRiskSummaryScenarios：高風險條件彙總的情境摘要，對應工作底稿 step4 的概觀。
+/// 回傳全部已儲存情境的 position 與 name，依 position 由小到大排列。每個情境附兩個數字，都是查詢當下從 filter_hit 算出來的：
+/// 命中的傳票數是 COUNT(DISTINCT voucher_number)，命中的分錄數是 COUNT(*)。沒有命中的情境照樣列出，數字是 0。
+/// summaryRowCount 是畫面上的「符合條件的分錄筆數」，口徑與 Criteria Selection 摘要相同；
+/// 只有一條「未預期借貸組合」條件的情境用整張命中傳票的分錄數。
 ///
-/// 惰性補算(同 filterHitsPage):只有持久化結果已失效時，才用共用服務重算全部已存情境。
-/// 全部情境零筆命中仍是目前資料的有效結果，不會因反覆開啟摘要而再次重算。
+/// 和 query.filterHitsPage 一樣，只有在存下的命中結果已經過期，才用共用的服務重算全部已儲存情境。
+/// 全部情境都命中零筆也是目前資料的有效結果，不會因為反覆開啟摘要而再算一次。
 /// </summary>
 public sealed class QueryHighRiskSummaryScenariosHandler(
     IProjectStore projectStore,

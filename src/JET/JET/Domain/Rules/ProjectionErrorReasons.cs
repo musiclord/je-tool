@@ -26,7 +26,7 @@ internal static class ProjectionErrorReasons
         "是空白。請在「來源空白時」選擇處理方式，或先補齊來源資料";
 
     public const string ManualUnlisted =
-        "未歸類為人工或自動。請將這些值歸類，或在「判定方式」改為只列一側";
+        "未歸類為人工或自動。請將這些值歸類，或在「如何區分人工與自動」改成只指定一側的代碼";
 
     public const string AmountInvalid =
         "不是有效的金額。請確認來源的金額格式，或改選正確的金額欄";

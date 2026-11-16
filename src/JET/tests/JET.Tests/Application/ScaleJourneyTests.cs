@@ -48,7 +48,7 @@ internal sealed class ScaleJourneyTheoryAttribute : TheoryAttribute, ITraitAttri
 /// 最後檢查資料庫完整性。只記數字，不斷言快慢。
 /// 只在設定 JET_SCALE_JOURNEY=1 時執行，帶 Scale 特徵，一般的測試執行不會跑到它；要量時直接執行建置好的測試程式，
 /// 用 --filter-class 指定這個類別。記憶體尖峰是整個程式的數字。
-/// 列數預設一百萬，可用 JET_SCALE_JOURNEY_ROWS 改小先試流程；JET_SCALE_JOURNEY_PROVIDER 指定只量哪一種資料庫；
+/// 列數預設一百萬，可用 JET_SCALE_JOURNEY_ROWS 改小先試流程；目前只量 SQLite，JET_SCALE_JOURNEY_PROVIDER 設成其他名稱時這次不量；
 /// JET_SCALE_JOURNEY_OUTPUT 指定時另把結果寫成檔案。資料全部合成，放在系統暫存資料夾，結束時刪除。
 /// </summary>
 public sealed class ScaleJourneyTests(ITestOutputHelper output)

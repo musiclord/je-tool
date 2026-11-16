@@ -4,7 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// AuditCore mapping plan 到同一個資料庫組裡 GL 與 TB repository 的 typed facts adapter。
+/// 照 AuditCore 排好的欄位配對計畫，呼叫 <see cref="IGlRepository"/> 或 <see cref="ITbRepository"/>
+/// 把匯入暫存表的資料轉寫進 GL 或 TB。參數都取自計畫，這裡不做判斷。
 /// </summary>
 internal sealed class MappingFactsPort(
     IGlRepository glRepository,

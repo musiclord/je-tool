@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 情境發布實作。整批發布在同一個交易裡取代全部定義與結果；儲存一個情境只換掉
-/// 這個情境的定義與結果。任何命令失敗或 caller 取消都由 transaction disposal rollback。
+/// 把篩選情境的定義與命中結果寫進資料庫。整批儲存在同一個交易裡取代全部情境的定義與結果；
+/// 儲存一個情境只換掉這個情境的定義與結果。任何一個命令失敗或呼叫端取消時，交易在釋放時 rollback。
 /// </summary>
 public sealed class LocalFilterCommitRepository(
     ILocalProjectDatabase database,

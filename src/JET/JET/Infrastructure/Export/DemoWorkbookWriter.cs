@@ -4,9 +4,10 @@ using JET.Application;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Demo xlsx 寫出器（內部測試 fixture）。預設維持 process-static Lazy，每種檔案只寫一次；
-/// internal constructor 把四份確定性檔案寫到指定的資料夾。檔名為契約值。
-/// 科目代號等代碼欄寫文字 cell、日期寫 DateTime、旗標寫 1/0,驗證 import reader 型別正規化。
+/// 把示範案件的資料寫成 xlsx 檔，供內部測試使用。用無參數的建構子時，同一個程序裡每種檔案只寫一次，
+/// 寫在系統暫存資料夾，之後都回傳同一份；用 internal 建構子時，把四份內容固定的檔案寫到指定的資料夾。
+/// 檔名固定，取自示範資料。科目代號這類代碼欄寫成文字儲存格，日期寫成 DateTime，旗標寫成 1 或 0，
+/// 用來確認匯入時讀檔程式的型別正規化。
 /// </summary>
 public sealed class DemoWorkbookWriter : IDemoFileWriter
 {

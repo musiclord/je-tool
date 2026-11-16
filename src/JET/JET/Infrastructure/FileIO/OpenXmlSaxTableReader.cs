@@ -9,14 +9,15 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Open XML SAX 串流 .xlsx 和 .xlsm 讀取器。單一讀取器、無檔案大小分支：
-/// worksheet 不建 DOM、逐列 forward-only，百萬列活頁簿與小檔走同一條路。
-/// - 標頭列 = 第一個含非空萃取值的列；ReadColumns / Inspect 讀完標頭即返回（early-exit）。
-/// - 金額可能是文字儲存格，讀取階段不解析數值語意，只做型別正規化成字串（投影階段解析）。
-/// - 數值一律 double→(decimal)→InvariantCulture（吸收浮點殘影；超出 decimal 退 "R"）。
-/// - 標頭正規化走共用的 TabularHeaderNormalizer（與 csv reader 一字不差）；
-///   標頭範圍外的資料 cell lazy 合成 COL_{欄號} 佔位欄，不靜默丟棄。
-/// - request.SheetName 指定工作表（不分大小寫）；缺省 = 第一個資料工作表（chartsheet 跳過）。
+/// 讀 .xlsx 與 .xlsm 的讀取器，用 Open XML SDK 的 SAX 方式一邊讀一邊處理。不論檔案大小都用同一個做法：
+/// 工作表不載入成 DOM，逐列往前讀，一百萬列的活頁簿和小檔案走同一段程式。
+/// - 標頭列是第一個有非空白值的列。ReadColumns 與 Inspect 讀到標頭就停，不讀後面的資料列。
+/// - 金額可能存成文字儲存格，所以讀取時不判斷值是不是數字，只把各種儲存格型別統一轉成字串，確認配對時才解析。
+/// - 數值一律先從 double 轉成 decimal，再用 InvariantCulture 轉成字串，去掉浮點數的尾數誤差；
+///   超出 decimal 範圍時改用 "R" 格式。
+/// - 標頭用共用的 TabularHeaderNormalizer 正規化，結果和文字檔讀取器完全相同。
+///   資料列超出標頭範圍的儲存格有資料時，補一個 COL_{欄號} 佔位欄，不會丟掉。
+/// - request.SheetName 指定要讀的工作表，不分大小寫；沒有指定時讀第一個資料工作表，chartsheet 不算。
 /// </summary>
 public sealed class OpenXmlSaxTableReader : ITabularFileReader
 {
@@ -64,7 +65,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
             if (header is null)
             {
-                // 空工作表回空欄名清單（檢視是預覽，不是匯入——精靈呈現「此表無資料」而非整檔失敗）
+                // 空的工作表回傳空的欄名清單。檢視只是預覽，不是匯入；匯入精靈會顯示這張工作表沒有資料，不讓整個檔案失敗。
                 worksheets.Add(new WorksheetInspection(name, [], null));
                 continue;
             }
@@ -120,7 +121,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
                 var columnNumber = cell.ColumnNumber;
                 if (!headerByColumn.TryGetValue(columnNumber, out var header))
                 {
-                    // 標頭範圍外的資料欄：lazy 合成佔位欄（有資料的欄絕不靜默丟棄）
+                    // 這一欄在標頭範圍之外卻有資料：第一次遇到時補一個佔位欄，有資料的欄不會被丟掉。
                     header = SynthesizePlaceholder(columnNumber, usedNames!);
                     headerByColumn[columnNumber] = header;
                 }
@@ -286,8 +287,8 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     }
 
     /// <summary>
-    /// 逐列走訪 worksheet（forward-only，不建 DOM），只產出含 ≥1 非空萃取值的列。
-    /// row/cell 的 r 屬性缺席時以連續計數遞補（OOXML 允許省略）。
+    /// 逐列往前讀工作表，不載入成 DOM，只回傳至少有一個非空白值的列。
+    /// row 或 cell 沒有寫 r 屬性時，列號或欄號接著前一個往下數；OOXML 允許省略這個屬性。
     /// </summary>
     private static IEnumerable<ContentRow> EnumerateContentRows(
         WorksheetPart part, CellContext context, Action<string>? onDimension)
@@ -360,7 +361,10 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     // ---- 標頭 ----
 
-    /// <summary>標頭列 cell（已含實際欄號）→ min..max 連續欄位範圍（縫隙 = 空白標頭）→ 正規化。</summary>
+    /// <summary>
+    /// 從標頭列的儲存格建立欄號與欄名的對照。先取最小欄號到最大欄號之間的每一欄，中間沒有儲存格的欄當成空白標頭，
+    /// 再交給 TabularHeaderNormalizer 正規化。
+    /// </summary>
     private static List<(int ColumnNumber, string Name)> BuildHeaderMap(
         List<ContentCell> headerCells)
     {
@@ -384,7 +388,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     {
         var name = $"COL_{columnNumber}";
 
-        // 與真實同名標頭衝突時走 normalizer 同款 _2/_3 去重（病態案例，順序不保證）
+        // 佔位欄名和檔案裡真正的標頭同名時，照標頭正規化的做法加上 _2、_3。這種情形很少見，編號的順序不保證。
         var suffix = 2;
         while (!usedNames.Add(name))
         {
@@ -397,7 +401,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     // ---- cell 值萃取 ----
 
-    /// <summary>共用字串表 / 樣式表 / 1904 日期系統的一次性解析結果。</summary>
+    /// <summary>每個活頁簿只解析一次的三項資料：共用字串表、每個樣式是日期還是時間，以及是否使用 1904 日期系統。</summary>
     private sealed record CellContext(
         IReadOnlyList<string> SharedStrings,
         ExcelNumberKind[] StyleKinds,
@@ -416,7 +420,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         }
     }
 
-    /// <summary>sharedStrings.xml 一次串流載入（不信任 count 屬性；排除注音子樹）。</summary>
+    /// <summary>把 sharedStrings.xml 從頭到尾讀一次，載入全部共用字串。筆數以實際讀到的為準，不看 count 屬性；注音標示不算內容。</summary>
     private static List<string> ReadSharedStrings(WorkbookPart workbookPart)
     {
         var strings = new List<string>();
@@ -541,8 +545,8 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         if (dataType == CellValues.Date)
         {
-            // SpreadsheetML t="d" 的值是 ISO 8601；native type 本身就是權威，
-            // 不應落入 numeric parse failure。JET 的 date-time 顯示仍沿用日期優先。
+            // SpreadsheetML 的 t="d" 儲存格，值是 ISO 8601 的日期文字。儲存格型別已經說明它是日期，
+            // 所以在這裡處理，不讓它走到下面被當成數字解析而失敗。值帶有時間時只取日期。
             var raw = cell.CellValue?.InnerText?.Trim() ?? string.Empty;
             if (DateTime.TryParse(
                     raw,
@@ -559,7 +563,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             return new ExtractedCellValue(raw, LegacyFieldKind.Date, DecimalPlaces: null);
         }
 
-        // 數值（無型別屬性或 t="n"）；公式 cell 無快取值 → 空（串流讀取不重算公式）
+        // 其餘是數值儲存格：沒有型別屬性，或 t="n"。公式儲存格沒有存計算結果時當成空白，讀取時不重算公式。
         var rawValue = cell.CellValue?.InnerText;
         if (string.IsNullOrWhiteSpace(rawValue))
         {
@@ -568,8 +572,8 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         if (!double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
         {
-            // 防衛：native numeric 內容即使無法解析，仍保留原文交由投影階段報錯；
-            // metadata 不以內容猜成 Text。
+            // 數值儲存格的內容解析不成數字時，仍然保留原文，確認配對時會報錯。
+            // 欄位型別照儲存格型別記成數字，不因為內容像文字就改記成文字。
             return new ExtractedCellValue(rawValue.Trim(), LegacyFieldKind.Number, DecimalPlaces: 0);
         }
 
@@ -640,7 +644,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         // 1904 日期系統的序列值原點晚 1462 天
         var oaDate = date1904 ? serial + 1462 : serial;
 
-        // DateTime.FromOADate 的合法範圍外（如負數）退回數值呈現，交由投影階段判讀
+        // 超出 DateTime.FromOADate 能接受的範圍時，例如負數，不轉成日期；呼叫端改交出序列值的文字，確認配對時再判斷。
         if (!double.IsFinite(oaDate) || oaDate is < -657434 or >= 2958466)
         {
             return false;
@@ -654,7 +658,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     // ---- 參考解析 ----
 
-    /// <summary>"AB678400" → 28；無字母前綴或 null → null（呼叫端以連續計數遞補）。</summary>
+    /// <summary>從儲存格參照取出欄號，例如 "AB678400" 是第 28 欄。參照是 null 或開頭沒有字母時回 null，呼叫端改用前一欄的欄號加一。</summary>
     private static int? ParseColumnNumber(string? cellReference)
     {
         if (string.IsNullOrEmpty(cellReference))

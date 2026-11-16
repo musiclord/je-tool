@@ -102,7 +102,7 @@ internal static class FilterScenarioBatchWriter
     }
 
     /// <summary>
-    /// 儲存一個情境。<c>position</c> 為 null 表示新增或另存副本，加在清單最後；有值時取代清單上那一個，
+    /// 儲存一個情境。<c>position</c> 為 null 表示新增情境或「另存為新情境」，加在清單最後；有值時取代清單上那一個，
     /// 而且 <c>expectedName</c> 必須是資料庫那一筆的名稱，否則不寫入。只用儲存規則檢查這一個。
     /// </summary>
     internal static Change PlanSave(
@@ -213,7 +213,7 @@ internal static class FilterScenarioBatchWriter
     /// <summary>
     /// 寫回並組成回應。儲存或移除時，其他情境都合格、已是目前規則而且存好的結果沒有過期，就只寫這一個：
     /// 儲存只算這一個情境的結果，移除只刪這一個的定義與結果，其他情境不重新檢查版本也不重算。
-    /// 否則照整批處理：全部合格時用 filter facts 發布定義與命中（篩選失效旗標歸零），並把案件推進到第五步；
+    /// 否則照整批處理：全部合格時由 <see cref="IFilterFactsPort"/> 一次寫入定義與命中，篩選結果的過期旗標也清掉，並把案件推進到第五步；
     /// 有不合格的情境時只寫定義，同一筆交易清掉命中並標成失效，結果維持鎖住。
     /// 清單是空的而且不必寫入（重新檢查時沒有情境）就直接回應。
     /// </summary>
@@ -303,7 +303,7 @@ internal static class FilterScenarioBatchWriter
             }
         }
 
-        // 寫入已提交；之後的取消不能丟掉權威狀態。
+        // 寫入已經提交。之後即使請求被取消，也照樣讀回寫入後的狀態放進回應，所以下面不帶呼叫端的取消。
         WorkflowResultStateSupport.CurrentSnapshot? current = null;
         string? reportWarning = null;
         try

@@ -61,15 +61,19 @@ internal static partial class GuiScenarios
 
     // 情境範例 2026-11-03 移到右側條件組合上方的「從情境範例開始」托盤（裁定 2026-11-03-05），托盤預設收起（裁定 2026-11-03-19）：
     // 收起時按標題打開，同一次開案內記住，已打開就不再點。托盤在「篩選」工作面，目前在已存情境工作面時先切回來。
+    // 「從情境範例開始」在這個版本隱藏（裁定 2026-11-16-01），開關 window.JetUi.FEATURES.scenarioTemplates 預設關著，畫面上沒有托盤。
+    // 要用範例的情境先在這裡把開關打開，再用 JetStore.touch() 讓第五步重畫，之後照原本的步驟操作。
+    // 開關只活在這一次開啟的畫面，重開 JET 之後又是關著，所以每次用範例前都先確認一次；已經打開就不重畫。
     private static async Task OpenExampleListAsync(CdpSession cdp, Func<string, Task> click, CancellationToken ct)
     {
+        await cdp.EvaluateAsync("(()=>{var features=window.JetUi.FEATURES;if(!features.scenarioTemplates){features.scenarioTemplates=true;window.JetStore.touch();}return true;})()", ct);
         var shown = await cdp.EvaluateAsync("!!document.querySelector('.filter-template-tray')", ct);
         if (!shown.GetBoolean()) await click("[data-filter-pane-select=\"filter\"]");
         var open = await cdp.EvaluateAsync("document.querySelector('.filter-template-tray').open", ct);
         if (!open.GetBoolean()) await click(".filter-template-tray__title");
     }
 
-    // 套用範例、開啟或新增情境會換掉目前的草稿。草稿有還沒儲存的內容時，JET 先問要不要儲存；
+    // 套用範例、編輯或新增情境會換掉目前的草稿。草稿有還沒儲存的內容時，JET 先問要不要儲存；
     // 用到這裡的情境要的是直接換掉，所以選「不儲存，直接…」。草稿是空的或已儲存就不會問，也不多點。
     private static async Task ContinueWithoutSavingIfAskedAsync(CdpSession cdp, Func<string, Task> click, CancellationToken ct)
     {

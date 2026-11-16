@@ -15,21 +15,21 @@ public static partial class JetAuditProgram
     public static IReadOnlyList<ProcedureDefinition> Procedures { get; } = BuildProgram();
 
     /// <summary>
-    /// Resume renderer：保留既存 prescreen 結果，只補上目前的預篩選定位說明。
+    /// 讀回已保存的預篩選摘要：結果照原樣，只補上目前的預篩選定位說明。
     /// </summary>
     internal static System.Text.Json.JsonElement RenderPrescreenSummary(string summaryJson) =>
         PrescreenProcedures.RenderSummary(summaryJson);
 
     /// <summary>
-    /// 步驟四與流程總覽共用的預篩選定位文案。Application 只轉成 wire；
-    /// frontend fallback 必須由 mirror 守衛證明逐字一致。
+    /// 第四步與流程總覽共用的預篩選定位說明。Application 只把它轉成 action 回應的格式。
+    /// 前端在還沒有預篩選結果時顯示自己存的同一段文字，必須和這裡逐字相同，有測試核對。
     /// </summary>
     internal static PrescreenPositioning RenderPrescreenPositioning() =>
         PrescreenPositioningRenderer.Render();
 
     /// <summary>
-    /// Validation production path 的 typed Plan。既有 public review plan 仍是程序適用性判定
-    /// 的唯一來源；typed plan 只補上具名、且不需由 Infrastructure 解讀的輸入。
+    /// 資料驗證正式流程用的 Plan。各項程序適不適用，仍只由收 <see cref="AuditProjectSnapshot"/> 的公開 Plan 判定；
+    /// 這裡另外備好金額級距的門檻與「核准日不在期間」不能執行的原因，Infrastructure 直接使用，不必自己解讀。
     /// </summary>
     internal static ValidationPlan Plan(ValidationRequest request)
     {
@@ -65,8 +65,8 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// Validation typed Finalize：控制總數是否相符與所有 status／N/A 均在 AuditCore 決定，
-    /// 再沿用既有 public manifest finalizer，避免第二套 audit decision。
+    /// 資料驗證的 Finalize。存入筆數與合計是否相符，以及每項程序的 status 與 N/A，都在 AuditCore 決定；
+    /// 各項程序的 status 交給公開的 Finalize 來定，不另寫第二套判斷。
     /// </summary>
     internal static ValidationResult Finalize(
         ValidationPlan plan,
@@ -147,8 +147,9 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// Provider raw groups 依 canonical catalog 補齊為固定 15 bins，並以全部非零元
-    /// 分錄作 ECDF 分母。零元及非零分母為 0 時回 null，不冒充 0%。
+    /// 資料庫只回有分錄的級距。這裡依 <see cref="ValidationAmountDistributionCatalog"/> 的順序補成固定 15 個級距，
+    /// 並算出累計百分比，分母是全部非零元的分錄數。零元級距不算累計百分比；非零元分錄數是 0 時也不算。
+    /// 這兩種情況都回 null，不寫成 0%。
     /// </summary>
     private static ValidationAmountDistribution FinalizeAmountDistribution(
         IReadOnlyList<ValidationAmountBinCount> rawCounts)
@@ -207,9 +208,8 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// Validation／prescreen 共用的 GL target 前置條件。Application 可在讀取其他
-    /// 案件 metadata 前先呼叫，以維持既有 gl_mapping_not_confirmed 錯誤優先序；實際判定
-    /// 仍只有 AuditCore 這一份。
+    /// 資料驗證與預篩選共用的前置條件：GL 欄位配對必須已經確認。Application 可以在讀其他案件資料之前先呼叫，
+    /// 讓 gl_mapping_not_confirmed 比其他錯誤先回報；判定本身只有 AuditCore 這一份。
     /// </summary>
     internal static void RequireGlMapping([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool hasGlMapping)
     {
@@ -221,7 +221,7 @@ public static partial class JetAuditProgram
         }
     }
 
-    /// <summary>依 action 選取 validation／prescreen 家族，判定 N/A，並綁定執行參數。</summary>
+    /// <summary>依 action 選出資料驗證或預篩選的程序，判定每項程序是否 N/A，並帶上這次執行的參數。</summary>
     public static AuditExecutionPlan Plan(
         AuditProjectSnapshot caseSnapshot,
         AuditUserParameters userParameters)
@@ -254,7 +254,7 @@ public static partial class JetAuditProgram
         return new AuditExecutionPlan(caseSnapshot, userParameters, Array.AsReadOnly(selected));
     }
 
-    /// <summary>把 validation／prescreen outcome 收斂為每程序的 V/na、N/A 原因與計數。</summary>
+    /// <summary>依資料驗證或預篩選的執行結果，定出每項程序的 V 或 na、N/A 原因與計數。</summary>
     public static AuditRunManifest Finalize(AuditExecutionPlan plan, AuditOutcome outcome)
     {
         ArgumentNullException.ThrowIfNull(plan);

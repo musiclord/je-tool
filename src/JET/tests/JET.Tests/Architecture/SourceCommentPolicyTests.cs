@@ -6,12 +6,17 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 原始碼的註解與文字只說明程式現在做什麼、為什麼這樣做。開發過程的紀錄另外保存，不寫進原始碼：
-/// 需求決議的編號、測試執行的編號、測試修改經過的說明、開發計畫的階段名稱，以及開發任務的用語。
+/// 需求決議的編號、測試執行的編號、測試修改經過的說明、開發計畫的階段名稱、開發任務的用語，
+/// 以及誰提了什麼意見、怎麼選定做法的經過。
 /// 註解也不引用文件的章節：只拿到這個方案資料夾的人查不到那些文件。
 /// </summary>
 public sealed class SourceCommentPolicyTests
 {
-    private static readonly string[] Extensions = [".cs", ".js", ".cjs", ".css", ".html", ".csproj", ".json"];
+    private static readonly string[] Extensions =
+    [
+        ".cs", ".js", ".cjs", ".css", ".html", ".csproj", ".json",
+        ".editorconfig", ".props", ".targets", ".pubxml",
+    ];
 
     // 樣式用字串相接寫成，這個檔案自己才不會被掃到。
     private static readonly (string Name, Regex Pattern)[] DevelopmentRecords =
@@ -38,6 +43,19 @@ public sealed class SourceCommentPolicyTests
             + "|TD" + @"D ?#\d|jet-tes" + @"ting|\.git/s" + "dd|(?i:user-appro" + "ved)"
             + "|(?<![A-Za-z])bri" + "ef(?:[：:]| ?設計| ?允許)|DR" + @"Y ?(?:閾值 ?)?= ?\d",
             RegexOptions.CultureInvariant)),
+        // 用中文指稱開發工作的某一項或某一段進度。描述程式執行過程的「讀取階段」「投影階段」「呈現階段」、
+        // 流程總覽的六階段，以及匯入步驟的任務清單與任務列，都不算。
+        // 接中文數字的寫法要在數字後面斷句才算，「一致」「一律」「十分」這類詞不會被當成編號。
+        ("開發任務與階段的中文說法", new Regex(
+            "本任" + "務|[下上]一個?任" + "務(?![列清])"
+            + "|本階" + "段|(?<![呈實發表出])現階" + "段"
+            + "|階" + @"段[一二三四五六七八九十]+(?=[的：:，。、；\s）)」]|$)",
+            RegexOptions.CultureInvariant)),
+        // 誰提了什麼意見、看過什麼之後選了哪個做法，是需求的來歷。
+        // 程式對使用者做的事（向使用者說明失敗原因）與使用者在畫面上的操作（選取、指定、要求取消）都不算。
+        ("意見與選擇的經過", new Regex(
+            "(?<![向對給讓])使用者(?:指" + "出|回" + "報|反" + "映|回" + "饋)|看過樣" + "張",
+            RegexOptions.CultureInvariant)),
     ];
 
     // 只看註解的樣式：比對依據的出處字串也會寫文件名稱，那是資料，不是註解。
@@ -51,6 +69,11 @@ public sealed class SourceCommentPolicyTests
             + "|(?<![A-Za-z])F" + @"D \d|action-contract-mani" + "fest"
             + "|(?:(?i:mani" + "fest)|前端說" + "明|action 契" + "約|(?i:frontend descrip" + @"tion))\s*「",
             RegexOptions.CultureInvariant)),
+        // 用中文寫的節號與章號，數字可以是中文、阿拉伯數字或帶小數點的編號。
+        // 畫面與產品用語裡的步、列、項、組、條不是文件的章節；樹狀資料的「節點」也不是。
+        ("中文寫的章節引用", new Regex(
+            "第" + @"\s*[0-9一二三四五六七八九十百]+(?:\.[0-9]+)*\s*[節" + "章](?!點)",
+            RegexOptions.CultureInvariant)),
     ];
 
     private static readonly Regex CommentStart = new(@"(?<!:)//|/\*|<!--|^\s*\*", RegexOptions.CultureInvariant);
@@ -60,6 +83,63 @@ public sealed class SourceCommentPolicyTests
     {
         var match = CommentStart.Match(line);
         return match.Success ? line[match.Index..] : null;
+    }
+
+    /// <summary>
+    /// 一個檔案裡每一行的註解部分，連同行的索引。除了單行就看得出來的註解記號，還認得兩種寫法：
+    /// .editorconfig 以井字號或分號開頭的整行；以及跨行的區塊註解與 XML 註解，
+    /// 也就是一行以開頭記號起頭而沒有在同一行結束時，之後各行到結束記號為止都算註解。
+    /// 開頭記號要在行首才往下延續，字串裡剛好出現同樣的符號時不會把後面的程式當成註解。
+    /// </summary>
+    private static IEnumerable<(int Index, string Comment)> CommentLines(string extension, IReadOnlyList<string> lines)
+    {
+        var hashComments = string.Equals(extension, ".editorconfig", StringComparison.OrdinalIgnoreCase);
+        string? blockEnd = null;
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var line = lines[index];
+            if (hashComments)
+            {
+                var text = line.TrimStart();
+                if (text.StartsWith('#') || text.StartsWith(';'))
+                {
+                    yield return (index, text);
+                }
+
+                continue;
+            }
+
+            if (blockEnd is not null)
+            {
+                var end = line.IndexOf(blockEnd, StringComparison.Ordinal);
+                if (end < 0)
+                {
+                    yield return (index, line);
+                    continue;
+                }
+
+                var afterBlock = CommentPart(line[(end + blockEnd.Length)..]);
+                blockEnd = null;
+                yield return (index, afterBlock is null ? line[..end] : line[..end] + " " + afterBlock);
+                continue;
+            }
+
+            if (CommentPart(line) is not { } comment)
+            {
+                continue;
+            }
+
+            yield return (index, comment);
+            var start = line.TrimStart();
+            if (start.StartsWith("/*", StringComparison.Ordinal) && !start.Contains("*/", StringComparison.Ordinal))
+            {
+                blockEnd = "*/";
+            }
+            else if (start.StartsWith("<!--", StringComparison.Ordinal) && !start.Contains("-->", StringComparison.Ordinal))
+            {
+                blockEnd = "-->";
+            }
+        }
     }
 
     [Fact]
@@ -114,6 +194,17 @@ public sealed class SourceCommentPolicyTests
     [InlineData("await Task.WhenAll(first, second);", false)]
     [InlineData("// 該 task 結束後才釋放連線。", false)]
     [InlineData("// 這份簡報的英文是 briefing。", false)]
+    [InlineData("// 金額可能是文字儲存格，讀取階段不解析數值語意（投影階段解析）。", false)]
+    [InlineData("// 六階段只在流程總覽裡顯示；已完成的階段即使正在回看，仍算完成。", false)]
+    [InlineData("// 各階段一律先寫支援日誌，兩階段一起完成才算成功。", false)]
+    [InlineData("// 呈現階段只讀摘要，不重新查詢。", false)]
+    [InlineData("// 階段 1：第一個工作表以新增方式匯入。", false)]
+    [InlineData("// 任務清單各列的就地展開狀態；完成後展開下一個任務列。", false)]
+    [InlineData("// 預設收合，不與審計員的當前任務競爭注意力。", false)]
+    [InlineData("// 進度通知丟出的取消例外不是使用者要求的取消。", false)]
+    [InlineData("// 使用者選取的檔案正被 Excel 開啟時，改用共用讀取。", false)]
+    [InlineData("// 使用者指定的工作表不存在時，回報找不到工作表。", false)]
+    [InlineData("// 匯入失敗時向使用者回報原因與接下來能做的事。", false)]
     public void PatternsLeaveOrdinaryCommentsAndDataAlone(string line, bool expected)
     {
         Assert.Equal(expected, DevelopmentRecords.Any(record => record.Pattern.IsMatch(line)));
@@ -169,6 +260,29 @@ public sealed class SourceCommentPolicyTests
             numberedTdd, testingSkill, scratchScript, userApproved, briefNote, dryThreshold,
         }, line =>
             Assert.Equal("開發任務的用語", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(line)).Name));
+
+        var thisAssignment = "/// 本任" + "務只建目錄、不改前端。";
+        var nextAssignment = "/// 決定下一個任" + "務該怎麼呈現。";
+        var nextAssignmentShort = "/// 等價於下一任" + "務的可瀏覽白名單。";
+        var thisPeriod = "/// 稽核寫入埠；本階" + "段刻意不提供查詢。";
+        var currentPeriod = "/// 現階" + "段部門內使用。";
+        var numberedPeriod = "rationale = \"階" + "段九的同一個數字\",";
+        var numberedPeriodAtEnd = "// 沿用階" + "段三";
+        Assert.All(new[]
+        {
+            thisAssignment, nextAssignment, nextAssignmentShort, thisPeriod, currentPeriod,
+            numberedPeriod, numberedPeriodAtEnd,
+        }, line =>
+            Assert.Equal("開發任務與階段的中文說法", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(line)).Name));
+
+        var pointedOut = "// 使用者指" + "出沒有看到玻璃效果，要求整個畫面帶有玻璃質感。";
+        var reportedBefore = "/// 含控制字元的來源資料會讓匯出失敗（使用者回" + "報過這個問題）。";
+        var reportedCase = "/// <summary>使用者回" + "報的情境：選到 Excel 正開著的檔案。</summary>";
+        var raised = "// 使用者反" + "映表頭太擠，所以加寬。";
+        var feedback = "// 依使用者回" + "饋調整順序。";
+        var choseAfterSample = "// 不用漸層填色；看過樣" + "張後選了照樣套用。";
+        Assert.All(new[] { pointedOut, reportedBefore, reportedCase, raised, feedback, choseAfterSample }, line =>
+            Assert.Equal("意見與選擇的經過", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(line)).Name));
     }
 
     [Fact]
@@ -185,14 +299,8 @@ public sealed class SourceCommentPolicyTests
                      .Order(StringComparer.Ordinal))
         {
             scanned++;
-            var lines = File.ReadAllLines(file);
-            for (var index = 0; index < lines.Length; index++)
+            foreach (var (index, comment) in CommentLines(Path.GetExtension(file), File.ReadAllLines(file)))
             {
-                if (CommentPart(lines[index]) is not { } comment)
-                {
-                    continue;
-                }
-
                 foreach (var (name, pattern) in DocumentSections)
                 {
                     if (pattern.IsMatch(comment))
@@ -216,6 +324,11 @@ public sealed class SourceCommentPolicyTests
     [InlineData("// 假後端都經過 action-contract.cjs 核對資料形狀。")]
     [InlineData("var basis = \"docs/jet-gui" + "de.md \u00A72\";")]
     [InlineData("var help = \"https://example.invalid/jet-gui" + "de\";")]
+    [InlineData("// 第 4 步的第 2 列與第 3 項照舊顯示。")]
+    [InlineData("// 第一步建立案件，第六步匯出工作底稿。")]
+    [InlineData("// 第 1 組第 2 條的欄位已不存在時，整組標成待修正。")]
+    [InlineData("// 展開第 2 節點時才載入下層分類。")]
+    [InlineData("title.textContent = '第 4 步：資料驗證與測試';")]
     public void DocumentSectionPatternsLeaveOrdinaryCommentsAndStringsAlone(string line)
     {
         var comment = CommentPart(line);
@@ -247,5 +360,59 @@ public sealed class SourceCommentPolicyTests
             Assert.NotNull(comment);
             Assert.Equal("文件章節的寫法", Assert.Single(DocumentSections, record => record.Pattern.IsMatch(comment)).Name);
         });
+
+        var chineseNumeral = "// 第九" + "節：每條條件只表達一件事。";
+        var decimalNumber = "// ── 修正後要成立的情境（設計第 5.2 " + "節）──";
+        var withItem = "// 設計第 5.1 " + "節第 1 到 5 項。";
+        var chapter = "/// 規則見第 3 " + "章。";
+        var noSpaces = "/* 第12" + "節的欄位順序 */";
+        Assert.All(new[] { chineseNumeral, decimalNumber, withItem, chapter, noSpaces }, line =>
+        {
+            var comment = CommentPart(line);
+            Assert.NotNull(comment);
+            Assert.Equal("中文寫的章節引用", Assert.Single(DocumentSections, record => record.Pattern.IsMatch(comment)).Name);
+        });
+    }
+
+    [Fact]
+    public void CommentLines_RecogniseHashCommentsAndCommentsThatSpanLines()
+    {
+        // .editorconfig：井字號或分號開頭的整行是註解，區段名稱與設定值不是。
+        Assert.Equal(
+            new[] { (0, "# 專案設定"), (2, "; 另一種註解") },
+            CommentLines(".editorconfig", ["# 專案設定", "[*.cs]", "  ; 另一種註解", "indent_size = 4"]).ToArray());
+
+        // 其他檔案的井字號不是註解：C# 的前置處理指示詞與 CSS 的 id 選擇器。
+        Assert.Empty(CommentLines(".cs", ["#region 匯入", "#endregion"]));
+        Assert.Empty(CommentLines(".css", ["#app-root { color: red; }"]));
+
+        // 跨行的 XML 註解：第二行沒有註解記號也算註解，結束之後的元素不算。
+        Assert.Equal(
+            new[] { 0, 1 },
+            CommentLines(".props", ["  <!-- 建置時產生文件檔，", "       只留在建置輸出。 -->", "  <PropertyGroup>"])
+                .Select(item => item.Index).ToArray());
+
+        // 跨行的區塊註解：中間各行沒有星號也算；結束記號之後的程式不算，同一行後面的單行註解照舊認得。
+        var block = CommentLines(".js", ["/* 完成狀態：", "   只在這一步裡切換。", "*/ render(); // 重畫", "var done = true;"]).ToArray();
+        Assert.Equal(new[] { 0, 1, 2 }, block.Select(item => item.Index).ToArray());
+        Assert.Equal("   只在這一步裡切換。", block[1].Comment);
+        Assert.EndsWith("// 重畫", block[2].Comment, StringComparison.Ordinal);
+        Assert.DoesNotContain("render", block[2].Comment, StringComparison.Ordinal);
+
+        // 開頭記號不在行首時不往下延續：字串裡的萬用字元樣式不會把下一行的程式當成註解。
+        Assert.Equal(
+            new[] { 0 },
+            CommentLines(".cs", ["var pattern = \"**/*.cs\";", "var basis = \"文件出處\";"]).Select(item => item.Index).ToArray());
+    }
+
+    [Fact]
+    public void DocumentSectionCheck_CoversHashCommentsAndCommentsThatSpanLines()
+    {
+        var hashComment = "# 四層依 gui" + "de §" + "14 分進子資料夾。";
+        var secondLine = "     依 sp" + "ec 3.2.1 的順序載入。 -->";
+        Assert.Contains(CommentLines(".editorconfig", [hashComment]),
+            item => DocumentSections.Any(record => record.Pattern.IsMatch(item.Comment)));
+        Assert.Contains(CommentLines(".targets", ["<!-- 載入順序：", secondLine]),
+            item => item.Index == 1 && DocumentSections.Any(record => record.Pattern.IsMatch(item.Comment)));
     }
 }

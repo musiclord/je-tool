@@ -44,7 +44,7 @@ This policy applies to new or modified procedures, functions, and their associat
 
 ## 6. Required Evidence and Review Workflow
 
-- **Author submits:** Provide the change description, requirement reference, affected procedures or functions, code revision, unit-test report, and a list of material hard-coded values or rules with their justification.
-- **Reviewer verifies:** Check test results and adequacy, manually inspect the changed code and hard-coded content, and confirm any additional required verification.
-- **Author resolves:** Correct findings, update tests as needed, rerun required checks, and provide revised evidence.
-- **Reviewer records:** Document the final decision, reviewer, review date, approved code revision, outstanding follow-up actions, and any approved exceptions in the review record.
+1. **Author submits:** Provide the change description, requirement reference, affected procedures or functions, code revision, unit-test report, and a list of material hard-coded values or rules with their justification.
+2. **Reviewer verifies:** Check test results and adequacy, manually inspect the changed code and hard-coded content, and confirm any additional required verification.
+3. **Author resolves:** Correct findings, update tests as needed, rerun required checks, and provide revised evidence.
+4. **Reviewer records:** Document the final decision, reviewer, review date, approved code revision, outstanding follow-up actions, and any approved exceptions in the review record.

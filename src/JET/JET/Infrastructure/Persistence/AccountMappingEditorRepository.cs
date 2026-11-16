@@ -105,7 +105,7 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         var time = DateTimeOffset.UtcNow.ToString("O");
         var accounts = new Dictionary<string, string?>(StringComparer.Ordinal);
         var roles = new Dictionary<string, string>(StringComparer.Ordinal);
-        // 有界參數一次查完；不能為每個科目重新彙總整份 GL/TB。
+        // 這次要改的科目最多 500 個，全部當成參數用一句查詢查完；不可以每個科目各查一次，那樣每次都要重新彙總整份 GL 與 TB。
         await using (var lookup = connection.CreateCommand())
         {
             lookup.Transaction = tx;

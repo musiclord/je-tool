@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// query.sourceQualityPage 的 current-successful-generation finding。
-/// EntryId 只作 opaque keyset cursor，不進 wire；SourceRowNumber 是來源檔實際列號。
+/// query.sourceQualityPage 的一筆結果，來自目前這一版成功建立的 GL 資料。
+/// EntryId 只用來組分頁游標，不放進回應；SourceRowNumber 是來源檔實際的列號。
 /// </summary>
 public sealed record SourceQualityFindingRow(
     string Category,

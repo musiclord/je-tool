@@ -4,16 +4,15 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 已存篩選情境的條件 AST（前端送出的 wire JSON）→ 中文布林式，與前端藍色 read-back
-/// （filter-step-rules.js <c>readBackHtml</c> 的 <c>.scenario-readback__expr</c> 文字內容）同構。
-/// CriteriaSelection summary 的「條件內容」以本渲染器輸出為值（由
-/// <see cref="ExportCriteriaSelectionReportHandler"/> 計算，經
-/// <see cref="CriteriaSelectionReportContext.ScenarioConditionLogic"/> 傳入 writer）。
+/// 把已儲存篩選情境的條件樹寫成中文的條件說明，例如「A 且（B 或 C）」。輸入是前端送出的原始條件 JSON，
+/// 輸出的文字和前端藍色的條件讀回區相同（filter-step-rules.js <c>readBackHtml</c> 的 <c>.scenario-readback__expr</c> 文字內容）。
+/// 條件篩選報告摘要的「條件內容」就是這裡的輸出，由 <see cref="ExportCriteriaSelectionReportHandler"/> 計算，
+/// 經 <see cref="CriteriaSelectionReportContext.ScenarioConditionLogic"/> 傳給寫報告的程式。
 ///
-/// 為什麼吃「原始 JSON」而非 <see cref="FilterScenarioSpec"/>：read-back 顯示的是使用者輸入的**顯示字串**
-/// （numRange 的 from/to 原文），而解析成 spec 後金額已 scaled，顯示原文遺失；要真正同構就必須讀原始 wire。
-/// 文字條件的關鍵字照前端的寫法拆開、去掉重複再接回，見 <c>TextKeywords</c>。層級：JSON 形狀處理與 <see cref="FilterScenarioPayloadParser"/>
-/// 同屬 Application；中文標籤的唯一正本在 Domain <see cref="FilterConditionLabels"/>（前端鏡像、測試守衛）。
+/// 這裡讀原始 JSON，不讀 <see cref="FilterScenarioSpec"/>。讀回要顯示使用者輸入的原文，例如 numRange 的 from 與 to；
+/// 解析成 <see cref="FilterScenarioSpec"/> 之後金額已經換算成整數，原文就不在了，所以只有讀原始 JSON 才能和前端寫得一樣。
+/// 文字條件的關鍵字照前端的寫法拆開、去掉重複再接回，見 <c>TextKeywords</c>。讀 JSON 的程式和 <see cref="FilterScenarioPayloadParser"/>
+/// 一樣放在 Application；中文標籤只定義在 Domain 的 <see cref="FilterConditionLabels"/>，前端另有一份相同的文字，由測試核對兩邊一致。
 ///
 /// 非營業日卡片保留子條件組，內含排除補班日的日期條件。已存情境裡用兩條預篩選組成的「週末過帳 或 假日過帳」
 /// 照條件樹原樣描述，不換成非營業日卡片的寫法，也不搬到其他位置；本類只影響顯示文字。
@@ -26,14 +25,14 @@ public static class FilterConditionRenderer
     public static string Render(JsonElement scenario) => Render(scenario, null);
 
     /// <summary>
-    /// <paramref name="categoryLabels"/> 是目前專案科目分類的 categoryId → 顯示 label 對照，
-    /// 供科目配對多選讀回。省略時只還原內建分類的預設 label，未知身分提示重新選擇；正式報表一律
-    /// 傳入專案的科目分類，才會反映使用者改過的顯示名稱。
-    /// <paramref name="rdeFieldLabels"/> 是目前 committed RDE 欄位的 fieldId → 顯示 label 對照，
-    /// 供 typed 條件讀回（renderer 用目前 metadata，僅 label 改名時顯示新名稱）；
+    /// <paramref name="categoryLabels"/> 是目前案件科目分類的 categoryId 與顯示名稱的對照，
+    /// 科目配對條件讀回所選的分類時使用。省略時只認得內建分類的預設名稱，認不得的分類寫「已刪除的分類，請重新選擇」；
+    /// 正式報表一律傳入案件的科目分類，才會反映使用者改過的顯示名稱。
+    /// <paramref name="rdeFieldLabels"/> 是已確認配對裡攸關資料元素欄位的 fieldId 與顯示名稱的對照，
+    /// <c>typed</c> 條件與欄位值條件讀回時使用。用的是目前的名稱，所以欄位只改了名稱時會顯示新名稱；
     /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId。
     /// <paramref name="accountCategories"/> 帶完整分類用途與階層，才能列出實際納入分類。省略時不猜分類範圍。
-    /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只供讀回說明，不寫入條件 AST。
+    /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只用在讀回的說明文字，不存進條件。
     /// <paramref name="zerosThreshold"/> 是「分錄金額中有連續 0 的尾數」由 GL 算出的 0 的個數，條件寫成「金額尾數連續 N 個 0」；
     /// 省略時寫規則名稱。上游修改會清掉已存情境，所以已存情境讀回時用目前的個數就是儲存時的個數。
     /// <paramref name="forDocument"/> 為真時是底稿與報告用的寫法，欄位名稱加【】。
@@ -48,7 +47,7 @@ public static class FilterConditionRenderer
     {
         var editable = ArrayItems(scenario, "groups");
 
-        // read-back 的 `ne`：只看「有規則」的可編輯組（wire 已濾空組，此處再守一次亦無害）。
+        // 只看裡面有條件的條件組。前端送出時已經去掉空的條件組，這裡再濾一次。
         var ne = editable.Where(g => ArrayItems(g, "conditions").Count > 0).ToList();
 
         var expr = string.Empty;
@@ -58,13 +57,13 @@ public static class FilterConditionRenderer
         }
         else if (ne.Count >= 2)
         {
-            var sop = ScenarioJoin(ne); // Empty editor groups do not contribute an operand or a join to the wire.
+            var sop = ScenarioJoin(ne); // 空的條件組不會送出，所以不算一個運算元，也不帶連接詞。
             var parts = ne.Select(g =>
             {
                 var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold);
                 return rendered.AtomCount > 1 && !rendered.IsExactLeftFold
                     ? "（" + rendered.Text + "）"
-                    : rendered.Text; // mixed 已逐邊累積精確括號；uniform 多原子組維持既有單層括號
+                    : rendered.Text; // 組內同時有「且」和「或」時，文字已經逐條加好括號；只有一種連接詞而且不只一條時，外面加一層括號
             }).ToArray();
             if (HasMixedEffectiveConditionJoins(ne))
             {
@@ -112,9 +111,9 @@ public static class FilterConditionRenderer
         ArrayItems(group, "conditions").Skip(1).Any(r => EffectiveConditionJoin(r) == "OR") ? "OR" : "AND";
 
     /// <summary>
-    /// 既有主前端會把組內 join 收斂為單一運算子，所以 uniform 組仍沿用原來的
-    /// <see cref="GroupCombinator"/> 呈現。只有已落地 AST 的有效邊（第一條規則之後）
-    /// 同時含 AND 與 OR 時，才依 SQL 相同的左折疊逐邊加全形括號。
+    /// 一個條件組的文字。前端會把同一組裡的連接詞整理成同一種，所以組內只有一種連接詞時，
+    /// 照 <see cref="GroupCombinator"/> 用那一種連接詞把各條串起來。已儲存的條件裡，第一條之後的連接詞
+    /// 同時有 AND 與 OR 時，才和 SQL 一樣由左到右逐條結合，每結合一條加一層全形括號。
     /// </summary>
     private static GroupRendering GroupExpression(
         JsonElement group,
@@ -169,8 +168,8 @@ public static class FilterConditionRenderer
         return hasAnd && hasOr;
     }
 
-    // Mixed 判定必須跟 typed AST 一樣忽略大小寫與前後空白；只有 mixed branch 使用此值。
-    // Uniform fallback 仍走既有大小寫敏感 GroupCombinator，因此全小寫 uniform 輸出不變。
+    // 一條條件實際的連接詞：join 去掉前後空白後是 OR（不分大小寫）就是「或」，其他一律是「且」。
+    // 後端解析條件時也不分大小寫。組內、條件組之間與子條件組的連接詞都用這個判斷。
     private static string EffectiveConditionJoin(JsonElement rule) =>
         string.Equals(
             Str(rule, "join")?.Trim(),
@@ -179,7 +178,7 @@ public static class FilterConditionRenderer
             ? "OR"
             : "AND";
 
-    /// <summary>有效組間運算子：第二個非空組的 join；第一組 join 不參與左折疊語意。</summary>
+    /// <summary>條件組之間的連接詞：取第二個非空條件組的 join。第一組左邊沒有東西可以連接，它的 join 不用。</summary>
     private static string ScenarioJoin(IReadOnlyList<JsonElement> editable) =>
         editable.Count >= 2 ? EffectiveConditionJoin(editable[1]) : "OR";
 
@@ -194,10 +193,10 @@ public static class FilterConditionRenderer
         bool IsExactLeftFold);
 
     /// <summary>
-    /// 舊週末或假日括號辨識：子條件組（type "group"）恰有兩條子條件，都是預篩選，鍵集合恰為
-    /// {weekendPosting, holidayPosting}，且第二條的有效連接是「或」（第一條的 join 沒有左側條件，不算）。
-    /// 符合時語意仍是「週末或假日」，不聲稱已排除補班日；
-    /// 「週末 且 假日」語意不同，照一般括號讀回。前端 filter-step-rules.js 的 isNonBusinessDayBracket 逐字鏡像。
+    /// 辨認舊情境裡「週末或假日」的寫法：子條件組（type 為 "group"）剛好有兩條子條件，兩條都是預篩選，
+    /// 鍵是 weekendPosting 與 holidayPosting 各一，而且第二條的連接詞是「或」。第一條左邊沒有條件，它的 join 不看。
+    /// 符合時讀回「（週末過帳 或 假日過帳）」，意思仍是週末或假日，不表示已排除補班日。
+    /// 「週末 且 假日」的意思不同，照一般括號讀回。前端 filter-step-rules.js 的 isLegacyWeekendHolidayBracket 是同一個判斷。
     /// </summary>
     private static bool IsWeekendOrHolidayBracket(JsonElement rule)
     {
@@ -239,7 +238,7 @@ public static class FilterConditionRenderer
             && Str(child, "drCr").Length == 0 && Str(child, "includeBlank") != "true";
     }
 
-    // ---- 規則原子（等同前端 ruleSummaryLabel(rule, 0)：index 0＝不加 (AND)/(OR) 前綴）----
+    // ---- 單一條件的文字（等同前端 ruleSummaryLabel(rule, 0)；index 傳 0 表示前面不加 (AND) 或 (OR)）----
 
     private static string ConditionAtom(
         JsonElement r,
@@ -366,13 +365,13 @@ public static class FilterConditionRenderer
     {
         var fieldId = Str(rule, "fieldId");
         var glKey = Str(rule, "field");
-        // 欄位已不存在時寫畫面名稱、不接金額比較基準；前端 FilterValues.summary 同構。
+        // 欄位已不存在時寫替代的說明文字，後面不接金額比較基準；前端 FilterValues.summary 的寫法相同。
         var fieldKnown = fieldId.Length == 0
             ? glKey == "amount" || FilterConditionLabels.GlFields.ContainsKey(glKey)
             : labels is not null && labels.ContainsKey(fieldId);
         var field = fieldId.Length > 0
             ? (fieldKnown ? FieldName(labels![fieldId], forDocument) : FilterConditionLabels.MissingRdeField)
-            // Normalized filter amount has no text/date mapping label in GlFields.
+            // 金額欄不在 GlFields 的文字與日期欄位名稱表裡，名稱直接寫「金額」。
             : glKey == "amount" ? FieldName("金額", forDocument) : GlFieldName(glKey, forDocument);
         var op = Str(rule, "operator");
         var opLabel = FieldValueConditions.Labels.TryGetValue(op, out var knownOp) ? knownOp
@@ -397,9 +396,10 @@ public static class FilterConditionRenderer
     }
 
     /// <summary>
-    /// typed 條件讀回：RDE 欄位以目前 metadata 的顯示 label 呈現（僅 label 改名時自動跟進）；
-    /// 欄位已不存在或未提供對照時寫「已不在欄位配對中的攸關資料元素欄位」，不接比較基準；
-    /// operand 依 carrier 呈現原始 wire 字串；amount 條件附 amountBasis 標示。標籤正本在 Domain <see cref="FilterConditionLabels.TypedOperators"/>。
+    /// <c>typed</c> 條件的讀回文字。攸關資料元素欄位用目前欄位配對裡的顯示名稱，所以欄位只改了名稱時，讀回會跟著顯示新名稱。
+    /// 欄位已不存在或沒有提供名稱對照時寫「已不在欄位配對中的攸關資料元素欄位」，後面不接比較基準。
+    /// 比較的值照條件裡存的原始字串寫出：單一值讀 value，區間讀 from 與 to，清單讀 values。金額條件依 amountBasis 加註比較基準。
+    /// 運算子的中文名稱定義在 Domain 的 <see cref="FilterConditionLabels.TypedOperators"/>。
     /// </summary>
     private static string TypedFieldAtom(
         JsonElement r,
@@ -493,8 +493,8 @@ public static class FilterConditionRenderer
     }
 
     /// <summary>
-    /// 單側分類的讀回：帶 ID 陣列時逐一還原成科目分類的顯示 label，並依使用者選取順序串接
-    /// （分隔字元的正本在 Domain <see cref="FilterConditionLabels.CategoryListSeparator"/>）；
+    /// 借方或貸方其中一側所選分類的讀回：帶 ID 陣列時逐一換成科目分類的顯示名稱，照使用者選取的順序串接；
+    /// 分隔字元定義在 Domain 的 <see cref="FilterConditionLabels.CategoryListSeparator"/>。
     /// 沒有陣列或陣列為空時讀回空字串。
     /// </summary>
     private static string CategorySelection(
@@ -624,8 +624,8 @@ public static class FilterConditionRenderer
     }
 
     /// <summary>
-    /// 讀屬性為顯示字串（前端 draft 值一律為字串，故字串直取；數字/布林容錯轉字面，
-    /// 缺欄回空字串——空字串在此扮演前端「falsy」角色，numRange/dateRange 據此判定是否有值）。
+    /// 把屬性讀成顯示用的字串。前端草稿的值都是字串，直接取用；遇到數字或布林時轉成它的字面寫法；
+    /// 沒有這個屬性時回空字串。空字串在這裡代表沒有值，numRange 與 dateRange 用它判斷有沒有填。
     /// </summary>
     private static string Str(JsonElement element, string name)
     {

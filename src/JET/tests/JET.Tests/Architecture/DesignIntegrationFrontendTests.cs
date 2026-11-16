@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 前端設計整合的邊界守衛：案件摘要不重複目前步驟、總覽維持唯讀，以及已定案的外觀
 /// （設計資源全在本機、品牌字樣、頂部玻璃帶、可按的操作與一致的動畫）。
-/// 設計稿把流程畫成「六步含『完成』、且欄位配對併入匯入」，runtime 沒有採用；六步模型、第六步完成摘要與總覽的分錄統計
+/// 流程是六步：「完成」不是獨立的步驟，欄位配對也不併入匯入。六步模型、第六步完成摘要與總覽的分錄統計
 /// 由前端的行為測試核對。
 /// </summary>
 public sealed class DesignIntegrationFrontendTests
@@ -225,8 +225,6 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_GlassIsTheFunctionalLayer_AndControlsAreTactile()
     {
-        // 使用者指出沒有看到玻璃效果，要求整個 JE Tool 帶有 Liquid Glass 的質感：通透、自然的光澤、擬物化復興，
-        // 不用無意義的漸層填色；看過樣張後選了「照樣張套用」。
         // 功能層是玻璃（標題列、表格固定的表頭、選單、對話框、圖表提示框與滑動中的選取），內容層是實物（按鍵、凹槽、紙）。
         var css = ReadFrontend("css", "app.css");
         var app = ReadFrontend("js", "app.js");

@@ -298,8 +298,8 @@
       return '<p class="map-options__note">清單代碼是否出現在來源裡尚未核對。按「讀取來源值」後，才會查詢完整來源。</p>';
     }
     if (profile.loading || profile.error) { return ''; }
-    // 只有不支援核對的資料庫會回 unsupportedProvider。目前只有 SQLite 案件，不會出現；
-    // 這一句保留給日後不支援核對的資料庫沿用。
+    // 後端回 unsupportedProvider 時顯示這一句：資料庫實作沒有來源值核對。
+    // 目前只有 SQLite 案件，SQLite 有核對，所以不會出現。
     if (profile.sourceValueCheckStatus === 'unsupportedProvider') {
       return '<p class="map-options__note">線上案件無法核對清單代碼是否出現在來源中，仍可確認配對。</p>';
     }
@@ -467,7 +467,7 @@
 
   function sourcePagerHtml(kind, cache) {
     if (!cache) { return ''; }
-    var status = cache.error ? '<span role="alert">預覽載入失敗。</span> <button type="button" class="btn btn--ghost btn--tiny" data-source-retry>重試</button>' : '';
+    var status = cache.error ? '<span role="alert">預覽載入失敗。</span> <button type="button" class="btn btn--ghost btn--tiny" data-source-retry>重新載入</button>' : '';
     return (cache.rows ? Ui.pageControlsHtml(cache.page || 1, cache.totalCount, {
       previousAttribute: 'data-source-previous', nextAttribute: 'data-source-next', busy: cache.loading
     }) : '') + status;
@@ -720,7 +720,7 @@
     var manual = options.manualAutoPolicy || { manualValues: [], automaticValues: [] };
     if ((!manual.manualValues.length && manual.unlistedValueKind !== 'manual') ||
         (!manual.automaticValues.length && manual.unlistedValueKind !== 'automatic')) {
-      problems.push('人工與自動代碼各需至少一個值；只列一側時，請在「判定方式」選只列人工或只列自動');
+      problems.push('人工與自動代碼各需至少一個值；只想指定一側時，請在「如何區分人工與自動」選「只指定人工代碼」或「只指定自動代碼」');
     }
 
     if ((options.rdeFields || []).some(function (field) {
@@ -918,8 +918,8 @@
         '</fieldset>';
     }
 
-    // 先呈現判定方式與空白處理，再列代碼及按需核對的來源值；
-    // 只顯示目前判定方式需要的代碼。預設值不寫入政策，不影響空白與分類結果。
+    // 先呈現「如何區分人工與自動」與空白處理，再列代碼及按需核對的來源值；
+    // 只顯示目前選擇需要的代碼。預設值不寫入政策，不影響空白與分類結果。
     var mode = policy.unlistedValueKind || 'reject';
     var blank = policy.blankValueKind || 'reject';
     var modeHint = {
@@ -994,8 +994,8 @@
           Ui.countText(profile.distinctCount) + ' 種值、空白 ' +
           Ui.countText(profile.blankCount) + ' 列。' +
           (profile.truncated ? (mode === 'reject'
-            ? '值太多，只列出最常出現的幾種；可以改用只列一側，其餘非空白值依判定方式歸類。'
-            : '值太多，只列出最常出現的幾種；沒有列出的值依判定方式歸類。') : '') +
+            ? '值太多，只列出最常出現的幾種；可以改成只指定一側的代碼，其餘非空白值依「如何區分人工與自動」的選擇歸類。'
+            : '值太多，只列出最常出現的幾種；沒有列出的值依「如何區分人工與自動」的選擇歸類。') : '') +
         '</p>' +
         recountNotice(profile, draft.isManual) +
         comparisonNotice(profile, draft.isManual) +
@@ -1004,7 +1004,7 @@
         '</div>';
     }
 
-    // 代碼整塊與人工、自動兩組各有識別：「改從來源值選取／改用輸入代碼」換整塊、換判定方式多出或少掉一組時，
+    // 代碼整塊與人工、自動兩組各有識別：「改從來源值選取／改用輸入代碼」換整塊、改「如何區分人工與自動」多出或少掉一組時，
     // 整塊長出來或收起來，不會一下跳過去。
     var codes =
       '<div class="map-options__codes" data-motion-key="manual-codes">' +
@@ -1513,16 +1513,16 @@
     });
     if (conflicts.length) { warnings.push('人工與自動代碼重複：「' + conflicts.join('、') + '」。請保留在正確的一側後再確認。'); }
     var profile = valueProfiles('gl')[column];
-    // 只列一側時，沒列出的值都歸到另一側。代碼還沒和來源核對，就在確認前說清楚後果；不擋確認，
+    // 只指定一側的代碼時，沒列出的值都歸到另一側。代碼還沒和來源核對，就在確認前說清楚後果；不擋確認，
     // 確認後後端若發現代碼一筆都沒有，會再提醒一次。
     var listsManual = policy.unlistedValueKind === 'automatic';
     var listed = listsManual ? policy.manualValues : (policy.unlistedValueKind === 'manual' ? policy.automaticValues : []);
     if (listed.length && (!profile || profile.metadataOnly || profile.error)) {
       // 黃色提示不過度解釋，所以不寫「可先按「讀取來源值」確認」，
-      // 按鈕就在旁邊。讀取失敗時仍要說可以再試一次。
+      // 按鈕就在旁邊。讀取失敗時仍要說可以按「重新載入」。
       warnings.push((listsManual ? '人工' : '自動') + '分錄代碼「' + listed.join('、') + '」尚未與來源核對；來源沒有' +
         (listed.length > 1 ? '這些' : '此') + '代碼時，有值的列都會視為' + (listsManual ? '自動' : '人工') +
-        '分錄。' + (profile && profile.error ? '讀取來源值失敗，可按「再試一次」。' : ''));
+        '分錄。' + (profile && profile.error ? '讀取來源值失敗，可按「重新載入」。' : ''));
     }
     if (profile && !profile.metadataOnly && !profile.loading && !profile.error) {
       var missing = policyCodes(column).filter(function (value) { return missingSourceCode(value, column); });
@@ -1534,7 +1534,7 @@
         var unclassified = (profile.values || []).filter(function (item) {
           return !policy.manualValues.concat(policy.automaticValues).some(function (value) { return sameCode(value, item.value, column); });
         }).map(function (item) { return item.value; });
-        if (unclassified.length) { warnings.push('「' + unclassified.join('、') + '」未歸類為人工或自動，請歸類，或改用只列一側。'); }
+        if (unclassified.length) { warnings.push('「' + unclassified.join('、') + '」未歸類為人工或自動，請歸類，或改成只指定一側的代碼。'); }
       }
     }
     // 這些是不擋確認的提醒，用「需要注意」的琥珀色；檢查真的沒通過時另有紅色的配對未完成。
@@ -1583,7 +1583,7 @@
       }).join('') + '</ul></div>';
   }
 
-  // 無法轉換的來源欄在畫面上要到哪裡改：人工/自動分錄看判定方式，攸關資料元素看型別，
+  // 無法轉換的來源欄在畫面上要到哪裡改：人工/自動分錄看「如何區分人工與自動」，攸關資料元素看型別，
   // 其他核心欄位看該欄位的來源欄選單。找不到對應位置時不放按鈕。
   function mappingErrorTarget(kind, mappingState, sourceColumn, reasonCode) {
     if (!sourceColumn) { return null; }
@@ -2226,7 +2226,7 @@
     }
 
     // 配對失敗訊息的「前往設定」會跟著草稿就地換新，所以用委派綁在 section 上：data-focus-mapping-field 對到欄位的來源欄選單，
-    // data-focus-mapping-option 對到人工/自動判定方式或攸關資料元素型別（以 data-focus-key 找）。
+    // data-focus-mapping-option 對到「如何區分人工與自動」或攸關資料元素型別（以 data-focus-key 找）。
     section.addEventListener('click', function (event) {
       var button = event.target && event.target.closest
         ? (event.target.closest('[data-focus-mapping-field]') || event.target.closest('[data-focus-mapping-option]'))

@@ -167,7 +167,7 @@
           ? '讀取已取消。'
           : '讀取分錄失敗。' + (Ui.errorText(error, '') ? ' ' + Ui.errorText(error, '') : '');
         body.innerHTML = '<p role="status">' + Ui.esc(message) + '</p>' +
-          '<button type="button" class="btn btn--ghost btn--tiny" data-detail-retry>重試</button>';
+          '<button type="button" class="btn btn--ghost btn--tiny" data-detail-retry>重新載入</button>';
       });
       body.querySelector('[data-detail-retry]').addEventListener('click', function () {
         if (current() && body.isConnected) {
@@ -934,7 +934,7 @@
           '</div>' +
           '<div class="report-output__actions">' + Ui.reportFolderButtonHtml(reports) +
             '<button type="button" class="btn btn--ghost" data-action="export-validation-reports">' +
-            (complete ? '重新產生兩份報告' : '產生報告與抽樣清單') + '</button></div>' +
+            (complete ? '重新產生報告與抽樣清單' : '產生報告與抽樣清單') + '</button></div>' +
         '</div>' +
         validationOutputStatusHtml('reports') +
         Ui.reportListHtml(reports, '驗證已完成，報告尚未產生。', { motion: 'validation' }) +
@@ -1157,14 +1157,14 @@
     var actions =
       '<div class="excel-mapping__actions">' +
         '<button type="button" class="btn btn--ghost" data-action="ensure-account-mapping-template">建立科目配對範本</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="open-account-mapping-folder">開啟案件資料夾</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="open-account-mapping-folder">開啟資料夾</button>' +
         '<span class="excel-mapping__sep" aria-hidden="true"></span>' +
         '<button type="button" class="btn' + (importPrimary ? '' : ' btn--ghost') + '" data-action="import-account-mapping">' +
           (info ? '重新匯入科目配對範本' : '匯入科目配對範本') + '</button>' +
         '<span class="excel-mapping__spacer" aria-hidden="true"></span>' +
         '<span class="jet-menu">' +
           '<button type="button" class="btn btn--ghost jet-menu__toggle" aria-haspopup="menu" aria-expanded="false" ' +
-            'aria-controls="account-mapping-more">更多</button>' +
+            'aria-controls="account-mapping-more" aria-label="更多科目配對範本操作">更多</button>' +
           '<div class="jet-menu__items" id="account-mapping-more" role="menu" aria-label="更多科目配對範本操作" hidden>' +
             '<button type="button" class="jet-menu__item jet-menu__item--danger" role="menuitem" tabindex="-1" ' +
               'data-action="download-account-mapping-template">重建科目配對範本' +
@@ -1179,7 +1179,7 @@
     var saved = '<li><div class="excel-mapping__result">' +
         '<span class="excel-mapping__label">已儲存的科目配對</span>' +
         (info
-          ? '<button type="button" class="jet-view jet-view--preview" data-action="preview-account-mapping">資料預覽</button>' +
+          ? '<button type="button" class="jet-view jet-view--preview" data-action="preview-account-mapping" aria-label="資料預覽：科目配對">資料預覽</button>' +
             '<span class="excel-mapping__value">' + Ui.countText(info.rowCount) + ' 個科目</span>'
           : '<span class="excel-mapping__value excel-mapping__value--muted">尚未匯入</span>') +
       '</div></li>';
@@ -1376,9 +1376,9 @@
       return '<span class="category-row__tree" aria-hidden="true">' + cells +
         '<i class="' + (continues(depth) ? 'is-branch' : 'is-last') + '"></i></span>';
     }
-    // 科目分類的上下層級與分類用途在第一個正式版隱藏：開關關著時不畫「進階設定」、分類用途與上層分類，
-    // 分類設定只填名稱，和舊版 JET 的科目配對一樣；新增的分類沒有上層，用途是 others。程式保留，Ui.FEATURES.categoryHierarchy
-    // 改成 true 就恢復。已有上下層的分類照樣畫出縮排與連接線，移除有下層的分類照樣先確認。
+    // 科目分類的上下層級與分類用途在這個版本隱藏：Ui.FEATURES.categoryHierarchy 關著時不畫「進階設定」、分類用途與上層分類，
+    // 分類設定只填名稱，和舊版 JET 的科目配對一樣；新增的分類沒有上層，用途是 others。開關是 true 時照樣畫出這些欄位。
+    // 已有上下層的分類照樣畫出縮排與連接線，移除有下層的分類照樣先確認。
     var advancedAvailable = !!Ui.FEATURES.categoryHierarchy;
     var advanced = advancedAvailable && categoryAdvanced;
     var items = tree.map(function (row, index) {
@@ -1452,7 +1452,7 @@
       children.map(function (row) { return Ui.esc(row.label || '尚未命名的分類'); }).join('、') + '」會改放到' +
       (parent ? '「' + Ui.esc(parent.label) + '」底下' : '最上層') + '。' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-action="confirm-category-remove">確認移除分類</button>' +
-      '<button type="button" class="btn btn--ghost btn--tiny" data-action="cancel-category-remove">先不移除</button></div>';
+      '<button type="button" class="btn btn--ghost btn--tiny" data-action="cancel-category-remove">取消</button></div>';
   }
 
   function removeCategoryRow(rowId) {
@@ -1726,7 +1726,7 @@
     });
   }
 
-  // 科目配對區塊綁定:沿用既有 action / store / 資料預覽契約,僅位置從 import-step 移來。
+  // 科目配對區塊的綁定:沿用既有 action / store / 資料預覽契約。
   // 已匯入即可預覽；匯入鈕只在 GL 欄位配對已確認時才會渲染出來，
   // 此處用存在性檢查綁定，所以 bind 不必重複判斷條件。
   function bindAccountMappingCard(container) {
@@ -1737,7 +1737,7 @@
     var folderBtn = container.querySelector('[data-action="open-account-mapping-folder"]');
     if (folderBtn) {
       folderBtn.addEventListener('click', function () {
-        Ui.run('開啟案件資料夾', function () {
+        Ui.run('開啟資料夾', function () {
           return global.JetApi.hostOpenFolder({ target: 'projectFolder' });
         });
       });
@@ -1977,7 +1977,7 @@
         '</section>' +
         '<details class="prescreen-signals"' + (prescreenSignalsOpen ? ' open' : '') + '>' +
           '<summary class="prescreen-signals__summary">' +
-            '<span>篩選結果</span><span class="prescreen-signals__hint">展開查看</span>' +
+            '<span>篩選結果</span><span class="prescreen-signals__hint">展開</span>' +
           '</summary>' +
           '<div class="prescreen-signals__content">' +
             '<p class="prescreen-signals__guidance">' + Ui.esc(positioning.signalGuidance) + '</p>' +
@@ -2182,7 +2182,7 @@
         return;
       }
       if (!Ui.pendingAccountCategoryCount()) { runPrescreen(); return; }
-      Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存，直接執行')
+      Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存')
         .then(function (proceed) { if (proceed) { runPrescreen(); } });
     });
 

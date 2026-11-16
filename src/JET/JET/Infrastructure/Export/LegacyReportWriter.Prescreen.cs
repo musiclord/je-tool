@@ -28,7 +28,7 @@ public sealed partial class LegacyReportWriter
         [new JetRulePrerequisite(JetRulePrerequisiteKind.GlField, JetFieldCatalog.GlApprovalDate)],
         AccountCategoryLabels.BuiltIn);
 
-    // 舊版 JET：summary 第三欄整欄 WrapText，無條件套用。
+    // 舊版 JET 把摘要頁第三欄整欄設成自動換行，不論內容都套用。
     private static readonly WorkbookStylePatch PrescreenDescriptionColumnWrap =
         new(WrapText: true);
 
@@ -167,7 +167,7 @@ public sealed partial class LegacyReportWriter
             cancellationToken,
             progress).ConfigureAwait(false);
 
-        // R5／R6 是 legacy 的彙總表，不套用 10,000 列明細上限。
+        // R5 與 R6 是舊版 JET 的彙總表，不套用明細 10,000 列的上限。
         // 「依分錄編製者彙總」不適用時，照舊版不產生 R5 工作表。
         if (projection.PreparerSummary.NaReason is null)
         {
@@ -445,15 +445,17 @@ public sealed partial class LegacyReportWriter
         cells.SetInlineString($"F{row}", "N/A");
     }
 
-    private static string ReadTemplateCellText(
+    // 範本缺了要讀的儲存格或共用字串時丟 InvalidDataException，匯出會回報無法填入內附的範本。
+    internal static string ReadTemplateCellText(
         WorksheetPart worksheetPart,
         string reference)
     {
         var cell = worksheetPart.RequiredWorksheet().Descendants<Cell>()
-            .Single(item => string.Equals(
+            .FirstOrDefault(item => string.Equals(
                 item.CellReference?.Value,
                 reference,
-                StringComparison.OrdinalIgnoreCase));
+                StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidDataException($"範本工作表缺少儲存格 {reference}。");
         if (cell.InlineString is not null)
         {
             return cell.InlineString.InnerText;
@@ -468,11 +470,14 @@ public sealed partial class LegacyReportWriter
             var workbookPart = worksheetPart.GetParentParts()
                 .OfType<WorkbookPart>()
                 .Single();
-            return workbookPart.SharedStringTablePart?.SharedStringTable?
-                .Elements<SharedStringItem>()
-                .ElementAt(index)
-                .InnerText
-                ?? string.Empty;
+            var sharedStrings = workbookPart.SharedStringTablePart?.SharedStringTable;
+            if (sharedStrings is null)
+            {
+                return string.Empty;
+            }
+
+            return sharedStrings.Elements<SharedStringItem>().ElementAtOrDefault(index)?.InnerText
+                ?? throw new InvalidDataException($"範本儲存格 {reference} 指到共用字串表裡沒有的項目。");
         }
 
         return cell.CellValue?.Text ?? string.Empty;
@@ -854,9 +859,9 @@ public sealed partial class LegacyReportWriter
     }
 
     /// <summary>
-    /// 正式底稿欄位來源忠實性：R6 取自 GL 來源欄位的標題必須沿用與 R2
-    /// 相同的 schema lineage（實際配對的來源欄名），不得改寫成固定 alias；彙總結果本身
-    /// 的衍生欄位維持既有輸出契約名稱。沒有 committed GL mapping 時 fail closed。
+    /// R6 的表頭。科目編號與科目名稱兩欄取自 GL 的來源欄位，表頭和 R2 一樣用實際配對的來源欄名，不改成固定的名稱；
+    /// 筆數與借貸合計三欄是彙總算出來的，維持固定的欄名。找不到已確認的 GL 配對，或配對裡沒有這兩欄時，
+    /// 丟出 StaleResult 錯誤，請使用者重新配對並執行預篩選。
     /// </summary>
     private async Task<IReadOnlyList<string>> ResolveAccountUsageHeadersAsync(
         string projectId,

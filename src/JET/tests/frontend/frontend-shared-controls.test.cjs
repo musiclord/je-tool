@@ -26,6 +26,36 @@ test('case creation and metadata editing use the shared native date input', () =
   assert.equal(f.dom.content.querySelectorAll('input.date-input[type="date"]').length, 3);
 });
 
+// 後端只接受四位數年份的日期，所以每一個日期框都帶 9999-12-31 的上限，年份欄打不出五位數以上。
+test('every date input caps the year at four digits', () => {
+  const capped = (inputs, expected, label) => {
+    assert.equal(inputs.length, expected, label);
+    for (const input of inputs) assert.equal(input.getAttribute('max'), '9999-12-31', label);
+  };
+  const create = usageJourneyFixture('create', { redraw: true });
+  assert.equal((create.window.JetUi.dateInputHtml({ name: 'synthetic' }).match(/ max="9999-12-31"/g) || []).length, 1);
+  assert.equal((create.window.JetUi.dateInputHtml({ name: 'synthetic', max: '2100-12-31' }).match(/ max="[^"]*"/g) || []).join(''),
+    ' max="9999-12-31"', 'callers cannot replace the shared limit');
+  create.click('[data-action="edit-project-metadata"]');
+  capped(create.dom.content.querySelectorAll('input[type="date"]'), 1, 'metadata editing');
+  create.store.setProject(null);
+  capped(create.dom.content.querySelectorAll('input[type="date"]'), 3, 'case creation');
+
+  for (const operator of ['on', 'before', 'after', 'between']) {
+    const f = dateFixture({ type: 'fieldValue', field: 'glDate', operator, value: '2025-01-02', from: '2025-01-02', to: '2025-01-31' });
+    capped((operator === 'between' ? ['from', 'to'] : ['value']).map(key => f.$('[data-value-key="' + key + '"]')),
+      operator === 'between' ? 2 : 1, 'field condition ' + operator);
+  }
+  const list = dateFixture({ type: 'fieldValue', field: 'glDate', operator: 'in', values: ['2025-01-02'] });
+  capped([list.$('[data-date-input]')], 1, 'date list');
+  const range = dateFixture({ type: 'dateRange', field: 'glDate', from: '2025-01-01', to: '2025-01-31' });
+  capped(['from', 'to'].map(key => range.$('[data-rule-bind="' + key + '"]')), 2, 'legacy date range');
+  const typed = dateFixture({ type: 'typed', fieldId: 'rde.date', operator: 'between', from: '2025-01-01', to: '2025-01-31' });
+  typed.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: { rdeFields: [
+    { fieldId: 'rde.date', sourceColumn: 'Date', label: '合成日期', valueType: 'date' }] } });
+  capped(['from', 'to'].map(key => typed.$('[data-rule-bind="' + key + '"]')), 2, 'legacy typed date');
+});
+
 for (const operator of ['on', 'before', 'between']) test('' + operator + ' uses native date controls and keeps the date payload', () => {
   const rule = { type: 'fieldValue', field: 'glDate', operator, value: '2025/1/2', from: '2025/1/2', to: '2025-01-31' };
   const f = dateFixture(rule);

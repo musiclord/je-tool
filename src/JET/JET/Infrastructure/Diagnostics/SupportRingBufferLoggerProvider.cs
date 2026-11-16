@@ -4,8 +4,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Release/Debug 共用的去識別支援事件 provider。只接收 allowlist 事件，不保存 SQL、參數值、檔名、
-/// 絕對路徑、原始 exception message 或案件名稱；buffer 滿時覆寫最舊事件。
+/// 支援日誌的 <see cref="ILoggerProvider"/>，Release 與 Debug 組建都註冊，事件先去識別才保存。
+/// 只收允許清單裡的事件，不保存 SQL、參數值、檔名、絕對路徑、例外的原始訊息或案件名稱。
+/// 緩衝區滿了就覆寫最舊的事件。
 /// </summary>
 public sealed class SupportRingBufferLoggerProvider :
     ILoggerProvider,

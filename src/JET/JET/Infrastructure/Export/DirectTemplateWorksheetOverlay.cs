@@ -23,8 +23,9 @@ internal sealed record DirectTemplateWorksheetOverlayPlan(
     Func<uint, uint>? MapTemplateColumnStyle = null);
 
 /// <summary>
-/// 接受 emitter 逐列產生的 XML，直接 forward-only 覆寫一個既有範本 worksheet part。
-/// 範本 XML 只 spool 到 DeleteOnClose stream；記憶體只持有當前兩列與有界 layout。
+/// 把呼叫端一列一列產生的 XML 疊寫到一張既有的範本工作表上，由上往下寫，不回頭。
+/// 範本原本的 XML 先複製到關閉時自動刪除的暫存檔；記憶體裡只放目前處理的兩列，也就是範本的一列與產生的一列，
+/// 以及資料列以外的工作表設定，這部分的大小有上限。
 /// </summary>
 internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
 {

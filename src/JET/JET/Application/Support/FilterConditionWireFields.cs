@@ -10,7 +10,7 @@ namespace JET.Application;
 internal static class FilterConditionWireFields
 {
     /// <summary>
-    /// 每種 wire 條件類型除了 type、join 之外用得到的屬性。來源是解析、驗證、編譯、讀回文字、
+    /// 每種條件類型除了 type、join 之外用得到的屬性。來源是解析、驗證、編譯、讀回文字、
     /// 底稿說明與前端讀取的位置；FilterConditionWireFieldsTests 核對整理前後這些結果完全相同，並核對表上的類型和解析器一一對應。
     /// </summary>
     internal static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> UsedByType =

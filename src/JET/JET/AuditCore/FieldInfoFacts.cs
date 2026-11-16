@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.AuditCore;
 
-/// <summary>同一 import batch 內的欄位定義視角。</summary>
+/// <summary>同一批匯入的欄位定義有兩組：Source 是來源檔原本的欄位，Target 是配對後的欄位。</summary>
 internal enum FieldInfoScope
 {
     Source,
@@ -10,8 +10,8 @@ internal enum FieldInfoScope
 }
 
 /// <summary>
-/// Provider-neutral Legacy TableDef 欄位定義。TextLength 只對 Text 有值，
-/// DecimalPlaces 只對 Number 有值；Ordinal 為 scope 內 1-based 穩定欄序。
+/// 一個欄位的定義，內容比照舊版的 TableDef，不綁特定資料庫。TextLength 只有文字欄有值，
+/// DecimalPlaces 只有數字欄有值；Ordinal 是這一欄在同一組定義裡的序號，從 1 起算，固定不變。
 /// Origin 是這一欄的來歷，JetField 是它對應的 JET 欄位（標準欄寫語意欄名稱，攸關資料元素寫 fieldId）；
 /// 欄位資訊與底稿第四步之一看這兩項判斷哪一欄是 JET 欄位。
 /// </summary>
@@ -29,7 +29,7 @@ internal sealed record FieldInfo(
     internal bool IsJetField => Origin is FieldInfoOrigin.Renamed or FieldInfoOrigin.Generated;
 }
 
-/// <summary>從目前資料集最新 import batch 讀取已持久化欄位定義的 typed facts port。</summary>
+/// <summary>讀取欄位定義的介面：讀的是指定資料集最新一批匯入存下來的欄位定義。</summary>
 internal interface IFieldInfoFactsPort
 {
     Task<IReadOnlyList<FieldInfo>> ReadAsync(

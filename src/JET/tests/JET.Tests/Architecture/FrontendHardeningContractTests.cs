@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 前端靜態接線守衛。這些測試只鎖原語、消費點與先後順序；
-/// 真實慢回應與可見性仍由桌面情境驗收。
+/// 真實慢回應與可見性不在這裡核對。
 /// </summary>
 public sealed class FrontendHardeningContractTests
 {

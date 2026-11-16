@@ -116,7 +116,7 @@ test('validation and the prescreen show a monotonic elapsed time and the long-op
   assert.equal(f.overlay.elapsed(), null);
 });
 
-// 取消鈕只跟著可取消的作業出現。開啟案件資料夾不能取消，
+// 取消鈕只跟著可取消的作業出現。「開啟資料夾」不能取消，
 // 進行中不顯示取消鈕；執行驗證可以取消，上一個情境已核對它會顯示。
 test('opening the case folder cannot be cancelled, so no cancel button appears while it runs', async () => {
   const f = await openCaseAtValidation();
@@ -169,7 +169,7 @@ test('pressing another operation while one is running sends nothing, keeps the r
   const second = f.ui.run('合成第二項作業', () => { factoryCalls++; return f.api.systemPing({}); }, { refresh: () => { refreshCalls++; } });
   // 被擋下的作業立刻結束；不 await 它，免得作業沒被擋下時測試一直等那個永遠不會回應的請求。
   second.then(() => { secondSettled = true; }, () => { secondSettled = true; });
-  // 頁首的「開啟案件資料夾」也走同一個入口。
+  // 頁首的「開啟資料夾」也走同一個入口。
   f.$('[data-action="open-project-folder"]').dispatch('click');
   await flush();
   assert.equal(secondSettled, true, 'the blocked operation returns at once');

@@ -3,8 +3,8 @@ using JET.AuditCore;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Validation workbook planning facts adapter。只計算借貸不平
-/// 傳票回接有效 GL 後的 detail rows；不讀取任何 detail page 或 raw JSON。
+/// 匯出資料驗證報告前，替 AuditCore 的 <see cref="ValidationReportPlan"/> 查一個數字：借貸不平的傳票接回 GL 後，
+/// 納入測試的分錄明細共有幾列。這裡只算筆數，不讀任何明細列，也不讀原始的 row_json。
 /// </summary>
 internal sealed class LocalValidationReportPlanningFactsPort(ILocalProjectDatabase database)
     : IValidationReportPlanningFactsPort

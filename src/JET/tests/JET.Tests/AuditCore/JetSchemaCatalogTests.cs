@@ -54,7 +54,7 @@ public sealed class JetSchemaCatalogTests
 
     /// <summary>
     /// 曝光於資料預覽 / 結構總覽者(DataView / StructureOnly)必有非空正準名——
-    /// 下一個任務的預覽要拿這個名字顯示,不得是空字串。
+    /// 結構總覽拿這個名字顯示,不得是空字串。
     /// </summary>
     [Fact]
     public void ExposedEntries_HaveNonEmptyCanonicalName()
@@ -74,7 +74,7 @@ public sealed class JetSchemaCatalogTests
         Assert.Equal(7, JetSchemaCatalog.ByAudience(SchemaAudience.DataView).Count());
     }
 
-    /// <summary>DataView 集合的實體名鎖定(等價於下一任務的可瀏覽白名單)。</summary>
+    /// <summary>DataView 集合的實體名鎖定:結構總覽標成可瀏覽的就是這七張表。</summary>
     [Fact]
     public void DataView_PhysicalNames_AreLocked()
     {

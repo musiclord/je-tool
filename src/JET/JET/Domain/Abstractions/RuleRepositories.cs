@@ -46,6 +46,11 @@ public sealed record GlTotals(
 /// <summary>staging → target 投影的非權威進度快照。</summary>
 public sealed record ProjectionProgress(long RowsProcessed);
 
+/// <summary>
+/// 管案件資料庫裡的 GL 分錄。確認 GL 欄位配對時，把匯入暫存表 <c>pbc_gl</c> 的列轉成 <c>gl</c> 的分錄，
+/// 並一併重寫攸關資料元素（<c>gl_rde_field</c>、<c>gl_rde_value</c>）與控制總數（<c>gl_control_total</c>）。
+/// 這個介面只有這一個寫入動作，不提供查詢。
+/// </summary>
 public interface IGlRepository
 {
     Task<ProjectionResult> ProjectStagingToTargetAsync(

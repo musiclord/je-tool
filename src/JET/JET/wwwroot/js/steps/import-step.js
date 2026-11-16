@@ -237,7 +237,7 @@
     });
   }
 
-  // 原檔預覽與有效授權集合分開呈現；識別值整理與比對只在後端執行。
+  // 來源檔預覽與有效授權集合分開呈現；識別值整理與比對只在後端執行。
   function authorizedPreparerCard(info) {
     var body = info
       ? '<p class="import-card__status import-card__status--ok">授權編製人員清單：' + Ui.countText(info.rowCount) + ' 個人員代號或姓名' +
@@ -280,12 +280,12 @@
           return '<option value="' + Ui.esc(column) + '"' + (column === draft.sourceColumn ? ' selected' : '') +
             '>' + Ui.esc(column) + '</option>';
         }).join('') + '</select></label>' +
-        '<p>下方是原檔前 10 列。完成匯入後，授權編製人員清單只保留選定欄位去除空白及重複後的識別值。</p>' +
-        (draft.previewError ? '<p role="alert">原檔預覽失敗：' + Ui.esc(draft.previewError) + '</p>' :
+        '<p>下方是來源檔前 10 列。完成匯入後，授權編製人員清單只保留選定欄位去除空白及重複後的識別值。</p>' +
+        (draft.previewError ? '<p role="alert">來源檔預覽失敗：' + Ui.esc(draft.previewError) + '</p>' :
           previewTableHtml(draft, false)) +
         '<div class="import-card__actions"><button type="button" class="btn" data-action="commit-authorized-preparer"' +
         (draft.sourceColumn ? '' : ' disabled') + '>匯入選定欄位</button>' +
-        '<button type="button" class="btn btn--ghost" data-action="retry-authorized-preparer-preview">重讀原檔預覽</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="retry-authorized-preparer-preview">重讀來源檔預覽</button>' +
         '<button type="button" class="btn btn--ghost" data-action="cancel-authorized-preparer">取消</button></div></div>';
     }
     return '<section class="import-card" data-bind="import-card-authorized-preparer">' +
@@ -341,7 +341,7 @@
       });
     });
     bind('retry-authorized-preparer-preview', function () {
-      if (preparerDraft) { Ui.run('讀取授權編製人員清單原檔預覽', function () { return readPreparerPreview(preparerDraft); }); }
+      if (preparerDraft) { Ui.run('讀取授權編製人員清單來源檔預覽', function () { return readPreparerPreview(preparerDraft); }); }
     });
     bind('commit-authorized-preparer', function () {
       var draft = preparerDraft;
@@ -365,7 +365,7 @@
     bind('import-authorized-preparer', function () {
       var projectId = Store.getState().project.projectId;
       Ui.run('選擇授權編製人員清單', function () {
-        return global.JetApi.hostSelectFile({ title: '授權編製人員清單', extensions: ['.xlsx'] }).then(function (file) {
+        return global.JetApi.hostSelectFile({ title: '選擇授權編製人員清單', extensions: ['.xlsx'] }).then(function (file) {
           if (!file.filePath) { return; }
           return global.JetApi.importInspectFile({ filePath: file.filePath }).then(function (data) {
             if (!Store.getState().project || Store.getState().project.projectId !== projectId) { return; }
@@ -394,7 +394,7 @@
         sourceColumn: '', previewData: null, previewError: null });
       preparerDraft = draft;
       Store.touch();
-      Ui.run('讀取授權編製人員清單原檔預覽', function () { return readPreparerPreview(draft); });
+      Ui.run('讀取授權編製人員清單來源檔預覽', function () { return readPreparerPreview(draft); });
     }); }
   }
 
@@ -485,7 +485,7 @@
           });
         }, {
           // 完成句由 Ui.run 接上耗時後記一則，成功時只留一則；沒有選檔時不記。
-          completionMessage: function (data) { return data ? '國定假日匯入完成：' + Ui.countText(data.count) + ' 天。' : ''; }
+          completionMessage: function (data) { return data ? '國定假日清單上傳完成：' + Ui.countText(data.count) + ' 天。' : ''; }
         });
       });
     }
@@ -520,7 +520,7 @@
             });
           });
         }, {
-          completionMessage: function (data) { return data ? '補班日匯入完成：' + Ui.countText(data.count) + ' 天。' : ''; }
+          completionMessage: function (data) { return data ? '補班日清單上傳完成：' + Ui.countText(data.count) + ' 天。' : ''; }
         });
       });
     }

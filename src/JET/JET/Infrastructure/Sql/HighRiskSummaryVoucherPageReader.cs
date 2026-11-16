@@ -5,16 +5,18 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總傳票層分頁的兩段查詢讀取器。
+/// 高風險條件彙總傳票層的分頁讀取，一頁用兩個查詢。
 ///
-/// 查詢 1(命中傳票 keyset 頁):GROUP BY voucher_number、以所選 filter_hit 判定
-/// 命中傳票，再對該傳票的完整 GL 行聚合；排除 NULL voucher_number、聚合
-/// MIN(gl_date)/MIN(created_by)/COALESCE(SUM(debit_amount_scaled),0)、LimitClause。排序與游標由
-/// <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.HighRiskSummaryVoucher</c> 組出，沒有指定排序時依 voucher_number 升冪；
-/// reader 取 voucher_number 供編游標。查 pageSize+1 作 lookahead，只有 probe 存在才回本頁末鍵 cursor。
+/// 第一個查詢讀這一頁的命中傳票。傳票裡只要有一筆分錄在所選情境的 filter_hit 裡就算命中；
+/// voucher_number 是 NULL 的分錄不算。命中的傳票依 voucher_number 分組，用它在 GL 的全部分錄算出
+/// MIN(gl_date)、MIN(created_by) 與 COALESCE(SUM(debit_amount_scaled), 0)。排序與游標由
+/// <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.HighRiskSummaryVoucher</c> 組出，沒有指定排序時依 voucher_number 升冪。
+/// 換頁用上一頁最後一筆的排序鍵接下一頁。每次多讀一筆，多出來的那一筆存在才回傳下一頁的游標。
+/// 每列的 voucher_number 也用來編游標。
 ///
-/// 查詢 2(本頁傳票命中位置):DISTINCT (voucher_number, filter_scenario.position)、
-/// 排除 NULL voucher_number、voucher_number IN(本頁的傳票號碼),故每傳票位置不漏不溢。空頁→不跑查詢 2,回空 dict。
+/// 第二個查詢讀這一頁每張傳票命中了哪些情境位置：取不重複的 voucher_number 與 filter_scenario.position，
+/// 排除 voucher_number 是 NULL 的列，只看這一頁的傳票號碼，所以每張傳票的命中位置不多也不少。
+/// 這一頁沒有傳票時不執行第二個查詢，回傳空的對照表。
 /// </summary>
 internal static class HighRiskSummaryVoucherPageReader
 {
@@ -53,7 +55,7 @@ internal static class HighRiskSummaryVoucherPageReader
 
         var paging = KeysetPaging.Plan(dialect, request, ResultPageSorting.HighRiskSummaryVoucher);
 
-        // 查詢 1:本頁命中傳票 + 聚合。彙總包成子查詢，排序、搜尋與游標述詞才能用彙總欄。
+        // 第一個查詢：這一頁的命中傳票與各傳票的彙總值。彙總包成子查詢，排序、搜尋與游標的條件才能用彙總欄。
         long? totalCount = null;
         var buffer = new KeysetPageBuffer<VoucherTagRow>();
         await using (var command = connection.CreateCommand())
@@ -94,7 +96,7 @@ internal static class HighRiskSummaryVoucherPageReader
         var rows = page.Rows;
         var next = page.NextCursor;
 
-        // 空頁:無傳票 → 無位置。不跑查詢 2。
+        // 這一頁沒有傳票，就沒有命中位置可讀，不執行第二個查詢。
         if (rows.Count == 0)
         {
             return (
@@ -102,8 +104,8 @@ internal static class HighRiskSummaryVoucherPageReader
                 new Dictionary<string, IReadOnlyList<int>>());
         }
 
-        // 查詢 2:本頁傳票命中位置。依欄位排序時本頁不是連續的鍵範圍，所以把本頁的傳票號碼全部當參數帶進 IN 清單
-        // （一頁最多 500 張，低於 SQLite 的參數上限）。
+        // 第二個查詢：這一頁每張傳票命中的情境位置。依欄位排序時，這一頁的傳票號碼不是連續的範圍，
+        // 所以把這一頁的傳票號碼全部當參數放進 IN 清單。一頁最多 500 張，低於 SQLite 的參數上限。
         var positions = new Dictionary<string, List<int>>();
         await using (var command = connection.CreateCommand())
         {
@@ -134,7 +136,7 @@ internal static class HighRiskSummaryVoucherPageReader
                     positions[doc] = list;
                 }
 
-                list.Add(pos); // ORDER BY + DISTINCT → 已有序去重
+                list.Add(pos); // 查詢用了 DISTINCT 與 ORDER BY，讀到的位置已經排好序而且不重複。
             }
         }
 

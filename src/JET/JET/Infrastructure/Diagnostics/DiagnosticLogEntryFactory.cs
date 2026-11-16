@@ -4,8 +4,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 把 M.E.Logging 的 logLevel/eventId/state/active scopes/exception 轉成 <see cref="DiagnosticLogEntry"/>。
-/// 診斷日誌所有 sink(ring buffer、檔案)共用此轉換,避免 scope 攤平邏輯重複而漂移。
+/// 把 Microsoft.Extensions.Logging 的一筆日誌轉成 <see cref="DiagnosticLogEntry"/>。
+/// 來源是 logLevel、eventId、state、exception，以及目前生效的 scope。
+/// 寫到記憶體和寫到檔案的診斷日誌都用這一個轉換，兩邊的欄位才會一致。
 /// </summary>
 internal static class DiagnosticLogEntryFactory
 {
@@ -23,7 +24,8 @@ internal static class DiagnosticLogEntryFactory
         string? transactionId = null;
         string? projectId = null;
 
-        // 攤平 active scopes:常用 id 鍵升為頂層,其餘(如 action)進 fields。
+        // 把目前生效的每一層 scope 的鍵值合併成一筆。correlation_id、transaction_id 與 project_id
+        // 放進紀錄自己的欄位，其餘的鍵（例如 action）放進 fields。
         scopeProvider.ForEachScope(
             (scope, _) =>
             {
@@ -36,8 +38,9 @@ internal static class DiagnosticLogEntryFactory
                             case "correlation_id": correlationId = kv.Value?.ToString(); break;
                             case "transaction_id": transactionId = kv.Value?.ToString(); break;
                             case "project_id": projectId = kv.Value?.ToString(); break;
-                            // Release-safe provider 只用於程序內案件篩選；raw dev log 不額外揭露載入／刪除
-                            // payload 中的案件名稱。已開啟案件仍沿既有 project_id 欄位記錄。
+                            // support_project_id 是從請求內容讀出的案件代號，只給支援日誌判斷事件屬於哪個案件。
+                            // 診斷日誌不記這個鍵，載入或刪除案件的請求裡的案件名稱就不會多寫一份。
+                            // 已開啟的案件照常記在 project_id 欄位。
                             case "support_project_id": break;
                             default: fields[kv.Key] = kv.Value; break;
                         }
@@ -46,7 +49,7 @@ internal static class DiagnosticLogEntryFactory
             },
             (object?)null);
 
-        // 結構化 state(LoggerMessage 欄位);略過訊息模板鍵。
+        // state 帶的是 LoggerMessage 的各個欄位，逐一放進 fields；{OriginalFormat} 是訊息模板本身，不放。
         if (state is IEnumerable<KeyValuePair<string, object?>> statePairs)
         {
             foreach (var kv in statePairs)

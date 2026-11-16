@@ -6,11 +6,11 @@ using Microsoft.Web.WebView2.Core;
 namespace JET.Bridge;
 
 /// <summary>
-/// IJetEventPublisher 的 WebView2 實作：事件信封 { event, data }（無 requestId，
-/// 與 response 信封區隔；不認識此形狀的前端會安全忽略）。
-/// Publish 可能來自背景緒（匯入在 Task.Run 內），PostWebMessageAsJson 必須在
-/// UI 執行緒呼叫——以建構 WebView 的 SynchronizationContext marshal。
-/// 未 Bind 前（WebView 尚未就緒）事件靜默丟棄：事件是 UX 提示，不承載權威。
+/// IJetEventPublisher 的 WebView2 實作。事件的格式是 { event, data }，沒有 requestId，
+/// 藉此和 action 的回應區分；不認得這個格式的前端會直接忽略。
+/// Publish 可能從背景執行緒呼叫，例如匯入是在 Task.Run 裡執行；PostWebMessageAsJson 必須在 UI 執行緒呼叫，
+/// 所以用 Bind 時傳入的 SynchronizationContext 轉回 UI 執行緒。
+/// Bind 之前 WebView 還沒準備好，事件直接丟棄；事件只是給畫面的提示，正式結果不靠它傳遞。
 /// </summary>
 public sealed class WebViewEventPublisher : IJetEventPublisher
 {

@@ -76,7 +76,7 @@ public sealed class LocalResultStore(ILocalProjectDatabase database) : IResultSt
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        // generated_utc 記到 100 奈秒，兩次執行幾乎不可能同時；真的同時就以 result_id 當平手鍵，
+        // generated_utc 記到 100 奈秒，兩次執行幾乎不可能同時；真的同時就再比 result_id，
         // 每次都選到同一筆。
         command.CommandText =
             $"""

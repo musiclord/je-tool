@@ -7,12 +7,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 條件 AST → 參數化 SQL 的執行（無狀態：COUNT + COUNT DISTINCT + LIMIT 預覽）。
-/// WHERE 組譯由 provider 中立的 <see cref="GlFilterWhereBuilder"/> 完成
-/// （述詞單一事實來源 <see cref="GlRulePredicates"/> + 注入的 <see cref="ISqlDialect"/>）；
-/// 本類只負責本地引擎連線與 SELECT 骨架。
-/// 識別字只出自 GlFieldWhitelist 與片段常數；所有使用者值參數綁定。
-/// 診斷日誌（dev-only）：每個 SELECT 走 <see cref="DiagnosticDb"/> 擴充方法記錄完整 SQL/參數。
+/// 把篩選條件轉成參數化 SQL 並執行，用於預覽：命中筆數、命中傳票數，以及前 50 筆命中分錄。本類不保存任何狀態。
+/// WHERE 由 <see cref="GlFilterWhereBuilder"/> 組出，它不分資料庫種類：每種條件的 SQL 寫法只定義在
+/// <see cref="GlRulePredicates"/>，各資料庫不同的寫法由 <see cref="ISqlDialect"/> 提供。
+/// 本類只負責開連線與 SELECT 的外框。
+/// SQL 裡的欄位名稱只來自 GlFieldWhitelist 與固定的片段常數；審計員輸入的值一律用參數傳。
+/// 每一句 SELECT 都經 <see cref="DiagnosticDb"/> 的擴充方法執行；記錄層級開到 Debug 時（開發用），診斷日誌會記下完整的 SQL 與參數。
 /// </summary>
 public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILogger<LocalFilterHitRepository>? logger = null)
     : IFilterHitRepository
@@ -63,7 +63,7 @@ public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILo
         await using var command = connection.CreateCommand();
         var plan = WhereBuilder.BuildPlan(scenario, context);
         plan.BindParametersTo(command);
-        // 條件的 WHERE plan 只引用子查詢的 g；外層用另一個別名列出同傳票的全部分錄。
+        // 條件組出的 WHERE 只用到子查詢裡的別名 g；外層用另一個別名 whole_row 數出這些傳票的全部分錄。
         command.CommandText = "SELECT COUNT(*) FROM gl whole_row "
             + $"WHERE {GlPopulationScopeSql.Predicate(context, "whole_row")} AND whole_row.voucher_number IN ("
             + "SELECT g.voucher_number FROM gl g "

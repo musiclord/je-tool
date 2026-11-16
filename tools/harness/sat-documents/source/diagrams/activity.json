@@ -1,14 +1,14 @@
 {
-  "title": "JET 活動圖：「資料驗證與測試」的作業流程",
+  "title": "JE Tool 活動圖：「資料驗證與測試」的作業流程",
   "header": [
-    "JET 1.0.0.0 活動圖。範圍：審計員在「資料驗證與測試」步驟執行資料驗證，至進入「進階條件篩選」為止。",
-    "表示法：UML 活動圖。括號內的英文是前端送出的 action 名稱。"
+    "JE Tool 1.0.0.0 活動圖。範圍：使用者在「資料驗證與測試」步驟執行資料驗證，至進入「進階條件篩選」為止。",
+    "表示法：UML 活動圖。括號內的英文是前端送出的請求名稱（action）。"
   ],
   "sourceRoot": "src/JET/JET",
   "lanes": [
     {
-      "id": "auditor",
-      "label": "審計員"
+      "id": "user",
+      "label": "使用者"
     },
     {
       "id": "jet",
@@ -20,7 +20,7 @@
     {
       "type": "action",
       "id": "run",
-      "lane": "auditor",
+      "lane": "user",
       "text": [
         "輸入資料可靠性測試抽樣筆數，",
         "執行資料驗證（validate.run）"
@@ -203,8 +203,8 @@
               "id": "otherTests",
               "lane": "jet",
               "text": [
-                "執行借貸不平測試、資料可靠性測試、",
-                "資料缺漏輔助檢視與總帳日期空白檢查"
+                "執行借貸不平測試、資料可靠性測試",
+                "與資料缺漏輔助檢視，並列出總帳日期空白的來源列"
               ],
               "evidence": [
                 {
@@ -243,7 +243,7 @@
               "lane": "jet",
               "text": [
                 "判定各項結果（含存入筆數與合計核對），",
-                "儲存驗證結果並提交交易"
+                "儲存驗證結果並 commit 交易"
               ],
               "evidence": [
                 {
@@ -303,7 +303,7 @@
             {
               "type": "action",
               "id": "review",
-              "lane": "auditor",
+              "lane": "user",
               "text": [
                 "查看各項結果、",
                 "差異提醒與明細"
@@ -406,7 +406,7 @@
                     {
                       "type": "decision",
                       "id": "wantPrescreen",
-                      "lane": "auditor",
+                      "lane": "user",
                       "text": [
                         "執行預篩選？"
                       ],
@@ -457,7 +457,7 @@
                     {
                       "type": "action",
                       "id": "nextStep",
-                      "lane": "auditor",
+                      "lane": "user",
                       "text": [
                         "進入「進階條件篩選」"
                       ],
@@ -480,5 +480,89 @@
         }
       ]
     }
-  ]
+  ],
+  "layout": {
+    "maxCrossings": 0,
+    "lanes": {
+      "user": [20, 424],
+      "jet": [436, 1124]
+    },
+    "at": {
+      "start": [140, 100],
+      "run": [140, 176],
+      "precheck": [644, 176],
+      "reject": [950, 176],
+      "population": [644, 276],
+      "tbReady": [644, 380],
+      "accountComparisonNotRun": [644, 500],
+      "accountComparison": [930, 500],
+      "merge1": [644, 580],
+      "otherTests": [644, 660],
+      "finalize": [644, 748],
+      "reports": [644, 848],
+      "review": [140, 920],
+      "review_note": [320, 920],
+      "resultUsable": [644, 1032],
+      "wantPrescreen": [140, 1084],
+      "locked": [930, 1084],
+      "prescreen": [644, 1136],
+      "merge2": [140, 1176],
+      "nextStep": [140, 1248],
+      "merge3": [644, 1300],
+      "finish": [644, 1364]
+    },
+    "lines": {
+      "start_run": {"fromSides": ["bottom"], "toSides": ["top"], "toExact": true},
+      "run_precheck": {"fromSides": ["right"], "fromExact": true, "toSides": ["left"]},
+      "precheck_reject": {"fromSides": ["right"], "toSides": ["left"], "toExact": true},
+      "precheck_population": {"fromSides": ["bottom"], "toSides": ["top"], "toExact": true},
+      "population_tbReady": {"fromSides": ["bottom"], "toSides": ["top"], "fromExact": true},
+      "tbReady_accountComparison": {"fromSides": ["right"], "toSides": ["top"], "toExact": true},
+      "tbReady_accountComparisonNotRun": {"fromSides": ["bottom"], "toSides": ["top"], "toExact": true},
+      "accountComparison_merge1": {"fromSides": ["bottom"], "fromExact": true, "toSides": ["right"]},
+      "accountComparisonNotRun_merge1": {"fromSides": ["bottom"], "toSides": ["top"], "fromExact": true},
+      "merge1_otherTests": {"fromSides": ["bottom"], "toSides": ["top"], "toExact": true},
+      "otherTests_finalize": {"fromSides": ["bottom"], "toSides": ["top"], "fromExact": true, "toExact": true},
+      "finalize_reports": {"fromSides": ["bottom"], "toSides": ["top"], "fromExact": true, "toExact": true},
+      "reports_review": {"fromSides": ["left"], "fromExact": true, "toSides": ["top"], "toExact": true},
+      "review_resultUsable": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "resultUsable_locked": {"fromSides": ["right"], "toSides": ["top"], "toExact": true},
+      "resultUsable_wantPrescreen": {"fromSides": ["left"], "toSides": ["top"]},
+      "wantPrescreen_prescreen": {"fromSides": ["right"], "toSides": ["top"]},
+      "wantPrescreen_merge2": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "prescreen_merge2": {"fromSides": ["bottom"], "toSides": ["right"]},
+      "merge2_nextStep": {"fromSides": ["bottom"], "toSides": ["top"], "toExact": true},
+      "locked_merge3": {"via": [[930, 1236], [644, 1236]]},
+      "nextStep_merge3": {"fromSides": ["bottom"], "fromExact": true, "toSides": ["left"]},
+      "reject_merge3": {"via": [[1075, 1300]]},
+      "merge3_finish": {"fromSides": ["bottom"], "toSides": ["top"]}
+    },
+    "order": [
+      "start_run",
+      "run_precheck",
+      "precheck_reject",
+      "precheck_population",
+      "population_tbReady",
+      "tbReady_accountComparisonNotRun",
+      "tbReady_accountComparison",
+      "accountComparisonNotRun_merge1",
+      "accountComparison_merge1",
+      "merge1_otherTests",
+      "otherTests_finalize",
+      "finalize_reports",
+      "reports_review",
+      "review_note",
+      "review_resultUsable",
+      "resultUsable_wantPrescreen",
+      "resultUsable_locked",
+      "wantPrescreen_prescreen",
+      "wantPrescreen_merge2",
+      "prescreen_merge2",
+      "merge2_nextStep",
+      "merge3_finish",
+      "locked_merge3",
+      "nextStep_merge3",
+      "reject_merge3"
+    ]
+  }
 }

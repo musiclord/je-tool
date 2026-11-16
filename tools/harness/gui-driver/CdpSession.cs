@@ -144,9 +144,9 @@ internal sealed class CdpSession : IAsyncDisposable
             throw new GuiInfrastructureException("keyboard_date_invalid");
         }
 
+        // JET 的日期輸入框上限是 9999-12-31，年份最多四位數；打完四位數，瀏覽器自己跳到月份，
+        // 所以年份後面不按方向鍵。多按一次會跳過月份，把月份的數字打進日期那一格。
         await TypeTextAsync(date.Year.ToString("0000", CultureInfo.InvariantCulture), cancellationToken)
-            .ConfigureAwait(false);
-        await DispatchNavigationKeyAsync("ArrowRight", "ArrowRight", 0x27, cancellationToken)
             .ConfigureAwait(false);
         await TypeTextAsync(date.Month.ToString("00", CultureInfo.InvariantCulture), cancellationToken)
             .ConfigureAwait(false);

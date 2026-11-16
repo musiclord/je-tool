@@ -108,8 +108,7 @@ public sealed partial class LegacyReportWriter
                     ct),
                 row => row.EntryId,
                 legacyStyles,
-                // Resolve the legacy threshold from the full-voucher rows
-                // already counted by the disk spool, never from hit-row counts.
+                // 舊版 JET 一百萬列的門檻，用已經寫到暫存檔的整張傳票列數來判斷，不用符合條件的分錄筆數。
                 RawSheetAutoFitMode.LegacyFirstTwentyWhenAtMostOneMillion,
                 cancellationToken,
                 progress,
@@ -190,10 +189,10 @@ public sealed partial class LegacyReportWriter
                         "Criteria Selection template B4 contract changed.");
                 }
 
+                // 第 4 列的四個欄名照範本保留，不覆寫也不清除。
                 var allowed = new List<string>
                 {
-                    "C1", "C2", "D1", "D2",
-                    "A4", "C4", "D4"
+                    "C1", "C2", "D1", "D2"
                 };
                 for (var row = CriteriaFirstScenarioRow;
                      row < CriteriaFirstScenarioRow + FilterScenarioLimits.MaxSavedScenarios;
@@ -219,9 +218,6 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString(
                     "D2",
                     string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
-                cells.Clear("A4");
-                cells.Clear("C4");
-                cells.Clear("D4");
 
                 var scenarios = context.Scenarios
                     .ToDictionary(item => item.Position);
@@ -301,8 +297,8 @@ public sealed partial class LegacyReportWriter
 
                 if (context.Scenarios.Count > 0)
                 {
-                    // 舊版 JET：至少一筆 criteria log 被寫入時，
-                    // Cells.EntireRow.AutoFit；OpenXML 以移除 explicit row height 表示。
+                    // 舊版 JET 在至少寫入一筆情境紀錄時執行 Cells.EntireRow.AutoFit。
+                    // OpenXML 的對應做法是拿掉每一列指定的列高，讓 Excel 自己算。
                     foreach (var row in worksheet.GetFirstChild<SheetData>()!
                                  .Elements<Row>())
                     {

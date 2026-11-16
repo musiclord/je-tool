@@ -4,11 +4,11 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 科目配對全列匯出(本地引擎,匯出底稿 sheet 15)。自 <c>account_mapping</c> 取每一列,
-/// not-in-tb 旗標以 <see cref="ValidationProcedures.CompletenessDiffCte"/> 的 not_in_tb 為單一事實來源
-/// (GL 有 TB 無 = 1):科目代號落在該 CTE not_in_tb=1 子集者旗標為真。
-/// 科目數有界(實務數百),全載入即可、不分頁。排序鍵 account_number ASC，依科目編號升冪。
-/// not_in_tb 旗標本地引擎用 GetInt64。
+/// 讀出 <c>account_mapping</c> 的每一列，供工作底稿的「自動化工具-科目配對資訊」工作表（第 15 張）使用。
+/// 每個科目另帶一個「GL 有、TB 沒有」的旗標：科目編號出現在 <see cref="ValidationProcedures.CompletenessDiffCte"/>
+/// 裡 not_in_tb = 1 的列時為真。這個旗標只用這一份 CTE 判斷，不另寫一套。
+/// 科目數不多（實務上幾百個），一次全部讀進來，不分頁；依 account_number 升冪排序。
+/// SQLite 把旗標回成整數，用 GetInt64 讀。
 /// </summary>
 public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase database)
     : IAccountMappingExportRepository

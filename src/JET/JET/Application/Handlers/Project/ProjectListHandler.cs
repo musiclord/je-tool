@@ -4,9 +4,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// project.listLocal：從本機 store 投影 SQLite 案件。以前建立的 DuckDB 與 SQL Server 案件不列出，
+/// project.listLocal：列出這台電腦上的 SQLite 案件。以前建立的 DuckDB 與 SQL Server 案件不列出，
 /// 也不動它們的資料夾；設定檔讀不通的案件照常列成錯誤列，讓審計員能刪除。
-/// 排序維持 lastOpenedUtc ?? createdUtc 新到舊。
+/// 依上次開啟時間從新到舊排列，沒開過的案件用建立時間；錯誤列排在最後。
 /// </summary>
 public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IApplicationActionHandler
 {
@@ -28,7 +28,7 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
     }
 }
 
-/// <summary>project.listLocal 單一條目的 wire 形狀。</summary>
+/// <summary>project.listLocal 回應裡每一個案件的欄位。</summary>
 internal static class ProjectListEntry
 {
     internal static object ReadErrorToWire(ProjectStoreEntry entry) => new

@@ -10,6 +10,11 @@
   },
   "testSettings": {
     "project": "src/JET/tests/JET.Tests/JET.Tests.csproj",
+    "developmentRepositoryBuildExtension": "tools/harness/development-repository-tests/DevelopmentRepositoryTests.targets",
+    "developmentRepositoryRequiredTestClasses": [
+      "JET.Tests.Architecture.SensitiveDataPolicyTests",
+      "JET.Tests.Infrastructure.LegacyAuditParityProfileTests"
+    ],
     "targetFramework": "net10.0-windows",
     "seed": 20260828,
     "publicMinimumExpectedTests": 3000,
@@ -151,8 +156,8 @@
       {
         "name": "filter-common-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 77,
-        "expectedActionCount": 77,
+        "actionBudget": 78,
+        "expectedActionCount": 78,
         "screenshotBudget": 1
       },
       {

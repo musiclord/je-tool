@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 報告 writer 在單一 keyset page 內把 target entry 對回原始 GL row_json。
-/// 呼叫端每次最多傳一頁 entry id；repository 不提供全表列舉，避免繞過分頁邊界。
+/// 報告寫出程式用一頁分錄的 entry id，取回每筆分錄在來源檔的原始列 row_json。
+/// 呼叫端每次最多傳一頁的 entry id；repository 不提供列出整張表的方法，避免繞過分頁。
 /// </summary>
 public interface IRawGlExportRepository
 {

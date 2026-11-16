@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 已保存 filter scenario 的唯一 wire summary renderer。Commit response 與 project.load
-/// 共用此輸出，避免情境來源、後端替補名稱／動機及 resume 形狀在同一 session 前後分歧。
+/// 把一個已儲存的篩選情境組成回應裡的情境摘要，只有這裡負責。儲存情境的回應與 project.load 都用這裡的輸出，
+/// 情境來源、後端補上的名稱與動機，以及重新載入案件時拿到的內容，前後才會一致。
 /// </summary>
 internal static class FilterScenarioSummaryRenderer
 {
@@ -44,8 +44,8 @@ internal static class FilterScenarioSummaryRenderer
                 ["name"] = scenario.Name,
                 ["rationale"] = scenario.Rationale,
                 ["groups"] = groups,
-                // 回放路徑刻意正規化為目前唯一母體；舊 scope 由 current-revision guard
-                // 判為 stale，不把退役值重新送回前端成為可執行狀態。
+                // 回給前端的篩選範圍一律寫目前唯一的範圍 auditPeriod。已儲存的舊範圍由
+                // FilterPopulationScopeParser.RequireCurrentRevision 判成過期，不把已停用的值送回前端再拿來執行。
                 ["populationScope"] = GlPopulationScopeValues.AuditPeriod,
                 ["savedUtc"] = scenario.SavedUtc
             };

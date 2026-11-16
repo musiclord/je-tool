@@ -5,9 +5,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.dataPreview：正式版的使用者資料預覽。
-/// 有界唯讀——欄位配對時對照欄名與實際內容、進階篩選前掌握數值/日期/摘要的大概樣貌；
-/// 以 limit 與 offset 每次回傳最多 200 筆，不一次讀取完整母體。
+/// query.dataPreview：給審計員看的資料預覽，只讀不寫。
+/// 用途是欄位配對時對照欄名與實際內容，以及進階篩選前先看數值、日期與摘要大概是什麼樣子。
+/// 用 limit 與 offset 分批讀，每次最多回傳 200 筆，不一次讀完整份資料。
 /// GL(未納入測試) 可以用 exclusionReason 只看一種未納入原因。
 /// GL 與 GL(未納入測試) 依已確認的 GL 配對列欄位，回應另帶 columnDetails 寫出每欄的名稱與型別；
 /// 金額一律是照存下的值換算的精確字串，畫面補成四位小數。

@@ -12,12 +12,15 @@ page numbers. That script also fixes the document properties Word rewrites when 
 
 Front matter: title, english (subtitle), and optionally cover: plain, header (text after the
 header prefix), toc: true. cover: plain is for a text that is not ours (the company's review
-rules): the title has no JET prefix, there is no version line and no header, and the footer
+rules): the title has no product name, there is no version line and no header, and the footer
 is the page number alone.
 
 Supported Markdown: ## / ### headings, a line that is only
 **bold** text (minor heading), paragraphs, "- " bullets, "1. " numbered lines, pipe tables,
-``` code blocks, and inline **bold**, `code` and [label](https://...) links.
+``` code blocks, ![name](file) images, and inline **bold**, `code` and [label](https://...) links.
+A run of numbered lines becomes one Word numbered list that starts at 1; the numbers come from
+Word, so the paragraph text does not contain them. The name of an image is its alternative text
+and the caption under it.
 """
 from __future__ import annotations
 
@@ -45,6 +48,10 @@ DOCUMENTS = {
     "Code review rule": "Code Review/Code review rule.docx",
 }
 
+# Formal product name, used in titles, headers and document properties. The body text of each
+# source introduces the short name JET itself.
+PRODUCT = "JE Tool"
+VERSION = "1.0.0.0"
 FONT = "Microsoft JhengHei"
 CODE_FONT = "Consolas"
 INK = RGBColor(0x1F, 0x29, 0x33)
@@ -135,6 +142,7 @@ def setup(doc) -> None:
     style(doc, "Heading 2", 12, True, HEADING, before=12, after=6, keep=True, spacing=1.15)
     style(doc, "Heading 3", 10.5, True, INK, before=8, after=4, keep=True, spacing=1.15)
     style(doc, "List Bullet", 10.5, after=3, spacing=1.2)
+    style(doc, "List Number", 10.5, after=3, spacing=1.2)
     names = {s.name for s in doc.styles}
     for level in (1, 2):
         # Word only takes these as its contents styles when they carry its own lower-case name
@@ -386,6 +394,44 @@ def space_before_pt(paragraph) -> float:
     return before.pt if before is not None else 0
 
 
+def new_numbered_list(doc) -> int:
+    """Add a numbering instance for one list, formatted like the List Number style and
+    starting at 1. Returns its id; every paragraph of the list refers to it."""
+    numbering = doc.part.numbering_part.numbering_definitions._numbering
+    style_num_id = doc.styles["List Number"].element.pPr.numPr.numId.val
+    abstract_id = numbering.num_having_numId(style_num_id).abstractNumId.val
+    num = numbering.add_num(abstract_id)
+    num.add_lvlOverride(ilvl=0).add_startOverride(1)
+    return num.numId
+
+
+def numbered_item(doc, num_id: int):
+    paragraph = doc.add_paragraph(style="List Number")
+    num_pr = paragraph._p.get_or_add_pPr().get_or_add_numPr()
+    num_pr.get_or_add_ilvl().val = 0
+    num_pr.get_or_add_numId().val = num_id
+    return paragraph
+
+
+def figure(doc, name: str, path: Path) -> None:
+    """A centred picture with its name as alternative text and as the caption below it."""
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.keep_with_next = True
+    picture = paragraph.add_run().add_picture(str(path), width=Cm(TEXT_WIDTH_CM))
+    if picture.height > Cm(IMAGE_MAX_HEIGHT_CM):
+        picture.width = int(picture.width * Cm(IMAGE_MAX_HEIGHT_CM) / picture.height)
+        picture.height = Cm(IMAGE_MAX_HEIGHT_CM)
+    properties = picture._inline.docPr
+    properties.set("name", name)
+    properties.set("descr", name)
+    caption = doc.add_paragraph()
+    caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = caption.add_run(name)
+    run.font.size = Pt(9.5)
+    run.font.color.rgb = MUTED
+
+
 def code_block(doc, lines: list[str]):
     """Returns the last paragraph of the block, or None for an empty block."""
     paragraph = None
@@ -444,12 +490,12 @@ def header_footer(doc, meta: dict) -> None:
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if meta.get("cover") == "plain":
-        # Not our text: no JET header, and the footer is the page number alone.
+        # Not our text: no product header, and the footer is the page number alone.
         field(footer, "PAGE", "1")
     else:
         header = section.header.paragraphs[0]
         header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        run = header.add_run(f"JET｜{meta.get('header', meta['title'])}")
+        run = header.add_run(f"{PRODUCT}｜{meta.get('header', meta['title'])}")
         run.font.size = Pt(8.5)
         run.font.color.rgb = MUTED
         footer.add_run("第 ")
@@ -465,14 +511,14 @@ def header_footer(doc, meta: dict) -> None:
 def cover(doc, meta: dict) -> None:
     plain = meta.get("cover") == "plain"
     title = doc.add_paragraph(style="Title")
-    title.add_run(meta["title"] if plain else f"JET {meta['title']}")
+    title.add_run(meta["title"] if plain else f"{PRODUCT} {meta['title']}")
     subtitle = doc.add_paragraph()
     run = subtitle.add_run(meta.get("english", ""))
     run.font.size = Pt(12)
     run.font.color.rgb = MUTED
     subtitle.paragraph_format.space_after = Pt(14)
     if not plain:
-        note = doc.add_paragraph("版本 1.0.0.0")
+        note = doc.add_paragraph("版本 " + VERSION)
         note.paragraph_format.space_after = Pt(12)
 
 
@@ -535,6 +581,7 @@ def build(name: str, output: Path) -> None:
 
     code_block_ends = []
     after_heading = False
+    list_id = None
     i = 0
     while i < len(lines):
         line = lines[i].rstrip()
@@ -543,6 +590,9 @@ def build(name: str, output: Path) -> None:
             i += 1
             continue
         follows_heading, after_heading = after_heading, False
+        numbered = re.match(r"^\d+\. ", stripped)
+        if not numbered:
+            list_id = None
         if stripped.startswith("```"):
             block = []
             i += 1
@@ -563,12 +613,7 @@ def build(name: str, output: Path) -> None:
             continue
         image_match = re.fullmatch(r"!\[([^]]*)\]\(([^)]+)\)", stripped)
         if image_match:
-            paragraph = doc.add_paragraph()
-            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            picture = paragraph.add_run().add_picture(str(SOURCE / image_match.group(2)), width=Cm(TEXT_WIDTH_CM))
-            if picture.height > Cm(IMAGE_MAX_HEIGHT_CM):
-                picture.width = int(picture.width * Cm(IMAGE_MAX_HEIGHT_CM) / picture.height)
-                picture.height = Cm(IMAGE_MAX_HEIGHT_CM)
+            figure(doc, image_match.group(1), SOURCE / image_match.group(2))
             i += 1
             continue
         if stripped.startswith("### "):
@@ -582,15 +627,10 @@ def build(name: str, output: Path) -> None:
             after_heading = True
         elif stripped.startswith("- "):
             inline(doc.add_paragraph(style="List Bullet"), stripped[2:])
-        elif re.match(r"^\d+\. ", stripped):
-            number, _, rest = stripped.partition(" ")
-            paragraph = doc.add_paragraph()
-            fmt = paragraph.paragraph_format
-            fmt.left_indent = Cm(0.75)
-            fmt.first_line_indent = Cm(-0.6)
-            fmt.space_after = Pt(3)
-            paragraph.add_run(number + " ")
-            inline(paragraph, rest)
+        elif numbered:
+            if list_id is None:
+                list_id = new_numbered_list(doc)
+            inline(numbered_item(doc, list_id), stripped.partition(" ")[2])
         else:
             paragraph = doc.add_paragraph()
             # A sentence that introduces a table, list or code block stays with it. So does the
@@ -612,8 +652,8 @@ def build(name: str, output: Path) -> None:
     # the file; that script sets it back to JET.
     props.author = "JET"
     props.last_modified_by = "JET"
-    props.title = meta["title"] if plain else f"JET {meta['title']}"
-    props.subject = "" if plain else "JET 1.0.0.0"
+    props.title = meta["title"] if plain else f"{PRODUCT} {meta['title']}"
+    props.subject = "" if plain else f"{PRODUCT} {VERSION}"
     props.comments = ""
     # The template that python-docx starts from carries its own creation date.
     props.created = now

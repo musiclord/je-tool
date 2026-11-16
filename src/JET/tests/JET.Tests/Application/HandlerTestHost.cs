@@ -25,7 +25,8 @@ internal sealed class HandlerTestHost : IDisposable
         bool withDiagnosticLogFile = false,
         string? principalName = null,
         IJetEventPublisher? eventPublisher = null,
-        string? projectsRootPath = null)
+        string? projectsRootPath = null,
+        string? userFullName = null)
     {
         _root = new TempProjectRoot();
         _projectsRoot = projectsRootPath ?? _root.Path;
@@ -42,7 +43,9 @@ internal sealed class HandlerTestHost : IDisposable
             DiagnosticLogDirectory,
             principalName: Principal,
             // 支援日誌所在的使用者資料目錄釘到本 host 的 temp 根之下，測試絕不碰真 %LOCALAPPDATA%\JET（比照 DiagnosticLogDirectory 作法）。
-            userProfileDirectory: Path.Combine(_root.Path, "user-profile"));
+            userProfileDirectory: Path.Combine(_root.Path, "user-profile"),
+            // 測試只用合成的使用者全名；沒有傳時建案者用帳號短名，不查這台電腦的 Windows 帳號。
+            userFullName: userFullName);
         Dispatcher = _runtime.Dispatcher;
         SupportLogDirectory = Path.Combine(_root.Path, "user-profile", "logs");
     }

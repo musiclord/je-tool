@@ -6,9 +6,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 保留 fixed-template worksheet 的 bounded static skeleton，並從指定列起直接
-/// SAX append 動態資料。來源 worksheet 只含固定列，故 clone 大小有界；動態列
-/// 從不回存 DOM。dimension 省略，讓 Excel 依實際 sheetData 重建 used range。
+/// 重寫固定範本裡的一張工作表：範本原有的固定列與其他設定照原樣保留，資料列從指定的列起
+/// 用 OpenXmlWriter 一列一列直接寫進檔案。範本的工作表只有固定列，所以複製一份放在記憶體的大小有上限；
+/// 資料列寫出後不留在記憶體。範本的 dimension 元素不寫出，讓 Excel 依實際的 sheetData 重新算出使用範圍。
 /// </summary>
 internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
 {

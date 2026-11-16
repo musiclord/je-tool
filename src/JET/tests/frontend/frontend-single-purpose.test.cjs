@@ -59,7 +59,8 @@ test('only additional money fields offer a signed comparison', () => {
 
 // 「借方與貸方科目編號組合」是情境範例，套用後替換整份條件；借方與貸方各一個明示方向的子條件。
 test('common account combinations use explicit side children and keep their original defaults', () => {
-  const f = filterOperationFixture();
+  // 情境範例在這個版本隱藏，這裡先把開關打開，托盤與範例才會畫出來。
+  const f = filterOperationFixture({ features: { scenarioTemplates: true } });
   f.click('[data-template-key="accountNumberPair"]');
   const rules = f.draft().groups[0].conditions[0].conditions;
   assert.deepEqual(plain(rules.map(rule => [rule.side, rule.quantifier, rule.conditions.map(child => [child.type, child.drCr, child.field])])), [

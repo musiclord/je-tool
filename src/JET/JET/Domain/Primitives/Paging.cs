@@ -106,7 +106,9 @@ public enum PageSortDirection
 public sealed record PageSort(string Key, PageSortDirection Direction);
 
 /// <summary>
-/// 分頁請求:opaque 游標 + 頁大小(夾擠 1..MaxPageSize,預設 DefaultPageSize)。
+/// 分頁請求：opaque 游標與頁大小。讀 <see cref="ClampedPageSize"/> 時，0 或負數當成 DefaultPageSize，
+/// 超過 MaxPageSize 的當成 MaxPageSize。畫面送來的頁大小在 Application 讀取請求時已先限制在 1 到 200，
+/// 所以畫面的查詢一頁最多 200 筆；MaxPageSize 是這個型別本身的上限。
 /// <paramref name="Sort"/> 省略時用該查詢的穩定鍵升冪；<paramref name="Search"/> 是「依傳票號碼查看」或
 /// 「依科目編號查看」的文字，由各查詢決定比對哪一欄，省略或空白表示不過濾。
 /// </summary>

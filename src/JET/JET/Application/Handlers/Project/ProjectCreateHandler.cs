@@ -46,9 +46,10 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         var repositories = repositoryCatalog.For(databaseProvider);
         var projectCreateFactsPort = repositories.ProjectCreateFacts;
 
-        // 選填 projectName:有值則驗證 + 唯一性檢查並作為 projectId/資料夾名;無值回退 GUID(既有程式化/測試建立行為)。
+        // projectName 選填。有值時先驗證名稱、確認沒有重複，再拿它當 projectId 與資料夾名稱；
+        // 沒有值時用 GUID 當 projectId，這是不經畫面、由程式直接建立案件時的做法。
         var projectNameRaw = PayloadReader.GetOptionalString(payload, "projectName");
-        // 正式畫面明確送來的空白名稱應就地修正；未提供名稱的程式化建立仍保留既有GUID行為。
+        // 畫面送來的 projectName 是空白時回錯誤，請審計員當場改正；完全沒帶 projectName 的呼叫才用 GUID。
         if (payload.TryGetProperty("projectName", out var projectNameValue)
             && projectNameValue.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(projectNameRaw))
             throw new JetActionException(JetErrorCodes.InvalidPayload,
@@ -97,15 +98,15 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         var projectCode = PayloadReader.GetOptionalString(payload, "projectCode")?.Trim() ?? string.Empty;
         var clientName = PayloadReader.GetOptionalString(payload, "clientName")?.Trim() ?? string.Empty;
 
-        // 操作人員只能來自 composition root 注入的目前 Windows 身分。payload 即使帶了
-        // operatorId 也不採用，避免前端欄位或其他 caller 冒名寫入案件 metadata。
-        var operatorId = principal.ShortName;
+        // 建案者只能是程式啟動時注入的目前 Windows 身分：照舊版 JET 記 Windows 帳號的使用者全名，
+        // 取不到時記帳號短名。payload 即使帶了 operatorId 也不採用，避免前端欄位或其他呼叫端冒名寫進案件設定。
+        var operatorId = await principal.ResolveCreatorNameAsync(cancellationToken);
         var periodStart = PayloadReader.GetRequiredDate(payload, "periodStart");
         var periodEnd = PayloadReader.GetRequiredDate(payload, "periodEnd");
         var prepStartDate = PayloadReader.GetOptionalDate(payload, "prepStartDate");
         ProjectMetadataRules.RequireValidPeriod(periodStart, periodEnd);
         var createdUtc = DateTimeOffset.UtcNow;
-        // INF 抽樣 per-project 種子由 Application entropy 產生一次，Domain 只套既有政策。
+        // 每個案件的 INF 抽樣種子只在建案時由這裡用亂數產生一次；Domain 不產生亂數，只規定種子的範圍。
         var sampleSeed = Random.Shared.NextInt64(
             1,
             ProjectDocument.SampleSeedExclusiveUpperBound);
@@ -157,7 +158,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         {
             var result = JetAuditProgram.Finalize(plan, facts);
             document = result.Document;
-            // response 必須先完成物化；從這一行之後不再做可能失敗的 response parse／shape 工作。
+            // 回應物件要在進入 session 之前建好；這一行之後不再做任何可能失敗的回應組裝工作。
             var response = new { projectId = document.ProjectId, ok = true,
                 warnings = ProjectMetadataRules.GetWarnings(periodStart, periodEnd, prepStartDate) };
             session.Enter(document.ProjectId, repositories);
@@ -172,16 +173,17 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         {
             try
             {
-                // compare-and-clear 必須無條件執行：publisher 可能先改 session 再拋例外。
+                // 不論失敗在哪一步都要離開 session：session.Enter 可能已經把這個案件設成目前案件才丟出例外。
+                // Leave 只在目前案件仍是這一個時才清除。
                 _ = session.Leave(document.ProjectId);
             }
             catch (Exception)
             {
-                // Session compensation must not replace the original finalize／commit failure.
+                // 離開 session 失敗時不往外丟，保留原本完成建案或結算時的例外。
             }
 
-            // Finalize／response 物化／session／final commit 任一步失敗，都沿同一不可取消
-            // attempt seam 先釋放本次工作鎖，再 rollback backend transaction 與本機 folder。
+            // 完成建案、建立回應、進入 session、結算這四步任何一步失敗，都走同一個回復流程，而且不理會請求取消：
+            // 先釋放這次取得的工作鎖，再回復資料庫，兩者都成功才刪除案件資料夾。
             await projectCreateFactsPort.RollbackAsync(facts, CancellationToken.None);
             throw;
         }

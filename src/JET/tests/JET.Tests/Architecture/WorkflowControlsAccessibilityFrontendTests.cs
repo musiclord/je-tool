@@ -4,7 +4,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 前端工作流整合新增控制項的可用性守衛：每個輸入都有可讀名稱、群組選項用 fieldset 與 legend、
-/// 新區塊在窄視窗可收縮或自行捲動。實際縮放與 Windows DPI 仍由人工驗收。
+/// 新區塊在窄視窗可收縮或自行捲動。這些都讀前端的程式與樣式檔核對，不實際縮放視窗。
 /// 停用的控制項要說明原因，由前端測試在畫面上核對。
 /// </summary>
 public sealed class WorkflowControlsAccessibilityFrontendTests

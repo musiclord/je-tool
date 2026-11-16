@@ -304,7 +304,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
             await materializeService.RequireUsableAsync(projectId, document, scenarios, null, cancellationToken);
         }
 
-        // 科目配對多選讀回要顯示目前科目分類的顯示名稱，因此條件邏輯以專案的科目分類渲染。
+        // 條件裡選的科目分類，讀回文字要寫目前的分類名稱，所以先讀這個案件的科目分類，再產生條件邏輯的文字。
         SupportOperationStage.Enter("condition_render");
         var categorySnapshot = await accountCategoryStore.ReadAsync(projectId, cancellationToken);
         var categoryLabels = categorySnapshot.Categories.ToDictionary(
@@ -312,8 +312,8 @@ public sealed class ExportCriteriaSelectionReportHandler(
             static category => category.Label,
             StringComparer.Ordinal);
 
-        // typed 條件讀回用目前 committed RDE metadata 的顯示 label：僅 label 改名時
-        // renderer 直接反映新名稱；欄位不存在時 renderer 寫 FilterConditionLabels.MissingRdeField，不印 fieldId。
+        // 攸關資料元素條件（type 是 typed）的讀回文字，用目前已確認配對裡攸關資料元素欄位的顯示名稱：
+        // 欄位只改了顯示名稱時，讀回文字跟著寫新名稱；欄位已不存在時寫 FilterConditionLabels.MissingRdeField，不印 fieldId。
         var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var rdeFieldLabels = (glMapping?.GlOptions?.RdeFields ?? []).ToDictionary(
             static field => field.FieldId,

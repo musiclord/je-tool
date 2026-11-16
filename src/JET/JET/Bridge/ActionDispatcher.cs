@@ -8,6 +8,11 @@ using Microsoft.Extensions.Logging;
 
 namespace JET.Bridge;
 
+/// <summary>
+/// 依 action 名稱找到對應的 handler 並執行。會改資料的 action 同一時間只讓一個進行：
+/// 已有一個在進行時，下一個直接回 operation_in_progress，不排隊。哪些 action 算會改資料，
+/// 由 <see cref="ActionExecutionPolicy"/> 決定。每次執行的開始、結束、失敗與取消都記進診斷日誌。
+/// </summary>
 public sealed class ActionDispatcher
 {
     private readonly IReadOnlyDictionary<string, IApplicationActionHandler> _handlers;
@@ -55,16 +60,17 @@ public sealed class ActionDispatcher
     public RequestCancellationRegistry CancellationRegistry { get; }
 
     /// <summary>
-    /// Host 關閉前以同一把 execution gate 做非阻塞安全檢查；lease 必須一路持有到 runtime
-    /// 停止接受 request 並完成 drain 啟動，避免原生關窗繞過 dispatcher／handler 的共用閘。
+    /// 視窗關閉前，用會改資料的 action 共用的那一把閘確認沒有作業在進行；取不到就回 null，不等待。
+    /// 呼叫端要一直持有取得的閘，直到 runtime 不再接受新的請求、並開始等待進行中的請求結束為止，
+    /// 這樣直接關閉視窗也繞不過 dispatcher 和 handler 共用的閘。
     /// </summary>
     internal IDisposable? TryAcquireExecutionLease() => _executionGate.TryAcquire();
 
     /// <summary>
-    /// 每次 dispatch 生成 correlation_id 並以 <see cref="ILogger.BeginScope"/> 建立 scope——
-    /// 同一 LoggerFactory 的子層 logger（Handler/Repository）在該 async 流程內自動帶入（AsyncLocal）。
-    /// 記錄 action 生命週期（start/end/error/cancelled、duration_ms、result_status）；Debug provider 保存完整診斷，
-    /// Release provider 只接收已去識別的 allowlist 支援事件。開始時另記輸入結構與重試對象，成功時記結果版本，
+    /// 執行一個 action。呼叫端沒有帶 correlation_id 時產生一個，並用 <see cref="ILogger.BeginScope"/> 開一個 scope；
+    /// 同一個 LoggerFactory 建出來的 handler 與 repository logger，在這次非同步流程裡寫的日誌都會自動帶上它（靠 AsyncLocal）。
+    /// 日誌記錄 action 的開始、結束、失敗與取消，以及 duration_ms、result_status。Debug 的日誌保存完整診斷內容，
+    /// Release 只收去識別過、列在允許清單裡的支援事件。開始時另記輸入結構與重試對象，成功時記結果版本，
     /// 失敗或取消時把 handler 最後進入的步驟記到例外上。
     /// </summary>
     public async Task<object?> DispatchAsync(
@@ -182,8 +188,8 @@ public sealed class ActionDispatcher
                 throw new OperationCanceledException("作業已取消。", exception, cancellationToken);
             }
 
-            // 引擎錯誤映射：業務錯誤（JetActionException）原樣放行；其餘例外先過映射點，
-            // 可辨識者（登入失敗/唯一鍵衝突/死鎖/逾時）以明確錯誤碼取代裸 bridge_error。
+            // 資料庫錯誤的轉換：業務錯誤（JetActionException）原樣丟出；其他例外先交給建構時傳入的轉換函式，
+            // 認得的資料庫錯誤改用明確的錯誤碼，認不得的維持 bridge_error。
             if (exception is not JetActionException && _engineErrorTranslator?.Invoke(exception) is { } translated)
             {
                 throw translated;
@@ -280,8 +286,8 @@ internal static partial class DispatcherDiagnostics
 }
 
 /// <summary>
-/// WebView requestId → CancellationTokenSource 的在途登錄表。與唯一使用者 dispatcher 同檔，
-/// 維持 Bridge 扁平三檔；完成、失敗或取消後由 scope 移除並 dispose。
+/// 記錄進行中的請求：每個 WebView requestId 對應一個 CancellationTokenSource。它由 dispatcher 持有，
+/// 所以和 dispatcher 放在同一個檔案，Bridge 維持三個檔案；請求完成、失敗或取消後，由 scope 把它移除並 dispose。
 /// </summary>
 public sealed class RequestCancellationRegistry : IOperationCancellationService
 {
@@ -327,8 +333,8 @@ public sealed class RequestCancellationRegistry : IOperationCancellationService
     }
 
     /// <summary>
-    /// 將關窗視為終局訊號：取消目前所有 request，並回傳在途 scope 全部結束時完成的 task。
-    /// 後續 Begin 會直接拒絕，避免 CancelAll snapshot 後又放入未取消工作。
+    /// 把關閉視窗當成不會再恢復的訊號：取消目前所有請求，回傳的 Task 在進行中的 scope 全部結束時完成。
+    /// 之後的 Begin 一律拒絕，這樣 CancelAll 取消完當下的請求之後，不會再有沒被取消的工作加進來。
     /// </summary>
     public Task CancelAll()
     {
@@ -354,7 +360,7 @@ public sealed class RequestCancellationRegistry : IOperationCancellationService
         }
         catch (ObjectDisposedException)
         {
-            // scope 可能正好在 shutdown snapshot 後完成；drain task 仍會反映它已離開 registry。
+            // 這個 scope 可能在 CancelAll 列出請求之後剛好結束；它已從登錄表移除，等全部請求結束的 Task 照樣會完成。
             return Task.CompletedTask;
         }
     }
@@ -373,8 +379,8 @@ public sealed class RequestCancellationRegistry : IOperationCancellationService
         }
         catch (ObjectDisposedException)
         {
-            // 目標可能正好在 TryGetValue 後完成並由 scope 移除／dispose。
-            // 此時取消已沒有對象，依 operation.cancel 契約誠實回 requested:false。
+            // 目標可能在 TryGetValue 之後剛好完成，已由 scope 移除並 dispose。
+            // 這時已經沒有可以取消的對象，照 operation.cancel 的契約回 requested:false。
             return false;
         }
     }

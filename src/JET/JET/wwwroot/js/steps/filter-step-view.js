@@ -390,7 +390,7 @@
     if (FilterStep.viewState.highRiskSummaryOpen) { ensureHighRiskSummaryContent(container); }
   }
 
-  // 返回可見的查看按鈕，不聚焦已收起的操作選單；原列消失後改回同一位置的下一列、
+  // 返回可見的情境標題按鈕，不聚焦已收起的操作選單；原列消失後改回同一位置的下一列、
   // 末列則回前一列，清單歸零時回清單標題，不讓焦點落回 document body。
   function restoreScenarioRemovalFocus(container, index) {
     function target() {

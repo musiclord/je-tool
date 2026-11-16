@@ -4,16 +4,16 @@ using SpreadsheetFont = DocumentFormat.OpenXml.Spreadsheet.Font;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 匯出底稿的最小樣式表(WorkbookStylesPart 的 Stylesheet)+ cellXfs 索引常數。
+/// 匯出底稿用的樣式表，也就是 WorkbookStylesPart 的 Stylesheet，以及各樣式在 cellXfs 裡的索引常數。
 ///
-/// 為什麼用具名索引常數而非魔術數字:cellXfs 是 0-based 索引集合,cell 以 StyleIndex 指進來;
-/// 用 <see cref="Default"/>/<see cref="Bold"/>… 命名讓 emitter 讀得懂、避免錯位(介面誤用困難)。
+/// 儲存格用 StyleIndex 指向 cellXfs 裡從 0 起算的位置。這裡替每個位置取名，例如 <see cref="Default"/>、<see cref="Bold"/>，
+/// 寫出底稿的程式用名稱取用，就不會指錯位置。
 ///
-/// 子元素順序是硬約束:ISO/IEC 29500 的 CT_Stylesheet 規定 styleSheet 子序列為
-/// numFmts → fonts → fills → borders → cellStyleXfs → cellXfs(strongly-typed Stylesheet 會驗證順序)。
-/// fills 還有 Excel 慣例:索引 0 必為 PatternType.None、索引 1 必為 Gray125,自訂填色從索引 2 起,
-/// 否則 Excel 會判檔損並嘗試修復。本表只放三表(封面 ×2 + step5)+ 後續資料表會用到的少量樣式,
-/// 不預先加入用不到的樣式；需要新樣式時在此擴充並更新索引常數。
+/// 子元素的順序不能變：ISO/IEC 29500 的 CT_Stylesheet 規定 styleSheet 的子元素依序是
+/// numFmts、fonts、fills、borders、cellStyleXfs、cellXfs，OpenXML SDK 的 Stylesheet 類別會檢查這個順序。
+/// fills 另有 Excel 的慣例：索引 0 必須是 PatternType.None，索引 1 必須是 Gray125，自訂的底色從索引 2 開始，
+/// 否則 Excel 會判定檔案損壞並嘗試修復。這份樣式表只放兩張封面、step5 與各資料工作表會用到的樣式，
+/// 不預先加入用不到的；需要新樣式時在這裡增加，並更新索引常數。
 /// </summary>
 internal static class WorkingPaperStyles
 {
@@ -25,7 +25,7 @@ internal static class WorkingPaperStyles
     /// <summary>粗體、靠左靠上。封面 A1/A2、各表「說明：」標籤。</summary>
     public const uint Bold = 1;
 
-    /// <summary>粗體 + 自動換行 + 靠上。含換行的整段 boilerplate(JE WorkingPaper說明 B1)。</summary>
+    /// <summary>粗體、自動換行、靠上。含換行的整段固定說明文字用，例如「JE WorkingPaper說明」的 B1。</summary>
     public const uint BoldWrap = 2;
 
     /// <summary>一般、靠左靠上。封面固定說明段(A5/A6)。</summary>
@@ -43,13 +43,13 @@ internal static class WorkingPaperStyles
     /// <summary>金額：千分位且固定四位小數，對齊 JET 全域顯示精度。</summary>
     public const uint Amount = 6;
 
-    /// <summary>Legacy native date：以 Excel serial 儲存、固定 yyyy-mm-dd 顯示。</summary>
+    /// <summary>舊版 JET 的日期型態欄位：存成 Excel 的日期序號，固定用 yyyy-mm-dd 顯示。</summary>
     public const uint Date = 7;
 
-    /// <summary>Legacy native time：以一天的小數儲存、固定 hh:mm:ss 顯示。</summary>
+    /// <summary>舊版 JET 的時間型態欄位：存成一天的小數，固定用 hh:mm:ss 顯示。</summary>
     public const uint Time = 8;
 
-    /// <summary>Legacy Number 支援的最大 persisted decimal scale（對齊 System.Decimal）。</summary>
+    /// <summary>舊版 JET 的數值型態欄位可以保存的小數位數上限，和 System.Decimal 相同。</summary>
     public const int MaximumDecimalPlaces = 28;
 
     // ---- fonts 索引 ----
@@ -70,8 +70,8 @@ internal static class WorkingPaperStyles
     private const uint GroupedNumberStyleFirst =
         NumberStyleFirst + MaximumDecimalPlaces + 1;
 
-    // step4-1 的實物 ExportDatabase 基底外觀。既有 0..66 樣式仍由其他
-    // 工作底稿頁面共用，因此只能在尾端追加，不能改寫既有索引。
+    // step4-1 用的樣式，外觀照舊版 JET 用 ExportDatabase 匯出的明細頁。0 到 66 號樣式還有底稿其他頁面在用，
+    // 所以這些樣式只能加在最後面，不能改既有的索引。
     public const uint Step41Text =
         GroupedNumberStyleFirst + MaximumDecimalPlaces + 1;
     public const uint Step41Date = Step41Text + 1;
@@ -94,7 +94,7 @@ internal static class WorkingPaperStyles
     internal const double Step41FontSize = 12d;
     private const string YellowHex = "FFFFFF00"; // ARGB:不透明黃(#FFFF00)
 
-    /// <summary>組出整份 Stylesheet。一次性建構(styles.xml 恆小,DOM 即可,不需串流)。</summary>
+    /// <summary>組出整份 Stylesheet。styles.xml 很小，直接在記憶體裡建好整份，不需要逐段寫出。</summary>
     public static Stylesheet Build()
     {
         // 子元素順序固定:numFmts、fonts、fills、borders、cellStyleXfs、cellXfs(見類別註解)
@@ -107,28 +107,28 @@ internal static class WorkingPaperStyles
             BuildCellFormats());
     }
 
-    /// <summary>Legacy 一般 Number：依 persisted scale 固定顯示小數位，不套千分位。</summary>
+    /// <summary>舊版 JET 一般的數值型態欄位：依欄位保存的小數位數固定顯示，不加千分位。</summary>
     public static uint Number(int decimalPlaces)
     {
         ValidateDecimalPlaces(decimalPlaces);
         return NumberStyleFirst + checked((uint)decimalPlaces);
     }
 
-    /// <summary>Legacy signed amount：依 persisted scale 固定顯示小數位，並套千分位。</summary>
+    /// <summary>舊版 JET 帶正負號的金額：依欄位保存的小數位數固定顯示，並加千分位。</summary>
     public static uint GroupedNumber(int decimalPlaces)
     {
         ValidateDecimalPlaces(decimalPlaces);
         return GroupedNumberStyleFirst + checked((uint)decimalPlaces);
     }
 
-    /// <summary>step4-1 一般 Number：保留 finalized scale，套用實物基底字型與對齊。</summary>
+    /// <summary>step4-1 一般的數值型態欄位：小數位數照已確定的欄位定義，字型與對齊用 step4-1 明細頁的樣式。</summary>
     public static uint Step41Number(int decimalPlaces)
     {
         ValidateDecimalPlaces(decimalPlaces);
         return Step41NumberStyleFirst + checked((uint)decimalPlaces);
     }
 
-    /// <summary>step4-1 signed amount：保留 finalized grouping/scale 語意。</summary>
+    /// <summary>step4-1 帶正負號的金額：小數位數照已確定的欄位定義，並加千分位。</summary>
     public static uint Step41GroupedNumber(int decimalPlaces)
     {
         ValidateDecimalPlaces(decimalPlaces);

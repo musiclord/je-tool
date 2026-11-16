@@ -15,7 +15,7 @@ namespace JET.Tests.Architecture;
 /// <c>JET.Infrastructure</c> / <c>JET.Bridge</c>；
 /// 合成根 <c>JET</c>、Host 不在受測範圍，允許看見全部）。NetArchTest 以 Mono.Cecil 掃 IL 依賴，
 /// 因此連「在 handler 方法本體內 <c>new LocalXxxRepository()</c>」這種只在方法內部出現、
-/// 型別簽章看不到的違規也抓得到——把 code review 才守得住的邊界升級為 CI 可擋。
+/// 型別簽章看不到的違規也抓得到；各層之間的依賴方向由測試檢查，不只靠人工複核。
 ///
 /// 測試策略：以 <see cref="global::JET.Domain.JetActionException"/> 定位正式組件，避免誤載入測試組件本身。
 /// 每條 ShouldNot 都可能在「命名空間篩出空集合」時真空通過，故另立
@@ -167,7 +167,7 @@ public class LayerDependencyTests
     }
 
     /// <summary>
-    /// 正向對照（harness 自我驗證）：若分析引擎正常，Application 內「依賴 Domain」的型別必為非空
+    /// 正向對照，用來確認這組檢查本身有效：若分析引擎正常，Application 內「依賴 Domain」的型別必為非空
     /// （大量 handler 都注入並使用 Domain 契約）。這條若失敗，代表 NetArchTest 根本沒讀到 IL 依賴，
     /// 上面三條 ShouldNot 便全數形同虛設（空集合真空通過）。
     /// </summary>

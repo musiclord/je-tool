@@ -360,7 +360,7 @@
     }
 
     // 名稱不可和其他已儲存情境相同；後端仍是權威，這裡先在名稱欄旁說明，不必送出才知道。
-    // 另存副本時名稱會另附「（副本）」，不在這裡比對。
+    // 「另存為新情境」時名稱會另附「（副本）」，不在這裡比對。
     var duplicate = includeSavedScenarios && !skipDuplicateName ? duplicateScenarioName(draft) : '';
     var duplicateText = duplicate ? '已有同名情境「' + duplicate + '」，請改用其他名稱。' : '';
     if (duplicate) { nameError = duplicateText; }
@@ -441,7 +441,7 @@
     body.setAttribute('data-empty', '1');
   }
 
-  // 送出：另存副本、名稱與動機、預覽、儲存與就地標錯。
+  // 送出：另存為新情境、名稱與動機、預覽、儲存與就地標錯。
   function bindSubmission(container) {
     var copyEdit = container.querySelector('[data-action="save-scenario-copy"]');
     if (copyEdit) { copyEdit.addEventListener('click', function () {
@@ -466,7 +466,7 @@
       if (!scenarioGate(container, false)) { return; }
       // 預覽失敗時，只有把原因標到條件列才算就地顯示；沒有標到時在步驟上方顯示提示框。
       var previewMarked = 0;
-      Ui.run('預覽篩選情境', function () {
+      Ui.run('查看符合的傳票', function () {
         previewMarked = 0;
         var previewState = Store.getState();
         var draft = previewState.filter.draft;
@@ -551,7 +551,7 @@
     // 前端擋下、沒有送出的儲存不記「儲存篩選情境完成」。
     var SAVE_NOT_SENT = { notSent: true };
 
-    // 回傳儲存作業的 Promise，讓「儲存並開啟」這類對話框等儲存結束再決定要不要繼續。
+    // 回傳儲存作業的 Promise，讓「儲存並編輯」這類對話框等儲存結束再決定要不要繼續。
     // 只送這一個情境，儲存情境才不會卡住：其他已存情境由後端照資料庫原樣保留，
     // 開案時無法套用目前規則的情境不會擋住這次儲存。
     function saveScenario(asCopy) {

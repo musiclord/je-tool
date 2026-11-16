@@ -3,8 +3,9 @@ using JET.Bridge;
 namespace JET;
 
 /// <summary>
-/// Host composition 的明確生命週期擁有者。啟動探測維持非阻斷；Host 關閉時先取消並 join，
-/// 再釋放 logger，避免背景 producer 在安裝／測試資源開始拆除後回頭寫入。
+/// 管理 <c>AppCompositionRoot</c> 建好的 dispatcher 與資源，從啟動到關閉都由它負責。
+/// 啟動工作在背景執行，不擋住視窗出現。關閉時先取消啟動工作與進行中的請求並等它們結束，再釋放 logger；
+/// 這樣背景工作不會在安裝程式或測試開始清除資源之後回頭寫入。
 /// </summary>
 public sealed class JetApplicationRuntime : IDisposable
 {
@@ -37,8 +38,9 @@ public sealed class JetApplicationRuntime : IDisposable
     public ActionDispatcher Dispatcher { get; }
 
     /// <summary>
-    /// 原生視窗關閉的 fail-fast 閘：與 dispatcher 及 releaseLock handler 使用同一個 instance。
-    /// 呼叫端若取得 lease，須持有到 <see cref="Dispose"/> 返回後再釋放。
+    /// 關閉視窗前用來取得共用的閘；取不到時立刻回 null，不等待。
+    /// 這把閘和 dispatcher、<c>ProjectReleaseLockHandler</c> 用的是同一個。
+    /// 呼叫端取得 lease 之後，要持有到 <see cref="Dispose"/> 返回才釋放。
     /// </summary>
     internal IDisposable? TryAcquireShutdownExecutionLease() =>
         Dispatcher.TryAcquireExecutionLease();
@@ -88,9 +90,9 @@ public sealed class JetApplicationRuntime : IDisposable
         }
         finally
         {
-            // request 若未在 deadline 內 cooperative 結束，runtime 可以先讓視窗離場，
-            // 但不得先 dispose 本地鎖 handle／logger。等 registry 真正 drain 後才拆 owned resources，
-            // 防止仍在寫入的作業與第二程序同時持有案件。
+            // 請求如果沒有在等待時限內自己結束，runtime 可以先讓視窗關閉，
+            // 但不能先釋放本機鎖的 handle 與 logger。要等進行中的請求全部結束，才釋放 runtime 擁有的資源；
+            // 否則還在寫入的作業會和另一個 JET 程序同時持有同一個案件。
             if (requestsDrained.IsCompleted)
             {
                 _ownedResource.Dispose();

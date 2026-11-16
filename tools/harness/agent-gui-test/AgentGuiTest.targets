@@ -7,6 +7,9 @@
     這個組態帶測試接點與遠端偵錯，不能發布。唯一的例外是 Gui 路線帶 JetAgentGuiOwnedBundle=true，
     照 FolderProfile 打包成單一執行檔，輸出到這次執行在 artifacts/harness/runs 底下的資料夾，跑完就刪除。
   -->
+  <!-- Gui 路線建置的 JET.Tests 也要有只在開發儲存庫執行的測試，和其他路線建置出來的測試程式一致。 -->
+  <Import Project="$(MSBuildThisFileDirectory)..\development-repository-tests\DevelopmentRepositoryTests.targets" />
+
   <PropertyGroup Condition="'$(Configuration)' == 'AgentGuiTest'">
     <DefineConstants>$(DefineConstants);DEBUG;TRACE</DefineConstants>
     <Optimize>false</Optimize>

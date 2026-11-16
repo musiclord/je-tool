@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Pre-screening workbook planning 的 bounded input。N/A 只由已保存 summary 的
-/// typed reason 決定；provider count、worksheet 名稱與 OpenXML layout 不進入 request。
+/// 規劃預篩選報告時的輸入。規則是不是 N/A，只看已保存的預篩選摘要裡的原因；
+/// 資料庫查回的筆數、工作表名稱與 OpenXML 版面都不放進這份輸入。
 /// </summary>
 internal sealed record PrescreenReportRequest(
     string ProjectId,
@@ -15,7 +15,7 @@ internal sealed record PrescreenReportRequest(
     string? TrailingZerosNaReason,
     string? BlankDescriptionNaReason);
 
-/// <summary>五個具有 raw GL 明細的 legacy Pre-screening semantic family。</summary>
+/// <summary>預篩選報告裡會附 GL 明細的五類規則；報告沿用舊版 JET 的格式。</summary>
 internal enum PrescreenReportDetailKind
 {
     PrepPeriodApproval,
@@ -26,8 +26,8 @@ internal enum PrescreenReportDetailKind
 }
 
 /// <summary>
-/// Pending 只存在於 Plan 與 Execute 間；NotApplicable 不讀 count／detail；
-/// Omit 是已執行零筆；Emit 是 1–9,999 筆；SummaryOnly 是 10,000 筆起。
+/// 一類明細要怎麼寫進報告。Pending 只出現在 Plan 之後、還沒查回筆數之前；NotApplicable 不讀筆數也不讀明細；
+/// Omit 是有執行但 0 筆；Emit 是 1 到 9,999 筆；SummaryOnly 是 10,000 筆以上。
 /// </summary>
 internal enum PrescreenReportDetailDisposition
 {
@@ -38,7 +38,7 @@ internal enum PrescreenReportDetailDisposition
     SummaryOnly
 }
 
-/// <summary>單一 Pre-screening detail family 的 finalized workbook decision。</summary>
+/// <summary>預篩選報告裡一類明細的決定：是否適用、筆數，以及明細要怎麼寫。</summary>
 internal sealed record PrescreenReportDetailPlan(
     PrescreenReportDetailKind Kind,
     bool IsApplicable,
@@ -53,15 +53,14 @@ internal sealed record PrescreenReportDetailPlan(
 }
 
 /// <summary>
-/// Typed planning port 回傳的 set-based counts。Key 只使用 AuditCore semantic kind，
-/// 不讓 wire rule key 成為 lifecycle 契約。
+/// Infrastructure 用集合式 SQL 查回的各類明細筆數。字典的鍵用 AuditCore 的 <see cref="PrescreenReportDetailKind"/>，
+/// 不用 action 回應裡的規則鍵，這段流程就不依賴回應的字串。
 /// </summary>
 internal sealed record PrescreenReportPlanningFacts(
     IReadOnlyDictionary<PrescreenReportDetailKind, PrescreenHitCounts> Counts);
 
 /// <summary>
-/// Pre-screening workbook plan。Plan 綁定 applicability；Finalize 才依 row count
-/// 產生 ordered detail decision。
+/// 預篩選報告的計畫。Plan 先定下每類明細是否適用；Finalize 才依分錄筆數，照固定順序定出每類明細要怎麼寫。
 /// </summary>
 internal sealed record PrescreenReportPlan(
     PrescreenReportRequest Request,
@@ -80,8 +79,8 @@ internal sealed record PrescreenReportPlan(
 }
 
 /// <summary>
-/// Pre-screening workbook typed planning facts port。實作只取得 distinct voucher
-/// count 與 GL row count；明細 page 與 raw-row 回取不屬於此 port。
+/// 規劃預篩選報告時查筆數的介面，由 Infrastructure 實作。實作只查不重複的傳票張數與 GL 分錄筆數；
+/// 分頁讀明細與取回來源檔原始列不在這個介面。
 /// </summary>
 internal interface IPrescreenReportPlanningFactsPort
 {
@@ -94,7 +93,7 @@ public static partial class JetAuditProgram
 {
     private const long PrescreenDetailExclusiveMaximumRows = 10_000;
 
-    /// <summary>綁定保存 summary 的 N/A 狀態，不在 Plan 階段查 provider。</summary>
+    /// <summary>依已保存摘要的 N/A 原因定下每類明細是否適用；這一步不查資料庫。</summary>
     internal static PrescreenReportPlan Plan(PrescreenReportRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -129,8 +128,8 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// 依 row count finalize workbook policy：零筆 omit、1–9,999 emit、
-    /// 10,000 起 summary-only；N/A family 不要求也不接受 provider count。
+    /// 依分錄筆數決定每類明細要怎麼寫：0 筆不寫明細，1 到 9,999 筆寫明細，10,000 筆以上只寫摘要。
+    /// N/A 的類別不需要筆數；Infrastructure 如果回傳了 N/A 類別的筆數，會當成錯誤丟出。
     /// </summary>
     internal static PrescreenReportPlan Finalize(
         PrescreenReportPlan plan,

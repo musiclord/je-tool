@@ -8,8 +8,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Validation／INF／Pre-screening／Criteria 四份報告的 OpenXML SAX writer。
-/// 大型明細由既有規則 repository keyset 分頁，原始欄位以每頁 entry ids 回取，不把母體載入記憶體。
+/// 寫出資料驗證報告、資料可靠性抽樣清單、預篩選報告與條件篩選報告，資料列用 OpenXML 一列一列寫出。
+/// 大型明細用各項規則既有的分頁查詢一頁一頁讀，每一頁再用那一頁的 entry_id 取回原始欄位，不把整個母體載入記憶體。
 /// </summary>
 public sealed partial class LegacyReportWriter(
     ICompletenessAccountPageRepository completenessAccounts,
@@ -31,8 +31,7 @@ public sealed partial class LegacyReportWriter(
 {
     private const int DefaultProgressRowInterval = 10_000;
     private const uint ExcelMaxRow = ExcelWorksheetConstraints.MaxRows;
-    // Legacy JET Step4: only the criteria database's
-    // EntireColumn.AutoFit is suppressed above one million exported rows.
+    // 舊版 JET 的 Step4：只有條件篩選的明細在匯出超過一百萬列時不執行 EntireColumn.AutoFit。
     private const long LegacyCriteriaAutoFitMaximumRows = 1_000_000;
     private readonly uint _continuationRowLimit = ExcelMaxRow;
     private readonly int _progressRowInterval = DefaultProgressRowInterval;

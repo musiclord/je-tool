@@ -180,10 +180,9 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// Worksheet cols must precede sheetData. This DeleteOnClose spool bridges that
-    /// constraint without retaining source populations or starting a second query:
-    /// one source pass records only projected cells, styles, and rendered widths;
-    /// one bounded replay writes the worksheet.
+    /// 工作表的 cols 必須寫在 sheetData 前面，但欄寬要看過全部資料才知道。這裡用關閉時自動刪除的暫存檔解決：
+    /// 來源資料只讀一次，讀的時候只把每一格要顯示的內容與樣式寫進暫存檔，並記下各欄最寬的內容；
+    /// 讀完後再從暫存檔逐列讀回來寫進工作表。這樣不必把整個母體留在記憶體，也不必再查詢一次。
     /// </summary>
     private sealed class WorkingPaperDisplaySpool : IDisposable
     {

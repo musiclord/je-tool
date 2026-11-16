@@ -6,13 +6,12 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 開發用的 SQLite 檢視工具——**獨立唯讀路徑**（dev.db.* action 使用）：
-/// 以 ReadOnly 連線直讀磁碟檔，零副作用（不建 schema、不寫入），
-/// 看到的必然是已持久化資料。DB 檔不存在 → file_not_found（不建檔）。
-/// 「列出資料表」與「引擎版本」查詢走 <see cref="ISqlDialect.ListTablesSql"/>／
-/// <see cref="ISqlDialect.EngineVersionSql"/>；
-/// table 名稱一律先比對該清單白名單，識別子插值只使用白名單內的名稱（雙引號 + "" 跳脫）；
-/// LIMIT/OFFSET 參數化。
+/// 開發用的 SQLite 檢視工具，給 dev.db.* action 使用。它用自己的唯讀連線直接讀磁碟上的資料庫檔：
+/// 不建表、不寫入，看到的一定是已經寫進檔案的資料。資料庫檔不存在時回 file_not_found，不建檔。
+/// 「列出資料表」與「資料庫版本」兩句查詢取自 <see cref="ISqlDialect.ListTablesSql"/> 與
+/// <see cref="ISqlDialect.EngineVersionSql"/>。
+/// 呼叫端指定的資料表名稱要先出現在列出的資料表清單裡才會組進 SQL；組的時候加雙引號，名稱裡的雙引號寫成兩個。
+/// LIMIT 與 OFFSET 用參數傳。
 /// </summary>
 public sealed class LocalDevDatabaseInspector(ILocalProjectDatabase database) : IDevDatabaseInspector
 {

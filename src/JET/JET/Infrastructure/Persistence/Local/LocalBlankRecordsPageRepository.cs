@@ -4,9 +4,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 空值/期外日期紀錄 keyset 分頁。category 由白名單列舉決定 WHERE 述詞(空白判定由方言的去空白方法產生);
-/// 排序與游標由 <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.BlankRecords</c> 組出：沒有指定排序時依 entry_id 升冪，
-/// 指定排序時依排序欄再依 entry_id。limit 由注入的 <see cref="ISqlDialect"/> 出。
+/// 分頁讀出空值與期外日期的紀錄。要讀哪一類由 <see cref="BlankRecordCategory"/> 決定，每一類對應一段固定的 WHERE 條件；
+/// 判斷空白時用方言的去空白寫法。
+/// 排序與換頁條件由 <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.BlankRecords</c> 組出：沒有指定排序時依 entry_id 升冪，
+/// 指定排序時依排序欄再依 entry_id。LIMIT 的寫法取自 <see cref="ISqlDialect"/>。
 /// </summary>
 public sealed class LocalBlankRecordsPageRepository(ILocalProjectDatabase database)
     : IBlankRecordsPageRepository

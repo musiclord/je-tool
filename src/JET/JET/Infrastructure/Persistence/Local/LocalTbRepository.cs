@@ -8,8 +8,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// TB staging → target 投影。診斷日誌（dev-only）：一次性 clear/select 走 <see cref="DiagnosticDb"/>、
-/// transaction 走 scope；逐列 INSERT 不逐筆記事件，改以投影結束後一筆 projection.milestone 收斂。
+/// 確認 TB 配對時，把匯入暫存表 <c>pbc_tb</c> 的每一列轉寫進 <c>tb</c>，以下稱投影。
+/// 診斷日誌（開發用）：只執行一次的清除與查詢經 <see cref="DiagnosticDb"/> 記錄，交易的開始與結束也記一筆；
+/// 逐列的 INSERT 不一筆一筆記，改在投影結束後記一筆 projection.milestone。
 /// </summary>
 public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<LocalTbRepository>? logger = null)
     : ITbRepository
@@ -20,7 +21,7 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
 
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    /// <summary>TB target 批量寫入的欄位順序（<see cref="IBulkRowWriter"/> 依此對位；balance_id 由引擎補齊）。</summary>
+    /// <summary>批量寫入 tb 時的欄位順序，交給 <see cref="IBulkRowWriter"/> 的值照這個順序排；balance_id 由資料庫自動編號。</summary>
     private static readonly string[] TargetColumns =
         ["batch_id", "source_row_number", "account_number", "account_name", "change_amount_scaled"];
 
@@ -50,7 +51,7 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
-        // 重投影改寫 target,既有規則結果失效(投影失敗 rollback 時清除一併回退)。
+        // 重新投影會改寫 tb，已有的規則結果跟著失效，在同一個交易裡清除；投影失敗 rollback 時，這次清除也一起回復。
         await ResultReset.ClearWithinAsync(
             connection,
             transaction,
@@ -107,7 +108,7 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
                     continue;
                 }
 
-                // 值依 TargetColumns 順序對位（batch_id 每列供值；null 由寫入器轉 NULL）。
+                // 值照 TargetColumns 的順序放，每一列都要給 batch_id；null 由寫入器轉成 NULL。
                 await insert.AppendAsync(
                     [batchId, rowNumber, projected!.AccountNumber, projected.AccountName, projected.ChangeAmountScaled],
                     cancellationToken);

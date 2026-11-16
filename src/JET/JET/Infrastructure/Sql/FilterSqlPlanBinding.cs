@@ -5,7 +5,8 @@ using JET.AuditCore;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Infrastructure-only bridge from AuditCore's pure ordered values to provider commands.
+/// 把 <see cref="FilterSqlFragmentPlan"/> 裡依序排好的參數名稱與值綁到資料庫命令上。
+/// AuditCore 產生篩選 SQL 與參數值，但不接觸 DbCommand，所以綁定的動作放在 Infrastructure。
 /// </summary>
 internal static partial class FilterSqlPlanBinding
 {

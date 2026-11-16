@@ -433,7 +433,7 @@ def build_cells(model):
             cell(row, c1)['borders'].add('left')
             cell(row, c2)['borders'].add('right')
 
-    def write(ref, text, font=0):
+    def write(ref, text, font=0, align='center'):
         c1, r1, c2, r2 = parse_range(ref)
         target = cell(r1, c1)
         if target['text'] is not None:
@@ -441,7 +441,7 @@ def build_cells(model):
         target.update(text=text, font=font)
         for row in range(r1, r2 + 1):
             for column in range(c1, c2 + 1):
-                cell(row, column)['align'] = 'center'
+                cell(row, column)['align'] = align
         if (c1, r1) != (c2, r2):
             merges.append(ref)
 
@@ -454,7 +454,15 @@ def build_cells(model):
         for lane in model['lanes'].values():
             outline(lane['columns'][0], phase['rows'][0], lane['columns'][1], phase['rows'][1])
     for entry in model['data'].get('cells', []):
-        write(entry['range'], entry['text'])
+        # text 可以省略，只合併儲存格；align 填 left 時不置中；font 填 label 時用 Pass、Fail 標籤的字級。
+        align = entry.get('align', 'center')
+        if align not in ('center', 'left'):
+            stop('儲存格 %s 的 align 只能填 center 或 left。' % entry['range'])
+        font = entry.get('font', 'cell')
+        if font not in ('cell', 'label'):
+            stop('儲存格 %s 的 font 只能填 cell 或 label。' % entry['range'])
+        write(entry['range'], entry.get('text'), font=1 if font == 'label' else 0,
+              align=None if align == 'left' else 'center')
     for label in model['cell_labels']:
         write(label['cell'], label['text'], font=1)
     return cells, merges
@@ -544,15 +552,18 @@ def sheet_xml(model, cells, merges):
 
 
 def text_body(text, body_attributes, autofit, centered):
-    paragraphs = []
-    for line in text.split('\n'):
-        run = el('a:r', None,
-                 el('a:rPr', {'lang': 'zh-TW', 'altLang': 'en-US', 'sz': SHAPE_FONT_SIZE * 100},
-                    el('a:solidFill', None, el('a:srgbClr', {'val': '000000'})),
-                    el('a:latin', {'typeface': FONT}), el('a:ea', {'typeface': FONT})),
-                 el('a:t', text=line))
-        paragraphs.append(el('a:p', None, el('a:pPr', {'algn': 'ctr'}) if centered else None, run))
-    return el('xdr:txBody', None, el('a:bodyPr', body_attributes, el(autofit)), el('a:lstStyle'), *paragraphs)
+    # 文字裡的換行寫成同一個段落裡的分行，和公司範本相同。
+    def properties(tag):
+        return el(tag, {'lang': 'zh-TW', 'altLang': 'en-US', 'sz': SHAPE_FONT_SIZE * 100},
+                  el('a:solidFill', None, el('a:srgbClr', {'val': '000000'})),
+                  el('a:latin', {'typeface': FONT}), el('a:ea', {'typeface': FONT}))
+
+    paragraph = el('a:p', None, el('a:pPr', {'algn': 'ctr'}) if centered else None)
+    for index, line in enumerate(text.split('\n')):
+        if index:
+            paragraph.append(el('a:br', None, properties('a:rPr')))
+        paragraph.append(el('a:r', None, properties('a:rPr'), el('a:t', text=line)))
+    return el('xdr:txBody', None, el('a:bodyPr', body_attributes, el(autofit)), el('a:lstStyle'), paragraph)
 
 
 def drawing_xml(model):

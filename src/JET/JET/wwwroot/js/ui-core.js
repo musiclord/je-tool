@@ -9,11 +9,13 @@
 
   var Store = global.JetStore;
 
-  // 畫面暫時隱藏的功能。categoryHierarchy 是科目分類的上下層級與進階設定：第四步分類設定的「進階設定」（分類用途、上層分類）
-  // 與第五步科目分類條件的「選取依據」。第一個正式版先隱藏，分類設定只填名稱，做到和舊版 JET 的科目配對一樣。
-  // 前端程式、後端與資料都保留，之後的版本改成 true 就恢復。分類樹的縮排與展開箭頭、科目樹與條件讀回裡的「包含下層分類」
+  // 這個版本在畫面上隱藏的功能。categoryHierarchy 是科目分類的上下層級與進階設定：第四步分類設定的「進階設定」（分類用途、上層分類）
+  // 與第五步科目分類條件的「選取依據」。關著時分類設定只填名稱，做到和舊版 JET 的科目配對一樣；
+  // 前端程式、後端與資料都保留。分類樹的縮排與展開箭頭、科目樹與條件讀回裡的「包含下層分類」
   // 不看這個開關，看案件資料：有分類設了上層才出現，所以開關關著時，新案件看不到它們。
-  var FEATURES = { categoryHierarchy: false };
+  // scenarioTemplates 是第五步右側條件組合上方的「從情境範例開始」托盤與裡面的情境範例。關著時不畫托盤，
+  // 第五步只從條件總覽的「常用篩選條件」「預篩選」「欄位條件」三個分頁加入條件；範例的資料與套用的程式都保留。
+  var FEATURES = { categoryHierarchy: false, scenarioTemplates: false };
 
   // 步驟可以獨立載入；有動畫時由殼層排除淡出複本，沒有動畫時維持一般查找。
   function findLive(root, selector) {
@@ -22,8 +24,10 @@
   }
 
   // 所有日期輸入沿用建立案件的原生日期框；條件清單的多種日期寫法仍由貼上清單處理。
+  // 上限固定是 9999-12-31，呼叫端不能改：後端只接受四位數年份的日期，沒有上限時年份欄打得出六位數。
   function dateInputHtml(attributes) {
-    return '<input type="date" class="form__input date-input"' + controlAttributes(attributes) + '>';
+    return '<input type="date" class="form__input date-input"' +
+      controlAttributes(Object.assign({}, attributes, { max: '9999-12-31' })) + '>';
   }
 
   function controlAttributes(attributes) {
@@ -185,7 +189,7 @@
     // 攸關資料元素條件：舊式條件，只在舊情境讀回與編輯時出現，畫面不提供新增。
     { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field' },
     // 常用篩選條件專用的四種型別（group 是 common，不和其他型別同組）；特定尾數用欄位條件的預設值（FILTER_COMMON_PRESETS）。
-    // 型別標籤和卡片名稱統一。
+    // 型別標籤沿用卡片上的用語。
     { value: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入', group: 'common' },
     { value: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目', group: 'common' },
     { value: 'manualRevenueEntry', label: '收入之人工分錄', group: 'common' },
@@ -385,7 +389,7 @@
         { type: 'fieldValue', field: 'description', operator: 'isBlank', values: [], includeBlank: false, __valueType: 'text' },
         { type: 'fieldValue', join: 'OR', field: 'approvedBy', operator: 'isBlank', values: [], includeBlank: false, __valueType: 'text' }] }] },
     { key: 'preparerLargeAmount', label: '特定人員的大額分錄',
-      rationale: '指定建立人員且金額超過門檻的分錄；人員與門檻請自行填入。',
+      rationale: '指定建立人員且金額達到門檻的分錄；人員與門檻請自行填入。',
       groups: [{ join: 'AND', matchScope: 'row', conditions: [
         { type: 'fieldValue', field: 'createdBy', operator: 'in', values: [], includeBlank: false, __valueType: 'text' },
         { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'amount' }] }] },
@@ -420,7 +424,7 @@
           { type: 'voucher', quantifier: 'any', conditions: [
             { type: 'drCrOnly', drCr: 'credit' },
             { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: ['5550', '5551', '6501'], includeBlank: false, __valueType: 'text' }] }] },
-        { type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '300000', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'amount' }] }] },
+        { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '300000', values: [], includeBlank: false, amountBasis: 'absolute', __valueType: 'amount' }] }] },
     { key: 'preparationManualHoliday', label: '財報準備期間的人工假日分錄',
       rationale: '檢視財報準備日起核准、在假日以人工入帳的分錄，是否為期末的不當調整；每月 1 到 3 日的分錄不列入。',
       groups: [{ join: 'AND', matchScope: 'row', conditions: [
@@ -454,7 +458,8 @@
       { key: 'prepPeriodApproval', label: '財報準備日起核准', name: '財報準備日起核准的分錄', conditions: [{ type: 'prescreen', prescreenKey: 'prepPeriodApproval' }] }
     ] },
     { key: 'amount', field: 'amount', checks: [
-      { key: 'largeAmount', label: '大額', name: '大額分錄', focusValue: true, conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' }] },
+      // 內建的金額門檻一律含門檻本身，和情境範例裡兩個大額分錄的範例相同。
+      { key: 'largeAmount', label: '大額', name: '大額分錄', focusValue: true, conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', amountBasis: 'absolute' }] },
       // 一條條件；已儲存情境裡「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組照舊能讀。
       // 個數留空，加入時帶由 GL 算出的個數，見 FilterValues.zeroRunDefault。
       { key: 'trailingZeros', label: '尾數連續多個 0', name: '金額尾數連續多個 0', conditions: [
@@ -1316,7 +1321,7 @@
     root.appendChild(status);
     var retry = document.createElement('button');
     retry.type = 'button'; retry.className = 'btn btn--ghost btn--tiny';
-    retry.textContent = '重試'; retry.hidden = true; retry.setAttribute('data-collapsible', '');
+    retry.textContent = '重新載入'; retry.hidden = true; retry.setAttribute('data-collapsible', '');
     // 行內按鈕收高度時，所在的匿名行框還留一行高，收到最後會跳一下；改成區塊排版，整行跟著收。
     // [hidden] 的 display:none 帶 !important，這裡的行內樣式不會讓它藏不起來。
     if (retry.style) { retry.style.display = 'block'; retry.style.width = 'fit-content'; }
@@ -1399,7 +1404,7 @@
           state.busy = false;
           if (table) { table.setAttribute('aria-busy', 'false'); }
           if (persistent) { state.refresh(false); } else { refresh(false); }
-          // 讀取中按下的「查看」或「清除」在這裡接著執行；成功或失敗都會走到這裡。
+          // 讀取中按下的「搜尋」或「清除」在這裡接著執行；成功或失敗都會走到這裡。
           if (persistent) { state.runQueuedSearch(); } else { runQueuedSearch(); }
         });
     }
@@ -1536,7 +1541,7 @@
     var missing = [];
     switch (index) {
       case 1:
-        if (!state.project) { missing.push('建立或載入案件'); }
+        if (!state.project) { missing.push('建立或開啟案件'); }
         break;
       // 沒有 TB 也能往下做，逐科目比對由資料驗證寫無法執行和原因，審計員在底稿說明。
       case 2:
@@ -1814,7 +1819,7 @@
   // 只是檢視的展開（例如第二步的「預覽」與第五步的「查看彙總」）是淡底小標籤，箭頭在字前面（app.css 的 .jet-view--expand）。
   // 清單與表格的列整列可點（.row-toggle，例如規則清單、已儲存情境與傳票表），箭頭同樣在字前面，再點一次就收起。
   // 打開右側資料預覽不是就地展開，一律寫「資料預覽」，字後面接面板圖示（.jet-view--preview）。
-  // 會改設定或資料的展開，例如「進階設定」與匯入工作的「操作」，仍是按鍵，字後面接箭頭（.jet-disclosure）。
+  // 會改設定或資料的展開，例如「進階設定」與匯入工作的「匯入」「設定」「更改」，仍是按鍵，字後面接箭頭（.jet-disclosure）。
   // 同功能的元件只留一套；點傳票分錄的標題就能收合；兩種檢視用圖示區分。
   function disclosureAttributes(open, panelId) {
     return ' aria-expanded="' + (open ? 'true' : 'false') + '"' + (panelId ? ' aria-controls="' + esc(panelId) + '"' : '');
@@ -2230,7 +2235,7 @@
       return;
     }
     if (!pendingDepartureConfirmed && pendingAccountCategoryCount()) {
-      confirmPendingAccountCategories('離開案件後，這些改動不會保留。', '不儲存，直接離開').then(function (proceed) {
+      confirmPendingAccountCategories('回首頁後，這些改動不會保留。', '不儲存，直接回首頁').then(function (proceed) {
         if (proceed) { departAfterPendingConfirmed(backToPickerFromHeader); }
       });
       return;
@@ -2441,7 +2446,7 @@
 
     Store.setView('workflow');
 
-    // 建立或載入案件時套用後端狀態，但停在目前步驟，不自行推進到匯入。
+    // 建立或開啟案件時套用後端狀態，但停在目前步驟，不自行推進到匯入。
     if (options && options.stayOnCurrentStep) {
       return;
     }
@@ -2619,7 +2624,7 @@
     container.querySelectorAll('[data-open-report]').forEach(function (button) {
       button.addEventListener('click', function () {
         var reportId = button.getAttribute('data-open-report');
-        run('顯示報告檔案', function () {
+        run('開啟資料夾', function () {
           return global.JetApi.hostOpenFolder({ reportId: reportId });
         });
       });

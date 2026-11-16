@@ -123,8 +123,8 @@ public static class FilterConditionLabels
     public const string TextSetRemoveAsciiSpaces = "移除半形空白";
 
     /// <summary>
-    /// typed 條件 operator → 中文標籤。後端 renderer 是唯一權威輸出；typed 前端 UI 於
-    /// 「前端工作流整合」階段落地時必須鏡像本表並補 mirror 守衛，本階段尚無前端鏡像。
+    /// typed 條件 operator → 中文標籤。後端 renderer 是唯一權威輸出；前端 <c>ui-core.js</c> 的三張比較方式選單
+    /// （<c>TYPED_TEXT_OPERATORS</c>、<c>TYPED_DATE_OPERATORS</c>、<c>TYPED_AMOUNT_OPERATORS</c>）每個鍵的標籤都和本表相同。
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> TypedOperators =
         new Dictionary<string, string>(StringComparer.Ordinal)

@@ -185,7 +185,8 @@ internal static partial class GuiScenarios
             await Choose(".rule-row [data-value-kind]", "above");
             await Fill(".rule-row [data-value-key=\"value\"]", "100");
             await Check("draft.groups[0].conditions[0].operator==='greaterThan' && draft.groups[0].conditions[0].value==='100'");
-            await Click(".rule-row [data-value-inclusive]");
+            // 含不含門檻直接寫在篩選方式的選項上，沒有勾選框：改選「大於或等於」，已填的門檻保留。
+            await Choose(".rule-row [data-value-kind]", "greaterThanOrEqual");
             await Check("draft.groups[0].conditions[0].operator==='greaterThanOrEqual'");
             await Click(".rule-row [data-value-options] > summary");
             // 2026-10-14 篩選條件改成每條只表達一件事後，內建「金額」的「含正負號」已停用（2026-10-30 起連停用說明一起拿掉，裁定 2026-10-30-25），
@@ -245,6 +246,10 @@ internal static partial class GuiScenarios
             await AddField("field:drCr");
             await Check("document.querySelector('.filter-rule-heading strong').textContent==='借貸別' && !document.querySelector('.rule-row__controls').textContent.includes('是') && document.querySelector('[data-rule-bind=drCr]').getBoundingClientRect().top>=document.querySelector('.filter-rule-heading').getBoundingClientRect().bottom+7");
             await Click("[data-action=\"remove-rule\"]");
+            // 「從情境範例開始」在這個版本隱藏（裁定 2026-11-16-01）：這個情境到這裡還沒打開開關，條件組合照常畫出來，
+            // 上方沒有托盤、畫面上沒有任何範例，條件總覽是「常用篩選條件」「預篩選」「欄位條件」三個分頁。
+            // 下一行的 OpenExampleListAsync 才把開關打開。
+            await Check("window.JetUi.FEATURES.scenarioTemplates===false && !!document.querySelector('.scenario-builder') && !document.querySelector('.filter-template-tray') && !document.querySelector('[data-template-key]') && Array.from(document.querySelectorAll('[data-condition-source]')).map(tab=>tab.textContent.trim()).join('|')==='常用篩選條件|預篩選|欄位條件'");
             await OpenExampleListAsync(cdp, Click, ct);
             await ApplyExampleAsync(cdp, "cashDebitNonCashCredit", Click, ct);
             await Check("document.querySelector('[data-template-key=cashDebitNonCashCredit]').title==='借方為現金，而整張傳票沒有貸方現金的分錄。' && draft.rationale==='借方為現金，而整張傳票沒有貸方現金的分錄。' && document.querySelector('[data-template-key=cashCreditNonCashDebit]').title==='貸方為現金，而整張傳票沒有借方現金的分錄。'");

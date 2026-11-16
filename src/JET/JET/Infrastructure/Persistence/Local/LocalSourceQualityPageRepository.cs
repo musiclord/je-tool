@@ -5,9 +5,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// current successful generation source-quality page。
-/// target 保存全部 raw projection rows，所以 null post date 即使被 period 排除仍會列出；
-/// join staging/source metadata 只為還原實際來源列號與來源標籤。
+/// 分頁讀出目前這份 GL 的來源資料品質明細，也就是總帳日期空白的分錄。
+/// gl 保存投影出來的每一列，包括未納入測試的；所以總帳日期空白的列即使因查核期間被排除，仍然列得出來。
+/// JOIN 匯入暫存表與來源檔紀錄，只是為了取回來源檔裡實際的列號與來源名稱。
 /// </summary>
 public sealed class LocalSourceQualityPageRepository(ILocalProjectDatabase database)
     : ISourceQualityPageRepository

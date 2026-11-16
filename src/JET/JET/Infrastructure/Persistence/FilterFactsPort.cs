@@ -4,8 +4,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Production filter lifecycle port. The provider-specific repositories in the same repository set remain the
-/// compatibility execution mechanisms while AuditCore owns the typed plan and result.
+/// 照 AuditCore 排好的 <see cref="FilterPlan"/> 執行篩選：預覽交給 <see cref="IFilterHitRepository"/>，
+/// 儲存、移除與重新檢查情境交給 <see cref="IFilterCommitRepository"/>，結果包成 <see cref="FilterFacts"/> 交回。
+/// 要做哪一種、要不要算整張傳票的分錄數都由計畫決定，這裡不做判斷。
 /// </summary>
 internal sealed class FilterFactsPort(
     IFilterHitRepository previewRepository,

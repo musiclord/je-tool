@@ -1,8 +1,8 @@
 @startuml
-' JET 1.0.0.0 實體關聯圖（ERD）。範圍：案件資料庫 jet.db（SQLite，每個案件一個檔案）的全部資料表與欄位。
+' JE Tool 1.0.0.0 實體關聯圖（ERD）。範圍：案件資料庫 jet.db（SQLite，每個案件一個檔案）的全部資料表與欄位。
 ' 表示法：資訊工程（Information Engineering）表示法。欄位前的 * 表示主鍵或 NOT NULL，<<PK>> 是主鍵，<<UK>> 是唯一索引。
 ' 關聯線標示 SQL 查詢使用的關聯欄位，資料庫未宣告外鍵；「a = b」表示子資料表的 a 欄對應父資料表的 b 欄。實線表示關聯欄位屬於子資料表的主鍵，虛線表示不屬於。
-title JET 實體關聯圖（ERD）：案件資料庫
+title JE Tool 實體關聯圖（ERD）：案件資料庫
 
 hide circle
 
@@ -296,4 +296,5 @@ filter_scenario ||--o{ filter_hit_condition : scenario_id
 gl ||--o{ filter_hit : entry_id
 gl ||--o{ filter_hit_condition : entry_id
 gl ||--o{ inf_sample : entry_id
+account_mapping |o..o{ gl : account_number
 @enduml

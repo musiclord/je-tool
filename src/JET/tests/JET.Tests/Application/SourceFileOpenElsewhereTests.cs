@@ -121,7 +121,7 @@ public sealed class SourceFileOpenElsewhereTests
         Assert.Equal([OpenElsewhere("gl-repeat.csv")], OpenElsewhereWarnings(appended));
     }
 
-    /// <summary>使用者回報的情境：第四步「用 Excel 配對」選到 Excel 正開著的檔案，先列工作表再匯入，兩步都要讀得到。</summary>
+    /// <summary>第四步「用 Excel 配對」選到 Excel 正開著的檔案，先列工作表再匯入，兩步都要讀得到。</summary>
     [Fact]
     public async Task AccountMappingImport_WorkbookHeldLikeExcel_ListsSheetsImportsAndWarns()
     {

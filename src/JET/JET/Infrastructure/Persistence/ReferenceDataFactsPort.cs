@@ -4,8 +4,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// AuditCore reference-data plans 到同一個資料庫組裡各 store 的 typed facts adapter。
-/// Store 仍擁有交易、bulk write、projection rollback 與結果失效的技術執行。
+/// 照 AuditCore 排好的計畫，把科目配對、授權編製人員清單、國定假日與補班日的匯入交給各自的 store 執行；
+/// 每週休息日改了以後，請 <see cref="ICalendarStore"/> 讓受影響的結果失效。
+/// 交易、大量寫入、失敗時回復與結果失效都在 store 裡處理。
 /// </summary>
 internal sealed class ReferenceDataFactsPort(
     IAccountMappingImportPersistence accountMappingPersistence,

@@ -48,7 +48,7 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
 
     public Task ReleaseAsync(string projectId, string principal, CancellationToken cancellationToken)
     {
-        // OS handle 沒有租期；只要程序仍活著且未 release，排他鎖就持續有效。
+        // 鎖是作業系統的檔案 handle，沒有到期時間；程序還在、又沒有呼叫這裡釋放，鎖就一直有效。
         ReleaseOwned(GetLockPath(projectId), principal);
         return Task.CompletedTask;
     }

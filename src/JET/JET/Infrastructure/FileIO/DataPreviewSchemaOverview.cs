@@ -4,17 +4,17 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 「資料庫結構總覽」資料集的列建構——把 <see cref="JetSchemaCatalog"/> 的曝光條目轉成預覽列。
+/// 產生「資料庫結構總覽」資料集的列：把 <see cref="JetSchemaCatalog"/> 裡對外顯示的資料表各轉成一列。
 ///
-/// 為什麼放 Infrastructure：這是 <see cref="IDataPreviewRepository"/> 實作的細節，
-/// 不是 Domain 契約。rows 全來自 catalog metadata（DataView + StructureOnly，Hidden 不列），
+/// 放在 Infrastructure 是因為它只是 <see cref="IDataPreviewRepository"/> 實作的一部分，不是 Domain 定義的介面。
+/// 每一列都來自 JetSchemaCatalog 的定義，只取 Audience 是 DataView 或 StructureOnly 的資料表，Hidden 的不列；
 /// 不查任何資料庫。
 /// </summary>
 internal static class DataPreviewSchemaOverview
 {
     /// <summary>
-    /// 由 catalog 宣告序產生結構總覽列。每列：正準名 / 實體名 / 層 / 曝光 / 可瀏覽。
-    /// 列 = catalog 中 audience 為 DataView 或 StructureOnly 的條目（Hidden 排除）。
+    /// 依 JetSchemaCatalog 宣告的順序產生結構總覽的列。每列五欄，依序是 CanonicalName、PhysicalName、Layer、Audience，
+    /// 以及能不能逐列瀏覽。只列 Audience 是 DataView 或 StructureOnly 的資料表，Hidden 的排除。
     /// </summary>
     public static DataPreviewResult Build(IReadOnlyList<string> columns)
     {

@@ -45,12 +45,14 @@ function Invoke-JetGitLines {
 function Get-JetTestAssertionDrift {
     param([Parameter(Mandatory = $true)] [string] $RepositoryRoot)
 
-    # 比對 HEAD 與工作樹在 src/JET/tests 下的差異，回答「這次改動有沒有拿掉斷言、刪掉測試或加上 Skip」。
+    # 比對 HEAD 與工作樹在 src/JET/tests 與 tools/harness/development-repository-tests 下的差異，
+    # 回答「這次改動有沒有拿掉斷言、刪掉測試或加上 Skip」。
     # 這是警示不是判定：數字大於 0 只表示要說明原因，不會讓命令失敗。ReleaseCandidate 快照沒有 HEAD，
     # 或環境沒有 git 時，記為未量測。
     try {
         $diff = Invoke-JetGitLines -RepositoryRoot $RepositoryRoot -Arguments @(
-            'diff', 'HEAD', '--unified=0', '--no-color', '--', 'src/JET/tests')
+            'diff', 'HEAD', '--unified=0', '--no-color', '--',
+            'src/JET/tests', 'tools/harness/development-repository-tests')
     }
     catch {
         return [ordered]@{ measured = $false; reason = 'git_unavailable' }

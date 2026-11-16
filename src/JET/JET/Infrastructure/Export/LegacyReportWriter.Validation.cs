@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 
 public sealed partial class LegacyReportWriter
 {
-    // 舊版 JET：Validation summary 的六個條件式黃底。
+    // 舊版 JET 在資料驗證報告摘要頁的六個格子依條件加上的黃色底。
     private static readonly WorkbookStylePatch ValidationSummaryDifferenceFill =
         new(FillForegroundArgb: "FFFFFF00");
 
@@ -162,7 +162,7 @@ public sealed partial class LegacyReportWriter
             "V_Report 4", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
 
-        // V5 是 Legacy 固定全科目調節表，不受異常明細門檻影響。
+        // V_Report 5 是舊版 JET 固定產出的全科目調節表，不受異常明細的門檻影響。
         await EmitCompletenessReportAsync(
             document,
             sheets,
@@ -343,8 +343,8 @@ public sealed partial class LegacyReportWriter
                             ? ValidationSummaryDifferenceFill
                             : null);
                 }
-                // public summary 的 distinct voucher count 維持不變；raw joined count
-                // 只存在 finalized plan，專供 V6 工作簿的明細列數上限檢查。
+                // D25 寫的是借貸不平的傳票張數，和驗證摘要的數字相同。這些傳票的分錄總筆數只記在 ValidationReportPlan 裡，
+                // 專門用來檢查 V_Report 6 的明細列數有沒有超過上限。
                 cells.SetNumber(
                     "D25",
                     projection.UnbalancedVoucherCount,
@@ -417,8 +417,8 @@ public sealed partial class LegacyReportWriter
                 var firstRow = new List<Cell>();
                 if (mappingMetadata is not null)
                 {
-                    // Hidden round-trip metadata must never inherit a wrapped visible
-                    // header style; a long JSON payload would otherwise auto-expand row 1.
+                    // 隱藏的配對資料用 0 號樣式，不能沿用看得見的表頭那種自動換行的樣式；
+                    // 不然很長的 JSON 會把第 1 列撐高。
                     firstRow.Add(sheet.TextCell(1, 6, MappingMetadataFormat.Marker, 0));
                     firstRow.Add(sheet.NumberCell(1, 7, MappingMetadataFormat.CurrentVersion, 0));
                     firstRow.Add(sheet.TextCell(1, 8, mappingMetadata, 0));
@@ -532,9 +532,9 @@ public sealed partial class LegacyReportWriter
             cancellationToken).ConfigureAwait(false);
         if (page.Rows.Count == 0)
         {
-            // 保存的 run 說有差異科目，但目前資料查不到任何一列：這是來源資料已變動，
-            // 不是範本損壞。錯誤碼比照 MissingRawGlSource，避免 FillDirect 的
-            // package catch 把資料不一致誤報成「範本可能損壞」。
+            // 保存的驗證結果說有差異科目，但目前的資料查不到任何一列，表示來源資料在驗證之後變了，不是範本損壞。
+            // 錯誤碼和 MissingRawGlSource 一樣用 StaleResult；如果丟 InvalidDataException，
+            // 填範本的外層會把它回報成無法填入內附的範本。
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
                 "完整性差異科目已與目前資料不一致，請重新執行資料驗證後再產出報告。");

@@ -68,6 +68,57 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.True(sheet.Cell("T53").IsEmpty());
     }
 
+    // step2 樣本以上的說明、測試程序、三則註與欄標都是內嵌範本的原字，JET 不另外寫。
+    // Demo 沒有配對傳票核准人員，所以 L51 也是範本原字。
+    [Fact]
+    public async Task Step2_TextAndMergesAboveTheSamples_MatchTheEmbeddedTemplate()
+    {
+        using var host = new HandlerTestHost();
+        var ctx = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("validate.run");
+
+        using var template = new XLWorkbook(
+            Path.Combine(AppContext.BaseDirectory, "Templates", "WorkingPaper.xlsx"));
+        using var workbook = await WriteDemoAndReadAsync(host, ctx.ProjectId);
+        var expected = template.Worksheet(Step2Sheet);
+        var actual = workbook.Worksheet(Step2Sheet);
+
+        static string Text(IXLCell cell) => cell.GetString().Replace("\r\n", "\n", StringComparison.Ordinal);
+        var different = new List<string>();
+        for (var row = 3; row <= 52; row++)
+        {
+            for (var column = 1; column <= 20; column++)
+            {
+                if (Text(expected.Cell(row, column)) != Text(actual.Cell(row, column)))
+                {
+                    different.Add(
+                        $"{actual.Cell(row, column).Address}：範本「{Text(expected.Cell(row, column))}」，底稿「{Text(actual.Cell(row, column))}」");
+                }
+            }
+        }
+        Assert.Empty(different);
+
+        // 說明標題、註 3 的位置與借貸代號、帶號金額兩欄的欄標，逐字寫出來核對。
+        Assert.Equal("證實測試 - 會計分錄及其他調整", Text(actual.Cell("A3")));
+        Assert.Equal("說明：", Text(actual.Cell("A6")));
+        Assert.True(actual.Cell("C16").IsEmpty());
+        Assert.Equal("註3:", Text(actual.Cell("B46")));
+        Assert.True(actual.Cell("B47").IsEmpty());
+        Assert.Equal("借貸方\n代號\n(若有)", Text(actual.Cell("E51")));
+        Assert.Equal("金額 - 借(貸)", Text(actual.Cell("F51")));
+        Assert.Equal("分錄來源或\n人工/自動分錄判斷", Text(actual.Cell("J51")));
+
+        static string[] MergesAboveTheSamples(IXLWorksheet sheet) => sheet.MergedRanges
+            .Where(range => range.RangeAddress.FirstAddress.RowNumber <= 52)
+            .Select(range => range.RangeAddress.ToString()!)
+            .OrderBy(address => address, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(MergesAboveTheSamples(expected), MergesAboveTheSamples(actual));
+
+        // 借貸代號只有一個字，E 欄的寬度照範本。
+        Assert.Equal(expected.Column(5).Width, actual.Column(5).Width, 6);
+    }
+
     [Fact]
     public async Task Step2_LateSampleLongText_UsesFullDataWidthsAndSingleLineStyles()
     {

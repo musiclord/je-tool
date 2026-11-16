@@ -57,7 +57,7 @@ public sealed class AuditProgramParityTests
         Assert.All(actions, action => Assert.Contains(action, host.Dispatcher.RegisteredActions));
     }
 
-    // 自 AuditCore/ProgramGraphTests 搬來：舊的遷移狀態型別已在最後一次切換後移除，不得再出現。
+    // 遷移狀態型別 ProgramMigrationState 不得出現在產品組件裡。
     [Fact]
     public void MigrationStateType_IsRemovedAfterFinalGate()
     {

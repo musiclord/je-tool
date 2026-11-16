@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    只有開發儲存庫才跑得了的測試：用真實案件與舊版輸出比對的程式，以及要讀 docs、tools、data、legacy 或 Git 資訊的檢查。
+    驗證框架建置 src/JET/JET.slnx 時用 /p:CustomBeforeMicrosoftCommonTargets 帶入這個檔案，
+    把這個資料夾底下的 .cs 編進同一個 JET.Tests，類別名稱與命名空間和放在 src/JET 時相同。
+    測試專案本身不引用這裡的檔案，所以只有 src/JET 時照樣建置得起來。
+    條件寫專案名稱：建置方案時這個檔案也會帶進 JET，JET 不受影響。
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'JET.Tests'">
+    <Compile Include="$(MSBuildThisFileDirectory)**\*.cs" Link="DevelopmentRepository\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- GuiScenarioCoverageTests 核對 Gui 驅動程式讀回底稿的檢查，所以一併編譯驅動程式的那一個原始檔。 -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\gui-driver\GuiWorkingPaperInspection.cs" Link="DevelopmentRepository\GuiDriver\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

@@ -399,13 +399,15 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
 
 // 進階篩選操作測試的夾具。前半用合成 DOM 繪出正式第五步並以真實點擊操作；
 // 後半直接呼叫正式函式核對命名、送出形狀與預覽提示。名稱與動機的預期值逐字寫死，不由被測程式算出。
-function filterOperationFixture({ saved = [] } = {}) {
+// features 是這個版本隱藏的功能開關（Ui.FEATURES），在第一次畫出第五步之前設定；沒給時照正式程式的預設。
+function filterOperationFixture({ saved = [], features = {} } = {}) {
   const dom = treeDom(), commits = [];
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const context = vm.createContext({ window, document: dom.document });
   // 第五步分成五個檔案：前四個先載入，主檔的內部函式從 FilterStep 取。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  Object.assign(window.JetUi.FEATURES, features);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
     filterStepExposure('exposedFilter', ['syncViewState', 'render'], 'view: () => FilterStep.viewState')), context);
   const store = window.JetStore, api = window.exposedFilter;
@@ -444,8 +446,8 @@ function remapFilterPreviewFixture() {
 
 // wf 另有自己的 remapAppFixture，原因見檔頭。
 // 本模組補：options 原樣交給 usageJourneyFixture（例如 queueTimers、clock）。畫面放入 index.html 頁首的正式按鈕
-// （總覽、開啟案件資料夾、回首頁、退出，初始照 index.html 的 hidden），wf 那一份只有兩個空按鈕；
-// 第一段切片延伸到 `var cancelOperationBtn = `，「開啟案件資料夾」也照正式程式綁定；另掛出 render，
+// （總覽、開啟資料夾、回首頁、退出，初始照 index.html 的 hidden），wf 那一份只有兩個空按鈕；
+// 第一段切片延伸到 `var cancelOperationBtn = `，「開啟資料夾」也照正式程式綁定；另掛出 render，
 // 並補上 window.CSS.escape 與 document.body，讓整個 render() 可以在 vm 執行。
 // 根節點是 data-jet-root，中欄是裡面的 <section data-bind="content">；f.draw() 也畫進這個中欄，不會清掉頁首與案件清單。
 function remapAppFixture(options = {}) {
@@ -994,7 +996,7 @@ function fullAppFixture({ autoReply = { 'log.append': {} } } = {}) {
 async function bootFullApp(projects = [], options) {
   const f = fullAppFixture(options);
   f.reply('system.ping', { devToolsEnabled: false }); await flush();
-  // 正式後端一定回身分物件，只有帳號全名與短名。
+  // 正式後端一定回身分物件，只有合格化的 Windows 帳號與帳號短名。
   f.reply('system.whoAmI', { principal: 'synthetic.auditor', shortName: '合成審計員' });
   f.reply('project.listLocal', { projects }); await flush();
   return f;

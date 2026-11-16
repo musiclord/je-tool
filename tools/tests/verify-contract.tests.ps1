@@ -376,6 +376,9 @@ try {
     Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot `
                     'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityCrossCaseVerification.cs'))) `
         -Message 'The retired two-case PrivateParity driver must not return.'
+    Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot `
+                    'tools/harness/development-repository-tests/Infrastructure/LegacyAuditParityCrossCaseVerification.cs'))) `
+        -Message 'The retired two-case PrivateParity driver must not return next to the development-repository tests.'
     foreach ($retiredLegacyBatch in @(
             'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityReportBoundaryCorrectionBatch.cs',
             'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage6Audit.cs',
@@ -385,6 +388,9 @@ try {
             'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage7FieldInfoCorrectionBatch.cs')) {
         Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredLegacyBatch))) `
             -Message "$retiredLegacyBatch is an old batch correction and must not return."
+        $retiredPathAfterMove = $retiredLegacyBatch.Replace('src/JET/tests/JET.Tests/', 'tools/harness/development-repository-tests/')
+        Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredPathAfterMove))) `
+            -Message "$retiredPathAfterMove is an old batch correction and must not return."
     }
     foreach ($safeLegacyOracleClass in @(
             'JET.Tests.Infrastructure.LegacyAuditParityComparatorTests',
@@ -428,6 +434,9 @@ try {
             'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityScenarioShapeArtifactTests.cs')) {
         Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredLegacyOraclePath))) `
             -Message "$retiredLegacyOraclePath must not return as a new PrivateCase dependency."
+        $retiredPathAfterMove = $retiredLegacyOraclePath.Replace('src/JET/tests/JET.Tests/', 'tools/harness/development-repository-tests/')
+        Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredPathAfterMove))) `
+            -Message "$retiredPathAfterMove must not return as a new PrivateCase dependency."
     }
     $scenarioNames.Add('LegacyOracleBoundary')
 
@@ -706,6 +715,29 @@ try {
         Assert-Contract -Condition (-not $productProjectText.Contains('AgentGuiTest', [StringComparison]::Ordinal)) `
             -Message "$productProject must not define the AgentGuiTest configuration; the harness build extension adds it."
     }
+    # 裁定 2026-11-13-15：只有開發儲存庫才跑得了的測試放在驗證框架底下，建置時由建置設定檔編進同一個 JET.Tests。
+    # 每一條建置 JET 或 JET.Tests 的路線都要帶入建置設定檔，否則那條路線會默默少跑這些測試。
+    Assert-Contract -Condition (-not [string]::IsNullOrWhiteSpace([string]$registry.testSettings.developmentRepositoryBuildExtension)) `
+        -Message 'lanes.json must name the development-repository test build extension.'
+    $developmentTestsExtensionText = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        ([string]$registry.testSettings.developmentRepositoryBuildExtension)) -Raw -Encoding utf8
+    Assert-Contract -Condition ($developmentTestsExtensionText.Contains("'`$(MSBuildProjectName)' == 'JET.Tests'", [StringComparison]::Ordinal)) `
+        -Message 'The development-repository test build extension must add sources to JET.Tests only.'
+    Assert-Contract -Condition ($guiBuildExtensionText.Contains('development-repository-tests\DevelopmentRepositoryTests.targets', [StringComparison]::Ordinal)) `
+        -Message 'The Gui build extension must import the development-repository tests so every lane builds the same JET.Tests.'
+    $harnessStepsText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/JetHarness.Steps.ps1') -Raw -Encoding utf8
+    $productBuildBlocks = @([regex]::Matches($harnessStepsText, "-Arguments @\(\s*'build',[\s\S]*?-DisplayCommand") |
+        ForEach-Object { $_.Value } | Where-Object { $_ -notmatch '\$driverProject' })
+    Assert-Contract -Condition ($productBuildBlocks.Count -eq 4 -and
+            @($productBuildBlocks | Where-Object { -not $_.Contains('$buildExtension.Argument', [StringComparison]::Ordinal) }).Count -eq 0) `
+        -Message 'Every harness build of JET or JET.Tests must carry a build extension that compiles the development-repository tests in.'
+    foreach ($productProject in @('src/JET/JET/JET.csproj', 'src/JET/tests/JET.Tests/JET.Tests.csproj')) {
+        $productProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot $productProject) -Raw -Encoding utf8
+        Assert-Contract -Condition ($productProjectText -notmatch 'tools[/\\]') `
+            -Message "$productProject must build from src/JET alone and cannot reference files under tools."
+    }
+    Assert-Contract -Condition (@($registry.testSettings.developmentRepositoryRequiredTestClasses).Count -ge 1) `
+        -Message 'Public must name at least one development-repository test class that has to run.'
     $productAgentGuiSources = @(
         Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src/JET') -Recurse -File -Filter '*.cs' |
             Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
@@ -1139,7 +1171,7 @@ try {
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiSideMonthWorkflow.cs' -and
-        @($normalReceipt.runner.files.path) -ccontains 'src/JET/tests/JET.Tests/TestInfrastructure/GuiWorkingPaperInspection.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiWorkingPaperInspection.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs') `
         -Message 'Runner identity must include every extracted GUI workflow source file.'
@@ -1614,13 +1646,19 @@ Actual: 2 at $repositoryRoot\src\Synthetic.cs</Message></ErrorInfo></Output>
         $driftFile,
         "[Fact]`npublic void A()`n{`n    Assert.Equal(1, 1);`n    Assert.True(true);`n}`n",
         $utf8)
+    # 只在開發儲存庫才用得到的測試放在驗證框架底下，那裡拿掉測試也要數得出來。
+    $movedDriftRelative = 'tools/harness/development-repository-tests/Synthetic.cs'
+    $movedDriftFile = Join-Path $driftRepo $movedDriftRelative
+    [void][IO.Directory]::CreateDirectory((Split-Path $movedDriftFile -Parent))
+    [IO.File]::WriteAllText($movedDriftFile, "[Fact]`npublic void B()`n{`n}`n", $utf8)
     & git -C $driftRepo init -q 2>$null
-    & git -C $driftRepo add -- src/JET/tests/Synthetic.cs 2>$null
+    & git -C $driftRepo add -- src/JET/tests/Synthetic.cs $movedDriftRelative 2>$null
     & git -C $driftRepo -c user.name=jet -c user.email=jet@example.invalid commit -q -m init 2>$null
     [IO.File]::WriteAllText(
         $driftFile,
         "[Fact(Skip = `"synthetic`")]`npublic void A()`n{`n    Assert.True(true);`n}`n",
         $utf8)
+    [IO.File]::WriteAllText($movedDriftFile, "public void B()`n{`n}`n", $utf8)
     $drift = & $harnessModule { param($root) Get-JetTestAssertionDrift -RepositoryRoot $root } $driftRepo
     Remove-Item -LiteralPath (Join-Path $driftRepo '.git') -Recurse -Force -ErrorAction SilentlyContinue
     $scenarioNames.Add('AssertionDrift')
@@ -1629,6 +1667,8 @@ Actual: 2 at $repositoryRoot\src\Synthetic.cs</Message></ErrorInfo></Output>
         -Message 'Assertion drift must count removed assertions and added skips against HEAD.'
     Assert-Contract -Condition (@($drift.files) -ccontains 'src/JET/tests/Synthetic.cs') `
         -Message 'Assertion drift must name the changed test file.'
+    Assert-Contract -Condition (@($drift.files) -ccontains $movedDriftRelative -and $drift.factsOrTheoriesRemoved -eq 2) `
+        -Message 'Assertion drift must also cover the development-repository tests kept under tools/harness.'
 
     $unsupportedEvidenceRoot = Join-Path $suiteRoot 'unsupported-sensitive-evidence'
     [void][IO.Directory]::CreateDirectory($unsupportedEvidenceRoot)

@@ -60,9 +60,9 @@ public sealed record ProjectDocument(
     }
 
     /// <summary>
-    /// 新案件的純 Domain policy。Clock、entropy、provider 選擇、名稱、路徑、
-    /// schema、lock 與 session 由外層提供；本方法只套用既有
-    /// period／money／date／sample defaults，不新增期間先後等新規則。
+    /// 建立新案件的設定內容，只做 Domain 這一層的事。時間、亂數種子、資料庫種類、名稱與路徑由呼叫端傳入，
+    /// 資料庫結構、鎖與 session 也由外層處理；這裡只套用既有的期間、金額、日期與抽樣預設值，
+    /// 不新增「期間的先後順序」這類新規則。
     /// </summary>
     internal static ProjectDocument CreateNew(
         string projectId,
@@ -104,6 +104,10 @@ public sealed record ProjectStoreEntry(
     string? ReadErrorCode = null,
     string? ReadErrorMessage = null);
 
+/// <summary>
+/// 管每個案件的設定檔 project.json，內容是 <see cref="ProjectDocument"/>：建立、列出、讀取、儲存與刪除。
+/// GL、TB 等會計資料存在案件資料庫，不經這個介面讀寫；只有刪除案件時連同案件資料夾一起刪掉。
+/// </summary>
 public interface IProjectStore
 {
     /// <summary>
@@ -146,7 +150,8 @@ public interface IProjectStore
 }
 
 /// <summary>
-/// 專案 store 的 typed 發布衝突；不攜帶 UI 欄位歸屬或 wire error code。
+/// <see cref="IProjectStore"/> 建立案件時，發現同一個 projectId 已經存在所丟的例外。
+/// 它不帶畫面欄位的歸屬，也不帶回應用的錯誤碼。
 /// </summary>
 public sealed class ProjectStoreCollisionException(string projectId)
     : Exception($"Project '{projectId}' already exists.")

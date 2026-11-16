@@ -3,8 +3,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// RDE second pass 的 provider-neutral 記憶體預算。每頁只保留 projector 實際需要的
-/// core/RDE source values，並依欄數縮小 entry page；極寬來源至少仍是一列一頁。
+/// 確認 GL 配對時，寫攸關資料元素欄位的值要把匯入暫存表再讀一遍；這裡規定那一遍一次放多少資料在記憶體，
+/// 不分資料庫種類。每一頁只留下配對用到的來源欄和攸關資料元素的來源欄，並依欄數縮小一頁的分錄筆數：
+/// 一頁最多 2,000 筆分錄、32,768 格。來源欄再多，一頁至少還有一筆分錄。
 /// </summary>
 internal static class GlProjectionSourceBuffer
 {

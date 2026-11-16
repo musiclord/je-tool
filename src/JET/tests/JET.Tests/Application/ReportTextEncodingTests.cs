@@ -17,7 +17,7 @@ using static JET.Tests.Application.SupportCaseHistoryTests;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 驗證報告匯出曾在寫入 XML 時失敗。來源文字檔帶進 XML 不允許的控制字元時，ValidationReport 與
+/// 來源文字檔帶進 XML 不允許的控制字元時，ValidationReport 與
 /// INFReport 仍要產生，借貸不平照樣保留，報告讀回的文字與來源一字不差；Excel 的跳脫格式本身、Tab 與換行也不能被改掉。
 /// 寫入仍失敗時，支援日誌要指出工作表、儲存格與字元的碼位。JET 讀 Excel 檔時依同一規則還原，審計員在 Excel 看到什麼就匯入什麼。
 /// 文字全部是合成資料。

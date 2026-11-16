@@ -5,16 +5,20 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 一個 result page 的 frozen column registry，以及 Application 用來驗證／render RDE cells 的
-/// committed mapping snapshot。CustomFields 是本 action 實際公開的子集合；RegistryFields 保留
-/// 全部 current committed RDE，讓 port 回傳 removed／unknown／type-mismatched cell 時 fail closed。
+/// 一頁結果的欄位清單，以及檢查與轉換攸關資料元素欄位值時要用的已確認配對內容。
+/// Columns 是固定欄加上這個 action 要顯示的 RDE 欄位。CustomFields 是這個 action 實際回給前端的 RDE 欄位；
+/// RegistryFields 是已確認配對裡全部的 RDE 欄位，資料庫讀回的值屬於已移除、認不得或型別不符的欄位時，
+/// 用它判斷出來並回 stale_result。
 /// </summary>
 internal sealed record ResultPageColumnPlan(
     IReadOnlyList<ResultPageColumn> Columns,
     IReadOnlyList<GlRdeFieldMetadata> RegistryFields,
     IReadOnlyList<GlRdeFieldMetadata> CustomFields);
 
-/// <summary>Filter／INF 結果表的固定欄與 committed RDE 欄唯一 Application registry。</summary>
+/// <summary>
+/// 決定篩選結果表與 INF 抽樣結果表有哪些欄：固定欄加上已確認配對裡的攸關資料元素欄位。
+/// Application 裡只有這裡定義這兩張表的欄位。
+/// </summary>
 internal static class ResultPageColumnRegistry
 {
     private static readonly IReadOnlyList<ResultPageColumn> FilterFixed =
@@ -93,7 +97,7 @@ internal static class ResultPageColumnRegistry
             selected.Add(field.FieldId);
         }
 
-        // AST 中的 first-use order 不具 wire 權威；永遠回到 committed RDE ordinal。
+        // RDE 欄位的顯示順序照已確認配對裡的順序，不照條件裡第一次用到的順序。
         var custom = registry.Where(field => selected.Contains(field.FieldId)).ToArray();
         return CreatePlan(FilterFixed, registry, custom);
     }
@@ -132,8 +136,9 @@ internal static class ResultPageColumnRegistry
 }
 
 /// <summary>
-/// Provider-neutral RDE cell → wire-native value renderer。它先對 current committed registry
-/// 驗證所有 present cells，再依 action custom subset 建立 exact key set；missing cell 明示 null。
+/// 把資料庫讀回的攸關資料元素欄位值轉成回應裡的值，不分資料庫種類：文字照原樣，日期是 yyyy-MM-dd 字串，金額換算回小數。
+/// 先拿已確認配對裡全部的 RDE 欄位檢查每一個讀回的值，有不符的就回 stale_result；再只留這個 action 要顯示的欄位。
+/// 每一筆分錄的結果都帶齊這些欄位的鍵，沒有值的填 null。
 /// </summary>
 internal static class ResultPageCustomValueRenderer
 {

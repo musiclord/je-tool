@@ -163,9 +163,9 @@ internal sealed partial class GlRulePredicates
     }
 
     /// <summary>
-    /// 借貸科目分類（accountSide）：兩值語意。分類留白的科目依 legacy 與 `AccountMappingContracts` 的
-    /// 既有投影落到 Others（`Selected` 只看科目分類的 role，不看 `classification_explicit`）；不在配對檔的
-    /// 科目不屬於任何分類。`is`／`isNot` 只判本列；要限定借方或貸方時另加借貸限定條件。
+    /// 借貸科目分類（accountSide）：結果只有「屬於」與「不屬於」兩種。科目配對檔裡分類留白的科目，照舊版與
+    /// `AccountMappingContracts` 的整理方式歸到 Others；`Selected` 只看科目的分類，不看 `classification_explicit`。
+    /// 不在配對檔的科目不屬於任何分類。`is` 與 `isNot` 只判斷本列；要限定借方或貸方時另加借貸限定條件。
     /// 值全部參數綁定。
     /// </summary>
     public string AccountSide(FilterSqlParameterPlanBuilder parameters, FilterConditionSpec rule,

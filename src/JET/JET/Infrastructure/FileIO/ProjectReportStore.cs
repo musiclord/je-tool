@@ -13,8 +13,8 @@ namespace JET.Infrastructure;
 /// JET 寫了什麼。它不核對檔案內容，不擋載入；審計員在 JET 之外改了檔案，<see cref="ListAsync"/> 只在
 /// <see cref="Report.FileState"/> 回報。
 ///
-/// 依「預設審計員可信」，不做 journal、隔離區、SHA-256 核對，也不在載入時拒絕；
-/// 壞掉的 manifest 改名保留、以空清單繼續。
+/// JET 預設審計員可信，所以這裡不另外記錄寫入過程，不把檔案移到隔離區，不用 SHA-256 核對內容，
+/// 也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
 /// 工作底稿每次匯出寫新版本檔，其餘報告覆蓋同名檔。
 /// </summary>
 public sealed class ProjectReportStore : IReportStore, IReportPublishingStore

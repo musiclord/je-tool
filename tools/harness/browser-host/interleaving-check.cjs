@@ -113,7 +113,7 @@ async function openCase(page, name) {
   await waitIdle(page);
 }
 
-/** 第五步已存情境的「編輯、另存副本、移除」收在「操作」摘要選單；先展開所在的 details 再點。 */
+/** 第五步已存情境的「編輯、複製、移除」收在「操作」摘要選單；先展開所在的 details 再點。 */
 async function menuAction(page, selector) {
   const target = page.locator(selector).first();
   if (!(await target.isVisible().catch(() => false))) {
@@ -315,7 +315,7 @@ async function run(page, name, body) {
     check('自訂情境案件驗證未過期', s.stale && s.stale.validation === false, s.stale);
   });
 
-  // 裁定 2026-10-11-02：情境有修改還沒儲存時，開啟另一個已存情境前先詢問；沒有修改時直接換。
+  // 裁定 2026-10-11-02：情境有修改還沒儲存時，編輯另一個已存情境前先詢問；沒有修改時直接換。
   await run(page, '07-edit-a-then-open-b', async ({ check, note }) => {
     const savedJson = index => page.evaluate(i => JSON.stringify(JetStore.getState().filter.savedScenarios[i]), index);
     const draftInfo = () => page.evaluate(() => {
@@ -341,10 +341,10 @@ async function run(page, name, body) {
     await openSaved(1);
     check('有未儲存的修改時先詢問', await asking(), null);
     const body = (await modal.locator('.modal__body').innerText().catch(() => '')).trim();
-    check('詢問寫出哪個情境的修改會被換掉', body === `情境「${names[0]}」的修改尚未儲存。開啟「${names[1]}」會換掉這些修改。`, body);
+    check('詢問寫出哪個情境的修改會被換掉', body === `情境「${names[0]}」的修改尚未儲存。編輯「${names[1]}」會換掉這些修改。`, body);
     const buttons = (await modal.locator('.modal__actions button').allInnerTexts()).map(text => text.trim());
-    check('按鈕依序是留在這裡、不儲存直接開啟、儲存並開啟',
-      JSON.stringify(buttons) === JSON.stringify(['留在這裡', '不儲存，直接開啟', '儲存並開啟']), buttons);
+    check('按鈕依序是留在這裡、不儲存直接編輯、儲存並編輯',
+      JSON.stringify(buttons) === JSON.stringify(['留在這裡', '不儲存，直接編輯', '儲存並編輯']), buttons);
     const focused = await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-pending-choice'));
     check('預設焦點在儲存', focused === 'save', focused);
     await page.keyboard.press('Escape');
@@ -362,7 +362,7 @@ async function run(page, name, body) {
     await modal.locator('.modal__actions [data-pending-choice="continue"]').click();
     await page.waitForTimeout(500);
     let draft = await draftInfo();
-    check('選「不儲存，直接開啟」後換成第 2 個情境', draft.name === names[1] && draft.editing === 1, draft);
+    check('選「不儲存，直接編輯」後換成第 2 個情境', draft.name === names[1] && draft.editing === 1, draft);
     check('第 1 個情境沒有存進未儲存的修改', (await savedJson(0)) === firstBefore, null);
 
     await openSaved(2);
@@ -380,7 +380,7 @@ async function run(page, name, body) {
     await waitIdle(page);
     draft = await draftInfo();
     const commits = phaseActions().filter(a => a.action === 'filter.scenario.save').length - commitsBefore;
-    check('選「儲存並開啟」先送出一次儲存', commits === 1, commits);
+    check('選「儲存並編輯」先送出一次儲存', commits === 1, commits);
     check('存好後換成第 4 個情境', draft.name === names[3] && draft.editing === 3, draft);
     const thirdAfter = await savedJson(2);
     check('第 3 個情境存進了「編製人員與核准人員相同」', thirdAfter !== thirdBefore && /preparerEqualsApprover/.test(thirdAfter), thirdAfter && thirdAfter.slice(0, 160));

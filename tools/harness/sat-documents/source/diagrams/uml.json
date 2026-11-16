@@ -1,14 +1,14 @@
 {
-  "title": "JET 類別圖：資料驗證與匯出工作底稿的主要類別",
+  "title": "JE Tool 類別圖：資料驗證與匯出工作底稿的主要類別",
   "header": [
-    "JET 1.0.0.0 類別圖。範圍：前端送出 validate.run（資料驗證）與 export.workingPaperStream（匯出工作底稿）後，後端處理請求的主要類別與介面；各類別僅列主要成員。",
+    "JE Tool 1.0.0.0 類別圖。範圍：前端送出 validate.run（資料驗證）與 export.workingPaperStream（匯出工作底稿）後，後端處理請求的主要類別與介面；各類別僅列主要成員。",
     "表示法：UML 類別圖。+ 為 public，- 為 private，~ 為 internal，<<static>> 為靜態類別；實線箭頭為使用，虛線箭頭為建立，虛線空心三角為實作介面。"
   ],
   "sourceRoot": "src/JET/JET",
   "groups": [
     {
       "id": "host",
-      "label": "WinForms 主機（JET）",
+      "label": "Host（JET）",
       "classes": [
         "Form1",
         "AppCompositionRoot"
@@ -16,7 +16,7 @@
     },
     {
       "id": "bridge",
-      "label": "展示層 Bridge（JET/Bridge）",
+      "label": "Presentation Layer（JET/Bridge）",
       "classes": [
         "JetWebMessageBridge",
         "ActionDispatcher",
@@ -25,7 +25,7 @@
     },
     {
       "id": "application",
-      "label": "應用層 Application（JET/Application）",
+      "label": "Application Layer（JET/Application）",
       "classes": [
         "IApplicationActionHandler",
         "IHostShell",
@@ -37,7 +37,7 @@
     },
     {
       "id": "auditcore",
-      "label": "領域層 AuditCore（JET/AuditCore）",
+      "label": "Domain Layer（JET/AuditCore）",
       "classes": [
         "JetAuditProgram",
         "AccountComparisonProcedure",
@@ -47,7 +47,7 @@
     },
     {
       "id": "infrastructure",
-      "label": "基礎設施層 Infrastructure（JET/Infrastructure）",
+      "label": "Infrastructure Layer（JET/Infrastructure）",
       "classes": [
         "LocalValidationRunRepository",
         "ILocalProjectDatabase",
@@ -376,7 +376,6 @@
       "from": "Form1",
       "to": "JetWebMessageBridge",
       "kind": "creates",
-      "tailPort": "e",
       "file": "Form1.cs",
       "evidence": "new JetWebMessageBridge("
     },
@@ -384,7 +383,6 @@
       "from": "Form1",
       "to": "WebViewEventPublisher",
       "kind": "creates",
-      "tailPort": "e",
       "file": "Form1.cs",
       "evidence": "WebViewEventPublisher _eventPublisher = new()"
     },
@@ -429,8 +427,6 @@
       "to": "ActionDispatcher",
       "kind": "uses",
       "label": "DispatchAsync",
-      "tailPort": "e",
-      "headPort": "e",
       "file": "Bridge/JetWebMessageBridge.cs",
       "evidence": "dispatcher.DispatchAsync("
     },
@@ -556,5 +552,63 @@
       "file": "Infrastructure/Export/WorkingPaperWriter.cs",
       "evidence": ": IWorkingPaperPlanWriter, IFormalWorkingPaperPlanWriter"
     }
-  ]
+  ],
+  "layout": {
+    "maxCrossings": 1,
+    "titleGap": 84,
+    "memberWidth": 256,
+    "alignFrames": true,
+    "at": {
+      "Form1": [267, 310, "tr"],
+      "AppCompositionRoot": [267, 490, "tr"],
+      "WebViewEventPublisher": [509, 180, "t"],
+      "JetWebMessageBridge": [509, 300, "t"],
+      "ActionDispatcher": [509, 490, "t"],
+      "IHostShell": [951, 0, "t"],
+      "IJetEventPublisher": [951, 180, "t"],
+      "ExportWorkingPaperStreamHandler": [951, 320, "t"],
+      "IApplicationActionHandler": [951, 480, "t"],
+      "ValidateRunHandler": [951, 660, "t"],
+      "ProjectSession": [951, 820, "t"],
+      "IWorkingPaperPlanWriter": [1407, 0, "t"],
+      "AccountComparisonProcedure": [1407, 180, "t"],
+      "JetAuditProgram": [1407, 360, "t"],
+      "IValidationFactsPort": [1407, 650, "t"],
+      "WorkingPaperWriter": [1802, 10, "t"],
+      "SqliteProjectDatabase": [1802, 280, "t"],
+      "ILocalProjectDatabase": [1802, 460, "t"],
+      "LocalValidationRunRepository": [1802, 660, "t"]
+    },
+    "lines": {
+      "Form1_AppCompositionRoot": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "Form1_JetWebMessageBridge": {"fromSides": ["right"], "toSides": ["left"]},
+      "Form1_WebViewEventPublisher": {"fromSides": ["right"], "toSides": ["left"]},
+      "Form1_IHostShell": {"via": [[150, -62], [696, -62], [696, 72]]},
+      "AppCompositionRoot_IHostShell": {"via": [[52, -86], [720, -86], [720, 36]]},
+      "AppCompositionRoot_ActionDispatcher": {"fromSides": ["right"], "toSides": ["left"]},
+      "AppCompositionRoot_ProjectSession": {"via": [[200, 962], [951, 962]]},
+      "AppCompositionRoot_SqliteProjectDatabase": {"via": [[110, 986], [1980, 986], [1980, 331]]},
+      "JetWebMessageBridge_ActionDispatcher": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "WebViewEventPublisher_IJetEventPublisher": {"fromSides": ["right"], "toSides": ["left"]},
+      "ActionDispatcher_IApplicationActionHandler": {"via": [[700, 532]]},
+      "ValidateRunHandler_IApplicationActionHandler": {"fromSides": ["top"], "toSides": ["bottom"], "fromPrefer": 0.35, "toPrefer": 0.35},
+      "ExportWorkingPaperStreamHandler_IApplicationActionHandler": {"fromSides": ["bottom"], "toSides": ["top"], "fromPrefer": 0.65, "toPrefer": 0.65},
+      "ValidateRunHandler_ProjectSession": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "ExportWorkingPaperStreamHandler_IJetEventPublisher": {"fromSides": ["top"], "toSides": ["bottom"]},
+      "ExportWorkingPaperStreamHandler_ProjectSession": {"via": [[792, 361], [792, 871]]},
+      "ValidateRunHandler_IValidationFactsPort": {"fromSides": ["right"], "toSides": ["left"], "fromPrefer": 0.75},
+      "ValidateRunHandler_JetAuditProgram": {"fromSides": ["right"], "toSides": ["left"], "fromPrefer": 0.25},
+      "ExportWorkingPaperStreamHandler_JetAuditProgram": {"fromSides": ["right"], "toSides": ["left"], "fromPrefer": 0.75},
+      "ExportWorkingPaperStreamHandler_IWorkingPaperPlanWriter": {"fromSides": ["right"], "toSides": ["left"], "fromPrefer": 0.25},
+      "JetAuditProgram_AccountComparisonProcedure": {"fromSides": ["top"], "toSides": ["bottom"]},
+      "LocalValidationRunRepository_IValidationFactsPort": {"fromSides": ["left"], "toSides": ["right"]},
+      "LocalValidationRunRepository_ILocalProjectDatabase": {"fromSides": ["top"], "toSides": ["bottom"]},
+      "SqliteProjectDatabase_ILocalProjectDatabase": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "WorkingPaperWriter_IWorkingPaperPlanWriter": {"fromSides": ["left"], "toSides": ["right"]}
+    },
+    "frames": {
+      "host": {"titleAlign": "right"},
+      "application": {"span": [744, 744]}
+    }
+  }
 }

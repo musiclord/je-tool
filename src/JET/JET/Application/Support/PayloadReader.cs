@@ -77,7 +77,7 @@ public static class PayloadReader
         return value;
     }
 
-    /// <summary>讀取 mapping object：略過 null / 空字串值。</summary>
+    /// <summary>讀取必填的物件，把它的字串屬性讀成名稱與值的對照，例如欄位配對。值不是字串、或是空白的屬性略過；值會去掉前後空白。</summary>
     public static Dictionary<string, string> GetStringMap(JsonElement payload, string name)
     {
         if (payload.ValueKind != JsonValueKind.Object
@@ -132,7 +132,7 @@ public static class PayloadReader
         return values;
     }
 
-    /// <summary>讀取整數陣列(必填)。非陣列或含非整數元素 → invalid_payload。</summary>
+    /// <summary>讀取必填的整數陣列。不是陣列，或裡面有不是整數的元素，回 invalid_payload。</summary>
     public static List<int> GetIntList(JsonElement payload, string name)
     {
         if (payload.ValueKind != JsonValueKind.Object

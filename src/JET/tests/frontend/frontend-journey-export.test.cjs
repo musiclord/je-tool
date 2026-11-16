@@ -13,7 +13,8 @@
 // 都沒有 app.js 的進度訂閱，所以這裡用整個畫面。
 //
 // 逐字比對的只有已定案的用字，其他文字只比對意思。預期值一律寫死；action payload 用 deepEqual 精確比對，
-// 並確認沒有 `__` 鍵；斷言的失敗值不是假 DOM 節點。第六步的作業名稱的用字沒有定案，放在已定案的句型裡時只比對意思。
+// 並確認沒有 `__` 鍵；斷言的失敗值不是假 DOM 節點。第六步的按鈕名稱與作業名稱的用字沒有定案，放在已定案的句型裡時只比對意思；
+// 作業名稱和按下的那顆按鈕同字，這點逐字比對。
 // 每個測試都有 30 秒上限：改壞檢查時若有請求永遠等不到回應，測試直接失敗，不會拖到改壞工具的時間上限。
 const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
@@ -153,6 +154,17 @@ for (const situation of ['none', 'stale']) test('with ' + (situation === 'none' 
   assert.deepEqual(plain(f.request('export.workingPaperStream').payload), WORKING_PAPER_PAYLOAD);
 });
 
+// 忙碌畫面、仍在執行的提醒與失敗訊息都寫作業名稱；第六步的作業名稱和按下的那顆按鈕同字，包括要先執行預篩選的時候。
+for (const situation of ['none', 'stale', 'current', 'unticked']) test('the busy screen names the export after the button that was pressed (' + situation + ')', async () => {
+  const f = await openExport({ prescreen: situation === 'none' ? null : situation === 'stale' ? 'p-old' : 'p1' });
+  if (situation === 'stale') { f.store.applyMutationEffects({ staleState: { validation: false, prescreen: true, filter: false } }); await flush(); }
+  if (situation === 'unticked') toggleReport(f, false);
+  const label = exportButton(f).text;
+  pressExport(f); await flush();
+  assert.equal(f.state().busy, true, 'the export is running');
+  assert.equal(f.state().busyLabel, label);
+});
+
 // 上游修改清掉已存情境後，第六步不顯示上一次匯出的工作表與資料列數；
 // 重新儲存情境以後也不顯示，因為那張表描述的是舊版本的匯出。
 test('the sheet table of the last export goes away once an upstream change clears the scenarios', async () => {
@@ -185,7 +197,7 @@ for (const choice of ['stay', 'continue', 'save']) test('unsaved account categor
   };
   const from = f.posted.length;
   pressExport(f); await flush();
-  assert.deepEqual(calls, [['預篩選只會使用已儲存的分類。', '先不儲存，直接執行']]);
+  assert.deepEqual(calls, [['預篩選只會使用已儲存的分類。', '先不儲存']]);
   // 儲存清掉情境後畫面回到第五步，第五步會自己查詢資料預覽；這裡只看匯出的三個 action。
   const exportSequence = exportActions(f, from).filter(action => ['prescreen.run', 'export.prescreenReport', 'export.workingPaperStream'].includes(action));
   assert.deepEqual(exportSequence, choice === 'continue' ? ['prescreen.run'] : [],
@@ -211,10 +223,10 @@ test('if the case, the validation or the saved scenarios change during export, n
   f.reply('prescreen.run', plain(remapPrescreen('p-new'))); await flush();
   assert.deepEqual(exportActions(f, from), ['prescreen.run']);
   assert.equal(f.state().busy, false);
-  // 作業名稱只確認提到工作底稿。
+  // 作業名稱和按下的按鈕同字：要先執行預篩選時是「先執行預篩選並產生底稿」。
   const cancelled = f.messages()[0].text.match(/^(.+)已取消，已完成的部分仍保留（耗時[^）]*）。$/);
   assert.ok(cancelled !== null, 'the confirmed cancellation sentence: ' + f.messages()[0].text);
-  assert.match(cancelled[1], /工作底稿/);
+  assert.equal(cancelled[1], '先執行預篩選並產生底稿');
 
   // 預篩選報告還在產生時重新驗證：不再產生工作底稿。
   f = await openExport({ prescreen: 'p1' });

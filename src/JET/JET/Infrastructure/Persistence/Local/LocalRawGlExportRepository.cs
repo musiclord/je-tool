@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>本地 provider：以一頁 entry ids 回取相對應的原始 GL JSON。</summary>
+/// <summary>用一頁的 entry_id 讀回這些分錄在匯入暫存表 pbc_gl 裡的原始 row_json；一次最多一頁的筆數。</summary>
 public sealed class LocalRawGlExportRepository(ILocalProjectDatabase database) : IRawGlExportRepository
 {
     public async Task<IReadOnlyDictionary<long, string>> FetchJsonByEntryIdsAsync(

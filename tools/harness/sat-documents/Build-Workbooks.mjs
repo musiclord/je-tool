@@ -7,7 +7,7 @@ const preview=path.join(process.env.TEMP||repo,'jet-sat-20261106','sat-preview')
 await fs.mkdir(preview,{recursive:true});
 const read=async n=>JSON.parse(await fs.readFile(path.join(source,n),'utf8'));
 const review=await read('code-review.json'), tests=await read('test-record.json'), releases=await read('release-notes.json');
-const product='JET '+releases.rows[releases.rows.length-1].version;
+const product='JE Tool '+releases.rows[releases.rows.length-1].version;
 const ink='#24323D', navy='#24475D', light='#E8EFF3', yellow='#FFF3CA';
 const col=i=>String.fromCharCode(65+i);
 // Paths are written from the folder that holds JET.slnx, which is what gets submitted.
@@ -92,12 +92,11 @@ async function save(w,name,ranges){
  const s=base(w,'複核紀錄',review.title,rw,2);
  let row=4;
  row=field(s,row,'軟體與版本',product,'D');
- row=field(s,row,'變更說明',review.change,'D',2);
+ row=field(s,row,'變更說明',review.change,'D',rowsFor(review.change,rw[1]+rw[2]+rw[3]));
  row=field(s,row,'需求依據',review.requirement,'D');
  row=field(s,row,'單元測試報告','Unit test Report.xlsx','D');
- row=field(s,row,'提交識別碼（commit ID）',null,'D');
+ row=field(s,row,'Commit ID',null,'D');
  row=field(s,row,'開發人員',null,'D');
- row=field(s,row,'送交複核日期',null,'D');
  const checks=table(s,row+1,['複核規則','檢查項目','結果','備註'],review.checklist.map(c=>[c.rule,c.item,null,null]),52);
  review.checklist.forEach((c,i)=>{
   s.getRange('A'+(row+2+i)+':D'+(row+2+i)).format.rowHeight=tall(Math.max(lines(c.rule,rw[0]),lines(c.item,rw[1])),44);
@@ -110,15 +109,15 @@ async function save(w,name,ranges){
  s.getRange('B'+row).dataValidation={rule:{type:'list',values:['通過','需修正','例外核准']}};
  row=field(s,row+1,'複核人員',null,'D');
  row=field(s,row,'複核日期',null,'D');
- row=field(s,row,'核准的提交識別碼',null,'D');
+ row=field(s,row,'核准的 commit ID',null,'D');
  row=field(s,row,'後續事項',null,'D',2);
  row=field(s,row,'例外核准事項',null,'D',2);
  ranges.push(['複核紀錄','A1:D'+(row-1)]);
 
  const fw=[170,400,380,110,200];
- const f=base(w,'複核範圍','核心審計規則與對應測試',fw);
+ const f=base(w,'複核範圍','核心查核邏輯與對應測試',fw);
  const scope=review.scope.map(x=>[x.title,pathText(x.path,fw[1]),x.tests.split('、').join('\n')]);
- const fe=table(f,4,['審計規則','程式位置','測試類別','複核結果','備註'],scope.map(x=>[...x,null,null]),64);
+ const fe=table(f,4,['查核邏輯','程式位置','測試類別','複核結果','備註'],scope.map(x=>[...x,null,null]),64);
  scope.forEach((x,i)=>{
   f.getRange('A'+(5+i)+':E'+(5+i)).format.rowHeight=tall(Math.max(lines(x[1],fw[1]),lines(x[2],fw[2])),64);
  });
@@ -145,7 +144,7 @@ async function save(w,name,ranges){
  const env=tests.environment;
  let row=4;
  row=field(s,row,'軟體與版本',product,'F');
- row=field(s,row,'提交識別碼（commit ID）',null,'F');
+ row=field(s,row,'Commit ID',null,'F');
  row=field(s,row,'執行日期',tests.date,'F');
  row=textField(s,row,'測試環境',['作業系統：'+env.os,'.NET SDK：'+env.dotnetSdk,'測試框架：'+env.testFramework,'Node.js：'+env.node].join('\n'),'F',valueWidth);
  row=field(s,row,'測試資料',tests.scope,'F');
@@ -162,9 +161,9 @@ async function save(w,name,ranges){
  ranges.push([s.name,'A1:F'+end]);
 
  const gw=[190,110,90,90,420];
- const g=base(w,'核心審計規則','核心審計規則的測試結果',gw);
+ const g=base(w,'核心查核邏輯','核心查核邏輯的測試結果',gw);
  const core=tests.reviewTests.map(r=>[r.title,r.total,r.passed,r.failed,r.classes.join('\n')]);
- const ge=table(g,4,['審計規則','測試案例數','通過','失敗','測試類別'],core,64);
+ const ge=table(g,4,['查核邏輯','測試案例數','通過','失敗','測試類別'],core,64);
  core.forEach((x,i)=>{
   g.getRange('A'+(5+i)+':E'+(5+i)).format.rowHeight=tall(lines(x[4],gw[4]),44);
  });

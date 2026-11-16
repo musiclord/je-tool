@@ -5,11 +5,11 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// import.inspectFile：匯入前的唯讀檔案檢視。
-/// 不需 active project（建立案件前也可預覽）、零副作用、不回資料列；
-/// 匯入精靈以此預覽工作表清單/欄名/偵測到的編碼與分隔符。
-/// 失敗時附上匯入診斷（階段、格式），成功時記一筆 import.inspect（欄數、工作表數、編碼、分隔符），
-/// 支援日誌才能只看日誌就指出選檔階段的失敗與觸發條件。
+/// import.inspectFile：匯入前檢視檔案，只讀不寫。
+/// 不需要先開啟案件，建立案件前也能用；不留下任何變更，也不回資料列。
+/// 匯入精靈用它列出工作表清單、欄名，以及偵測到的編碼與分隔符。
+/// 失敗時附上匯入診斷（階段、格式）；成功時記一筆 import.inspect 事件（欄數、工作表數、編碼、分隔符），
+/// 這樣只看支援日誌，就能指出選檔時的失敗與當時的條件。
 /// </summary>
 public sealed class ImportInspectFileHandler(ITabularFileReader reader, ILogger? logger = null) : IApplicationActionHandler
 {

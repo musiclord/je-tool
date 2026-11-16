@@ -180,8 +180,8 @@
   }
 
   /* 完成摘要。
-     設計稿把「完成」畫成第六個步驟；此處刻意只轉成本步驟內的完成狀態——
-     流程仍是六步（最後一步＝匯出底稿），STEPS、閘門、進度持久化與 action 語意皆不變。
+     「完成」不是獨立的步驟，只是這一步裡的完成狀態：
+     流程是六步（最後一步＝匯出底稿），STEPS、閘門、進度持久化與 action 語意都沒有「完成」這一步。
      出現條件＝目前版本的工作底稿已產生（Ui.currentWorkingPaperReport），與左側進度、流程總覽同一個判斷。
      條件篩選報告是獨立輸出，不是前置。 */
   function completionSummaryHtml(criteriaReport, currentWorkingPaper) {
@@ -402,7 +402,7 @@
       // 要先補跑預篩選、第四步又有還沒儲存的科目分類時，和第四步的「執行預篩選」一樣先問。
       // 選「儲存並繼續」會清掉已存情境，這次匯出就不再送出。
       if (plan.needsRun && Ui.pendingAccountCategoryCount()) {
-        Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存，直接執行').then(function (proceed) {
+        Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存').then(function (proceed) {
           var latest = Store.getState();
           if (proceed && latest.project === project && filterRevision(latest) === payload.scenarioRevision) { exportWithPrescreen(); }
         });
@@ -411,7 +411,7 @@
       exportWithPrescreen();
 
       function exportWithPrescreen() {
-        Ui.run('產生工作底稿與預篩選報告', function () {
+        var task = function () {
           requireExportActive(project, payload);
           return Promise.resolve(plan.needsRun ? runPrescreenForExport(project, payload) : plan.currentResultId)
             .then(function (sourceResultId) {
@@ -422,7 +422,13 @@
               requireExportActive(project, payload);
               return exportWorkingPaper(payload, project);
             });
-        }, { completionMessage: workingPaperCompletionMessage });
+        };
+        // 忙碌畫面與失敗訊息的作業名稱和按下的按鈕同字（exportButtonLabel）。
+        if (plan.needsRun) {
+          Ui.run('先執行預篩選並產生底稿', task, { completionMessage: workingPaperCompletionMessage });
+        } else {
+          Ui.run('產生工作底稿與預篩選報告', task, { completionMessage: workingPaperCompletionMessage });
+        }
       }
     });
   }

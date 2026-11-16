@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 九項人工驗收的補充資料：六張逐張平衡的合成傳票，經實際 XLSX 匯入、配對、驗證、
+/// 進階篩選的整段操作：六張逐張平衡的合成傳票，經實際 XLSX 匯入、配對、驗證、
 /// 預覽、保存及分頁。答案由下列明示資料決定，不能從第一次查詢的結果反算。
 /// </summary>
 public sealed class FilterAcceptanceJourneyTests

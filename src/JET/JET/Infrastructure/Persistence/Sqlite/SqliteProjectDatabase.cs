@@ -5,17 +5,16 @@ using Microsoft.Data.Sqlite;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 每專案 jet.db 的 SQLite 連線工廠與 schema 初始化——本地引擎家族的 SQLite 實作
-/// （<see cref="ILocalProjectDatabase"/>）。
-/// 每專案一個 DB 檔，資料表不帶 project_id 欄（檔案即 scope）。
+/// <see cref="ILocalProjectDatabase"/> 的 SQLite 實作：建立每個案件 jet.db 的連線，並負責建表與檢查結構版本。
+/// 每個案件一個資料庫檔，一個檔案裡只有一個案件的資料，所以資料表沒有 project_id 欄。
 /// </summary>
 public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase
 {
     /// <summary>
     /// 案件資料庫的現行結構，建成後標成第 20 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
     /// 不是現行版本就請審計員刪除案件後重建（案件資料庫只留現行結構）。
-    /// staging 的 row_number = 批次內單調遞增排序鍵（INF 抽樣基礎），
-    /// source_row_number = 來源檔內實際列號（錯誤定位），source_no 對應 import_batch_source。
+    /// 匯入暫存表的 row_number 是同一個批次裡只增不減的排序鍵，INF 抽樣以它為準；
+    /// source_row_number 是來源檔裡實際的列號，錯誤訊息用它指出是哪一列；source_no 對應 import_batch_source。
     /// </summary>
     private const string SchemaSql =
         """
@@ -403,9 +402,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         }.ToString();
 
     /// <summary>
-    /// dev 檢視專用的獨立唯讀連線：Mode=ReadOnly、私有快取、不進連線池——
-    /// 每次查詢都真實開磁碟檔，保證看到的是已持久化資料且零副作用。
-    /// DB 檔不存在時開啟即失敗（不會建檔）。
+    /// 開發用的唯讀檢視工具專用的連線：Mode=ReadOnly、私有快取、不進連線池。
+    /// 每次查詢都重新開磁碟上的檔案，看到的一定是已經寫進檔案的資料，也不會改到任何東西。
+    /// 資料庫檔不存在時開啟就失敗，不會建檔。
     /// </summary>
     public DbConnection CreateReadOnlyConnection(string projectId)
     {
@@ -424,16 +423,16 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
     {
         // 取消會中斷執行中的語句，見 CancellableSqliteConnection。
         var connection = new CancellableSqliteConnection(connectionString);
-        // SQLite's built-in UPPER is ASCII-only. Match the existing invariant-uppercase
-        // operands for filters and prescreen rules, including pooled and read-only connections.
+        // SQLite 內建的 UPPER 只轉 ASCII 字母。篩選條件與預篩選規則的比對值是用 .NET 的 ToUpperInvariant() 轉大寫，
+        // 這裡把 upper 換成同一個方法，兩邊才一致。連線池裡的連線與唯讀連線都經過這裡。
         connection.CreateFunction<string?, string?>("upper", static value => value?.ToUpperInvariant(), isDeterministic: true);
         return connection;
     }
 
     /// <summary>
-    /// 匯入連線層調校（只作用於匯入連線）：WAL 下 synchronous=NORMAL
-    /// 仍保證一致性；temp_store/cache_size 降低大批寫入的 I/O。由本地引擎家族的匯入 repository 於
-    /// 連線開啟後、交易開始前呼叫（provider 分支留在 Infrastructure）。
+    /// 只給匯入用的連線設定。資料庫用 WAL 時，synchronous=NORMAL 仍然保證一致性；
+    /// temp_store 與 cache_size 減少大量寫入時的磁碟讀寫。匯入的 repository 在連線開啟之後、
+    /// 交易開始之前呼叫。這類跟著資料庫種類走的設定只放在 Infrastructure。
     /// </summary>
     public async Task ApplyImportSessionSettingsAsync(DbConnection connection, CancellationToken cancellationToken)
     {
@@ -442,7 +441,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         await pragma.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    /// <summary>SQLite 批量列寫入＝現行參數化 INSERT 的封裝（見 <see cref="SqliteBulkRowWriter"/>）。</summary>
+    /// <summary>SQLite 的批量寫入是把一句參數化 INSERT 包起來重複執行，見 <see cref="SqliteBulkRowWriter"/>。</summary>
     public IBulkRowWriter CreateBulkRowWriter(
         DbConnection connection, DbTransaction transaction, string table, IReadOnlyList<string> columns)
         => new SqliteBulkRowWriter(connection, transaction, table, columns);
@@ -501,8 +500,8 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             throw LocalSchemaReadiness.EmptyDatabase(projectId);
         }
 
-        // WAL 是資料庫檔案層的持久設定（冪等）：百萬列單交易寫入避免 rollback journal
-        // 的雙倍寫放大，replace 模式的大量 DELETE 也因此變廉價
+        // WAL 是存在資料庫檔裡的設定，重複設定沒有影響。用 WAL 以後，一個交易寫入上百萬列時
+        // 不必像 rollback journal 那樣把資料寫兩次，取代匯入時的大量 DELETE 也比較快。
         await using (var pragma = connection.CreateCommand())
         {
             pragma.CommandText = "PRAGMA journal_mode=WAL;";

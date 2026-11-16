@@ -1,7 +1,7 @@
 {
-  "title": "JET 元件圖",
+  "title": "JE Tool 元件圖",
   "header": [
-    "JET 1.0.0.0 元件圖。範圍：執行期的元件、元件之間的介面與主要相依關係；外部元件僅列執行期載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。",
+    "JE Tool 1.0.0.0 元件圖。範圍：執行時的元件、元件之間的介面與主要相依關係；外部元件僅列執行時載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。",
     "表示法：UML 元件圖。圓形為介面，實線接到提供介面的元件，虛線箭頭由使用端指向介面或被相依的元件；介面名稱第二行是定義該介面的模組。"
   ],
   "sourceRoot": "src/JET/JET",
@@ -9,7 +9,7 @@
   "groups": [
     {
       "id": "presentation",
-      "label": "展示層",
+      "label": "Presentation Layer",
       "components": [
         "frontend",
         "bridge"
@@ -17,14 +17,14 @@
     },
     {
       "id": "applicationLayer",
-      "label": "應用層",
+      "label": "Application Layer",
       "components": [
         "application"
       ]
     },
     {
       "id": "domainLayer",
-      "label": "領域層",
+      "label": "Domain Layer",
       "components": [
         "auditcore",
         "domain"
@@ -32,7 +32,7 @@
     },
     {
       "id": "infrastructureLayer",
-      "label": "基礎設施層",
+      "label": "Infrastructure Layer",
       "components": [
         "persistence",
         "fileio",
@@ -47,7 +47,8 @@
       "components": [
         "webview2",
         "sqlite",
-        "ace"
+        "ace",
+        "adsi"
       ]
     }
   ],
@@ -58,7 +59,7 @@
   "components": [
     {
       "id": "host",
-      "name": "WinForms 主機",
+      "name": "Host",
       "paths": [
         "Program.cs",
         "Form1.cs",
@@ -82,7 +83,7 @@
       "paths": [
         "wwwroot"
       ],
-      "role": "使用者介面（HTML、CSS、JavaScript）",
+      "role": "UI（HTML、CSS、JavaScript）",
       "evidence": [
         {
           "file": "wwwroot/index.html",
@@ -122,7 +123,7 @@
       "paths": [
         "Application"
       ],
-      "role": "各請求的處理常式，協調讀取、計算與儲存",
+      "role": "各請求的 handler，協調讀取、計算與儲存",
       "evidence": [
         {
           "file": "Application/Handlers/ValidateRunHandler.cs",
@@ -140,7 +141,7 @@
       "paths": [
         "AuditCore"
       ],
-      "role": "審計規則：程序可否執行、SQL 片段與結果判定",
+      "role": "查核邏輯：程序可否執行、SQL 片段與結果判定",
       "evidence": [
         {
           "file": "AuditCore/JetAuditProgram.cs",
@@ -162,7 +163,7 @@
       "paths": [
         "Domain"
       ],
-      "role": "資料合約、基本型別與儲存介面",
+      "role": "data contract、基本型別、規則定義與資料存取介面",
       "evidence": [
         {
           "file": "Domain/Contracts/ResultContracts.cs",
@@ -171,6 +172,10 @@
         {
           "file": "Domain/ProjectDocument.cs",
           "text": "public interface IProjectStore"
+        },
+        {
+          "file": "Domain/Rules/AuditDependencyPolicy.cs",
+          "text": "internal static class AuditDependencyPolicy"
         }
       ]
     },
@@ -233,7 +238,7 @@
       "paths": [
         "Infrastructure/Export"
       ],
-      "role": "依範本寫出 Excel 報告與工作底稿",
+      "role": "依範本輸出 Excel 報告與工作底稿",
       "evidence": [
         {
           "file": "Infrastructure/Export/WorkingPaperWriter.cs",
@@ -270,7 +275,7 @@
       "paths": [
         "Templates"
       ],
-      "role": "8 份 Excel 範本，隨應用程式發行",
+      "role": "共 8 份，隨 JET 發布",
       "fileCount": {
         "directory": "Templates",
         "extension": ".xlsx",
@@ -310,6 +315,20 @@
         {
           "file": "Infrastructure/FileIO/AccessTableReader.cs",
           "text": "Provider = \"Microsoft.ACE.OLEDB.16.0\""
+        }
+      ]
+    },
+    {
+      "id": "adsi",
+      "name": "Windows ADSI（WinNT 提供者）",
+      "evidence": [
+        {
+          "file": "UserFullNameLookup.cs",
+          "text": "Marshal.BindToMoniker(path)"
+        },
+        {
+          "file": "UserFullNameLookup.cs",
+          "text": "return readFullName($\"WinNT://"
         }
       ]
     }
@@ -374,7 +393,7 @@
       "usedBy": [
         {
           "component": "application",
-          "label": "選檔、開啟資料夾、結束程式",
+          "label": "選取檔案、開啟資料夾、結束程式",
           "file": "Application/Handlers/Host/HostExitAppHandler.cs",
           "text": "hostShell.RequestExit();"
         }
@@ -403,7 +422,7 @@
       ]
     },
     {
-      "id": "IDataAccess",
+      "id": "CaseDataInterfaces",
       "name": "IValidationFactsPort、IProjectStore 等",
       "definedIn": "AuditCore、Domain",
       "declaration": {
@@ -437,7 +456,7 @@
       ]
     },
     {
-      "id": "ITabularFileReader",
+      "id": "FileAccessInterfaces",
       "name": "ITabularFileReader、IReportStore 等",
       "definedIn": "Domain",
       "declaration": {
@@ -477,7 +496,7 @@
       ]
     },
     {
-      "id": "IWorkingPaperPlanWriter",
+      "id": "ReportOutputInterfaces",
       "name": "IWorkingPaperPlanWriter 等",
       "definedIn": "AuditCore",
       "declaration": {
@@ -492,7 +511,7 @@
       "usedBy": [
         {
           "component": "application",
-          "label": "寫出報告與工作底稿",
+          "label": "輸出報告與工作底稿",
           "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
           "text": "planWriter.WriteAsync("
         }
@@ -572,6 +591,19 @@
       "text": "webView.PostWebMessageAsJson"
     },
     {
+      "from": "host",
+      "to": "adsi",
+      "label": "查詢使用者全名",
+      "file": "AppCompositionRoot.cs",
+      "text": "UserFullNameLookup.Start(windowsAccount)",
+      "more": [
+        {
+          "file": "UserFullNameLookup.cs",
+          "text": "Marshal.BindToMoniker(path)"
+        }
+      ]
+    },
+    {
       "from": "application",
       "to": "auditcore",
       "label": "JetAuditProgram.Plan、Finalize",
@@ -581,21 +613,21 @@
     {
       "from": "application",
       "to": "domain",
-      "label": "資料合約",
+      "label": "data contract",
       "file": "Application/Handlers/ValidateRunHandler.cs",
       "text": "using JET.Domain;"
     },
     {
       "from": "auditcore",
       "to": "domain",
-      "label": "資料合約",
+      "label": "data contract",
       "file": "AuditCore/JetAuditProgram.cs",
       "text": "using JET.Domain;"
     },
     {
       "from": "persistence",
       "to": "auditcore",
-      "label": "取用 SQL 片段",
+      "label": "使用 SQL 片段",
       "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
       "text": "ValidationProcedures.UnbalancedCore()"
     },
@@ -658,10 +690,10 @@
   "notes": [
     {
       "of": "host",
-      "side": "right",
+      "side": "bottom",
       "lines": [
         "啟動時建立 Bridge、Application",
-        "與基礎設施層各元件的物件，",
+        "與 Infrastructure Layer 各元件的物件，",
         "並以建構子注入。"
       ],
       "covers": [
@@ -707,9 +739,9 @@
       "of": "domain",
       "side": "left",
       "lines": [
-        "Bridge 與基礎設施層各元件",
-        "也引用 Domain 的資料合約；",
-        "基礎設施層各元件之間也互相引用。"
+        "Bridge 與 Infrastructure Layer 各元件",
+        "也引用 Domain 的 data contract；",
+        "Infrastructure Layer 各元件之間也互相引用。"
       ],
       "covers": [
         { "from": "bridge", "to": "domain" },
@@ -780,7 +812,69 @@
     {
       "from": "export",
       "to": "application",
-      "reason": "DemoWorkbookWriter 實作 Application 定義的 IDemoFileWriter，寫出示範資料檔。"
+      "reason": "DemoWorkbookWriter 實作 Application 定義的 IDemoFileWriter，輸出示範資料檔。"
     }
-  ]
+  ],
+  "layout": {
+    "maxCrossings": 0,
+    "titleGap": 84,
+    "at": {
+      "host": [-300, 100],
+      "host_note": [-284, 232],
+      "frontend": [60, 100],
+      "bridge": [540, 100],
+      "application": [540, 400],
+      "domain_note": [36, 640],
+      "domain": [288, 640],
+      "auditcore": [631, 640],
+      "templates": [64, 853, "r"],
+      "export": [320, 853],
+      "diagnostics": [952, 853],
+      "fileio": [320, 965, "t"],
+      "persistence": [952, 965, "t"],
+      "ace": [320, 1179],
+      "sqlite": [952, 1179],
+      "webview2": [1238, 1179],
+      "adsi": [1400, 1179, "l"]
+    },
+    "interfaces": {
+      "WebMessageChannel": {"side": "left", "at": 0.5, "name": "above", "align": "end"},
+      "IApplicationActionHandler": {"side": "top", "at": 0.75, "name": "right"},
+      "IHostShell": {"side": "left", "at": 0.5, "name": "above", "align": "end"},
+      "IJetEventPublisher": {"side": "bottom", "at": 0.25, "name": "left"},
+      "CaseDataInterfaces": {"side": "top", "at": 0.8, "name": "left"},
+      "FileAccessInterfaces": {"side": "top", "at": 0.2, "name": "right"},
+      "ReportOutputInterfaces": {"side": "top", "at": 0.3, "name": "right"},
+      "ISupportDiagnosticLogStore": {"side": "top", "at": 0.7, "name": "left"},
+      "ISqlDialect": {"side": "left", "at": 0.3, "name": "below", "align": "end"}
+    },
+    "lines": {
+      "dep_host_frontend": {"fromSides": ["right"], "toSides": ["left"]},
+      "use_frontend_WebMessageChannel": {"fromSides": ["right"], "toSides": ["left"]},
+      "use_bridge_IApplicationActionHandler": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "use_application_IJetEventPublisher": {"fromSides": ["top"], "toSides": ["bottom"]},
+      "dep_host_webview2": {"via": [[-270, -30], [1160, -30]], "labelAt": 0.3},
+      "dep_host_adsi": {"via": [[-330, -54], [1440, -54]], "labelAt": 0.3},
+      "dep_bridge_webview2": {"via": [[1130, 100]], "labelAt": 0.2},
+      "use_application_IHostShell": {"via": [[-416, 368]], "labelAt": 0.82, "text": ["選取檔案、", "開啟資料夾、", "結束程式"]},
+      "use_application_FileAccessInterfaces": {"via": [[-165, 400], [-165, 932]], "labelAt": 0.2},
+      "use_application_ReportOutputInterfaces": {"via": [[-130, 432], [-130, 784]]},
+      "use_application_CaseDataInterfaces": {"via": [[1076, 384], [1076, 932]], "labelAt": 0.3},
+      "use_application_ISupportDiagnosticLogStore": {"via": [[992, 416]]},
+      "dep_application_domain": {"via": [[528, 500], [300, 500]]},
+      "dep_application_auditcore": {"via": [[576, 520]], "text": ["JetAuditProgram.", "Plan、Finalize"]},
+      "dep_auditcore_domain": {"fromSides": ["left"], "toSides": ["right"]},
+      "dep_export_auditcore": {"via": [[592, 853]], "text": ["工作底稿計畫", "與報告計畫"]},
+      "dep_fileio_auditcore": {"via": [[622, 1013]]},
+      "dep_persistence_auditcore": {"via": [[652, 1065]], "labelAt": 0.15},
+      "use_auditcore_ISqlDialect": {"via": [[682, 1000]]},
+      "dep_export_templates": {"fromSides": ["left"], "toSides": ["right"]},
+      "dep_fileio_ace": {"fromSides": ["bottom"], "toSides": ["top"]},
+      "dep_persistence_sqlite": {"fromSides": ["bottom"], "toSides": ["top"]}
+    },
+    "frames": {
+      "applicationLayer": {"titleAlign": "right"},
+      "infrastructureLayer": {"span": [182, 1100]}
+    }
+  }
 }

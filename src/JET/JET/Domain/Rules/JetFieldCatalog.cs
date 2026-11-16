@@ -14,7 +14,7 @@ internal sealed record JetMappingSlot(
     bool IncludeInFieldInfo,
     bool IncludeInMappingUi);
 
-/// <summary>正規化後 semantic field 的領域值型態；internal 以免擴張既有 public filter kind。</summary>
+/// <summary>語意欄正規化後的值是哪一種型別。宣告成 internal，不去擴充已經公開的 <c>GlFieldKind</c>。</summary>
 internal enum JetFieldValueKind
 {
     Text,
@@ -63,8 +63,8 @@ internal sealed record JetFieldDefinition(
 }
 
 /// <summary>
-/// GL／TB 欄位語意的 Domain 權威目錄。既有 public mapping keys 與 filter whitelist 都只由這份目錄投影；
-/// 目錄不產生 DDL、wire 或前端程式碼。
+/// GL 與 TB 語意欄的目錄，Domain 裡以這一份為準。公開的配對鍵清單與可篩選欄位清單都只從這份目錄產生；
+/// 目錄不產生 DDL、wire 格式或前端程式碼。
 /// </summary>
 internal static class JetFieldCatalog
 {
@@ -204,8 +204,8 @@ internal static class JetFieldCatalog
         FlattenSlots(TbFields);
 
     /// <summary>
-    /// runtime mapping UI 目前可見的相容投影。Contract-only 欄位仍可進 All/metadata，
-    /// 但沒有對應的前端控制項時不得藉 catalog mirror 出現在 UI。
+    /// 第三步配對畫面目前看得到的配對位置。只存在於契約的欄位仍可以列在全部配對位置與 metadata 裡，
+    /// 但前端沒有對應的控制項時，不能因為目錄裡有它就出現在畫面上。
     /// </summary>
     internal static IReadOnlyList<JetMappingSlot> GlMappingUiSlots { get; } =
         GlMappingSlots.Where(static slot => slot.IncludeInMappingUi).ToArray();
@@ -239,22 +239,22 @@ internal static class JetFieldCatalog
         GlFields.ToDictionary(static field => field.SemanticIdentity, StringComparer.Ordinal);
 
     /// <summary>
-    /// 取得指定來源位置所產生的 GL semantic field。回傳欄位的 SQL target 與 filterability
-    /// 描述 semantic output，不表示該來源位置可直接拿去查詢 SQL 欄。
+    /// 依配對鍵找出這個來源位置產生的 GL 語意欄。回傳欄位的 <c>SemanticSqlTarget</c> 與 <c>IsGenericFilterField</c>
+    /// 講的是產生出來的語意欄，不代表這個來源位置本身可以直接拿去查 SQL 欄。
     /// </summary>
     internal static JetFieldDefinition FindGlSemanticFieldByMappingKey(string key) =>
         GlFieldsByMappingKey[key];
 
     /// <summary>
-    /// 取得指定來源位置所產生的 TB semantic field。回傳欄位的 SQL target 描述
-    /// semantic output；例如各種金額來源位置都產生 <c>changeAmount</c>。
+    /// 依配對鍵找出這個來源位置產生的 TB 語意欄。回傳欄位的 <c>SemanticSqlTarget</c> 講的是產生出來的語意欄；
+    /// 例如各種金額來源位置都產生 <c>changeAmount</c>。
     /// </summary>
     internal static JetFieldDefinition FindTbSemanticFieldByMappingKey(string key) =>
         TbFieldsByMappingKey[key];
 
     /// <summary>
     /// 來源欄配到這些位置時，裡面是金額。資料預覽的 PBC-GL、PBC-TB 與第三步的來源表，只把配到這些位置的來源欄靠右；
-    /// 前端 ui-core.js 的 GL_FIELDS、TB_FIELDS 用 amount: true 鏡射這一份。GL 的金額欄位底下另有借貸別與借貸代碼，它們不是金額，所以逐一列出。
+    /// 前端 ui-core.js 的 GL_FIELDS、TB_FIELDS 用 amount: true 標出同一批位置，兩邊要一致。GL 的金額欄位底下另有借貸別與借貸代碼，它們不是金額，所以逐一列出。
     /// </summary>
     internal static IReadOnlySet<string> AmountMappingKeys(DatasetKind dataset) => dataset switch
     {
@@ -276,9 +276,9 @@ internal static class JetFieldCatalog
         GlFieldsBySemanticIdentity.GetValueOrDefault(semanticIdentity);
 
     /// <summary>
-    /// 判斷目前已提交 mapping 是否真的提供指定 GL semantic field 的來源位置。
-    /// 以目錄中的 semantic field → mapping slots 關係解析，配對值空白一律當成沒有來源；
-    /// 不以 target 欄位存在或投影後全 NULL 猜測可用性。
+    /// 判斷目前已確認的配對是否真的為指定的 GL 語意欄提供來源欄。
+    /// 依目錄裡這個語意欄對應的配對位置去查，配對值空白一律當成沒有來源；
+    /// 不因為 <c>gl</c> 有這個欄位、或投影後整欄是 NULL，就去猜它能不能用。
     /// </summary>
     internal static bool HasMappedGlSemanticField(
         IReadOnlyDictionary<string, string> mapping,
@@ -317,7 +317,7 @@ internal static class JetFieldCatalog
     internal static string MappingSlotLabel(IReadOnlyList<JetMappingSlot> slots, string key) =>
         slots.FirstOrDefault(slot => slot.Key == key)?.Label ?? key;
 
-    /// <summary>取得 semantic field 的主要使用者可見 mapping label。</summary>
+    /// <summary>取得語意欄在第三步畫面上的主要欄位名稱：非字面值的配對位置裡順序最前面那一個的名稱。</summary>
     internal static string GlSemanticFieldMappingLabel(string semanticIdentity) =>
         GlFieldsBySemanticIdentity[semanticIdentity]
             .MappingSlots

@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>專案 operation_log append-only 寫入實作。</summary>
+/// <summary>案件操作紀錄 operation_log 的 SQLite 實作。紀錄只新增，不修改也不刪除。</summary>
 public sealed class LocalProjectOperationLog(ILocalProjectDatabase database) : IProjectOperationLog
 {
     public async Task AppendAsync(

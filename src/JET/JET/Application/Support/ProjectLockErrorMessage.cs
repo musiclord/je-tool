@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace JET.Application;
 
-/// <summary>把 provider 的持鎖資訊轉為可採信的 project_locked 訊息。</summary>
+/// <summary>把案件鎖回報的持有人資訊寫成 project_locked 的訊息；持有人資訊不明時，只說案件已在另一個 JET 視窗開啟。</summary>
 internal static class ProjectLockErrorMessage
 {
     private const string ExternalProcessMessage =
@@ -10,8 +10,8 @@ internal static class ProjectLockErrorMessage
 
     public static string Format(string lockedBy, string machineName, DateTimeOffset lockedUtc)
     {
-        // 本地 OS 排他 handle 只告訴我們「另一程序持有」，無法可靠回讀它的機器與起始時間。
-        // LocalFileLockService 以空 machine／default time 表示未知；不得拿目前程序資訊冒充持有人。
+        // 本機的檔案鎖只知道鎖被另一個程序拿著，讀不到可靠的電腦名稱與開始時間。
+        // LocalFileLockService 用空的電腦名稱或預設時間表示不知道；這時不能拿目前程序的資訊當成持有人。
         if (string.IsNullOrWhiteSpace(machineName) || lockedUtc == default)
         {
             return ExternalProcessMessage;

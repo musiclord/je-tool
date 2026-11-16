@@ -6,9 +6,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// support.log.export：Release/Debug 皆可用的去識別支援日誌匯出。指定 projectId 時，即使案件載入
-/// 失敗、尚無 active session，仍能把該次 correlation 寫入使用者所選案件資料夾；內容是該案件跨次開啟的整份紀錄，
-/// 加上這個程序還沒寫進紀錄的事件。
+/// support.log.export：匯出去識別的支援日誌，Release 與 Debug 組建都能用。指定 projectId 時寫到那個案件的資料夾，
+/// 案件載入失敗、還沒有開啟中的案件時也能匯出；內容是這個案件歷次開啟累積的整份紀錄，
+/// 加上這個程序還沒寫進紀錄的事件。另外帶 correlationId 時，只寫出那一次操作的事件。
 /// 省略 projectId 時是一般工具：匯出目前保留的全部去識別紀錄，寫到 JET 的日誌資料夾
 /// （<c>%LOCALAPPDATA%\JET\logs\</c>），不需要先開案件。
 /// </summary>
@@ -120,12 +120,12 @@ public sealed class SupportLogExportHandler(
 }
 
 /// <summary>
-/// dev.log.exportFile：把完整診斷日誌單鍵寫成 .txt 檔（內容仍為 NDJSON、每行一筆），免手動複製。
-/// 內容以檔案 sink 全量為準（本次啟動以來的完整 append；ring buffer 有界、會擠掉舊紀錄）；sink 檔
-/// 不存在或不可讀時退回 ring buffer 快照並於回應標記 source。篩選以案件為主；payload 另帶 correlationId
-/// 時，同一次操作的行也一併輸出，因為 picker 上載入或刪除失敗時案件尚未開啟，那次 action 的紀錄
-/// 沒有 projectId。輸出只寫指定的既有案件目錄，不接受任意路徑，也沒有其他 fallback 目的地。
-/// 僅 Debug 組建註冊。
+/// dev.log.exportFile：把完整的診斷日誌寫成一個 .txt 檔，內容是 NDJSON，每行一筆，不必手動複製。
+/// 優先讀診斷日誌檔，它保有這次啟動以來的全部紀錄；記憶體裡的日誌緩衝區容量固定，滿了會擠掉舊紀錄。
+/// 日誌檔不存在或讀不了時，改用記憶體緩衝區目前的內容，回應的 source 寫出用的是哪一個來源。
+/// 只輸出屬於指定案件的行；payload 另帶 correlationId 時，同一次操作的行也一併輸出，
+/// 因為在案件清單載入或刪除失敗時案件還沒開啟，那次 action 的紀錄沒有 projectId。
+/// 檔案只寫到指定的既有案件資料夾，不接受任意路徑，也沒有其他備用的位置。只在 Debug 組建註冊。
 /// </summary>
 public sealed class DevLogExportFileHandler(
     IDiagnosticLogStore diagnosticLog,
@@ -215,8 +215,8 @@ public sealed class DevLogExportFileHandler(
     }
 
     /// <summary>
-    /// 屬於該案件的行一定收；另外收同一 correlation 的行。picker 上載入或刪除失敗時案件尚未開啟，
-    /// 那次 action 的紀錄只有 correlationId、沒有 projectId，不這樣做最需要診斷的那次失敗反而不在檔案裡。
+    /// 屬於這個案件的行一定收；另外收 correlationId 相同的行。在案件清單載入或刪除失敗時案件還沒開啟，
+    /// 那次 action 的紀錄只有 correlationId、沒有 projectId；不收的話，最需要診斷的那次失敗反而不在檔案裡。
     /// </summary>
     private static bool MatchesSelection(string line, string projectId, string? correlationId)
     {
@@ -326,8 +326,8 @@ internal static class ProjectLogFileWriter
         var fileName = $"{prefix}-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}-{token[..8]}.txt";
         var destinationPath = Path.Combine(projectDirectory, fileName);
         var temporaryPath = Path.Combine(projectDirectory, $".{prefix}-{token}.tmp");
-        // 來源枚舉（例如惰性開啟、逐行讀取的 NDJSON sink）與本 writer 自身的寫入是兩種失敗：前者原樣拋回，
-        // 讓呼叫端依原始型別決定是否改用其他來源；只有後者才包成 support_log_export_failed。
+        // 失敗分兩種。讀來源的失敗照原樣丟出，例如逐行讀取的診斷日誌檔到這裡才開啟，開不了或讀不了；
+        // 呼叫端依例外的型別決定要不要改用其他來源。只有寫輸出檔的失敗才包成 support_log_export_failed。
         var sourceFaulted = false;
         try
         {
@@ -386,8 +386,8 @@ internal static class ProjectLogFileWriter
         }
         catch
         {
-            // 來源枚舉失敗（含 sink 開啟或讀取的 I/O 例外）與其他未預期例外：一律先移除同目錄暫存，
-            // 不能留下半份輸出，再原樣拋回。
+            // 讀來源失敗（包含日誌檔開啟或讀取的 I/O 例外）與其他沒預期到的例外：先刪掉同一個資料夾裡的暫存檔，
+            // 不留下半份輸出，再照原樣丟出。
             DeleteTemporaryBestEffort(temporaryPath);
             throw;
         }

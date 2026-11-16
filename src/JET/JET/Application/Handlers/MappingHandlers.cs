@@ -7,7 +7,8 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// 從檔案讀回 GL/TB mapping 草稿（第三步「由底稿匯入欄位」）。唯讀：不保存 mapping、不投影 target、不推進流程。
+/// mapping.restoreDraft：從檔案讀回 GL 與 TB 的欄位配對草稿，也就是第三步的「由底稿匯入欄位」。
+/// 只讀不寫：不儲存配對，不把資料轉進正式資料表，也不推進流程。
 /// 檔案有 JET 記下的隱藏配對紀錄時照那一份帶入；沒有時讀「自動化工具-檔案欄位資訊」看得見的對照表推得草稿，
 /// 舊版 IDEA JET 的底稿也能帶入。
 /// 選到的來源欄在目前資料找不到時，不整份拒絕：對得上的照樣帶入，找不到的連同綁在它上面的設定拿掉，
@@ -106,8 +107,8 @@ public sealed class MappingRestoreDraftHandler(
                 innerException: exception);
         }
 
-        // restoreDraft 是唯一可把既有 backend stable ID 帶回一個已失效 mapping 的可信入口。
-        // 授權綁目前 project/batch 與完整 canonical definition；不接受 caller 自行 mint ID。
+        // 攸關資料元素欄位的 fieldId 由後端產生。要把既有的 fieldId 帶回一份已經失效的配對，只能經過 mapping.restoreDraft。
+        // 這裡依目前案件與目前的 GL 匯入批次，記下可以沿用的完整欄位定義；呼叫端不能自己編 fieldId。
         restoreAuthorizations.Authorize(projectId, glBatch.BatchId, glOptions.RdeFields);
 
         return new
@@ -380,7 +381,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var warnings = CommittedOperationLog.WithWarning(result.Projection.Warnings, operationLogWarning);
         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
         var availableGlFields = JetFieldCatalog.AvailableGlFields(result.Spec.Mapping, result.Spec.Options);
-        // 這次投影的控制總數算出的尾數 0 的個數，畫面不用重開案件就能更新第四步卡片與第五步的預設。
+        // 用這次確認配對轉入 GL 時算出的控制總數，決定尾數 0 的個數；畫面不用重開案件就能更新第四步卡片與第五步的預設。
         int? zerosThreshold = result.Projection.GlTotals is { } glTotals
             ? TrailingZeroThreshold.FromGlTotals(glTotals, document.MoneyScale)
             : null;
@@ -427,7 +428,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             approvalDateMode = result.Spec.Options.ApprovalDateMode,
             manualAutoPolicy = result.Spec.Options.ManualAutoPolicy,
             rdeFields = result.Spec.Options.RdeFields,
-            // 往下填補的欄位照欄位目錄順序回傳；fillDownCount 是這次投影把空白補成上一列值的格數。
+            // 往下填補的欄位照欄位目錄順序回傳；fillDownCount 是這次確認配對時，把空白補成上一列值的格數。
             fillDownFields = result.Spec.Options.FillDownFields,
             availableGlFields,
             batchId = batch.BatchId,
@@ -569,7 +570,7 @@ internal static class MappingCommitShared
         try { await updateProgress(); }
         catch (Exception exception)
         {
-            // Only a navigation milestone failed after data commit. Do not repeat the completed operation or expose paths.
+            // 資料已經提交，失敗的只是記下案件進行到第幾步。不重做已經完成的作業，也不把路徑帶進錯誤訊息。
             // 寫成支援日誌事件，記下例外型別與位置。
             if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "workflow.milestone", exception);
         }
@@ -577,8 +578,9 @@ internal static class MappingCommitShared
 }
 
 /// <summary>
-/// mapping.restoreDraft 驗證成功後，暫存可由下一次同 project/import-batch commit 沿用的
-/// backend stable IDs。授權綁完整 canonical definition；它不是持久 draft，也不改 mapping state。
+/// mapping.restoreDraft 驗證成功後，暫時記住哪些後端產生的攸關資料元素 fieldId 可以沿用。
+/// 只有同一個案件、同一個 GL 匯入批次的下一次確認配對能用，而且送來的欄位定義要和記下的完整定義相同。
+/// 它只存在記憶體裡，不是保存下來的草稿，也不改已確認的配對。
 /// </summary>
 public sealed class MappingRestoreDraftAuthorizationStore
 {
@@ -631,7 +633,7 @@ public sealed class MappingRestoreDraftAuthorizationStore
                 if (!item.TryGetProperty("fieldId", out var fieldIdElement)
                     || fieldIdElement.ValueKind != JsonValueKind.String)
                 {
-                    // 省略／null 是本次 commit 由 backend 產生的新 ID，不需 restore grant。
+                    // 沒帶 fieldId 或是 null 的欄位，這次確認配對時由後端產生新的 ID，不需要 mapping.restoreDraft 的授權。
                     continue;
                 }
 
@@ -647,7 +649,7 @@ public sealed class MappingRestoreDraftAuthorizationStore
                     || !canonicalFields.TryGetValue(fieldId, out var field)
                     || authorized != field)
                 {
-                    // 只能沿用目前案件既有 definition，或目前匯入批次已驗證的 restoreDraft definition；新欄位應省略 fieldId。
+                    // fieldId 只能沿用目前案件已有的欄位，或 mapping.restoreDraft 對目前匯入批次驗證過、定義完全相同的欄位；新欄位不要帶 fieldId。
                     throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "rde_field_id_not_authorized");
                 }
             }
@@ -672,7 +674,8 @@ public sealed class MappingRestoreDraftAuthorizationStore
 }
 
 /// <summary>
-/// mapping v2 projection options 的 wire parser。正準化與跨欄驗證仍由 AuditCore/Domain 執行。
+/// 從 mapping.commit.gl 的 payload 讀出 GL 配對的進階設定：傳票核准日的配對方式、過帳狀態的取捨、人工與自動分錄的判斷、
+/// 攸關資料元素欄位，以及往下填補的欄位。這裡只檢查 JSON 的形狀；正規化與跨欄位的驗證由 AuditCore 與 Domain 執行。
 /// </summary>
 internal static class MappingV2CommitPayloadPrerequisite
 {
@@ -747,7 +750,7 @@ internal static class MappingV2CommitPayloadPrerequisite
                     fieldId = fieldIdElement.GetString()!;
                     if (!existingRdeIds.Contains(fieldId))
                     {
-                        // 只能沿用目前案件既有的後端 stable ID；新欄位應省略 fieldId。
+                        // fieldId 只能沿用 existingRdeIds 裡的：目前案件已有的，或 mapping.restoreDraft 授權的。新欄位不要帶 fieldId。
                         throw Invalid("rde_field_id_not_existing");
                     }
                 }

@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Prescreen typed lifecycle 的 Application 輸入。只攜帶有界案件事實與 run identity，
-/// 不攜帶 GL 完整列集。可用欄位與分類名稱的意義同 <see cref="AuditProjectSnapshot"/>。
+/// Application 交給預篩選的輸入。只帶案件現況，以及這次執行的結果代號與時間，
+/// 不帶 GL 的資料列。可用欄位與分類名稱的意義同 <see cref="AuditProjectSnapshot"/>。
 /// </summary>
 internal sealed record PrescreenRequest(
     string ProjectId,
@@ -33,8 +33,8 @@ internal sealed record PrescreenRequest(
 }
 
 /// <summary>
-/// Prescreen typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
-/// 各規則要不要執行，都從同一份程序適用性判定衍生。尾零的 0 的個數跟著請求（<see cref="PrescreenRequest.ZerosThreshold"/>）。
+/// 預篩選的計畫。<see cref="ReviewPlan"/> 是公開的 <c>JetAuditProgram.Plan</c> 產生的程序判定，
+/// 各規則要不要執行都從這一份判定讀出。尾零的 0 的個數跟著請求（<see cref="PrescreenRequest.ZerosThreshold"/>）。
 /// </summary>
 internal sealed record PrescreenPlan(
     PrescreenRequest Request,
@@ -61,11 +61,11 @@ internal sealed record PrescreenPlan(
 }
 
 /// <summary>
-/// Provider 執行後回到 AuditCore 的 raw facts。所有計數皆為非 nullable；
-/// 跳過規則的 outward 0／null、固定尾零門檻與 status 不由 Infrastructure 決定。
-/// Preparers／Accounts 沿用既有 50 列上限的有界摘要型別；
-/// TotalPreparerCount／TotalEntryCount 是查核期間的全母體純量（非上限內合計）；
-/// RuleVoucherCounts 與十條逐筆規則的行數來自同一批規則查詢，不另跑第二套述詞。
+/// 資料庫執行預篩選後交回 AuditCore 的原始數字。所有筆數都不是 nullable。
+/// 沒有執行的規則在回應裡要寫 0 還是 null、尾零的 0 的個數，以及 status，都不由 Infrastructure 決定。
+/// <c>Preparers</c> 與 <c>Accounts</c> 沿用最多 50 列的摘要型別。
+/// <c>TotalPreparerCount</c> 與 <c>TotalEntryCount</c> 是整個查核期間的總數，不是這 50 列以內的合計。
+/// <c>RuleVoucherCounts</c> 與十條逐筆規則的分錄筆數來自同一批規則查詢，不另寫第二套條件。
 /// </summary>
 internal sealed record PrescreenFacts(
     long PrepPeriodApprovalCount,
@@ -86,9 +86,9 @@ internal sealed record PrescreenFacts(
     long TotalEntryCount = 0);
 
 /// <summary>
-/// 集中度分析（流程總覽區塊⑤）的有界呈現事實。累積占比、「其他」彙總與前五佔比一律
-/// 在此算好，前端只鏡射與格式化。整塊沿用 <c>preparer_summary</c> 的程序判定：該程序為
-/// N/A 時本區塊亦為 N/A，且不攜帶任何數值格（與「結果為 0」語意不同，不併入同一統計）。
+/// 流程總覽區塊⑤集中度分析要顯示的數字，列數有上限。累積占比、「其他」的合計與前五名的占比都在後端算好，
+/// 前端只照著顯示與排版。整塊沿用 <c>preparer_summary</c> 的程序判定：那項程序是 N/A 時這一塊也是 N/A，
+/// 而且不帶任何數字，因為 N/A 和「結果是 0」是兩回事，不能算在一起。
 /// </summary>
 internal sealed record PrescreenConcentration(
     string Status,
@@ -116,9 +116,9 @@ internal sealed record PreparerConcentrationRow(
     decimal? CumulativePct);
 
 /// <summary>
-/// 預篩選 row-tag 的全期命中分布。Population 是查核期間 GL 行母體；規則依
-/// <see cref="RuleCatalog"/> 的 RowTag 登錄順序輸出。真正 N/A 的規則不攜帶數值，
-/// 適用但零命中則保留 0；母體為 0 時只有 RatePct 為 null。
+/// 逐筆標記的預篩選規則在整個查核期間各命中多少。<c>Population</c> 是查核期間 GL 的分錄筆數；
+/// 規則依 <see cref="RuleCatalog"/> 裡 RowTag 規則的登錄順序輸出。N/A 的規則不帶數字；
+/// 有執行但沒有命中的規則保留 0。分錄筆數是 0 時，只有 <c>RatePct</c> 是 null。
 /// </summary>
 internal sealed record PrescreenRulePeriod(
     long Population,
@@ -140,9 +140,10 @@ internal static class ConcentrationLimits
 }
 
 /// <summary>
-/// AuditCore Finalize 的 typed prescreen 產物。Data 保留既有 wire／report compatibility
-/// shape；Manifest 保留每項程序的適用性判定、狀態與計數；
-/// Concentration 與 RulePeriod 是流程總覽的有界呈現事實；兩張成對卡片的原因由同一個方法合併。
+/// 預篩選 Finalize 的結果。<c>Data</c> 的形狀和 action 回應、報告使用的相同；
+/// <c>Manifest</c> 保留每項程序的適用性判定、狀態與計數；
+/// <c>Concentration</c> 與 <c>RulePeriod</c> 是流程總覽要顯示的數字，列數有上限。
+/// 週末與假日兩張卡各有過帳與核准兩側，兩側的原因由同一個方法合併。
 /// </summary>
 internal sealed record PrescreenResult(
     PrescreenRunResult Data,
@@ -153,8 +154,8 @@ internal sealed record PrescreenResult(
     PrescreenActivityReasons HolidayActivity);
 
 /// <summary>
-/// Prescreen 的 typed Infrastructure port。實作只執行 parameterized set-based SQL
-/// 與 raw reader mapping，不判定 prerequisites、status、N/A 或固定政策值。
+/// 預篩選的執行介面，由 Infrastructure 實作。實作只執行參數化的集合式 SQL，並把查詢結果原樣讀成數字；
+/// 前置條件、status、N/A 與固定的規則參數都不由它判定。
 /// </summary>
 internal interface IPrescreenFactsPort
 {
@@ -166,8 +167,7 @@ internal interface IPrescreenFactsPort
 public static partial class JetAuditProgram
 {
     /// <summary>
-    /// Prescreen production path 的 typed Plan。既有 public review plan 是 prerequisites
-    /// 與 N/A precedence 的唯一來源。
+    /// 預篩選正式流程用的 Plan。前置條件與 N/A 原因的先後順序，只由收 <see cref="AuditProjectSnapshot"/> 的公開 Plan 決定。
     /// </summary>
     internal static PrescreenPlan Plan(PrescreenRequest request)
     {
@@ -201,8 +201,8 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// Prescreen typed Finalize：AuditCore 依 plan 的適用性判定丟棄不適用規則的 raw facts，每條規則都讀規則需求表的同一個判定，
-    /// 再沿用既有 public manifest finalizer 產生 status 與 N/A 證據。
+    /// 預篩選的 Finalize。AuditCore 依計畫裡的適用性判定，丟掉不適用規則查回的數字；每條規則讀的都是規則需求表的同一個判定。
+    /// 各項程序的 status 與 N/A 原因再交給公開的 Finalize 產生。
     /// </summary>
     internal static PrescreenResult Finalize(
         PrescreenPlan plan,
@@ -242,8 +242,8 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// 以既有 finalized 行數、同 query 取得的去重傳票數與全期母體建立 rulePeriod。
-    /// 適用性只讀同一份 manifest，不以 outward status 推測，因 status="na" 亦可能只是零命中。
+    /// 組出 rulePeriod：分錄筆數取 Finalize 已定的數字，傳票張數取同一批查詢回傳的不重複傳票數，分母是整個查核期間的分錄筆數。
+    /// 規則適不適用只讀 manifest，不從 status 反推，因為 status 是 "na" 也可能只是沒有命中。
     /// </summary>
     private static PrescreenRulePeriod BuildRulePeriod(
         AuditRunManifest manifest,
@@ -352,7 +352,7 @@ public static partial class JetAuditProgram
             data.DistinctAccountCount);
     }
 
-    /// <summary>占比取一位小數；分母為 0 → null（不畫 0%）。</summary>
+    /// <summary>占比取到小數一位；分母是 0 時回 null，畫面不畫成 0%。</summary>
     private static decimal? SharePct(long part, long total) =>
         total <= 0
             ? null

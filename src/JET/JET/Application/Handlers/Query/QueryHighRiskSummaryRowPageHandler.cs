@@ -5,19 +5,20 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.highRiskSummaryRowPage:多情境高風險條件彙總的行層 keyset 分頁(底稿方法學 step4-1)。
-/// 列集為**命中傳票之所有行**(任一行命中任一情境的傳票,其全部 GL 行皆列出,含該傳票內未命中
-/// 任何情境的行);每列 voucherNumber/lineItem/glDate/approvalDate/createdBy/approvedBy/
-/// accountNumber/accountName/amount(signed)/description ＋ matchedPositions(該行直接命中的情境
-/// 位置 1..N,有序去重;**非命中行為空 []**)。排序鍵 entry_id ASC、排除 NULL 傳票號、cursor opaque、
-/// pageSize 預設 200/上限 500。amount 為該行 signed 金額顯示值((decimal)AmountScaled/scale)。
+/// query.highRiskSummaryRowPage：高風險條件彙總的分錄明細分頁，對應工作底稿的 step4-1。
+/// 列出命中傳票的全部分錄：一張傳票只要有任何一筆分錄命中任何一個情境，它的每一筆 GL 分錄都列出來，
+/// 包含沒有命中任何情境的分錄。每列有 voucherNumber、lineItem、glDate、approvalDate、createdBy、approvedBy、
+/// accountNumber、accountName、amount、description 與 matchedPositions。
+/// matchedPositions 是這一筆分錄直接命中的情境位置，從 1 起算、由小到大、不重複；沒有命中的分錄是空陣列。
+/// amount 是帶正負號的金額，由 AmountScaled 除以 moneyScale 得到。
+/// 沒有指定 sort 時依 entry_id 由小到大排列，不含傳票號碼是 NULL 的分錄。下一頁從上一頁最後一筆的排序鍵接著讀（keyset 分頁）；
+/// cursor 的內容前端不解讀，照原樣帶回。pageSize 預設 200，最多也是 200。
 ///
-/// repo 回的 RowTagRow 不含 entry_id,故另回與 rows 同序同長的 EntryIds;本 handler 以 index 對齊
-/// rows[i] ↔ EntryIds[i] → PositionsByEntry,非命中行(不在 dict)補空 []。
+/// repository 回的每一列不含 entry_id，所以另外回一份和 rows 順序、長度都相同的 EntryIds。
+/// 這個 handler 用同一個索引把 rows[i] 對到 EntryIds[i]，再查出這筆分錄命中的情境位置；查不到就是沒有命中，補空陣列。
 ///
-/// 惰性補算(同 filterHitsPage):首頁只在持久化結果已失效時，用共用服務重算全部已存情境。
-/// 零筆命中與搜尋無結果不觸發重算。壞 cursor →
-/// invalid_payload(fail loud,不靜默重置為首頁)。
+/// 和 query.filterHitsPage 一樣，讀第一頁時只有在存下的命中結果已經過期，才用共用的服務重算全部已儲存情境；
+/// 命中零筆或搜尋不到結果不會引發重算。cursor 格式不對時回 invalid_payload，不會當成第一頁重讀。
 /// </summary>
 public sealed class QueryHighRiskSummaryRowPageHandler(
     IProjectStore projectStore,

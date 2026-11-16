@@ -5,9 +5,9 @@ using JET.AuditCore;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總情境摘要命中數的合併器:跑「傳票層」與「行層」兩個 GROUP BY,
-/// 把每個情境位置(filter_scenario.position)的兩筆 count 併成 dict&lt;position,(voucher,row)&gt;。
-/// 無命中的位置不會出現在任一查詢結果,故自然不入 dict。
+/// 讀高風險條件彙總裡每個情境的命中數。執行傳票層與行層兩個 GROUP BY 查詢，
+/// 依情境位置 filter_scenario.position 把兩個數字合成一筆，回傳以位置為鍵、值是傳票數與分錄數的對照表。
+/// 沒有命中的位置不會出現在任何一個查詢的結果裡，所以也不在對照表裡。
 /// </summary>
 internal static class HighRiskSummaryScenarioCounts
 {
@@ -29,8 +29,8 @@ internal static class HighRiskSummaryScenarioCounts
     }
 
     /// <summary>
-    /// 指定情境的整張命中傳票分錄數。集合與 <see cref="HighRiskSummaryRowPageReader"/> 查詢 1 相同：命中列所屬
-    /// 具名傳票（排除空白傳票號碼）在 GL 中的全部分錄。
+    /// 指定情境的命中傳票裡總共有幾筆分錄。計算的範圍和 <see cref="HighRiskSummaryRowPageReader"/> 的第一個查詢相同：
+    /// 命中的分錄所屬的傳票在 GL 中的全部分錄，傳票號碼空白的不算。
     /// </summary>
     public static async Task<IReadOnlyDictionary<int, long>> ReadWholeVoucherRowCountsAsync(
         DbConnection connection, string schemaPrefix, string countExpression,
@@ -71,7 +71,8 @@ internal static class HighRiskSummaryScenarioCounts
     }
 
     /// <summary>
-    /// 各情境命中列中傳票號碼空白的分錄數：行層命中數裡，<see cref="HighRiskSummaryRowPageReader"/> 不會展開的那一部分。
+    /// 各情境命中的分錄裡，傳票號碼空白的有幾筆。這些分錄算在行層的命中數裡，
+    /// 但 <see cref="HighRiskSummaryRowPageReader"/> 的分頁不會列出它們。
     /// </summary>
     public static async Task<IReadOnlyDictionary<int, long>> ReadBlankVoucherNumberRowCountsAsync(
         DbConnection connection, string schemaPrefix, string countExpression, CancellationToken cancellationToken) =>

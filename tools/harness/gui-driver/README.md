@@ -30,3 +30,5 @@
 - `side-month-workflow`：窄視窗用子條件組與整張傳票條件組合借貸別與科目編號，設定月初月底天數，核對報告、底稿與人工旗標。
 - `nested-voucher-workflow`：分類上層設定、巢狀條件、整張傳票條件與分類選取，空條件失敗後重試、保存、取消、重開與兩種報表。
 - `legacy-form-workflow`：套用原工作簿轉入的四個情境範例，再加「金額尾數連續多個 0」，核對預覽、保存、兩種報表與重開。
+  情境範例這個版本在畫面上隱藏（裁定 2026-11-16-01）；要用範例的情境由 `OpenExampleListAsync` 先打開開關
+  `window.JetUi.FEATURES.scenarioTemplates` 並重畫第五步，`filter-auditor-journey` 另外核對預設沒有托盤。

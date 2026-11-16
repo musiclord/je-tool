@@ -393,4 +393,38 @@ public sealed class WorkingPaperWriterAppearanceTests
         }
     }
 
+    // step4-1 第一頁疊在範本上寫，工作表預設列高沿用範本；接續工作表另外建立，預設列高照 12 點字級算。
+    [Fact]
+    public async Task Step41DefaultRowHeight_FirstPageKeepsTheTemplate_ContinuationFollowsTheFontSize()
+    {
+        const uint continuationRowLimit = 25;
+        using var host = new HandlerTestHost();
+        var projectId = await SetupContinuationProjectAsync(host);
+        await ImportContinuationReferencesAsync(host);
+        await host.DispatchAsync("filter.commit", ContinuationScenarioPayload());
+        var output = await WriteAppearanceWorkingPaperAsync(
+            host,
+            projectId,
+            DifferenceRows(0),
+            FixedAppearanceCalendarRepository.Empty,
+            FixedAppearanceAccountMappingRepository.Empty,
+            new WorkingPaperWriterOptions(continuationRowLimit));
+
+        var templatePath = Path.Combine(AppContext.BaseDirectory, "Templates", "WorkingPaper.xlsx");
+        using var template = SpreadsheetDocument.Open(templatePath, false);
+        using var actual = OpenWorkingPaper(output.Bytes);
+        var actualSheets = WorksheetsByName(actual);
+        var templateHeight = WorksheetsByName(template)[Step41Sheet]
+            .GetFirstChild<SheetFormatProperties>()?.DefaultRowHeight?.Value;
+        var continuation = ExcelWorksheetConstraints.ContinuationSheetName(Step41Sheet, 2);
+
+        Assert.NotNull(templateHeight);
+        Assert.Equal(
+            templateHeight,
+            actualSheets[Step41Sheet].GetFirstChild<SheetFormatProperties>()?.DefaultRowHeight?.Value);
+        Assert.True(actualSheets.ContainsKey(continuation), $"{continuation} 應存在。");
+        Assert.Equal(
+            FormalWorkbookTypography.RowHeight(WorkingPaperStyles.Step41FontSize),
+            actualSheets[continuation].GetFirstChild<SheetFormatProperties>()?.DefaultRowHeight?.Value);
+    }
 }

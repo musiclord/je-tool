@@ -90,7 +90,7 @@ internal sealed record ProjectRepositories
     public required IPrescreenReportWriter PrescreenReportWriter { get; init; }
     public required ICriteriaSelectionReportWriter CriteriaSelectionReportWriter { get; init; }
 
-    /// <summary>報告清單：這組自己的稽核紀錄裝飾同一個案件外 base store。</summary>
+    /// <summary>報告清單。各組共用同一個報告檔案 store，外面包上這一組的操作紀錄，發布報告時在這一組的操作紀錄記一筆。</summary>
     public required IReportStore ReportStore { get; init; }
 
     // 紀錄與開發工具

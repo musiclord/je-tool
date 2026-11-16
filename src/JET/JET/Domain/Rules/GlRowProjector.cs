@@ -45,8 +45,8 @@ public sealed record RowProjectionError(
 }
 
 /// <summary>
-/// 將 staging row 依 mapping 投影為標準化 GL entry。
-/// 純函式：一列失敗回傳 error 由呼叫端決定整批 rollback。
+/// 依欄位配對，把匯入暫存表的一列轉成標準化的 GL 分錄。
+/// 這是純函式：一列失敗時回傳錯誤，要不要整批 rollback 由呼叫端決定。
 /// </summary>
 public static class GlRowProjector
 {
@@ -100,9 +100,9 @@ public static class GlRowProjector
             return false;
         }
 
-        // long.MinValue 本身可存入 BIGINT，卻無法轉成非負的借／貸控制總數：
-        // -long.MinValue 仍會溢位。它必須在產生衍生欄以前成為列級 projection error，
-        // 不能讓 provider 以負 credit 或 wraparound control total 繼續提交。
+        // long.MinValue 本身存得進 BIGINT，但轉不成非負的借方或貸方控制總數：-long.MinValue 還是會溢位。
+        // 所以要在產生衍生欄之前，就把這一列判成投影錯誤；
+        // 不能讓資料庫那一層帶著負的貸方金額，或溢位後繞回去的控制總數繼續提交。
         if (amountScaled == long.MinValue)
         {
             error = CreateControlTotalOverflowError(row, spec, amountScaled);

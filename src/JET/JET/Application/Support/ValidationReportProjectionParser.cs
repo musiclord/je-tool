@@ -4,9 +4,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 把 validation_result 保存的 validation wire summary 重建成 report writer 所需的
-/// internal typed projection。Wire key 的解讀留在 Application；projection 不攜帶
-/// 完整 GL／TB 列集。
+/// 把 validation_result 裡保存的驗證結果摘要 JSON，轉成寫報告的程式要用的 <see cref="ValidationReportProjection"/>。
+/// JSON 欄位名稱只在 Application 解讀；轉出來的物件只有摘要內容，不帶整份 GL 與 TB 資料列。
 /// </summary>
 internal static class ValidationReportProjectionParser
 {

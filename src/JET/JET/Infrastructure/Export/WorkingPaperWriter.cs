@@ -318,7 +318,6 @@ public sealed partial class WorkingPaperWriter(
                 session,
                 sheetStats,
                 context,
-                step2Plan,
                 plan.Request.WorkbookMetadata,
                 plan.Request.CustomFields ?? [],
                 cancellationToken,

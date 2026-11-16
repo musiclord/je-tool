@@ -5,15 +5,15 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.filterHitsPage：已存篩選情境(filter_hit)命中行層明細的 keyset 分頁。
-/// 請求 <c>scenarioPosition</c> **必填**(缺則 invalid_payload);排序鍵 entry_id ASC、cursor opaque、
-/// pageSize 預設 200/上限 500。金額由 scaled 整數換算顯示值((decimal)scaled / moneyScale,沿用 DataPreview)。
+/// query.filterHitsPage：分頁列出一個已儲存情境命中的分錄，資料來自 filter_hit。
+/// 請求必須帶 <c>scenarioPosition</c>，沒帶就回 invalid_payload。沒有指定 sort 時依 entry_id 由小到大排列，
+/// 下一頁從上一頁最後一筆的排序鍵接著讀（keyset 分頁）；cursor 的內容前端不解讀，照原樣帶回。pageSize 預設 200，最多也是 200。
+/// 資料庫裡的金額是放大成整數的值，回應時除以 moneyScale 換回顯示用的金額，做法和資料預覽相同。
 ///
-/// 惰性補算:首頁(無 cursor)的持久化結果已失效時(例如重投影清空命中後尚未重跑 filter.commit),
-/// 重用 filter.commit 同源的 <see cref="IFilterHitMaterializer"/>
-/// 對全部已存情境落地後再取一次。解析 definition JSON → spec 屬 Application 層
-/// (<see cref="FilterScenarioPayloadParser"/>),materializer 只吃 Domain 型別,維持 Infrastructure
-/// 不反向依賴 Application。
+/// 讀第一頁（沒有 cursor）時，如果存下的命中結果已經過期，例如重新確認 GL 配對清掉了命中、之後還沒重新儲存情境，
+/// 就先用和 filter.commit 相同的 <see cref="IFilterHitMaterializer"/> 把全部已儲存情境的命中重新寫進 filter_hit，再讀這一頁。
+/// 把情境的 definition JSON 解析成規格是 Application 的工作（<see cref="FilterScenarioPayloadParser"/>）；
+/// <see cref="IFilterHitMaterializer"/> 只收 Domain 的型別，這樣 Infrastructure 不必反過來依賴 Application。
 /// </summary>
 public sealed class QueryFilterHitsPageHandler(
     IProjectStore projectStore,

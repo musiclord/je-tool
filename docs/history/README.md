@@ -27,6 +27,8 @@
 | [`2026-11-10-source-comment-records.txt`](2026-11-10-source-comment-records.txt) | 2026-11-10 整理 `src/JET` 原始碼註解前的原文：含裁定編號、測試收據與修改經過的每一段註解，依檔案與行號排列（裁定 2026-11-10-11）；裡面的收據編號 2026-11-12 換成「〔收據編號已拿掉〕」，其餘照原樣（裁定 2026-11-12-27） |
 | [`2026-11-10-source-comment-cleanup-records.md`](2026-11-10-source-comment-cleanup-records.md) | 2026-11-10 整理 `src/JET` 原始碼註解的做法、一起改的地方與檢查紀錄；計畫檔只留摘要（裁定 2026-11-10-11） |
 | [`2026-11-11-frontend-test-comment-records.txt`](2026-11-11-frontend-test-comment-records.txt) | 2026-11-11 前端測試搬進 `src/JET` 前的註解原文與 19 個測試的原名稱，依搬移前在 `tools/tests` 的檔案與行號排列（裁定 2026-11-11-01、2026-11-11-02）；裡面的收據編號 2026-11-12 換成「〔收據編號已拿掉〕」，其餘照原樣（裁定 2026-11-12-27） |
+| [`2026-11-13-prepared-by-user-full-name-records.md`](2026-11-13-prepared-by-user-full-name-records.md) | 2026-11-13 建案者改記 Windows 帳號的使用者全名：使用者原話、查到的原因、這次的修改與限制（裁定 2026-11-13-04） |
+| [`2026-11-13-criteria-summary-header-records.md`](2026-11-13-criteria-summary-header-records.md) | 2026-11-13 條件篩選報告摘要頁第 4 列的四個欄名改回和舊版一樣保留：使用者原話、查到的原因與這次的修改（裁定 2026-11-13-03） |
 | [`2026-11-12-custom-account-category-records.md`](2026-11-12-custom-account-category-records.md) | 2026-11-12 讓「在 JET 配對」與「用 Excel 配對」都能新增科目分類：使用者原話、查到的原因、這次的修改，以及 Agent 定、使用者同日確認的做法（裁定 2026-11-12-34） |
 | [`test-change-records.md`](test-change-records.md) | 修改既有測試的原因與第一次失敗的情形，用文字寫、不寫收據編號；2026-11-10 起記在這裡，不寫進測試的註解 |
 | [`2026-11-06-deferred-items-plan-execution-records.md`](2026-11-06-deferred-items-plan-execution-records.md) | 延後事項與前端整理計畫第 2 到第 21 步的做法與驗證紀錄；計畫快到長度上限時移出，原文照搬 |

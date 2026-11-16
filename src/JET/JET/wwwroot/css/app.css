@@ -1841,7 +1841,7 @@ kbd {
   margin-bottom: 0;
 }
 
-/* 區標題右側放只影響這一區的動作：「重新整理本機」。 */
+/* 區標題右側放只影響這一區的動作：「重新整理案件清單」。 */
 .picker-section__head {
   display: flex;
   align-items: center;
@@ -2405,7 +2405,7 @@ dl.kv-list .kv-list__row:last-child {
   display: flow-root;
 }
 
-/* 重新匯入/加入來源完成:卡片短暫成功態,數秒後淡出。出現時由 app.js 的 JetMotion 長出來一次；
+/* 重新匯入或加入新檔完成:卡片短暫成功態,數秒後淡出。出現時由 app.js 的 JetMotion 長出來一次；
    不用進場動畫，因為每次重繪都會重播。 */
 .import-card__just {
   margin: 0 0 8px;
@@ -4342,7 +4342,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   color: var(--color-muted);
 }
 
-/* 預篩選命中預覽：過帳側／核准側各一塊，惰性載入後填入摘要與預覽表。 */
+/* 預篩選命中預覽：「依總帳日期」與「依傳票核准日」各一塊，惰性載入後填入摘要與預覽表。 */
 .rule-detail__preview-block {
   margin-top: var(--space-3);
 }
@@ -5323,7 +5323,7 @@ body.is-resizing-preview .data-preview {
   color: var(--color-disabled); /* 空值「—」 */
 }
 
-/* ---- 流程總覽（4b modal overlay）：補充視窗，純檢視、不改變流程狀態（導航除外）。浮動層：8px 圓角、細框與浮動陰影。 */
+/* ---- 流程總覽（modal overlay）：補充視窗，純檢視、不改變流程狀態（導航除外）。浮動層：8px 圓角、細框與浮動陰影。 */
 
 /* 標題列「總覽」：和其他頂列按鈕同樣是 32px 的次要按鈕，前面加 6 點點陣圖示（第 5 點重點色）。 */
 .overview-btn {
@@ -7248,7 +7248,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .map-options__field select { width: 100%; min-width: 0; }
 .map-options__group label:has(> select) { display: grid; gap: var(--space-2); font-size: var(--text-sm); }
 .map-options__group select { max-width: 100%; }
-/* 「加入」與「再試一次」這類按鈕緊鄰 32px 的輸入框，改用一般按鈕高度對齊。 */
+/* 「加入」與「重新載入」這類按鈕緊鄰 32px 的輸入框，改用一般按鈕高度對齊。 */
 .map-options__group .btn--tiny { min-height: var(--control-height); padding: 5px var(--space-3); font-size: var(--text-sm); }
 .map-options__code-group { margin: 0; padding: var(--space-2) 0; gap: var(--space-2); }
 .map-options__code-label { flex: 0 0 64px; }
@@ -7516,9 +7516,9 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 
 /* ==== 材質、光與動態 ====================================================================================
-   漸層框帶與立體高光不採用：Liquid Glass 不是單純增加立體感，而是設計理念和自然的表達。
-   整個 JE Tool 要帶有 Liquid Glass 的質感：通透、有自然的光澤，不用漸層填色，
-   甚至有擬物化復興的感覺。這一節依 Apple 從 1987 年的介面原則到 2026 年 Mac 介面調整一貫的想法：
+   整個 JE Tool 要帶有 Liquid Glass 的質感：通透、有自然的光澤，也帶一點擬物的做法。
+   Liquid Glass 表達的是設計理念和自然，不是單純增加立體感，所以不用漸層填色、漸層框帶與立體高光。
+   這一節依 Apple 從 1987 年的介面原則到 2026 年 Mac 介面調整一貫的想法：
    每個光影、材質或動態，都要回答「這是哪一層、能不能按、目前選中什麼、剛才的動作有沒有生效」其中一個問題，
    答不出來就不做。
    - 材質分兩層：內容層是不透明的實物，畫布、流程欄、工作面與表格是紙，按鈕是按鍵，輸入框與底槽往下凹；
@@ -7695,7 +7695,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* ---- 按鍵與按下的回應 ---------------------------------------------------------------------------
-   整個 JE Tool 要帶有 Liquid Glass 的質感，甚至有擬物化復興的感覺。按鈕是內容層的實體按鍵：
+   整個 JE Tool 要帶有 Liquid Glass 的質感，也帶一點擬物的做法。按鈕是內容層的實體按鍵：
    - 實心的藍色與紅色按鈕上緣接到一道光、底部有厚度，影子帶一點同色；白色的次要按鈕上緣一道光，底下貼著淺影；
      會新增東西的按鈕也是白色按鍵。光只在 1px 的邊上，不做上半部的亮面，也不用漸層填色。停用的按鈕是平的。
    - 按下時立刻再深一階並稍微鼓起，放開後彈回原本的大小（macOS 27 替玻璃控制項加的回饋，Apple 提醒一點點就夠）。
@@ -7923,9 +7923,9 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* ==== 層級、產出與條件篩選的材質 ======================================================================
-   幾個層級問題：驗證報告和測試項目看起來是同一層，分類的上下層看不出來，
-   「加入」看起來像一般文字。第五步「進階條件篩選」也要多參考 Apple 近年的 Liquid Glass 與擬物化復興。
-   這一節用實物之間的關係表達層級，不加漸層、光澤或立體高光：
+   這一節讓層級看得出來：驗證報告和測試項目不在同一層，分類有上下層，「加入」是能按的按鈕；
+   第五步「進階條件篩選」用同一套 Liquid Glass 與擬物的做法。
+   做法是用實物之間的關係表達層級，不加漸層、光澤或立體高光：
    - 產出是做完之後拿到的文件：工作面底部一塊低一階的托盤，每份檔案是一張文件卡，和上面的測試項目分開。
    - 分類的上下層用連續的線接起來，像在紙上畫的樹；內建分類標出「內建」，說明它為什麼沒有「移除分類」。
    - 會新增東西的按鈕是淡藍底、藍字加號；每列重複的低調按鈕用藍字。看得出能按，又不搶實心的主要按鈕。

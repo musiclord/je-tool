@@ -1,6 +1,6 @@
 # JET action 介面契約
 
-更新日期：2026-11-10
+更新日期：2026-11-16
 
 這份文件是前端、WebView2 Bridge 與 C# 處理器之間的 action 登錄表。它適合用來搜尋 action 名稱，
 不需要逐段閱讀。
@@ -66,7 +66,7 @@
 然後接上各項文字；每項以「來源欄「X」」開頭。
 第三步逐項列出，並依 `sourceColumn` 提供「前往設定」；其他錯誤的 `sourceColumn` 為 null。
 `correlationId` 串起同一次 action 的開始、結束或錯誤事件；Debug 組建在 picker 上開案或刪除失敗時，
-「輸出診斷日誌（DEV）」用它帶出該次紀錄。picker 的「輸出支援日誌」不帶 `projectId` 與 `correlationId`，
+「輸出診斷日誌」用它帶出該次紀錄。picker 的「輸出支援日誌」不帶 `projectId` 與 `correlationId`，
 匯出全部去識別紀錄。完整錯誤碼登錄位於 `Domain/JetActionException.cs`。
 
 ## 主程式進度事件
@@ -145,8 +145,9 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 `prepStartDate` 選填。建案一律建立 SQLite 案件，畫面不送 `databaseProvider`；送了也只接受 `sqlite`，其他值回 `invalid_payload`
 （裁定 2026-11-06-08）。名稱撞到以前建立的 DuckDB 或 SQL Server 案件時回 `invalid_payload`，`error.field` 是 `projectName`，
 句子說明這個名稱被不列在清單上的舊案件佔用，請改名或到 JET 的案件位置刪除那個資料夾（裁定 2026-11-06-09）。
-資料庫種類建立後不能更改。操作人員不由表單提供；
-`ProjectCreateHandler` 直接使用目前 `CurrentPrincipal.ShortName`。舊版呼叫者即使仍送 `operatorId`，後端也不採用。
+資料庫種類建立後不能更改。建案者不由表單提供；
+`ProjectCreateHandler` 用 `CurrentPrincipal.ResolveCreatorNameAsync` 取目前 Windows 帳號的使用者全名，取不到時用 `CurrentPrincipal.ShortName`，
+存進 `project.json` 的 `operatorId`（裁定 2026-11-13-04）。舊版呼叫者即使仍送 `operatorId`，後端也不採用。
 案件編號或客戶名稱留空時，`project.json` 仍保留空字串欄位，讓既有案件、清單與報告使用同一份資料形狀。
 
 `project.listLocal` 只列 SQLite 案件，回應頂層只有 `projects`。以前建立的 DuckDB 案件，以及 SQL Server 案件留在本機的資料夾不列出，
@@ -159,6 +160,10 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 `moneyScale` 缺少或不是正數時沿用設定檔無法讀取的錯誤，不補預設值。
 
 建案時查核起始日不得晚於截止日，否則回 `invalid_payload`，`field` 為 `periodStart`，不建立案件。
+建案時查核起始日與查核截止日的年份都要在 1900 到 2100 之間，否則同樣回 `invalid_payload`，不建立案件。
+`field` 是年份不合的那一欄：起始日不合時是 `periodStart`，只有截止日不合時是 `periodEnd`。訊息是
+「查核起始日的年份須在 1900 到 2100 之間。請修正年份後再建立案件。」，截止日的訊息把欄位名稱換成「查核截止日」。
+年份檢查排在起訖順序檢查之前。不是 `yyyy-MM-dd` 的日期（包括年份多於四位數）照舊在讀取 payload 時拒絕，回非預期錯誤那一句，不帶 `field`。
 既有案件的期間格式不合法或起日晚於迄日時，載入回 `invalid_project_schema`，提示從備份復原或另建案件重新匯入。
 檢查在取得案件鎖及切換作用中案件之前完成，不自動改寫日期。
 正式畫面送來的空白 `projectName`（包括全形空白）回 `invalid_payload`，不改成隨機案件名稱；程式化呼叫未提供名稱時仍可沿用既有識別值產生方式。
@@ -471,7 +476,7 @@ SQLite 在資料庫內先用 .NET 的比對鍵彙總全部來源，再取常見�
 `manual_unlisted` 指非空白值尚未歸類，`manual_overlap` 指同一個值同時出現在兩側。前端依代碼定位設定，不分析中文錯誤句子。
 GL 和 TB 都掃描完整來源來計算錯誤總數；每組只保留最多 10 個值、每值最多 10 個列號，原 `Errors` 樣本仍最多 50 列。
 TB 成功回應的 `warnings` 和 GL 一樣，必填文字欄整欄空白時提醒，但不阻擋確認。
-GL 的人工/自動分錄選「只列人工」或「只列自動」，而清單代碼在來源裡一筆都沒有時，`warnings` 另加一則提醒，
+GL 的人工/自動分錄選「只指定人工代碼」或「只指定自動代碼」，而清單代碼在來源裡一筆都沒有時，`warnings` 另加一則提醒，
 寫出代碼、來源欄、有值的列會怎麼判定與下一步；比對方式和投影相同，去掉頭尾空白、不分大小寫。逐值指定時不做這項檢查。
 GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 寫一筆重新配對的操作紀錄。寫不進去時配對仍已生效，
 `warnings` 另加「變更已儲存，但這次變更沒有寫入操作紀錄。」，和重新匯入相同。本機案件確認前讀不到操作紀錄、
@@ -557,6 +562,7 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 - `filter.commit`：整批取代全部已存情境，每條條件同樣只留用得到的欄位。正式畫面不呼叫，留給程式化佈置與既有測試使用。
 
 第五步欄位條件的「加入」與常用查法、常用篩選條件的卡片與情境範例，都只在前端組出既有 `groups` 和 `conditions`，再呼叫上述 action；
+情境範例這個版本在畫面上暫時隱藏（裁定 2026-11-16-01），action 與 payload 都沒有因此改變。
 送出並儲存的是展開後的條件與使用者參數。2026-11-03 為了「尾數連續多個 0」新增 `endsWithZeros`、`notEndsWithZeros` 兩種比較方式，
 見下方 `fieldValue` 一段；其餘入口沒有新增規則型別或比較方式。2024 篩選表的 A 到 U 與五個填寫範例
 （來源版本 `je-form-2024-1210`）已從正式前端移除，目錄原文只留在測試夾具
@@ -806,7 +812,7 @@ filter.scenario.remove  { position: int, expectedName: string, populationScope?:
 filter.scenario.recheck { populationScope?: "auditPeriod" }
 ```
 
-`position` 是畫面清單上的第幾個（從 1 起算）；`save` 傳 null 表示新增或另存副本，加在清單最後。給了 `position`
+`position` 是畫面清單上的第幾個（從 1 起算）；`save` 傳 null 表示新增情境或「另存為新情境」，加在清單最後。給了 `position`
 就必須帶 `expectedName`，也就是畫面上那個情境目前的名稱，後端用它確認畫面清單和資料庫是同一個情境。`scenario` 的形狀與
 `filter.preview` 相同。其他已存情境由後端從資料庫讀出、照原樣寫回，不經畫面重組，也不用儲存規則重新檢查；
 只有這次儲存的那一個用儲存規則檢查。這個情境通過檢查後，後端只保留每條條件那種類型用得到的欄位，

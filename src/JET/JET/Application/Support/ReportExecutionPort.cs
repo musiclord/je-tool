@@ -4,9 +4,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// Application-owned persistence orchestration for the four formal report exports.
-/// It checks Application-shaped content writers against the pure AuditCore plan,
-/// then preserves the existing single-write or atomic-batch store call.
+/// 四種正式報告匯出共用的寫檔步驟，由 Application 負責。先核對 handler 準備的寫檔請求和 AuditCore 算出的計畫一致：
+/// 份數、報告種類與來源版本都要相同。再照計畫呼叫 store：計畫要求整批時用整批寫入，整批一起發布或一起不發布；
+/// 否則只有一份，單獨寫入。
 /// </summary>
 internal sealed class ReportExecutionPort(
     IReportStore reportStore,

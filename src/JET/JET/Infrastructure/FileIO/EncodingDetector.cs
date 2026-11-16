@@ -4,10 +4,11 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 文字檔編碼解析（固定順序判定，不做啟發式猜測）：
-/// BOM（UTF-8 / UTF-16 LE/BE）→ 無 BOM 時嚴格 UTF-8 驗證取樣段 → 否則 Big5（CP950）。
-/// 解碼一律採 exception fallback：不可解碼的位元組讓讀取端以 file_read_error 回報，
-/// 而非默默替換成 U+FFFD 汙染審計資料。
+/// 判定文字檔的編碼。依固定順序判定，不靠統計猜測。
+/// 先看 BOM，認得 UTF-8 與 UTF-16 的小端、大端。沒有 BOM 時取檔案開頭一段，通過嚴格的 UTF-8 驗證就是 UTF-8，
+/// 否則當成 Big5（code page 950）。
+/// 這裡回傳的編碼遇到無法解碼的位元組都會丟出例外，讀取端因此回報 file_read_error，
+/// 不會把壞位元組默默換成 U+FFFD 混進審計資料。
 /// 讀取端的 StreamReader 會認 BOM：BOM 和這裡給的編碼的前導位元組相同時沿用這個嚴格編碼，
 /// 不同時會換成 .NET 預設、遇到壞位元組就默默替換的編碼。所以 UTF-8 與 UTF-16 的嚴格編碼都帶前導位元組，
 /// 指定「utf-16」時也照 BOM 選大端或小端。
@@ -22,7 +23,7 @@ public static class EncodingDetector
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    /// <summary>匯入參數 `encoding` 的白名單。null = 走偵測鏈。</summary>
+    /// <summary>把匯入參數 encoding 換成編碼。只接受 utf-8、big5 與 utf-16，其他值回 invalid_payload；null 時自動偵測。</summary>
     public static Encoding Resolve(string? encodingName, string filePath)
     {
         return encodingName?.ToLowerInvariant() switch
@@ -36,9 +37,9 @@ public static class EncodingDetector
     }
 
     /// <summary>
-    /// 偵測結果的 wire 名稱（import.inspectFile 回應的 encoding 欄位）。
-    /// 對齊 `encoding` 覆寫白名單，檢視結果可直接回填為匯入參數；
-    /// UTF-16 大小端在 wire 上不區分（兩者皆靠 BOM 偵測，無需覆寫）。
+    /// 編碼在 import.inspectFile 回應的 encoding 欄位裡的寫法。
+    /// 寫法和匯入參數 encoding 接受的值相同，檢視的結果可以直接填回匯入參數。
+    /// UTF-16 不分大端小端，都寫 utf-16；兩者都靠 BOM 判定，不需要另外指定。
     /// </summary>
     public static string WireNameOf(Encoding encoding)
     {

@@ -1,6 +1,6 @@
 namespace JET.Infrastructure;
 
-/// <summary>數值 cell 的數字格式語意：一般數值 / 日期（含日期時間）/ 純時間。</summary>
+/// <summary>數值儲存格的數字格式代表哪一種值：一般數值、日期（含日期加時間），或只有時間。</summary>
 public enum ExcelNumberKind
 {
     None,
@@ -9,10 +9,10 @@ public enum ExcelNumberKind
 }
 
 /// <summary>
-/// Excel 數字格式的日期/時間判定。
-/// 內建 id 依 ECMA-376 §18.8.30 登錄表凍結；自訂格式碼掃描日期/時間記號，
-/// 引號字面值、[..] 條件/色彩/地區區段、反斜線跳脫與 _/* 填充字元都不算記號。
-/// 純函式：reader 解析 styles.xml 後以本類別建 style index → kind 對照表。
+/// 判斷 Excel 的數字格式是日期還是時間。
+/// 內建格式的 id 照 ECMA-376 §18.8.30 的表寫死在程式裡。自訂格式碼則逐字找日期與時間的記號；
+/// 引號裡的文字、中括號裡的條件、顏色與地區設定、反斜線後面的字元，以及 _ 與 * 後面的填充字元都不算記號。
+/// 這個類別不保存狀態。讀取器解析 styles.xml 之後，用它建立樣式索引對應 <see cref="ExcelNumberKind"/> 的對照表。
 /// </summary>
 public static class ExcelDateFormatDetector
 {
@@ -58,8 +58,8 @@ public static class ExcelDateFormatDetector
 
                 case '[':
                 {
-                    // [..] 區段通常是條件/色彩/地區（[Red]、[$-404]、[<=100]），不算記號；
-                    // 唯一例外：內容全為 h/m/s 的經過時間 token（[h]、[mm]、[s]）
+                    // 中括號裡通常是顏色、地區或條件，例如 [Red]、[$-404]、[<=100]，不算記號。
+                    // 唯一的例外是內容全是 h、m、s 的經過時間寫法，例如 [h]、[mm]、[s]，算時間記號。
                     var close = formatCode.IndexOf(']', i + 1);
                     if (close < 0)
                     {
@@ -90,7 +90,7 @@ public static class ExcelDateFormatDetector
                 case '\\':
                 case '_':
                 case '*':
-                    // 跳脫字元 / 對齊填充：下一個字元是字面值
+                    // 反斜線是跳脫，_ 與 * 是對齊與填充；它們後面的那個字元是一般文字，跳過不看。
                     i++;
                     continue;
             }

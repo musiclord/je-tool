@@ -1,26 +1,25 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 作業序列化的動作分類（單一事實來源）。dispatcher 依此判定是否對 action 上序列化閘。
-/// 純類別、無框架相依（Bridge 引用 Domain 合法）。
+/// 每個 action 要不要和其他作業互斥，分類只寫在這裡。dispatcher 依這份分類決定要不要先取得共用的閘。
+/// 這個類別不依賴任何框架，所以 Bridge 可以直接引用 Domain 的它。
 /// </summary>
 /// <remarks>
 /// 分類原則：
 /// <list type="bullet">
-///   <item><b>變更型（exclusive）</b>——改變專案資料庫／專案中繼資料的動作，或重量級匯出。
-///   同一時間至多一項；第二項回 <see cref="JetErrorCodes.OperationInProgress"/>。</item>
-///   <item><b>條件式取閘（conditional gate）</b>——action 由 handler 自行非阻塞試取共用閘，
-///   讓 no-op／純讀分支保持原分類，同時把真正 mutation 包在同一原子區段。</item>
-///   <item><b>併行（concurrent）</b>——唯讀查詢／檢視／計算／檔案選取可與作業併行、不佔閘；
-///   文件化的唯一 current-project database 寫入例外是 <c>log.append</c>，其寫入範圍只限
-///   <c>message_log</c>。</item>
+///   <item><b>變更型（exclusive）</b>：會改專案資料庫或專案中繼資料的動作，以及耗時的匯出。
+///   同一時間最多執行一項；第二項回 <see cref="JetErrorCodes.OperationInProgress"/>。</item>
+///   <item><b>由 handler 自己取閘（conditional gate）</b>：handler 自己試著取共用的閘，取不到不等待。
+///   這樣不做事或只讀取的分支不必取閘，真正改資料的部分則整段包在閘裡。</item>
+///   <item><b>併行（concurrent）</b>：唯讀的查詢、檢視、計算與選檔案，可以和其他作業同時進行，不取閘。
+///   其中只有 <c>log.append</c> 會寫目前案件的資料庫，而且只寫 <c>message_log</c>。</item>
 /// </list>
-/// 四支篩選命中查詢維持 concurrent，因為目前結果的讀取不需寫入。只有持久化失效旗標觸發惰性補算的條件式
-/// 寫入分支會另行試取共用 <see cref="ActionExecutionGate"/>；取不到即回 operation_in_progress。
-/// <c>project.releaseLock</c> 則整個「放鎖＋離開 session」都由 handler 試取同一把閘；它不由 dispatcher
-/// 預先取閘，避免非重入閘自我阻塞。
-/// 新增 action 時必須在此明確歸類（<see cref="IsClassified"/> 有測試守衛，遍歷 dispatcher 已註冊 action，
-/// 未歸類時測試會失敗）。未歸類的 action 在執行期以 <see cref="IsExclusive"/> 回 true（fail-safe：預設保護狀態）。
+/// 四支篩選命中查詢歸在併行，因為讀取目前的結果不必寫入。只有結果已標成失效、要在查詢時補算的那個分支會寫入，
+/// 這個分支另外試著取共用的 <see cref="ActionExecutionGate"/>；取不到就回 operation_in_progress。
+/// <c>project.releaseLock</c> 放開案件鎖並離開 session 的整段動作，由 handler 取同一把閘；
+/// dispatcher 不先替它取閘，因為這把閘不能重複取得，先取了 handler 就會卡住自己。
+/// 新增 action 時一定要在這裡歸類：測試會走過 dispatcher 註冊的每個 action，用 <see cref="IsClassified"/> 檢查，
+/// 沒有歸類就失敗。執行時遇到沒有歸類的 action，<see cref="IsExclusive"/> 回 true，當成變更型處理，寧可多擋。
 /// </remarks>
 public static class ActionExecutionPolicy
 {
@@ -79,7 +78,7 @@ public static class ActionExecutionPolicy
         "system.whoAmI",
         "project.listLocal",
         "project.deletePreview",
-        "operation.cancel",     // 必須能穿過 exclusive busy 閘，取消正在執行的目標 request
+        "operation.cancel",     // 變更型作業進行中也要能執行，才能取消正在執行的那個請求
 
         "project.loadDemo", // 只取 demo metadata，尚未建案
         "demo.exportGlFile",
@@ -183,7 +182,7 @@ public static class ActionExecutionPolicy
     public static bool OpensProjectDatabase(string action)
         => ProjectDatabaseActions.Contains(action);
 
-    /// <summary>測試守衛用：全部會開當前案件資料庫的 action。</summary>
+    /// <summary>全部會開當前案件資料庫的 action；給測試檢查用。</summary>
     public static IReadOnlyCollection<string> ProjectDatabaseActionNames
         => [.. ProjectDatabaseActions];
 
@@ -195,7 +194,7 @@ public static class ActionExecutionPolicy
     public static bool CheckpointsProjectDatabase(string action)
         => ExclusiveActions.Contains(action) && ProjectDatabaseActions.Contains(action);
 
-    /// <summary>此 action 是否為變更型（需序列化）。未歸類者 fail-safe 回 true。</summary>
+    /// <summary>此 action 是否為變更型，同一時間只能執行一項。沒有歸類的 action 也回 true，當成變更型處理。</summary>
     public static bool IsExclusive(string action)
         => ExclusiveActions.Contains(action) || !IsClassified(action);
 
@@ -203,7 +202,7 @@ public static class ActionExecutionPolicy
     public static bool RequiresConditionalGate(string action)
         => ConditionalGateActions.Contains(action);
 
-    /// <summary>此 action 是否已被明確歸類（測試守衛用；新增 action 未歸類時測試會失敗）。</summary>
+    /// <summary>此 action 是否已被明確歸類。測試用它檢查，新增的 action 沒有歸類時測試會失敗。</summary>
     public static bool IsClassified(string action)
         => ExclusiveActions.Contains(action)
             || ConditionalGateActions.Contains(action)

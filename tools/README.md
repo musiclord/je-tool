@@ -34,6 +34,10 @@ Context 自己的行為由 `Contract -ContractScenario Context` 驗證。
 
 `Build` 預設先執行 Restore，再以 `--no-restore` 建置；確定 NuGet 還原資產已存在時才用 `-NoRestore`。
 
+驗證框架建置 `src/JET/JET.slnx` 時都帶入 `tools/harness/development-repository-tests/DevelopmentRepositoryTests.targets`，
+把只在開發儲存庫才用得到的測試編進 `JET.Tests`（裁定 2026-11-13-15），說明見 `docs/development-guide.md`。
+`lanes.json` 的 `developmentRepositoryRequiredTestClasses` 列的類別沒有測試結果時，那一步以 `required_test_class_missing` 失敗。
+
 `Focused` 的 `-Filter` 接受測試方法或類別的完整名稱片段，不接受萬用字元，也不能用 `|` 一次選多個。它先建置再執行選取的測試，
 並固定補跑架構檢查；選不到測試或遇到跳過都不算通過。`Public` 不接受 `-Filter`，依固定種子跑完目前安全且不需外部服務的
 公開測試，至少要找到 3,000 個案例。`public-skip-policy.json` 目前沒有允許略過的群組，任何跳過都會讓公開測試失敗。
@@ -93,7 +97,7 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Mutation -Configuration Release 
 `Gui` 固定使用 `AgentGuiTest` 組態，先建置一次，再分別用全新的暫存目錄執行各個情境。這個組態不在產品專案裡：
 `Gui` 建置 JET 與測試專案時，用 `/p:CustomBeforeMicrosoftCommonTargets` 帶入
 `tools/harness/agent-gui-test/AgentGuiTest.targets`。它和 Debug 一樣有開發人員工具與示範資料的 action，另外加入同一個資料夾裡
-Gui 測試用的進入點、測試夾具與夾具的測試（裁定 2026-11-10-13）。產品程式只提供通用的接點：組裝 runtime 時可以包裝每個
+Gui 測試用的進入點、測試夾具與夾具的測試（裁定 2026-11-10-13）；它也匯入上面那個建置設定檔。產品程式只提供通用的接點：組裝 runtime 時可以包裝每個
 action handler，也可以交給 runtime 一段啟動後在背景執行的工作；`Program.Run` 先掛上例外後盾，再用呼叫端給的函式建立主視窗。每個情境的操作上限、預期次數、
 逾時與截圖數只寫在 `tools/harness/lanes.json`；驅動程式與組態另有固定最大值（操作 120 次、截圖 2 張），調高情境預算超過時要一起改。
 截圖都是合成畫面，每張不超過 2 MB。
@@ -137,11 +141,11 @@ Excel 不可用、工作簿無法開啟或無法證明行程歸屬時，結果�
 
 ### PrivateCase
 
-`PrivateCase` 是唯一可讀取私人案件的命令，每次都要提供完整根目錄、根目錄內的案件清單相對路徑與資料庫實作，
+`PrivateCase` 是唯一可讀取私人案件的命令，每次都要提供完整根目錄、根目錄內的私人案件清單相對路徑與資料庫實作，
 缺一就在建置和資料存取前回報 `blocked`；資料庫實作目前只接受 `sqlite`。它建立安全副本，用 JET 走完匯入、驗證、篩選、五份報告與科目配對範本輸出，
 六份工作簿同時比較內容與版面；INF 樣本檢查抽樣規則、實際母體與樣本有效性，不要求重現舊 IDEA 的隨機列。
 第一次比對之後，在同一個案件接著重新開啟、照原本的配對重新確認 GL 配對，以及重新匯入同一份 GL，每一段都重新匯出六份工作簿，照同樣的規則再比一次，全部通過才算通過。
-私人副本與輸出在收尾時一律清除，收據只保存去識別化的狀態、數量與差異類型。案件清單照舊寫法也能讀，讀取時換成現行名稱。
+私人副本與輸出在收尾時一律清除，收據只保存去識別化的狀態、數量與差異類型。私人案件清單照舊寫法也能讀，讀取時換成現行名稱。
 
 ### ReleaseCandidate
 
@@ -273,7 +277,7 @@ Restore 因 `NU1301` 無法讀取 NuGet 來源時回報 `blocked`，因為還沒
 標準輸出只有一行 JSON 摘要，失敗時其中的 `firstRed` 帶出第一個失敗步驟的名稱、原因碼與 `detail`；測試步驟的 `detail`
 是失敗數加上第一個失敗測試的名稱與一行訊息，不必再開 TRX。完整執行紀錄與限制大小的子程序輸出放在 `artifacts/harness/` 下的
 獨立資料夾，受 `.gitignore` 排除。保存前，框架把儲存庫根目錄與使用者目錄換成 `[repository]` 和 `[user-profile]`；
-PrivateCase 另把私人根目錄、案件清單路徑與本次的暫存目錄換成 `[sensitive]`，讀取 TRX 前也做相同處理。
+PrivateCase 另把私人根目錄、私人案件清單路徑與本次的暫存目錄換成 `[sensitive]`，讀取 TRX 前也做相同處理。
 
 依裁定 2026-10-14-14，每次命令寫好收據後，框架整理 `artifacts/harness/runs/` 的舊執行：同一種檢查只完整保留最新 10 次，
 只跑單一情境或篩選的執行另外計算；更舊的只留 `receipt.json`、各步驟的 `*.receipt.json` 與擁有者標記，所以文件或測試註解

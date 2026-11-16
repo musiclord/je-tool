@@ -47,7 +47,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
             }
         }
 
-        // 行事曆換版影響週末/假日預篩選,既有規則結果失效。
+        // 國定假日與補班日換了，會影響週末與假日的預篩選規則，已有的規則結果跟著失效，在同一個交易裡清除。
         await ResultReset.ClearWithinAsync(
             connection,
             transaction,

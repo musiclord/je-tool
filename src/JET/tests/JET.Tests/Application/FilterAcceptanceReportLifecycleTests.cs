@@ -4,7 +4,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-/// <summary>人工驗收第 1、8 項：實際工作簿編輯、重開、GL 重匯與重新產生報告，最後刪除合成案件。</summary>
+/// <summary>實際編輯工作簿、重開、重匯 GL 並重新產生報告，最後刪除合成案件。</summary>
 public sealed class FilterAcceptanceReportLifecycleTests
 {
     [Theory]

@@ -4,7 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Provider prescreen repositories 共用的純技術執行輸入，只由 AuditCore plan 已判定的 gates 建立。
+/// 執行預篩選的 repository 共用的輸入：期間、金額倍率、每週休息日，以及名稱以 Run 開頭的旗標，表示那一條規則這次要不要執行。
+/// 要不要執行由 AuditCore 的 <see cref="PrescreenPlan"/> 判定，這裡只照抄。
 /// </summary>
 internal sealed record PrescreenExecutionInput(
     string? PrepStartDate,

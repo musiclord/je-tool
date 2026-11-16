@@ -150,6 +150,27 @@ function Get-JetMemoryBoundedTreeSettings {
     }
 }
 
+function Get-JetDevelopmentRepositoryBuildExtension {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
+        [Parameter(Mandatory = $true)] $Registry
+    )
+
+    # 只有開發儲存庫才跑得了的測試放在驗證框架底下，不在測試專案裡。建置方案時帶入這個建置設定檔，
+    # 把它們編進同一個 JET.Tests。MSBuild 找不到這個檔案時會略過它、照樣建置出少了這些測試的測試程式，
+    # 所以先確認檔案存在。
+    $relativePath = [string]$Registry.testSettings.developmentRepositoryBuildExtension
+    $fullPath = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $relativePath))
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw [IO.FileNotFoundException]::new("The development-repository test build extension '$relativePath' is missing.")
+    }
+
+    return [pscustomobject]@{
+        Argument = "/p:CustomBeforeMicrosoftCommonTargets=$fullPath"
+        DisplayArgument = "/p:CustomBeforeMicrosoftCommonTargets=$relativePath"
+    }
+}
+
 function Invoke-JetBuildPipeline {
     param(
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
@@ -180,6 +201,7 @@ function Invoke-JetBuildPipeline {
     }
 
     if ($results.Count -eq 0 -or $results[$results.Count - 1].status -ceq 'passed') {
+        $buildExtension = Get-JetDevelopmentRepositoryBuildExtension -RepositoryRoot $RepositoryRoot -Registry $Registry
         $build = Invoke-JetChildStep `
             -RepositoryRoot $RepositoryRoot `
             -RunDirectory $RunDirectory `
@@ -188,11 +210,13 @@ function Invoke-JetBuildPipeline {
             -Arguments @(
                 'build', (Join-Path $RepositoryRoot 'src/JET/JET.slnx'),
                 '--configuration', $Configuration,
-                '--no-restore', '--disable-build-servers'
+                '--no-restore', '--disable-build-servers',
+                $buildExtension.Argument
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', 'src/JET/JET.slnx',
-                '--configuration', $Configuration, '--no-restore', '--disable-build-servers'
+                '--configuration', $Configuration, '--no-restore', '--disable-build-servers',
+                $buildExtension.DisplayArgument
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
@@ -400,6 +424,8 @@ function Invoke-JetExcelBuildPipeline {
         Select-Object -First 1 -ExpandProperty Source
     $solution = Join-Path $RepositoryRoot 'src/JET/JET.slnx'
     $driverProject = Join-Path $RepositoryRoot ([string]$Registry.excelSettings.driverProject)
+    # Excel 路線也會執行 JET.Tests 的測試，建置出來的測試程式要和其他路線一致。
+    $buildExtension = Get-JetDevelopmentRepositoryBuildExtension -RepositoryRoot $RepositoryRoot -Registry $Registry
 
     foreach ($restore in @(
             [ordered]@{ Name = 'excel-solution-restore'; Project = $solution; Display = 'src/JET/JET.slnx' },
@@ -431,11 +457,13 @@ function Invoke-JetExcelBuildPipeline {
             -Arguments @(
                 'build', $solution,
                 '--configuration', ([string]$Registry.excelSettings.configuration),
-                '--no-restore', '--disable-build-servers'
+                '--no-restore', '--disable-build-servers',
+                $buildExtension.Argument
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', 'src/JET/JET.slnx',
-                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore', '--disable-build-servers'
+                '--configuration', ([string]$Registry.excelSettings.configuration), '--no-restore', '--disable-build-servers',
+                $buildExtension.DisplayArgument
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
@@ -535,6 +563,28 @@ function New-JetTestArguments {
     return $arguments.ToArray()
 }
 
+function Get-JetMissingTestClasses {
+    param(
+        [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [object[]] $Records,
+        [AllowEmptyCollection()] [string[]] $RequiredTestClasses = @()
+    )
+
+    # 回傳沒有任何測試結果的類別。測試的完整名稱是「類別的完整名稱.方法名稱」。
+    foreach ($className in $RequiredTestClasses) {
+        $prefix = "$className."
+        $found = $false
+        foreach ($record in $Records) {
+            if (([string]$record.fqn).StartsWith($prefix, [StringComparison]::Ordinal)) {
+                $found = $true
+                break
+            }
+        }
+        if (-not $found) {
+            $className
+        }
+    }
+}
+
 function Invoke-JetTestStep {
     param(
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
@@ -555,6 +605,8 @@ function Invoke-JetTestStep {
         [string] $SkipPolicy = 'NoSkips',
         [switch] $WithholdFailureMessages,
         [switch] $CollectCoverage,
+        # 這一步一定要跑到的測試類別；任何一個類別沒有測試結果，這一步就算失敗。
+        [string[]] $RequiredTestClasses = @(),
         [ValidateSet('None', 'Collections')] [string] $Parallelism = 'None'
     )
 
@@ -626,7 +678,14 @@ function Invoke-JetTestStep {
             -WithholdFailureMessages:$WithholdFailureMessages
         $step['test'] = $parsed.Receipt
 
-        if ($parsed.Summary.counters.total -lt $MinimumExpectedTests) {
+        $missingTestClasses = @(Get-JetMissingTestClasses -Records @($parsed.Records) -RequiredTestClasses $RequiredTestClasses)
+        if ($missingTestClasses.Count -gt 0) {
+            # 開發儲存庫專用的測試沒有編進這次的測試程式，多半是建置時沒有帶入它們的建置設定檔。
+            $step.status = 'failed'
+            $step.classification.reason = 'required_test_class_missing'
+            $step.classification['detail'] = "No test ran from: $($missingTestClasses -join ', ')"
+        }
+        elseif ($parsed.Summary.counters.total -lt $MinimumExpectedTests) {
             $step.status = 'failed'
             $step.classification.reason = 'test_count_below_minimum'
         }

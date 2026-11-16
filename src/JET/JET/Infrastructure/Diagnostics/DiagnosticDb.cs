@@ -6,9 +6,11 @@ using Microsoft.Extensions.Logging;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 診斷日誌的 DB helper（raw SQL 為 Debug；Release logger 關閉 Debug 時不格式化 SQL 參數）。
-/// SQL:逐呼叫點以擴充方法記錄完整命令、參數 name=value、duration_ms、rows_affected、provider。
-/// 透明 decorator 不可行（concrete 連線型別、SqlBulkCopy、provider 參數型別會被破壞）,故逐呼叫點接入。
+/// 把執行過的 SQL 記進診斷日誌的擴充方法。每筆紀錄的層級是 Debug，內容有完整的命令文字、
+/// 參數的名稱與值、duration_ms、rows_affected，以及呼叫端傳入的資料庫種類 provider。
+/// logger 沒有開 Debug 層級時不組參數字串，Release 組建就是這種情形。
+/// 要記錄的地方逐一改呼叫這裡的方法。沒有改用一層包裝把連線整個包起來，
+/// 因為那樣會換掉連線的具體型別，SqlBulkCopy 與各資料庫專用的參數型別就不能用了。
 /// </summary>
 internal static class DiagnosticDb
 {
@@ -48,7 +50,7 @@ internal static class DiagnosticDb
         return result;
     }
 
-    /// <summary>開一個 transaction 記錄 scope;其間所有 SQL 日誌共享同一 transaction_id（BeginScope）。</summary>
+    /// <summary>開始記錄一個 transaction。用 BeginScope 帶上新的 transaction_id，結束前記下的 SQL 日誌都有同一個編號。</summary>
     public static DiagnosticTransactionScope BeginTransaction(ILogger logger, string provider) => new(logger, provider);
 
     private static string FormatParameters(DbCommand command)
@@ -76,9 +78,9 @@ internal static class DiagnosticDb
 }
 
 /// <summary>
-/// 包住一個 transaction 的診斷記錄:建構時 log tx.begin 並開 <c>BeginScope({transaction_id})</c>
-/// （使其間 SQL 共享 id）;<see cref="Committed"/>/<see cref="RolledBack"/> log 結果 + duration;
-/// 未結算即 Dispose（例外路徑）記為 rollback。
+/// 一個 transaction 的診斷紀錄。建構時記一筆 tx.begin，並用 <c>BeginScope({transaction_id})</c>
+/// 讓這段期間的 SQL 日誌帶同一個編號。呼叫 <see cref="Committed"/> 或 <see cref="RolledBack"/>
+/// 時記下結果與花費的時間。兩者都沒呼叫就 Dispose 時記成 rollback，丟出例外時就是這種情形。
 /// </summary>
 internal sealed class DiagnosticTransactionScope : IDisposable
 {
@@ -123,7 +125,8 @@ internal sealed class DiagnosticTransactionScope : IDisposable
     {
         if (!_settled)
         {
-            // 既非 commit 亦非 rollback（例外傳出,await using transaction dispose 會 rollback）→ 記為 rollback。
+            // 沒有 commit 也沒有 rollback 就走到這裡，代表有例外往外丟。
+            // 資料庫的 transaction 在 await using 結束時會自己 rollback，所以這裡記成 rollback。
             _settled = true;
             DiagnosticDbLog.TransactionRollback(_logger, _provider, _stopwatch.ElapsedMilliseconds);
         }
@@ -132,7 +135,7 @@ internal sealed class DiagnosticTransactionScope : IDisposable
     }
 }
 
-/// <summary>SQL/transaction 診斷事件（LoggerMessage 來源產生器;結構化欄位即 NDJSON 欄位）。</summary>
+/// <summary>SQL 與 transaction 的診斷事件，由 LoggerMessage 來源產生器產生。方法的參數名稱就是寫進 NDJSON 的欄位名稱。</summary>
 internal static partial class DiagnosticDbLog
 {
     [LoggerMessage(EventId = 2000, EventName = "sql.executed", Level = LogLevel.Debug,

@@ -5,10 +5,10 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.infSamplePage：INF 抽樣(inf_sample,目前有效 validate.run)的
-/// 行層明細 keyset 分頁。排序鍵 entry_id ASC、cursor opaque、
-/// pageSize 預設 200/上限 500(夾擠在 Domain)。借/貸由 scaled 整數換算顯示值
-/// ((decimal)scaled / moneyScale,沿用 DataPreview)。
+/// query.infSamplePage：分頁列出 INF 抽樣抽到的分錄，資料來自 inf_sample 裡屬於目前這次資料驗證結果的樣本。
+/// 沒有指定 sort 時依 entry_id 由小到大排列，下一頁從上一頁最後一筆的排序鍵接著讀（keyset 分頁）；
+/// cursor 的內容前端不解讀，照原樣帶回。pageSize 預設 200，最多也是 200。
+/// 資料庫裡的借方與貸方金額是放大成整數的值，回應時除以 moneyScale 換回顯示用的金額，做法和資料預覽相同。
 /// </summary>
 public sealed class QueryInfSamplePageHandler(
     IProjectStore projectStore,

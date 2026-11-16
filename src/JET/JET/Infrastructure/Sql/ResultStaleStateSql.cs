@@ -4,8 +4,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 衍生結果與 <c>result_stale_state</c> 單列狀態的同交易寫入點。呼叫端提供的 schema prefix
-/// 是 SQLite 的固定空字串。
+/// 更新 <c>result_stale_state</c> 的過期標記。這張表只有一列，記驗證、預篩選與篩選的結果是否過期。
+/// 每個方法都在呼叫端的交易裡執行，標記和結果的清除或寫入同時生效。
+/// schemaPrefix 由呼叫端傳入，SQLite 固定是空字串。
 /// </summary>
 internal static class ResultStaleStateSql
 {

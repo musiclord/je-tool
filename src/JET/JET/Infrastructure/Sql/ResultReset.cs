@@ -4,25 +4,25 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 規則結果(validation_result / prescreen_result / inf_sample / filter_hit / filter_hit_condition)與已存篩選情境
-/// (filter_scenario)失效的共用技術執行點。
-/// 失效矩陣的唯一政策來源是 Domain <see cref="AuditDependencyPolicy"/>；本類只把政策結果翻成
-/// stale-state UPDATE 與既有 DELETE statements。只有真正存在、即將被清除的結果會把對應
-/// stale flag 置 true；「從未執行」維持 false。
-/// 這些是衍生資料:任何改寫其上游的交易,必須在
-/// 「同一交易」內呼叫本方法清除舊結果,確保不出現「資料已換、舊結果還在」的中間態——
-/// 上游若 rollback,stale 標記與清除亦一併回退。清空後 project.load 的 validationResult、prescreenResult 自然回 null,
-/// 並以持久化 stale state 區分「要求重跑」與「從未執行」。
-/// 失效範圍依共用政策：GL 與 TB 同層級的修改影響全部；科目配對、行事曆與授權清單
-/// 只影響 prescreen/filter。不得為了方便一律清空，否則會破壞「驗證→填 AccountMapping→預篩選」流程。
-/// 篩選命中失效時，已存篩選情境定義(filter_scenario)也在同一交易內一併刪除(上游修改清除下游)；
-/// stale flag 同時回到「從未執行」，因為已沒有可重跑的情境。
+/// 上游資料修改時，把受影響的結果標成過期並清除。涵蓋的結果是 validation_result、prescreen_result、inf_sample、
+/// filter_hit、filter_hit_condition，以及已存篩選情境 filter_scenario。
+/// 哪一種修改影響哪些結果，只由 Domain 的 <see cref="AuditDependencyPolicy"/> 決定；
+/// 這裡只把它的結論寫成 result_stale_state 的 UPDATE 與各結果表的 DELETE。
+/// 過期標記只在結果真的存在、而且即將被清除時才設成 true；從來沒有執行過的維持 false。
+/// 這些結果都是從上游資料算出來的。任何改寫上游資料的交易，都要在同一個交易裡呼叫這裡清除舊結果，
+/// 才不會出現資料已經換掉、舊結果卻還在的情形。上游的交易 rollback 時，過期標記與清除也一起回復。
+/// 清除之後，project.load 回傳的 validationResult 與 prescreenResult 是 null，
+/// 再靠保存下來的過期標記分辨是「需要重新執行」還是「從未執行」。
+/// 影響範圍：GL 與 TB 的匯入或確認配對影響全部結果；其餘的修改，例如科目配對、行事曆與授權清單，
+/// 只影響預篩選與篩選。不能為了省事一律全部清除，否則審計員先驗證、再填科目配對、然後預篩選時，
+/// 驗證結果會在中途被清掉。
+/// 篩選命中過期時，已存篩選情境 filter_scenario 也在同一個交易裡刪除；
+/// 篩選的過期標記同時回到「從未執行」，因為已經沒有可以重新執行的情境。
 ///
-/// 注意:存入筆數與合計核對的數字 <c>gl_control_total</c> **不**在此清除範圍。它的上游只有 GL target,
-/// 由 GL 投影(<see cref="LocalGlRepository"/>)在同一交易內隨
-/// target 一起 upsert 覆寫,與 gl 恆一致。若併入本共用清除,TB 投影、科目配對／行事曆／
-/// 授權清單匯入等與 GL 無關的寫入會把它連帶刪掉,使存入筆數與合計核對在常見的「先 commit GL、後 commit TB」
-/// 順序下變成全 null（這一項形同沒跑）。
+/// 存入筆數與合計核對的數字 <c>gl_control_total</c> 不在清除範圍內。它只取決於 gl 資料表，
+/// 由確認 GL 配對的步驟（<see cref="LocalGlRepository"/>）在同一個交易裡和 gl 一起覆寫，所以永遠和 gl 一致。
+/// 如果也放進這裡清除，確認 TB 配對、匯入科目配對、行事曆或授權清單這些和 GL 無關的寫入會把它一起刪掉。
+/// 常見的順序是先確認 GL 配對、再確認 TB 配對，那樣存入筆數與合計核對的數字會全部變成 null，等於這一項沒有執行。
 /// </summary>
 internal static class ResultReset
 {
@@ -44,8 +44,8 @@ internal static class ResultReset
         var statements = new List<string>(5);
         if (impact.ClearAccountMapping)
         {
-            // GL/TB 來源或投影更換時，配對、原始配對列及匯入狀態一起清除；分類定義保留。
-            // 與來源寫入同一交易，失敗或取消時全部回復。
+            // GL 或 TB 重新匯入或重新確認配對時，科目配對、匯入的原始配對列與它的匯入批次紀錄一起清除；科目分類的定義保留。
+            // 清除和來源資料的寫入在同一個交易裡，失敗或取消時全部回復。
             var kind = DatasetKind.AccountMapping.ToStorageName();
             statements.Add($"DELETE FROM {schemaPrefix}account_mapping;");
             statements.Add($"DELETE FROM {schemaPrefix}pbc_account_mapping;");

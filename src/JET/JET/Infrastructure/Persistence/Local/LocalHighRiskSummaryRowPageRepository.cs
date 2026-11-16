@@ -6,9 +6,9 @@ using Microsoft.Data.Sqlite;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總行層 keyset 分頁。兩段查詢委派給
-/// <see cref="HighRiskSummaryRowPageReader"/>,本類別只負責開連線與帶入注入的 <see cref="ISqlDialect"/>
-/// (LIMIT 由方言出)。鏡射 <see cref="LocalHighRiskSummaryVoucherPageRepository"/> 的 keyset/游標/Dialect 範式。
+/// 分頁讀出高風險條件彙總的分錄明細，分頁用 keyset 方式：用上一頁最後一筆的排序鍵接下一頁。
+/// 兩段查詢都交給 <see cref="HighRiskSummaryRowPageReader"/>，本類別只負責開連線，並把 <see cref="ISqlDialect"/> 傳進去；
+/// LIMIT 的寫法由它提供。分頁、cursor 與方言的用法和 <see cref="LocalHighRiskSummaryVoucherPageRepository"/> 相同。
 /// </summary>
 public sealed class LocalHighRiskSummaryRowPageRepository(ILocalProjectDatabase database)
     : IHighRiskSummaryRowPageRepository,
@@ -99,7 +99,7 @@ public sealed class LocalHighRiskSummaryRowPageRepository(ILocalProjectDatabase 
             {
                 Pooling = false
             };
-            // Keep the factory's SQL functions when disabling pooling for this session.
+            // 直接改這條連線的連線字串來關掉連線池，不另外建立連線；建立連線時註冊的 SQL 函式才會留著。
             sqlite.ConnectionString = builder.ConnectionString;
             return sqlite;
         }

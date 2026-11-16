@@ -5,16 +5,20 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// CSV / .txt（內容為 CSV）讀取器。
-/// - 編碼：EncodingDetector 確定性鏈（BOM → 嚴格 UTF-8 → Big5），request.EncodingName 可覆寫。
-/// - 分隔符：CsvDialectDetector 引號感知取樣統計，request.Delimiter 可覆寫。
-/// - 解析：<see cref="CsvRecordReader"/>，一般 CSV 讀法（欄位開頭的引號才是引號，中間的引號是一般字元；
-///   引號沒有成對時明確失敗並寫出第幾列）。cell 一律字串、由投影階段解析。
-/// - 標頭：先略過 request.LeadingRowsToSkip 筆記錄（審計員指定的「欄名在第幾列」，空白列也算），再略過空白列，
-///   第一個有內容的列是標頭（和 Excel 讀取器相同）；標頭自己讀再交給 TabularHeaderNormalizer，重複欄名走 _2/_3 正規化。
-/// - 欄數：標頭範圍外有資料的欄合成 COL_n 佔位欄（和 Open XML 讀取器相同，有資料的欄絕不靜默丟棄）；
-///   少欄視為空。
-/// - SourceRowNumber 以記錄計（空白列也算一列，標頭之前的空白列也算）；引號內含換行時與實體行號可能偏移，屬已知限制。
+/// 文字檔讀取器，讀 .csv 與內容是 CSV 的 .txt。
+/// - 編碼：由 EncodingDetector 依固定順序判定，先看 BOM，再試嚴格的 UTF-8，都不是就當成 Big5。
+///   request.EncodingName 有值時改用指定的編碼。
+/// - 分隔符：由 CsvDialectDetector 取檔案開頭的文字，統計各候選分隔符在引號外出現的次數來判定。
+///   request.Delimiter 有值時改用指定的分隔符。
+/// - 解析：用 <see cref="CsvRecordReader"/> 的一般 CSV 讀法。欄位開頭的引號才是引號，中間的引號是一般字元；
+///   引號沒有成對時失敗，並寫出第幾列。每個值都讀成字串，確認配對時才解析成金額或日期。
+/// - 標頭：先略過 request.LeadingRowsToSkip 筆記錄，也就是審計員指定的「欄名在第幾列」，空白列也算；再略過空白列。
+///   第一個有內容的列是標頭，和 Excel 讀取器相同。標頭由這裡讀出後交給 TabularHeaderNormalizer 正規化，
+///   重複的欄名加上 _2、_3。
+/// - 欄數：資料列比標頭多出來的欄只要有資料，就補一個 COL_n 佔位欄，不會丟掉有資料的欄，和 Open XML 讀取器相同。
+///   資料列比標頭少的欄當成空白。
+/// - SourceRowNumber 以記錄計算，空白列與標頭之前的空白列都算一列。引號內含換行時，它和檔案的實際行號可能對不上，
+///   這是已知限制。
 /// </summary>
 public sealed class CsvTableReader : ITabularFileReader
 {
@@ -38,8 +42,8 @@ public sealed class CsvTableReader : ITabularFileReader
 
     public Task<TabularFileInspection> InspectAsync(string filePath, CancellationToken cancellationToken)
     {
-        // 檢視回報的是「偵測鏈的判定結果」（不吃覆寫參數）：
-        // 精靈把這些值直接帶回 import.*.fromFile 的 encoding/delimiter 覆寫欄位
+        // 檢視檔案時回報的是自動偵測出的編碼與分隔符，不套用指定值。
+        // 匯入精靈會把這兩個值帶進 import.*.fromFile 的 encoding 與 delimiter 欄位。
         var encoding = EncodingDetector.Detect(filePath);
         var sampleText = ReadSampleText(filePath, encoding);
 
@@ -129,7 +133,7 @@ public sealed class CsvTableReader : ITabularFileReader
 
     private static string? ReaderVersion => typeof(CsvTableReader).Assembly.GetName().Version?.ToString();
 
-    /// <summary>標頭之外有資料的欄 lazy 合成佔位欄（規則與 Open XML 讀取器相同）。</summary>
+    /// <summary>把一筆記錄的值對到欄名。超出標頭範圍的欄有資料時才補上佔位欄，規則和 Open XML 讀取器相同。</summary>
     private static Dictionary<string, string> ReadRowValues(
         List<string> fields, List<string> columns, HashSet<string> usedNames)
     {
@@ -224,7 +228,7 @@ public sealed class CsvTableReader : ITabularFileReader
         var encoding = EncodingDetector.Resolve(request.EncodingName, request.FilePath);
         var sampleText = ReadSampleText(request.FilePath, encoding);
 
-        // 空檔／全空白：在交給解析器之前就以 empty_workbook 回報，行為確定。
+        // 檔案是空的或只有空白時，還沒交給解析器就回報 empty_workbook。
         if (string.IsNullOrWhiteSpace(sampleText))
         {
             throw EmptyFile(request.FilePath);
@@ -263,7 +267,7 @@ public sealed class CsvTableReader : ITabularFileReader
         }
     }
 
-    /// <summary>明確持有 TextReader 的 using 所有權（避免檔案 handle 殘留）。</summary>
+    /// <summary>開檔並回傳 StreamReader。呼叫端要用 using 釋放它，檔案才不會一直被開著。</summary>
     private static StreamReader OpenTextReader(string filePath, Encoding encoding)
     {
         try

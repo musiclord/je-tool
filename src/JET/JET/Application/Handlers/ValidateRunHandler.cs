@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// validate.run：四項資料驗證以 set-based SQL 執行（wire key：completenessTest / voucherBalanceTest /
-/// infSamplingTest / blankRecordsTest）。完整 response 以 JetJsonStorage 存入
-/// validation_result；project.load 讀取 raw summary，再由共用後端 renderer 補繪衍生欄位。
-/// 規則狀態：V = 有結果；na = 前置不足（naReason 說明）或已執行 0 筆命中。
+/// validate.run：用集合式 SQL 執行四項資料驗證；回應裡四項的 JSON 欄位名稱是 completenessTest、voucherBalanceTest、
+/// infSamplingTest 與 blankRecordsTest。整份回應用 JetJsonStorage 的設定序列化後存進 validation_result；
+/// project.load 讀回存下的原始結果，再由後端共用的程式補上推算出來的欄位。
+/// 每一項的狀態：V 是有結果；na 是需要的資料不齊（naReason 寫原因），或執行後命中 0 筆。
 /// </summary>
 public sealed class ValidateRunHandler : IApplicationActionHandler
 {
@@ -61,8 +61,8 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
 
-        // per-project seed／演算法版本：只接受目前版本。任一可解析但不合法的配對都 fail-loud，
-        // 不得靜默重生 seed 或改抽。
+        // 每個案件有自己的抽樣種子與抽樣演算法版本，只接受目前的版本。兩者讀得出來、但組合不合法時直接回錯誤，
+        // 不會自己重新產生種子，也不會改抽別的樣本。
         var sampleSeedResolution = JetAuditProgram.ResolveInfSamplingSeed(
             document.SampleSeed,
             document.SampleSeedVersion);
@@ -126,7 +126,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
 
         var scale = document.MoneyScale;
 
-        // 存入筆數與合計核對的數字缺漏時仍保留 exact nested shape，但所有值（含 match）皆為 null。
+        // 存入筆數與合計核對沒有數字時，回應仍保留同樣的巢狀欄位，但每個值都是 null，rowCountMatch 與 amountMatch 也是。
         object storedTotalsDto = result.StoredTotals is { } pa
             ? new
             {
@@ -286,7 +286,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
             resultRef = new { resultId, generatedUtc, logicVersion = RuleLogicVersions.Validation }
         };
 
-        // 儲存與 wire 同一份 raw JSON；resume 仍以原始結果重建衍生的「可否繼續後續步驟」判定。
+        // 存進資料庫的和回給前端的是同一份 JSON。重新載入案件時，仍然從這份原始結果重新推算「可否繼續後續步驟」。
         var summaryJson = JsonSerializer.Serialize(dto, JetJsonStorage.Options);
         return new ResultRecord(resultId, ResultKind.Validation, generatedUtc, summaryJson);
     }

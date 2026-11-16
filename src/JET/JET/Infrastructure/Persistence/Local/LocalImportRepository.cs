@@ -9,10 +9,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 匯入批次的本地引擎實作（一個批次可由多個來源組成）。
-/// row_number = 批次內單調遞增排序鍵：replace 沿用來源列號（與第 1 版語意一致，
-/// 單來源批次的 V3 抽樣不因本版而改變），append 從既有最大值續編。
-/// 診斷日誌（dev-only）:SQL 執行走 <see cref="DiagnosticDb"/> 擴充方法、transaction 走 scope。
+/// 匯入批次的 SQLite 實作。一個批次可以由多個來源組成。
+/// 匯入暫存表的 row_number 是同一個批次裡只增不減的排序鍵：取代匯入的第一個來源直接用來源檔的列號，
+/// 之後的來源與追加匯入從目前最大的 row_number 接著往下編。只有一個來源的批次，row_number 就是來源列號，
+/// INF 抽樣用的排序鍵也就和來源列號相同。
+/// 診斷日誌（開發用）：SQL 的執行經 <see cref="DiagnosticDb"/> 的擴充方法記錄，交易的開始與結束也記一筆。
 /// </summary>
 public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogger<LocalImportRepository>? logger = null)
     : IImportRepository
@@ -22,7 +23,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
 
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    /// <summary>staging 批量寫入的欄位順序（<see cref="IBulkRowWriter"/> 依此對位）。</summary>
+    /// <summary>批量寫入匯入暫存表時的欄位順序，交給 <see cref="IBulkRowWriter"/> 的值照這個順序排。</summary>
     private static readonly string[] StagingColumns =
         ["batch_id", "row_number", "source_no", "source_row_number", "row_json"];
 
@@ -537,7 +538,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
     }
 
     /// <summary>
-    /// 欄名「集合」一致性（順序無關；欄序以第一個來源為準）。不一致 → column_mismatch。
+    /// 檢查兩邊的欄名是不是同一組。順序可以不同，欄位順序以第一個來源為準；有多出或缺少的欄名就回 column_mismatch。
     /// 追加時比的是已匯入的資料，一次匯入多個來源時比的是第一個來源；兩種情況共用同一句訊息。
     /// </summary>
     internal static void EnsureColumnSetsMatch(

@@ -174,9 +174,8 @@ public sealed class SixReportWorkflowJourneyTests
             Assert.Contains(texts, text => text.Contains("相同分類用途", StringComparison.Ordinal));
             Assert.DoesNotContain(texts, text => text.Contains("包含下層分類", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("財報準備日起核准", StringComparison.Ordinal));
-            // 固定預篩選名稱明示 6 位；仍核對 Criteria 與 WorkingPaper 的實際內容。
-            // 確定停在舊名稱斷言。
-            // 0 的個數改照 IDEA 版由 GL 算出：借方 2,000,000 與 100 合計 2,000,100，除以 4 列，平均 500,025 是 6 位數，
+            // 預篩選條件的名稱寫出 0 的個數；核對條件篩選報告與工作底稿的實際內容。
+            // 0 的個數照 IDEA 版由 GL 算出：借方 2,000,000 與 100 合計 2,000,100，除以 4 列，平均 500,025 是 6 位數，
             // 所以是 5 個 0。
             Assert.Contains(texts, text => text.Contains("金額尾數連續 5 個 0", StringComparison.Ordinal));
         }

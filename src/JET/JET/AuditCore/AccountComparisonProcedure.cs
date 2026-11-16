@@ -1,23 +1,23 @@
 namespace JET.AuditCore;
 
-/// <summary>完整性測試中 GL 與 TB 逐科目比對在 Plan 階段所需的有界案件事實。<paramref name="HasTbImport"/> 只用來選原因句。</summary>
+/// <summary>規劃完整性測試的 GL 與 TB 逐科目比對時要用的案件現況。<paramref name="HasTbImport"/> 只用來選原因句。</summary>
 internal sealed record AccountComparisonRequest(bool HasTbMapping, bool HasTbImport = false);
 
 /// <summary>
-/// GL 與 TB 逐科目比對的 typed plan。<see cref="Verdict"/> 是這項程序適不適用的判定，保留既有
-/// generic execution-plan 相容形狀。
+/// GL 與 TB 逐科目比對的計畫。<see cref="Verdict"/> 是這項程序適不適用的判定，
+/// 型別和 <see cref="AuditExecutionPlan"/> 程序清單裡的項目相同。
 /// </summary>
 internal sealed record AccountComparisonPlan(ProcedureVerdict Verdict)
 {
     internal bool IsApplicable => Verdict.IsApplicable;
 }
 
-/// <summary>Infrastructure 執行集合式 SQL 後，供逐科目比對 Finalize 的有界事實。</summary>
+/// <summary>Infrastructure 用集合式 SQL 查回、交給逐科目比對 Finalize 的數字：GL 與 TB 有差異的科目數。</summary>
 internal sealed record AccountComparisonFacts(long DifferenceAccountCount);
 
 /// <summary>
-/// GL 與 TB 逐科目比對的 provider-neutral lifecycle owner。存入筆數與合計核對的數字由 facts port
-/// 讀取、由 AuditCore 計算是否相符，再由 handler 塑形；這組數字不影響逐科目比對對外回報的 status。
+/// GL 與 TB 逐科目比對的規劃與結果判定，不綁特定資料庫。存入筆數與合計核對的數字由 Infrastructure 讀出，
+/// 由 AuditCore 算是否相符，再由 handler 轉成回應的格式；這組數字不影響逐科目比對回報的 status。
 /// </summary>
 internal static class AccountComparisonProcedure
 {
@@ -48,11 +48,11 @@ internal static class AccountComparisonProcedure
         return new AccountComparisonPlan(CreateVerdict(request.HasTbMapping, request.HasTbImport));
     }
 
-    /// <summary>保留 <see cref="ValidationProcedures.Evaluate"/> 的既有無參數適用性判定形狀。</summary>
+    /// <summary>直接用兩個布林值判定是否適用，供 <see cref="ValidationProcedures.Evaluate"/> 呼叫，不必先組 <see cref="AccountComparisonRequest"/>。</summary>
     internal static ProcedureVerdict EvaluateApplicability(bool hasTbMapping, bool hasTbImport = false) =>
         CreateVerdict(hasTbMapping, hasTbImport);
 
-    /// <summary>從 public generic execution plan 取回逐科目比對的 typed applicability／finalize plan。</summary>
+    /// <summary>從 <see cref="AuditExecutionPlan"/> 的程序清單找出逐科目比對那一項，包成 <see cref="AccountComparisonPlan"/>。</summary>
     internal static AccountComparisonPlan RequirePlan(AuditExecutionPlan executionPlan)
     {
         ArgumentNullException.ThrowIfNull(executionPlan);

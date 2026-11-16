@@ -5,8 +5,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.sourceQualityPage：分頁讀回目前成功 GL generation 的 source-quality findings。
-/// 現階段 category closed 為 blankGlDate；hard projection errors 仍由 projection_failed 回傳並 rollback。
+/// query.sourceQualityPage：分頁列出目前這一份 GL 的來源資料品質問題；這一份 GL 是最近一次成功確認配對時轉入的。
+/// 目前只有 blankGlDate 一類，也就是總帳日期空白的分錄。會讓配對無法完成的錯誤不列在這裡，
+/// 照舊回 projection_failed，那次配對的寫入全部回復。
 /// </summary>
 public sealed class QuerySourceQualityPageHandler(
     ProjectSession session) : IApplicationActionHandler

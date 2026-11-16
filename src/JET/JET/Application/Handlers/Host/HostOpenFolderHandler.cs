@@ -3,7 +3,10 @@ using JET.Domain;
 
 namespace JET.Application;
 
-/// <summary>揭示目前專案內的正式報告或專案資料夾；wire 不接受任意檔案系統路徑。</summary>
+/// <summary>
+/// host.openFolder：在檔案總管顯示目前案件的一份正式報告，或案件資料夾。
+/// payload 只收 reportId，或值為 projectFolder 的 target，兩者擇一；不接受任意的檔案路徑。
+/// </summary>
 public sealed class HostOpenFolderHandler(
     IHostShell hostShell,
     IProjectExportLocator projectLocator,

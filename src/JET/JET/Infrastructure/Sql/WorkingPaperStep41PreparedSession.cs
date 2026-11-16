@@ -8,8 +8,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Step4-1 prepared export 的 provider-neutral SQL lifecycle。Provider adapter 只提供
-/// connection、dialect 與 schema qualifier；所有值仍以參數綁定，temp object 名為內部常數。
+/// 匯出工作底稿 step4-1 時讀取資料的流程。建立時開一個交易，先把命中傳票與每筆分錄命中的情境寫進兩張暫存表，
+/// 再用一個查詢依序讀出全部分錄，結果只能往前讀一次；結束時清掉暫存表並結束交易。
+/// 這個流程不分資料庫種類：資料庫實作只提供連線、SQL 方言與資料表名稱的前綴。
+/// 所有值都用參數綁定，暫存表的名稱是程式裡的常數。
 /// </summary>
 internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41PreparedSession
 {
@@ -428,7 +430,7 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
                 }
                 catch (Exception)
                 {
-                    // Transaction completion and physical connection disposal remain the backstop.
+                    // 命令釋放失敗時不往外丟；之後交易結束與連線關閉仍會把資源收掉。
                 }
             }
         }

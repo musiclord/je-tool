@@ -9,10 +9,10 @@ using DocumentFormat.OpenXml.Spreadsheet;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Direct-template 的 package 內部邊界。只允許重寫建構時登錄的既有 worksheet；
-/// cell editing 採 exact allowlist，空白 worksheet replacement 不新增 package part，
-/// protection variant 只能由範本既有 cellXf prototype 派生；dynamic sheet 的 bounded
-/// writer style family 另由 WorkbookStyleMap append，既有 index 不得搬動。
+/// 直接在範本的複本上填資料時，限制哪些地方可以改。只能改寫建構時列出的既有工作表，每一張只能取用一次；
+/// 改儲存格時只能改事先列出的那幾格；改寫空白工作表時不新增 part；
+/// 鎖定或不鎖定的樣式只能從範本既有的 cellXf 複製出來，再改保護設定。
+/// 新增的資料工作表要用的樣式另外由 <see cref="WorkbookStyleMap"/> 接在樣式表最後面，範本既有的樣式索引不能移動。
 /// </summary>
 internal sealed class DirectTemplateWorkbookEditor
 {
@@ -105,9 +105,9 @@ internal sealed class DirectTemplateWorkbookEditor
     }
 
     /// <summary>
-    /// 對 bounded fixed-template 工作表只開放明示 cell／style-column allowlist。每個
-    /// allowlist entry 必須恰好使用一次；value edit 與 component style patch 以外的
-    /// static XML（含 merge、validation、protection、drawing）全部保留。
+    /// 修改列數固定的範本工作表。只能改 <paramref name="allowedCellReferences"/> 列出的儲存格，
+    /// 以及 <paramref name="allowedStyleColumns"/> 列出的欄樣式；列出的每一項都必須剛好用到一次，漏掉或重複都丟出例外。
+    /// 除了改值與改樣式，工作表其餘的 XML 全部照原樣保留，包含合併儲存格、資料驗證、保護設定與繪圖物件。
     /// </summary>
     internal void EditWorksheetCells(
         string worksheetName,
@@ -132,9 +132,8 @@ internal sealed class DirectTemplateWorkbookEditor
     }
 
     /// <summary>
-    /// 將 allowlist 內既有 worksheet part 交給 bounded direct writer。這個入口只供
-    /// 範本本來就是空白、沒有 dynamic-row prototype 的工作表；不新增 worksheet、
-    /// 不改 workbook 或 styles part。
+    /// 把允許改寫的既有工作表交給 <paramref name="rewrite"/> 直接重寫。只給範本裡本來就是空白、
+    /// 沒有任何列的工作表使用；工作表裡已經有列時丟出例外。這個方法不新增工作表，也不改 workbook 與 styles part。
     /// </summary>
     internal void RewriteEmptyWorksheet(
         string worksheetName,
@@ -155,8 +154,8 @@ internal sealed class DirectTemplateWorkbookEditor
     }
 
     /// <summary>
-    /// 將 allowlist 內的 bounded static worksheet 交給具名 deep writer。Callback
-    /// 必須直接重寫同一 part；未授權 worksheet 仍無法取得，且同一表只能處理一次。
+    /// 把允許改寫、列數固定的範本工作表交給 <paramref name="rewrite"/> 處理。<paramref name="rewrite"/> 必須直接寫回同一個 part。
+    /// 不在允許清單裡的工作表拿不到，同一張工作表只能處理一次。
     /// </summary>
     internal void RewriteWorksheetPart(
         string worksheetName,
@@ -171,9 +170,9 @@ internal sealed class DirectTemplateWorkbookEditor
     }
 
     /// <summary>
-    /// 將 allowlist 內既有 worksheet part 交給 caller 持續到 async emitter 結束的
-    /// forward-only writer。同一表仍只可取得一次；caller 不得透過 Worksheet DOM
-    /// mutation，且完成前不可讓 package 離開 direct-template callback。
+    /// 把允許改寫的既有工作表交給呼叫端，讓它由上往下寫這張工作表，一直寫到非同步的資料列寫出結束。
+    /// 同一張工作表一樣只能取得一次。呼叫端不能經由 Worksheet 物件修改內容，
+    /// 而且寫完之前，活頁簿不能離開填範本的那個 callback。
     /// </summary>
     internal WorksheetPart OpenWorksheetPartForStreamingRewrite(
         string worksheetName,
@@ -183,7 +182,10 @@ internal sealed class DirectTemplateWorkbookEditor
         return TakeWorksheetPartForRewrite(worksheetName);
     }
 
-    /// <summary>條件式移除 allowlist 內既有 worksheet 及其 relationship。</summary>
+    /// <summary>
+    /// 移除一張允許改寫的既有工作表，連同它的 part 與關聯；活頁簿記錄的作用中分頁位置跟著調整。
+    /// 用在某張工作表依條件不需要輸出的時候。
+    /// </summary>
     internal void RemoveWorksheet(
         string worksheetName,
         CancellationToken cancellationToken)
@@ -240,9 +242,9 @@ internal sealed class DirectTemplateWorkbookEditor
     }
 
     /// <summary>
-    /// 以已授權的 bounded worksheet 作為續頁 prototype，在同一 package 追加一份
-    /// 完整 clone。Worksheet XML 與既有 part relationships 都沿用範本；caller 之後
-    /// 只能用 direct streaming writer 重寫 clone 的 dynamic rows。
+    /// 資料超過一張工作表時，把一張允許改寫的範本工作表完整複製一份，加在同一份活頁簿裡當續頁。
+    /// 工作表的 XML 與它原有的關聯都照範本；呼叫端之後只能用
+    /// <see cref="DirectTemplateStreamingSheetWriter"/> 重寫複本的資料列。
     /// </summary>
     internal WorksheetPart AppendWorksheetClone(
         WorksheetPart prototypePart,
@@ -296,12 +298,12 @@ internal sealed class DirectTemplateWorkbookEditor
     }
 
     /// <summary>
-    /// 只供 direct streaming writer 在同一已開啟 package 追加具名動態表；
-    /// existing-sheet mutation 仍必須走上方 allowlist API。
+    /// 目前開啟的活頁簿。只用來在同一份活頁簿裡新增資料工作表；
+    /// 要改範本既有的工作表，仍然要用上面那些受允許清單限制的方法。
     /// </summary>
     internal SpreadsheetDocument Document => _document;
 
-    /// <summary>取得同一 template package 的 append-only component style patcher。</summary>
+    /// <summary>這份活頁簿的 <see cref="WorkbookStylePatcher"/>：只在樣式表最後面追加新樣式，不改既有的樣式。</summary>
     internal WorkbookStylePatcher StylePatcher => _stylePatcher ??= new WorkbookStylePatcher(
         _workbookPart.WorkbookStylesPart
         ?? throw new InvalidDataException("Template workbook has no styles part."));
@@ -445,7 +447,7 @@ internal sealed class DirectTemplateCellEditor
         ApplyStylePatch(cell, stylePatch);
     }
 
-    /// <summary>保留 cell payload，只從目前 style prototype 派生外觀 variant。</summary>
+    /// <summary>儲存格的內容不動，只把樣式換成依目前樣式修改而來的新樣式。</summary>
     internal void PatchCell(string reference, WorkbookStylePatch patch)
     {
         ArgumentNullException.ThrowIfNull(patch);
@@ -453,8 +455,8 @@ internal sealed class DirectTemplateCellEditor
     }
 
     /// <summary>
-    /// 對明示 allowlist 的 bounded template column 套用 component patch。既有 column
-    /// width 與 cell payload 不變；缺少 dedicated single-column prototype 時 fail closed。
+    /// 修改允許清單裡某一欄的樣式：欄的預設樣式與這一欄既有儲存格的樣式，都依 <paramref name="patch"/> 換成新樣式。
+    /// 欄寬與儲存格的內容不變。範本必須有只涵蓋這一欄的 col 定義；沒有，或那個定義涵蓋多欄時，丟出例外。
     /// </summary>
     internal void PatchColumn(uint column, WorkbookStylePatch patch)
     {
@@ -622,9 +624,8 @@ internal sealed record DirectTemplateWorksheetPrototype(
     XElement DynamicRow);
 
 /// <summary>
-/// 單一 worksheet part 的 forward-only rewrite。原 XML 只 spool 到 DeleteOnClose 的非-xlsx
-/// 暫存串流；除明示的 bounded static-cell override 外，static rows 與未授權 top-level
-/// elements 逐節複製，不建立整張 worksheet DOM。
+/// 由上往下重寫一張工作表。原本的 XML 先複製到關閉時自動刪除的暫存檔，再一邊讀一邊寫回去；暫存檔不是 xlsx 檔。
+/// 除了計畫裡指定要換文字的固定儲存格，固定列與計畫沒有要改的頂層元素都逐個照抄，不把整張工作表載入記憶體。
 /// </summary>
 internal static class DirectTemplateWorksheetRewriter
 {

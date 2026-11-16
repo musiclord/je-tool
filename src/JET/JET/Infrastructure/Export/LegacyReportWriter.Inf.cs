@@ -13,13 +13,13 @@ public sealed partial class LegacyReportWriter
     private const string InfMainSheet = "INF Testing 可靠性測試";
     private const string InfAllFieldsSheet = "可靠性樣本_所有欄位";
 
-    // INF 固定範本 style 0 是新細明體 12、垂直置中、無框線與填色、
-    // 非粗體且使用 Excel 預設 locked。「所有欄位」只由它 append-only
-    // 衍生來源欄位 number-format variant，表頭、資料與欄樣式保持一致。
+    // INF 固定範本的 0 號樣式是新細明體 12 點、垂直置中、沒有框線與底色、不是粗體，鎖定設定用 Excel 的預設值。
+    // 「可靠性樣本_所有欄位」的表頭、資料與欄樣式都以它為底；來源欄位需要數字格式時，
+    // 只在樣式表最後面追加一個只差數字格式的新樣式。
     private const uint InfAllFieldsBaseStyle = 0;
 
-    // 舊版 JET：只有 legacy target TableDef 中的 character
-    // 欄位，且確實對映到 INF 主表欄位時，實際 sample rows 才套文字格式。
+    // 舊版 JET 只在配對後資料表的欄位定義是文字型態，而且那個欄位確實對應到 INF 主表的某一欄時，
+    // 才替那一欄的樣本列套文字格式。
     private static readonly WorkbookStylePatch InfCharacterNumberFormat =
         new(NumberFormatCode: "@");
 
@@ -348,11 +348,9 @@ public sealed partial class LegacyReportWriter
         }
         if (worksheet.GetFirstChild<SheetDimension>() is { } dimension)
             dimension.Reference = $"A1:T{52 + rowCount}";
-        // F51 is the template's no-wrap header prototype. K's header and all 59
-        // description cells reuse corresponding no-wrap template styles so the
-        // measured width is authoritative instead of Excel wrapping the text.
-        // Do this before applying the legacy character number format: copying the
-        // prototype afterwards would silently replace the mapped "@" component.
+        // 範本裡 F51 是不換行的表頭樣式。K 欄的表頭改用 F51 的樣式，K 欄每一列的摘要改用同一列 L 欄的不換行樣式，
+        // 這樣欄寬照量出來的寬度決定，Excel 不會把文字換行。
+        // 這一步要在套用舊版 JET 的文字格式之前做：之後才複製樣式的話，會把已經套上的 "@" 格式蓋掉。
         SetExactCellStyleFromPrototype(worksheet, "K51", "F51");
         for (var row = 53U; row <= 52U + rowCount; row++)
         {
@@ -381,7 +379,7 @@ public sealed partial class LegacyReportWriter
                 displayWidths[index]);
         }
 
-        // The fixed template clips T51 when rendered; reuse the proven M width.
+        // 固定範本的 T51 顯示時會被切掉，所以 T 欄改用 M 欄的寬度。
         SetExactColumnWidth(worksheet, 20, 22.453125D);
         ExcelText.SaveWorksheet(part);
     }

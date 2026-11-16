@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// Typed dynamic rule（wire <c>type:"typed"</c>）的 closed operator 語彙。
-/// 正準拼法逐字比對（Ordinal）；per-type 集合是 operator 與 RDE 欄位型別相容性的唯一權威。
+/// typed 條件（wire 上是 <c>type:"typed"</c>）能用的 operator，只有這裡列出的這些。
+/// operator 名稱要和這裡的拼法逐字相同（Ordinal 比對）。哪一種 RDE 欄位型別能用哪些 operator，只看這裡各型別的清單。
 /// </summary>
 public static class TypedFieldOperatorSets
 {
@@ -26,7 +26,7 @@ public static class TypedFieldOperatorSets
     public static readonly IReadOnlySet<string> All =
         Text.Concat(Date).Concat(Amount).ToHashSet(StringComparer.Ordinal);
 
-    /// <summary>RDE value type → 允許的 operator 集合；未知型別回空集合（fail closed）。</summary>
+    /// <summary>依 RDE 欄位的值型別回傳可用的 operator；不認得的型別回空集合，等於什麼 operator 都不能用。</summary>
     public static IReadOnlyList<string> ForValueType(string? valueType) => valueType switch
     {
         RdeFieldValueTypeNames.Text => Text,
@@ -42,7 +42,7 @@ public static class TypedFieldOperatorSets
     public static bool IsSetOperator(string op) => op is In or NotIn;
 }
 
-/// <summary>typed amount 條件必填的 <c>amountBasis</c> closed tokens。</summary>
+/// <summary>金額型別的 typed 條件一定要填 <c>amountBasis</c>，值只能是這裡的兩個。</summary>
 public static class TypedAmountBasisNames
 {
     public const string Signed = "signed";
@@ -52,10 +52,11 @@ public static class TypedAmountBasisNames
 }
 
 /// <summary>
-/// typed operand 的正規化單一事實來源（Domain 驗證與 AuditCore 編譯共用，避免兩層口徑分裂）。
-/// text：trim＋不分大小寫（同既有 TextMatch 家族的 UPPER(TRIM(...))，正規化後不可為空）；
-/// date：依案件選項沿 GL 的 <see cref="DateNormalizer"/> 解析；amount：沿 <see cref="MoneyScaling"/> 的 invariant decimal
-/// 解析與專案 MoneyScale scaled integer 轉換（與 numRange operand 及 RDE 投影同一條解析鏈）。
+/// typed 條件比較值的正規化規則只寫在這裡。Domain 的檢查與 AuditCore 組 SQL 都用它，兩邊才不會各算各的。
+/// 文字：去掉頭尾空白、不分大小寫，和 TextMatch 這類條件在 SQL 用的 UPPER(TRIM(...)) 相同；正規化後不能是空字串。
+/// 日期：依案件的日期選項，用 GL 同一個 <see cref="DateNormalizer"/> 解析。
+/// 金額：用 <see cref="MoneyScaling"/> 以 invariant culture 解析成 decimal，再依案件的 MoneyScale 放大成整數；
+/// numRange 條件的比較值、GL 投影時 RDE 金額的轉換，用的是同一套解析。
 /// </summary>
 internal static class TypedFieldOperandRules
 {
@@ -65,7 +66,7 @@ internal static class TypedFieldOperandRules
         return normalized.Length > 0;
     }
 
-    /// <summary>text 比較鍵：trim 後 upper invariant（SQL 端為 UPPER(TRIM(...))，兩側同構）。</summary>
+    /// <summary>文字的比較鍵：把已去掉頭尾空白的值用 ToUpperInvariant 轉成大寫；SQL 那一側用 UPPER(TRIM(...))，兩邊做法相同。</summary>
     internal static string TextComparisonKey(string normalized) => normalized.ToUpperInvariant();
 
     internal static bool TryNormalizeDate(string? raw, out string isoDate) =>

@@ -6,10 +6,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 科目配對的匯入與 presence 查詢（import.accountMapping.fromFile）。
-/// 與 GL/TB 匯入的差異：格式固定三欄、無欄位配對步驟——staging 寫入、
-/// target 投影與新增的自訂分類在**同一 transaction**（任一列無法讀取即整批 rollback）。
-/// replace-only：科目配對是整份替換的設定檔，不做多來源合併。
+/// 科目配對的匯入與匯入狀態查詢（import.accountMapping.fromFile）。
+/// 和 GL、TB 匯入不同的地方：檔案格式固定三欄，沒有欄位配對這一步。所以寫匯入暫存表 <c>pbc_account_mapping</c>、
+/// 轉寫進 <c>account_mapping</c> 與新增自訂分類都在同一個交易裡完成，任何一列讀不出來就整批 rollback。
+/// 只支援取代匯入：科目配對是整份替換的設定檔，不合併多個來源。
 /// </summary>
 public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database)
     : IAccountMappingStore, IAccountMappingImportPersistence
@@ -68,7 +68,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             columns,
             await LocalAccountCategoryStore.ReadWithinAsync(connection, transaction, cancellationToken));
 
-        // replace 語意：同一 transaction 清除舊批次、staging 與 target。
+        // 取代匯入：在同一個交易裡清掉舊批次、匯入暫存表 pbc_account_mapping 與 account_mapping。
         await using (var cleanup = connection.CreateCommand())
         {
             cleanup.Transaction = transaction;
@@ -117,7 +117,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             await insertBatch.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        // 串流寫 staging，同步投影（last-wins 去重：同科目代號後列覆蓋前列）。
+        // 一邊讀來源一邊寫匯入暫存表，同時把每一列交給 projection 整理；同一個科目編號出現多次時，後面的列蓋掉前面的列。
         var rowCount = 0;
 
         await using (var insertRow = connection.CreateCommand())

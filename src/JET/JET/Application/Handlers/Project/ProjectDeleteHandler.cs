@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// project.delete：永久刪除專案（硬刪不可復原）。先刪資料庫檔，再刪 project.json 所在的案件資料夾。不需 active project
-/// （從專案選擇畫面呼叫）。資料庫刪除失敗則例外冒泡、資料夾保留，供修正後重試。不支援的資料庫種類在動任何檔案之前
-/// 回 unsupported_provider，資料夾保持原狀。
+/// project.delete：永久刪除案件，刪了不能復原。先刪資料庫檔，再刪 project.json 所在的案件資料夾。
+/// 從案件清單呼叫，不需要先開啟案件。資料庫刪除失敗時例外照樣往外丟，資料夾保留，排除問題後可以重試。
+/// 不支援的資料庫種類在動任何檔案之前回 unsupported_provider，資料夾保持原狀。
 /// </summary>
 public sealed class ProjectDeleteHandler : IApplicationActionHandler
 {
@@ -63,8 +63,8 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
                 JetErrorCodes.ProjectNotFound,
                 ProjectFolderMessages.CannotDelete(projectId));
 
-        // Windows 本地路徑大小寫不敏感；FindAsync 命中後，後續只用文件內的 canonical id。
-        // 否則 session Leave 會把同一案件的大小寫變體當成兩個身分。
+        // Windows 的路徑不分大小寫，所以 FindAsync 找到案件後，之後一律用 project.json 裡記的 projectId。
+        // 不這樣做的話，session.Leave 會把只差大小寫的同一個案件當成兩個。
         projectId = document.ProjectId;
 
         return await DeleteAsync(projectId, document.DatabaseProvider, cancellationToken);
@@ -79,7 +79,8 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         var reportStore = repositories.ReportStore;
         var databaseDeleter = repositories.DatabaseDeleter;
 
-        // 以與 project.load 相同的 OS 檔案鎖做非阻塞試取。Held 時在報告檔、資料庫與案件資料夾有任何變更之前止步。
+        // 試著取得和 project.load 相同的作業系統檔案鎖，取不到不等待。鎖被別人持有時回 project_locked，
+        // 這時還沒動到報告檔、資料庫與案件資料夾。
         SupportOperationStage.Enter("deletion_lock");
         var deletionLockOutcome = await deletionLockService.TryAcquireAsync(
             projectId,
@@ -95,8 +96,8 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         };
         await using var heldDeletionLease = deletionLease;
 
-        // 取得刪案鎖後才取得案件外的報告租約。刪案路徑只排除其他讀寫報告檔的程式，不先
-        // 讀取或復原即將一併刪除的 journal；lease 一路保持到 provider 資料與案件資料夾處理完成。
+        // 拿到刪案鎖之後，才取得報告 store 的鎖；這把鎖放在案件資料夾外面。刪案時只用它擋住其他正在讀寫報告檔的程式，
+        // 不先讀取或復原報告的 journal，因為 journal 馬上會跟著案件資料夾一起刪掉。這把鎖一直持有到資料庫與案件資料夾都處理完。
         SupportOperationStage.Enter("report_lease");
         await using var reportDeletionLease = await reportStore.AcquireProjectDeletionLeaseAsync(
             projectId,
@@ -111,8 +112,8 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             await databaseDeleter.DeleteAsync(projectId, cancellationToken);
             databaseDeleted = true;
 
-            // 2) 刪整個案件資料夾，包含報告、工作底稿及其他檔案。DB 刪除交易已 commit 時，
-            // folder-cleanup 失敗只回 message，不把已成功的硬刪誤報為失敗。
+            // 2) 刪整個案件資料夾，包含報告、工作底稿及其他檔案。資料庫已經刪掉之後，
+            // 資料夾刪不乾淨只在回應的 message 提醒，不把已經完成的刪除回報成失敗。
             SupportOperationStage.Enter("folder_delete");
             try
             {
@@ -136,7 +137,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         {
             if (databaseDeleted)
             {
-                // DB commit 後案件已不存在；即使 folder cleanup 被取消，也不可留下指向已刪案件的 session／鎖。
+                // 資料庫刪掉之後，案件就不存在了。即使刪資料夾時被取消，也不能留下指向這個案件的 session 或鎖。
                 session.Leave(projectId);
                 heldDeletionLease.Complete();
             }

@@ -5,9 +5,10 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.voucherBalancePage：借貸不平傳票(SUM(amount_scaled)≠0)的 keyset 分頁。
-/// 排序鍵 voucher_number ASC、cursor opaque、pageSize 預設 200/上限 500(夾擠在 Domain)。
-/// 金額由 scaled 整數換算顯示值((decimal)scaled / moneyScale,沿用 DataPreview)。
+/// query.voucherBalancePage：分頁列出借貸不平的傳票，也就是 SUM(amount_scaled)≠0 的傳票。
+/// 沒有指定 sort 時依 voucher_number 由小到大排列，下一頁從上一頁最後一筆的排序鍵接著讀（keyset 分頁）；
+/// cursor 的內容前端不解讀，照原樣帶回。pageSize 預設 200，最多也是 200。
+/// 資料庫裡的金額是放大成整數的值，回應時除以 moneyScale 換回顯示用的金額，做法和資料預覽相同。
 /// </summary>
 public sealed class QueryVoucherBalancePageHandler(
     IProjectStore projectStore,

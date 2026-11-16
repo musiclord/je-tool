@@ -4,9 +4,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總情境摘要命中數(本地引擎)。兩個 GROUP BY 查詢即時從 filter_hit 算:
-/// 傳票層 COUNT(DISTINCT voucher_number) 與行層 COUNT(*) 都 JOIN gl，並保險起見再套一次「只看納入測試的分錄」。
-/// SQL 為純 ANSI;合併成 dict&lt;position,(voucher,row)&gt;,無命中的位置不入 dict。
+/// 高風險條件彙總裡每個已存情境的命中數。用兩句 GROUP BY 查詢當場從 filter_hit 算出：
+/// 命中傳票數是 COUNT(DISTINCT voucher_number)，命中分錄數是 COUNT(*)。兩句都 JOIN gl，並再套一次「只看納入測試的分錄」當作保險。
+/// SQL 只用標準語法。兩句的結果合併成以情境位置為鍵的字典，值是傳票數與分錄數；沒有命中的位置不在字典裡。
 /// </summary>
 public sealed class LocalHighRiskSummaryScenariosRepository(ILocalProjectDatabase database)
     : IHighRiskSummaryScenariosRepository

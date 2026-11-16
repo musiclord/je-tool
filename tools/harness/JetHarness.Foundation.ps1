@@ -179,6 +179,8 @@ function Read-JetRegistry {
     $testSettings = $registry.testSettings
     foreach ($required in @(
             'project',
+            'developmentRepositoryBuildExtension',
+            'developmentRepositoryRequiredTestClasses',
             'targetFramework',
             'seed',
             'publicMinimumExpectedTests',
@@ -205,6 +207,14 @@ function Read-JetRegistry {
     }
     if ([string]$testSettings.project -cne 'src/JET/tests/JET.Tests/JET.Tests.csproj') {
         throw [InvalidDataException]::new('The test project must remain inside the public product-test tree.')
+    }
+    if ([string]$testSettings.developmentRepositoryBuildExtension -cne 'tools/harness/development-repository-tests/DevelopmentRepositoryTests.targets') {
+        throw [InvalidDataException]::new('The development-repository test build extension escaped its fixed location.')
+    }
+    $requiredTestClasses = @($testSettings.developmentRepositoryRequiredTestClasses)
+    if ($requiredTestClasses.Count -eq 0 -or
+        @($requiredTestClasses | Where-Object { [string]$_ -cnotmatch '^JET\.Tests(\.[A-Za-z][A-Za-z0-9]*)+Tests$' }).Count -gt 0) {
+        throw [InvalidDataException]::new('Required development-repository test classes must be full test class names.')
     }
     foreach ($minimumName in @(
             'publicMinimumExpectedTests',
@@ -535,6 +545,7 @@ function Get-JetRunnerIdentity {
         'tools/harness/JetHarness.Process.cs',
         'tools/harness/JetDocumentationCheck.ps1',
         'tools/harness/JetPackageVerifier.ps1',
+        'tools/harness/development-repository-tests/DevelopmentRepositoryTests.targets',
         'tools/harness/gui-driver/GuiDriver.csproj',
         'tools/harness/gui-driver/DriverContracts.cs',
         'tools/harness/gui-driver/CdpSession.cs',
@@ -547,7 +558,7 @@ function Get-JetRunnerIdentity {
         'tools/harness/gui-driver/GuiSideMonthWorkflow.cs',
         'tools/harness/gui-driver/GuiUpstreamChangeScenario.cs',
         'tools/harness/gui-driver/GuiCaseToWorkingPaperScenario.cs',
-        'src/JET/tests/JET.Tests/TestInfrastructure/GuiWorkingPaperInspection.cs',
+        'tools/harness/gui-driver/GuiWorkingPaperInspection.cs',
         'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs',
         'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs',
         'tools/harness/gui-driver/Program.cs',

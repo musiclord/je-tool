@@ -3,20 +3,20 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// 資料驗證 SQL 的單一事實來源（共用述詞與有效分錄母體）。
+/// 資料驗證共用的 SQL 片段都定義在這裡，各查詢不自己另寫一份。
 ///
-/// <para><b>有效分錄母體</b>：驗證（voucher_balance／一般 blank_records／INF 抽樣）、預篩選、完整性 GL 彙總
-/// 一律只消費投影已落地的 <c>is_excluded</c>，SQL 不重做期間或過帳狀態政策。唯一刻意的 raw
-/// source-quality 例外是 <c>blankGlDate</c>，只由 source-quality query／summary 消費。</para>
+/// <para><b>有效分錄</b>指納入測試的分錄，也就是 <c>is_excluded = 0</c> 的列。借貸不平測試、資料缺漏輔助檢視、INF 抽樣、
+/// 預篩選與完整性測試的 GL 彙總，一律只讀整理分錄時存好的 <c>is_excluded</c>，SQL 不重新判斷查核期間或過帳狀態。
+/// 唯一刻意連未納入測試的分錄一起讀的是總帳日期空白 <c>blankGlDate</c>，只有來源資料品質的查詢與摘要使用。</para>
 ///
-/// <para><b>共用片段</b>：<see cref="UnbalancedCore"/>（voucher_balance 3 處共用的傳票彙總核心）、
-/// <see cref="UnbalancedDetailCore"/>（借貸不平傳票回接有效 GL 的 count／page 共用核心）、
-/// <see cref="InfSampleInsert"/>（INF 抽樣 INSERT 的唯一定義）、blank_records 四類述詞則以
-/// <c>BlankRecordsCategoryPredicate</c> 為中心（計數/明細/分頁三形狀共用）。</para>
+/// <para><b>共用片段</b>：<see cref="UnbalancedCore"/> 是借貸不平三處查詢共用的傳票彙總。
+/// <see cref="UnbalancedDetailCore"/> 把借貸不平的傳票接回有效分錄，算筆數與分頁讀取都用它。
+/// <see cref="InfSampleInsert"/> 是 INF 抽樣唯一的 INSERT。資料缺漏輔助檢視四個類別的條件集中在
+/// <c>BlankRecordsCategoryPredicate</c>，計數、明細與分頁三種查詢共用。</para>
 ///
-/// <para><see cref="CompletenessDiffCte"/> 為「每科目 GL/TB 彙總差異」的 CTE；GL 側只取有效分錄，
-/// TB 側取全部（TB 本身即本期變動）。CTE 用 LEFT JOIN 加 UNION ALL 做出 FULL OUTER JOIN 的結果，
-/// 由 ValidationRunRepository 與 completenessDiff/Account page repo、科目配對匯出共用。
+/// <para><see cref="CompletenessDiffCte"/> 是算出每個科目 GL 彙總與 TB 彙總差異的 CTE。GL 那一側只取有效分錄；
+/// TB 那一側取全部，因為 TB 本身就是本期變動。CTE 用 LEFT JOIN 加 UNION ALL 做出 FULL OUTER JOIN 的結果。
+/// 執行資料驗證的 repository、完整性差異與全科目兩個分頁查詢，以及科目配對匯出都共用它。
 /// 輸出欄：account_number、account_name、tb_s、gl_s、not_in_tb。</para>
 /// </summary>
 public static class ValidationProcedures
@@ -25,7 +25,7 @@ public static class ValidationProcedures
 
     public const string MissingTbMappingReason = AccountComparisonProcedure.MissingTbMappingReason;
 
-    /// <summary>raw target 中總帳日期空白的 finding；不得併回 blank_records。</summary>
+    /// <summary>總帳日期空白的條件，連未納入測試的分錄一起看。這是來源資料品質的發現，不併進資料缺漏輔助檢視。</summary>
     public const string BlankGlDateSourceQualityPredicate = "gl_date IS NULL";
 
     public static string BlankGlDateSourceQualityPredicateWith(string tableAlias)
@@ -35,10 +35,10 @@ public static class ValidationProcedures
     }
 
     /// <summary>
-    /// voucher_balance 共用的借貸不平母體核心（自 FROM 起）——只看納入測試的分錄、依傳票彙總、留借貸淨額≠0。
-    /// 三處呼叫（validate 的計數與明細，以及 voucherBalancePage）共用此單一定義；
-    /// 投影（COUNT 包裹 vs 明細欄）由各呼叫端在前綴 SELECT 決定，游標 keyset 由 <paramref name="extraFilter"/>
-    /// 併入 WHERE（分頁用 <c>" AND voucher_number &gt; @cursor"</c>，否則空）。
+    /// 借貸不平三處查詢共用的 SQL，從 FROM 開始：只看納入測試的分錄，依傳票號碼彙總，留下借貸淨額不是 0 的傳票。
+    /// 三處是 validate.run 的計數與明細，以及 voucherBalancePage。
+    /// 要算筆數還是取明細欄，由呼叫端在前面的 SELECT 決定。<paramref name="extraFilter"/> 會接在 WHERE 的最後：
+    /// 分頁時傳 <c>" AND voucher_number &gt; @cursor"</c>，從上一頁最後一張傳票之後讀起；其他情況傳空字串。
     /// </summary>
     public static string UnbalancedCore(string schemaPrefix = "", string extraFilter = "") =>
         $"FROM {schemaPrefix}gl WHERE {GlExcludedPopulation.SqlPredicate()} AND voucher_number IS NOT NULL{extraFilter} " +
@@ -59,11 +59,11 @@ public static class ValidationProcedures
         $"GROUP BY voucher_number HAVING {countFunction}(DISTINCT gl_date) > 1) AS reused;";
 
     /// <summary>
-    /// Validation workbook 借貸不平明細的單一母體核心：先以
-    /// <see cref="UnbalancedCore"/> 找出納入測試分錄裡的不平傳票，再回接 GL 裡納入測試的每一列。
-    /// Planning count 與 export keyset page 必須共用此片段，確保 10,000 列明細上限檢查看的是
-    /// writer 真正會讀取的有效 detail row count，而非 distinct voucher count。
-    /// <paramref name="extraFilter"/> 只供外層 entry_id keyset，需自行包含前導 AND。
+    /// 驗證報告借貸不平明細共用的 SQL：先用 <see cref="UnbalancedCore"/> 找出納入測試分錄裡的不平傳票，
+    /// 再回接 GL 裡納入測試的每一列。
+    /// 匯出前算列數的查詢和匯出時分頁讀明細的查詢必須共用這個片段。這樣 10,000 列的明細上限，
+    /// 比的是寫出程式真正會讀到的明細列數，不是不平傳票的張數。
+    /// <paramref name="extraFilter"/> 只給外層依 entry_id 分頁的條件使用，內容要自己帶開頭的 AND。
     /// </summary>
     public static string UnbalancedDetailCore(
         string schemaPrefix = "",
@@ -87,9 +87,9 @@ public static class ValidationProcedures
         "ORDER BY g.voucher_number, g.gl_date";
 
     /// <summary>
-    /// INF 抽樣 INSERT 的唯一定義。母體限有效分錄。排序識別用 target 的
-    /// source_row_number（批次內單調穩定），不用重投影會重編的 entry_id；entry_id 只作唯一 tiebreak。
-    /// 排序鍵使用 AuditCore canonical PRF（演算法第 2 版）。
+    /// INF 抽樣唯一的 INSERT。母體只含有效分錄。排序時用 gl 的 source_row_number 當每一列的識別，
+    /// 它在同一批匯入裡依序遞增、固定不變；不用 entry_id，因為重新整理分錄後 entry_id 會重編。
+    /// entry_id 只在排序鍵相同時用來分先後。排序鍵由 <see cref="InfSamplingPrf"/> 算出，是抽樣演算法第 2 版。
     /// </summary>
     public static string InfSampleInsert(
         string schemaPrefix,
@@ -147,19 +147,19 @@ public static class ValidationProcedures
         )
         """;
 
-    /// <summary>完整性測試的程序定義；slug 取既有 catalog。</summary>
+    /// <summary>完整性測試的程序定義；slug 取自 <see cref="RuleCatalog"/>。</summary>
     public static ProcedureDefinition Definition => AccountComparisonProcedure.Definition;
 
-    /// <summary>TB 是完整性 GL 與 TB 逐科目比對的軟依賴；缺席時只判定該程序 N/A，不跳過其他 validation 程序。</summary>
+    /// <summary>沒有匯入 TB 或 TB 欄位配對還沒確認時，只有 GL 與 TB 逐科目比對判為 N/A，其他資料驗證程序照常執行。</summary>
     public static ProcedureVerdict Evaluate(bool hasTbMapping, bool hasTbImport = false) =>
         AccountComparisonProcedure.EvaluateApplicability(hasTbMapping, hasTbImport);
 }
 
 /// <summary>
-/// INF v2 的 canonical 參考實作與 SQL renderer。模數 p=2^31-1；把正的 source row
-/// 拆成 p 進位左右兩半，再做三輪 keyed Feistel。每輪唯一乘法是小於 p 的平方，
-/// round-key 乘數也遠小於 p，所有 intermediate 都嚴格落在 signed BIGINT 內。
-/// 輸出為 [0,p²) 的非負 62-bit 排序鍵，以 BIGINT 承載。
+/// INF 抽樣排序鍵（演算法第 2 版）的 C# 實作，以及產生同一個算式的 SQL。兩邊算出的值必須相同。
+/// 模數 p 是 2^31-1。做法是把正整數的來源列號用 p 進位拆成左右兩半，再做三輪帶金鑰的 Feistel 運算。
+/// 每一輪只有一個乘法，是一個小於 p 的數自乘；每輪金鑰的乘數也遠小於 p，所以所有中間值都不會超出有號 BIGINT。
+/// 輸出是 0 以上、小於 p² 的 62 位元排序鍵，用 BIGINT 存放。
 /// </summary>
 internal static class InfSamplingPrf
 {

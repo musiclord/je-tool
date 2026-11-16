@@ -49,8 +49,8 @@ internal static class FilterScenarioRevision
 }
 
 /// <summary>
-/// filter payload／已存 definition 的 revision-level populationScope 單一解析點。
-/// 使用者 payload 的未知值屬 invalid_payload；已存資料損壞或同 revision 不一致屬 stale_result。
+/// 篩選範圍 populationScope 只在這裡解讀：前端送來的 payload 與已儲存情境的 definition 都由這裡讀，同一批情境共用一個範圍。
+/// payload 裡認不得的值回 invalid_payload；已儲存的內容損壞，或同一批情境的範圍不一致，回 stale_result。
 /// </summary>
 internal static class FilterPopulationScopeParser
 {
@@ -82,7 +82,7 @@ internal static class FilterPopulationScopeParser
         throw InvalidPayload();
     }
 
-    /// <summary>舊 definition 缺欄時解讀為 auditPeriod；非唯一正準值或錯型別則視為 stale。</summary>
+    /// <summary>較早儲存的 definition 沒有這個欄位時當成 auditPeriod；值認不得或不是字串時回 stale_result。</summary>
     public static GlPopulationScope ReadDefinition(JsonElement definition)
     {
         if (definition.ValueKind != JsonValueKind.Object

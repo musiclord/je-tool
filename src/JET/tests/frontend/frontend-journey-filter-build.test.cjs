@@ -34,8 +34,9 @@ function buildFixture(options = {}) {
   // zerosThreshold 模擬後端照 GL 借方平均算出、跟著已確認 GL 配對帶回的尾數 0 的個數。
   // 沒有國定假日清單時，第五步的假日條件停用並寫原因；補班日清單也比照。
   // 這個夾具代表兩份清單都已上傳的案件，預設帶 3 天國定假日與 1 天補班日；要看沒有清單的畫面時傳 calendar: null 或只帶其中一份。
+  // features 是這個版本隱藏的功能開關（Ui.FEATURES），在第一次畫出第五步之前設定；沒給時照正式程式的預設。
   const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], accountCategory = null, saved = [], availableGlFields = null, zerosThreshold = 4,
-    calendar = { holidayCount: 3, makeupDayCount: 1 },
+    calendar = { holidayCount: 3, makeupDayCount: 1 }, features = {},
     project = { projectId: 'filter-build-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-01' } } = options;
   const dom = treeDom(), requests = [];
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
@@ -43,6 +44,7 @@ function buildFixture(options = {}) {
   // 第五步分成五個檔案：前四個先載入，主檔再掛三個函式；syncViewState 在主檔是轉呼叫，名稱仍看得到。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-vouchers.js', ...FILTER_STEP_PARTS])
     vm.runInContext(readWwwroot('js/' + file), context, { filename: file });
+  Object.assign(window.JetUi.FEATURES, features);
   vm.runInContext(exposeAt(readWwwroot('js/steps/filter-step.js'), "  Ui.registerStep('filter', render);",
     '  window.exposedFilter = { syncViewState: syncViewState, render: render, toWireDraft: toWireDraft };\n'), context, { filename: 'steps/filter-step.js' });
   window.JetApi = contractJetApi({});
@@ -76,6 +78,8 @@ function buildFixture(options = {}) {
 
 // 欄位條件分頁，程式裡的識別是 field。
 const fieldPane = options => { const f = buildFixture(options); f.click('[data-condition-source="field"]'); return f; };
+// 「從情境範例開始」在這個版本隱藏；要用範例的測試先用這個函式把開關打開，托盤與範例才會畫出來。
+const withExamples = (options = {}) => ({ ...options, features: { scenarioTemplates: true } });
 // 卡片以代號識別（Ui.FILTER_COMMON_CONDITIONS 的 key）。
 const card = (f, key) => f.$('[data-common-card="' + key + '"]');
 // 常用篩選條件和預篩選分頁用同一種清單列：card() 找到的是列右邊那一把鍵，鍵上只寫「加入」或「已加入」，
@@ -382,7 +386,7 @@ const CATALOGUE_CODES = /舊表|A 到 U|A–U|範例 ?\d|工作簿範例|[A-U](\
 // 排在條件組合上方、沒有另外的展開按鈕、任何條件分頁都沒有範例，套用後清單仍在托盤裡。
 // 托盤和條件總覽同在篩選工作區，整個工作區都不能出現目錄代號。
 test('every example applies under its own name and the condition screens never show catalogue codes or card letters', () => {
-  const offered = buildFixture(EXAMPLE_READY);
+  const offered = buildFixture(withExamples(EXAMPLE_READY));
   const list = offered.$('[data-example-list]');
   const tray = list.closest('.filter-template-tray');
   assert.ok(tray, 'examples sit in the tray');
@@ -402,7 +406,7 @@ test('every example applies under its own name and the condition screens never s
   assert.doesNotMatch(screenTexts(offered.$('[data-filter-pane="filter"]')).join('\n'), CATALOGUE_CODES);
 
   for (const key of EXAMPLE_KEYS) {
-    const f = buildFixture(EXAMPLE_READY);
+    const f = buildFixture(withExamples(EXAMPLE_READY));
     const button = f.$('[data-template-key="' + key + '"]');
     assert.equal(button.disabled, false, key + ' is available');
     const label = button.textContent;
@@ -422,9 +426,107 @@ test('every example applies under its own name and the condition screens never s
   }
 
   // 已有同名情境時，範例名稱後面加數字，不加任何代號。
-  const named = buildFixture({ ...EXAMPLE_READY, saved: [{ name: '借現金、貸非現金', rationale: 'r', groups: [] }] });
+  const named = buildFixture(withExamples({ ...EXAMPLE_READY, saved: [{ name: '借現金、貸非現金', rationale: 'r', groups: [] }] }));
   named.click('[data-template-key="cashDebitNonCashCredit"]');
   assert.equal(named.draft().name, '借現金、貸非現金 2');
+});
+
+// 「從情境範例開始」在這個版本隱藏，開關 Ui.FEATURES.scenarioTemplates 預設關著：第五步沒有托盤，也沒有任何範例，
+// 畫面上不出現「範例」兩個字；條件總覽照舊是「常用篩選條件」「預篩選」「欄位條件」三個分頁，三個分頁都還能加入條件。
+// 開關打開並重畫後，托盤回到條件組合上方，十一個範例照原順序列出，套用照常。
+test('the example tray is hidden by default and comes back with its eleven examples when the feature switch is on', () => {
+  const f = buildFixture({ glMapping: { approvedBy: 'Checker', createdBy: 'Maker' },
+    rdeFields: [{ fieldId: 'rde.dept', sourceColumn: 'Dept', label: '部門', valueType: 'text' }] });
+  const features = f.window.JetUi.FEATURES;
+  assert.equal(features.scenarioTemplates, false, 'the switch is off by default');
+  assert.equal(f.$('.filter-template-tray'), null, 'no tray');
+  assert.equal(f.$('[data-example-list]'), null, 'no example list');
+  assert.equal(f.$$('[data-template-key]').length, 0, 'no example button');
+  assert.deepEqual(f.$$('[data-condition-source]').map(tab => [tab.getAttribute('data-condition-source'), tab.textContent]),
+    [['common', '常用篩選條件'], ['prescreen', '預篩選'], ['field', '欄位條件']]);
+  for (const source of ['common', 'prescreen', 'field']) {
+    f.click('[data-condition-source="' + source + '"]');
+    assert.doesNotMatch(screenTexts(f.$('[data-filter-pane="filter"]')).join('\n'), /範例/, source + ' tab does not mention examples');
+  }
+  assert.ok(f.$('.scenario-builder'), 'the composition is still there');
+  f.click('[data-add-field="description"]');
+  f.click('[data-condition-source="prescreen"]'); f.click('[data-add-prescreen="blankDescription"]');
+  f.click('[data-condition-source="common"]'); f.click('[data-common-card="preparerEqualsApprover"]');
+  assert.deepEqual(rulesOf(f), [['fieldValue', 'prescreen', 'preparerEqualsApprover']]);
+  assert.equal(f.$('.filter-template-tray'), null, 'adding conditions does not bring the tray back');
+
+  features.scenarioTemplates = true;
+  f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
+  const tray = f.$('details.filter-template-tray');
+  assert.ok(tray, 'the tray returns');
+  assert.equal(tray.querySelector('.filter-template-tray__title').textContent, '從情境範例開始');
+  const column = tray.parentElement.children;
+  assert.ok(column.indexOf(tray) < column.indexOf(f.$('.scenario-builder')), 'the tray sits above the composition');
+  assert.deepEqual(f.$$('[data-template-key]').map(button => button.getAttribute('data-template-key')), EXAMPLE_KEYS);
+  f.click('[data-template-key="periodEndManual"]');
+  assert.equal(f.draft().name, '期末最後 7 天的人工分錄');
+});
+
+// 範例隱藏時，2024 篩選表轉入的四個範例仍能用畫面上的入口逐條組出來：欄位條件分頁各欄位的「加入」與常用查法、
+// 條件組標頭的「整張傳票」，以及整張傳票條件裡的「加入子條件」。這裡不打開開關，組完核對每一條的型別、欄位與比較方式，
+// 同一組內都用 AND 連接。預期值照四個範例的條件逐條寫死；範例把其中兩條包在子條件組，這裡直接加在同一組。
+test('with the example tray hidden the four examples from the 2024 form are composed from the field tab and the group buttons', () => {
+  // 新條件帶著每種型別共用的預設屬性，這裡只取該型別自己用的那一個：欄位條件看欄位與比較方式，其他型別看各自的設定。
+  const shape = rule => rule.type === 'fieldValue' ? [rule.type, rule.field || rule.fieldId, rule.operator]
+    : rule.type === 'voucher' ? [rule.type, rule.quantifier, null, rule.conditions.map(shape)]
+    : [rule.type, { manualAuto: rule.isManual, drCrOnly: rule.drCr, prescreen: rule.prescreenKey }[rule.type], null];
+  const composed = f => {
+    assert.equal(f.$('.filter-template-tray'), null, 'the tray stays hidden');
+    assert.ok(f.draft().groups[0].conditions.every(rule => (rule.join || 'AND') === 'AND'), 'conditions in the group are joined by AND');
+    return plain(f.draft().groups[0].conditions.map(shape));
+  };
+  const at = index => '.rule-row[data-gi="0"][data-ri="' + index + '"] ';
+
+  // 週末人工分錄的特定摘要：人工分錄、總帳日期在週末、傳票摘要包含關鍵字。
+  const weekend = fieldPane(EXAMPLE_READY);
+  weekend.click('[data-add-field="manualAuto"]');
+  weekend.click('[data-add-shortcut="glDateWeekend"]');
+  weekend.click('[data-add-field="description"]');
+  weekend.choose(at(2) + '[data-value-kind]', 'contains');
+  assert.deepEqual(composed(weekend), [['manualAuto', 'true', null], ['fieldValue', 'glDate', 'isWeekend'], ['fieldValue', 'description', 'contains']]);
+
+  // 人工分錄的特定部門：人工分錄、文字型攸關資料元素欄位包含關鍵字。
+  const department = fieldPane(EXAMPLE_READY);
+  department.click('[data-add-field="manualAuto"]');
+  department.click('[data-add-field="rde.dept"]');
+  department.choose(at(1) + '[data-value-kind]', 'contains');
+  assert.deepEqual(composed(department), [['manualAuto', 'true', null], ['fieldValue', 'rde.dept', 'contains']]);
+
+  // 指定借貸科目組合的大額分錄：借方與貸方各一個「至少一筆符合」的整張傳票條件，裡面是借貸別與會計科目編號；再加金額「大額」。
+  const pair = fieldPane(EXAMPLE_READY);
+  for (const [index, side] of [[0, 'debit'], [1, 'credit']]) {
+    pair.click('[data-add-compound="voucher"]');
+    for (const kind of ['type:drCrOnly', 'field:accountNumber']) {
+      pair.choose('.rule-row--compound[data-ri="' + index + '"] > label > [data-child-kind]', kind);
+      pair.click('.rule-row--compound[data-ri="' + index + '"] > [data-child-add]');
+    }
+    // 借貸別的選單一選就生效（input 事件）。
+    const drCr = pair.$('.rule-row[data-ri="' + index + '.0"] [data-rule-bind="drCr"]');
+    drCr.value = side; drCr.fire('input');
+  }
+  pair.click('[data-add-shortcut="largeAmount"]');
+  assert.deepEqual(composed(pair), [
+    ['voucher', 'any', null, [['drCrOnly', 'debit', null], ['fieldValue', 'accountNumber', 'in']]],
+    ['voucher', 'any', null, [['drCrOnly', 'credit', null], ['fieldValue', 'accountNumber', 'in']]],
+    ['fieldValue', 'amount', 'greaterThanOrEqual']]);
+
+  // 財報準備期間的人工假日分錄：財報準備日起核准、人工分錄、總帳日期在國定假日、排除補班日、排除每月幾日。
+  const holiday = fieldPane(EXAMPLE_READY);
+  holiday.click('[data-add-shortcut="prepPeriodApproval"]');
+  holiday.click('[data-add-field="manualAuto"]');
+  holiday.click('[data-add-shortcut="glDateHoliday"]');
+  for (const [index, kind] of [[3, 'makeup'], [4, 'monthDays']]) {
+    holiday.click('[data-add-field="glDate"]');
+    holiday.choose(at(index) + '[data-value-kind]', kind);
+    holiday.choose(at(index) + '[data-value-polarity]', 'exclude');
+  }
+  assert.deepEqual(composed(holiday), [['prescreen', 'prepPeriodApproval', null], ['manualAuto', 'true', null], ['fieldValue', 'glDate', 'isHoliday'],
+    ['fieldValue', 'glDate', 'isNotMakeupDay'], ['fieldValue', 'glDate', 'dayOfMonthNotIn']]);
 });
 
 // ------------------------------------------------------------------------------------------------
@@ -722,6 +824,122 @@ test('the trailing-zero comparison defaults to the case zero count, takes one to
   assert.equal(extra().querySelector('[data-value-key="amountBasis"]'), null, 'the trailing-zero comparison ignores the sign, so no basis is offered');
 });
 
+// 日期與金額只比一邊的比較各有四個選項，每個選項只對一種比較方式，含門檻的排在不含門檻的前面。
+// 每一項依序是篩選方式的選項值、條件的比較方式、選單上的字；選單上的字和條件讀回的比較方式是同一個詞。
+const ONE_SIDED_COMPARISONS = {
+  amount: { field: 'amount', group: '指定金額', before: ['exact', 'range'], value: '100', readback: '金額絕對值', choices: [
+    ['greaterThanOrEqual', 'greaterThanOrEqual', '大於或等於'], ['above', 'greaterThan', '大於'],
+    ['lessThanOrEqual', 'lessThanOrEqual', '小於或等於'], ['below', 'lessThan', '小於']] },
+  date: { field: 'glDate', group: '指定日期', before: ['dates', 'range'], value: '2025-03-01', readback: '總帳日期', choices: [
+    ['onOrAfter', 'onOrAfter', '當日或以後'], ['after', 'after', '晚於'],
+    ['onOrBefore', 'onOrBefore', '當日或以前'], ['before', 'before', '早於']] }
+};
+const chosenKind = row => row.querySelector('[data-value-kind]').querySelectorAll('option')
+  .filter(option => option.getAttribute('selected') !== null).map(option => [option.getAttribute('value'), option.textContent]);
+
+// 審計員加入金額或總帳日期，在篩選方式選單看到四個只比一邊的選項，接在指定值與區間後面。
+// 逐一選取後，條件的比較方式就是選到的那一種，選單停在那一項，讀回用同一個詞；
+// 含不含門檻直接寫在選項上，畫面沒有另外的勾選框。
+test('amount and date offer four one-sided comparisons each, inclusive first, worded like the readback and without an inclusive checkbox', () => {
+  for (const [type, spec] of Object.entries(ONE_SIDED_COMPARISONS)) {
+    const f = fieldPane();
+    const ui = f.window.JetUi;
+    f.click('[data-add-field="' + spec.field + '"]');
+    const at = '.rule-row[data-gi="0"][data-ri="0"] ';
+    const row = () => f.$('.rule-row[data-gi="0"][data-ri="0"]');
+    const rule = () => f.draft().groups[0].conditions[0];
+    const group = row().querySelector('[data-value-kind]').querySelectorAll('optgroup').find(node => node.getAttribute('label') === spec.group);
+    assert.deepEqual(group.querySelectorAll('option').map(option => [option.getAttribute('value'), option.textContent]).slice(spec.before.length),
+      spec.choices.map(([key, , label]) => [key, label]), type + ' lists the four one-sided comparisons after the exact and range choices');
+    assert.deepEqual(group.querySelectorAll('option').map(option => option.getAttribute('value')).slice(0, spec.before.length), spec.before, type);
+    for (const [key, operator, label] of spec.choices) {
+      f.choose(at + '[data-value-kind]', key);
+      assert.equal(rule().operator, operator, type + ' ' + key + ' sets its own comparison');
+      const input = row().querySelector('[data-value-key="value"]');
+      input.value = spec.value; input.fire('input');
+      assert.deepEqual(chosenKind(row()), [[key, label]], type + ' ' + key + ' stays selected');
+      assert.equal(row().querySelector('[data-value-inclusive]'), null, type + ' ' + key + ' has no inclusive checkbox');
+      assert.equal(ui.FilterValues.summary(rule(), f.store.getState()), spec.readback + ' ' + label + '「' + spec.value + '」；空白不列入', type + ' ' + key);
+    }
+  }
+});
+
+// 已儲存的情境用到任何一種只比一邊的比較時，開啟後篩選方式選單停在同名的選項，
+// 不落到「其他比較方式」；條件的比較方式和送出的內容照原樣。
+test('a saved one-sided comparison opens on the menu choice with the same name and keeps its operator', () => {
+  for (const [type, spec] of Object.entries(ONE_SIDED_COMPARISONS)) {
+    for (const [key, operator, label] of spec.choices) {
+      const f = fieldPane();
+      const saved = { type: 'fieldValue', join: 'AND', field: spec.field, operator, value: spec.value, includeBlank: false,
+        ...(type === 'amount' ? { amountBasis: 'absolute' } : {}) };
+      f.store.setFilterDraft({ name: '已存的單邊比較', rationale: 'r', groups: [{ join: 'AND', matchScope: 'row', conditions: [saved] }] });
+      const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
+      assert.deepEqual(chosenKind(row), [[key, label]], operator + ' opens on its own choice');
+      assert.equal(row.querySelector('[data-value-kind]').querySelectorAll('option').some(option => option.getAttribute('value') === 'advanced'), false,
+        operator + ' is not shown as another comparison');
+      assert.equal(row.querySelector('[data-value-inclusive]'), null, operator + ' has no inclusive checkbox');
+      assert.equal(row.querySelector('[data-value-key="value"]').value, spec.value);
+      assert.deepEqual(f.wire().groups[0].conditions, [{ type: 'fieldValue', join: 'AND', operator, includeBlank: false, field: spec.field, value: spec.value,
+        ...(type === 'amount' ? { amountBasis: 'absolute' } : {}) }]);
+    }
+  }
+});
+
+// 日期區間與金額區間都包含兩端，編輯區在兩個輸入框後面寫出來：日期寫「含起迄日」，金額寫「含上下限」。
+// 只比一邊的比較不寫這個提示；「查核期末最後幾天」原本就在起迄日後面寫含起迄日，只寫一次。
+test('date and amount ranges say beside the two inputs that both ends are included', () => {
+  const f = fieldPane();
+  const at = index => '.rule-row[data-gi="0"][data-ri="' + index + '"] ';
+  const row = index => f.$('.rule-row[data-gi="0"][data-ri="' + index + '"]');
+  const notes = index => row(index).querySelectorAll('.value-editor__main span').map(node => node.textContent);
+  const mentions = (index, text) => row(index).querySelector('.value-editor').textContent.split(text).length - 1;
+  f.click('[data-add-field="glDate"]');
+  f.choose(at(0) + '[data-value-kind]', 'range');
+  assert.ok(notes(0).includes('（含起迄日）'), 'the date range says both dates are included');
+  assert.deepEqual(['from', 'to'].map(key => row(0).querySelector('[data-value-key="' + key + '"]').getAttribute('aria-label')), ['起點（包含）', '終點（包含）']);
+  f.choose(at(0) + '[data-value-polarity]', 'exclude');
+  assert.ok(notes(0).includes('（含起迄日）'), 'excluding a date range keeps the note');
+  f.choose(at(0) + '[data-value-kind]', 'periodEnd');
+  assert.equal(mentions(0, '含起迄日'), 1, 'the period-end choice writes the note once');
+  f.choose(at(0) + '[data-value-kind]', 'onOrAfter');
+  assert.equal(mentions(0, '含起迄日'), 0, 'a one-sided date comparison has no range note');
+
+  f.click('[data-add-field="amount"]');
+  f.choose(at(1) + '[data-value-kind]', 'range');
+  assert.ok(notes(1).includes('（含上下限）'), 'the amount range says both limits are included');
+  assert.equal(mentions(1, '含起迄日'), 0);
+  assert.deepEqual(['from', 'to'].map(key => row(1).querySelector('[data-value-key="' + key + '"]').getAttribute('aria-label')), ['起點（包含）', '終點（包含）']);
+  f.choose(at(1) + '[data-value-kind]', 'greaterThanOrEqual');
+  assert.equal(mentions(1, '含上下限'), 0, 'a one-sided amount comparison has no range note');
+});
+
+// 內建的大額入口都含門檻：金額的常用查法「大額」，以及範例「指定借貸科目組合的大額分錄」「特定人員的大額分錄」，
+// 帶入的金額條件都是大於或等於，篩選方式選單停在「大於或等於」。
+// 「特定人員的大額分錄」的動機寫金額達到門檻，和帶入的比較方式一致。
+test('the large-amount check and the two large-amount examples include the threshold amount', () => {
+  const amountRule = f => f.draft().groups.flatMap(group => group.conditions).find(rule => rule.field === 'amount');
+  const amountRow = f => f.$$('.rule-row').find(row => row.querySelector('[data-value-kind]') && chosenKind(row).some(([key]) => key === 'greaterThanOrEqual' || key === 'above'));
+  const check = fieldPane(EXAMPLE_READY);
+  check.click('[data-add-shortcut="largeAmount"]');
+  assert.deepEqual(plain([amountRule(check).type, amountRule(check).operator, amountRule(check).value, amountRule(check).amountBasis]),
+    ['fieldValue', 'greaterThanOrEqual', '', 'absolute']);
+  assert.deepEqual(chosenKind(amountRow(check)), [['greaterThanOrEqual', '大於或等於']]);
+
+  const pair = buildFixture(withExamples(EXAMPLE_READY));
+  pair.click('[data-template-key="accountPairLargeAmount"]');
+  assert.deepEqual(plain([amountRule(pair).operator, amountRule(pair).value, amountRule(pair).amountBasis]), ['greaterThanOrEqual', '300000', 'absolute']);
+  assert.deepEqual(chosenKind(amountRow(pair)), [['greaterThanOrEqual', '大於或等於']]);
+  assert.equal(check.window.JetUi.FilterValues.summary(amountRule(pair), pair.store.getState()), '金額絕對值 大於或等於「300000」；空白不列入');
+
+  const preparer = buildFixture(withExamples(EXAMPLE_READY));
+  pair.window.JetUi.FILTER_SCENARIO_TEMPLATES.forEach(template => {
+    if (template.key === 'preparerLargeAmount') assert.equal(template.rationale, '指定建立人員且金額達到門檻的分錄；人員與門檻請自行填入。');
+  });
+  preparer.click('[data-template-key="preparerLargeAmount"]');
+  assert.deepEqual(plain([amountRule(preparer).operator, amountRule(preparer).value]), ['greaterThanOrEqual', '']);
+  assert.equal(preparer.draft().rationale, '指定建立人員且金額達到門檻的分錄；人員與門檻請自行填入。');
+});
+
 // 額外加入的攸關資料元素數值欄位，金額比較的預設照舊版用絕對值，仍可改成含正負號；
 // 舊版 IDEA JET 的數字條件一律用 @Abs 比較。從條件總覽按「加入」與在子條件組加入，
 // 兩條路徑都預設絕對值，改成含正負號後照實送出。
@@ -863,7 +1081,7 @@ test('preview sends the composed groups exactly and marks a rejected condition o
 // ------------------------------------------------------------------------------------------------
 
 // 用整個畫面的夾具（setTimeout 排進佇列），加入條件後跑完所有排定的計時器、各觸發一次 setInterval，
-// 再核對條件仍是「選取中」。測試名稱由 GuiScenarioCoverageTests 核對，改名時一起改。
+// 再核對條件仍是「選取中」。
 test('a condition added from the field tab stays selected after every pending timer has run', async () => {
   const CASE = { projectId: '合成條件案', databaseProvider: 'sqlite' };
   const f = await bootFullApp([CASE]);
@@ -903,7 +1121,6 @@ test('a condition added from the field tab stays selected after every pending ti
 // 畫面上的常用查法依序就是這張清單，也沒有分類的展開鈕。
 // 類別組的三個欄位另外逐一加入與移除，借方與貸方科目編號組合從情境範例核對借方與貸方各一個子條件。
 // 欄位、鍵上的字、完整名稱與型別逐字照 ui-core.js 的 FIELD_SHORTCUT_GROUPS 寫死，不從畫面推導。
-// 測試名稱由 GuiScenarioCoverageTests 核對，改名時一起改。
 test('every field shortcut sits on its field row, is added by its own button with the exact type and can be removed', () => {
   const checks = [
     ['glDate', 'glDateWeekend', '週末', '總帳日期在週末', 'fieldValue'],
@@ -957,7 +1174,7 @@ test('every field shortcut sits on its field row, is added by its own button wit
     assert.equal(allRules().length, 0, field + ' is removed');
   }
   // 借方與貸方科目編號組合在情境範例，套用後是借方與貸方各一個明示方向的子條件。
-  const example = buildFixture();
+  const example = buildFixture(withExamples());
   example.click('[data-template-key="accountNumberPair"]');
   const pair = example.draft().groups[0].conditions[0];
   assert.deepEqual([pair.conditions[0].conditions[0].drCr, pair.conditions[1].conditions[0].drCr], ['debit', 'credit']);
@@ -1157,7 +1374,7 @@ test('a prescreen rule the backend would reject is disabled with its reason and 
 // 所以補班日清單照常帶著，範例的原因才只寫國定假日這一句；只缺補班日清單的情況見下一個測試。
 test('without a holiday list every holiday condition is disabled with the step-2 reason while non-business-day stays available', () => {
   const holidayReason = '尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳';
-  const f = buildFixture({ ...EXAMPLE_READY, calendar: { makeupDayCount: 1 } });
+  const f = buildFixture(withExamples({ ...EXAMPLE_READY, calendar: { makeupDayCount: 1 } }));
   const describedText = node => f.$('#' + node.getAttribute('aria-describedby')).textContent;
   f.click('[data-condition-source="field"]');
   for (const key of ['glDateHoliday', 'approvalDateHoliday']) {
@@ -1197,7 +1414,7 @@ test('without a holiday list every holiday condition is disabled with the step-2
 // 兩份清單各自判斷。
 test('without a make-up day list the make-up choice is disabled with its own reason while holidays stay available', () => {
   const makeupReason = '尚未上傳補班日清單，請先在第二步「國定假日與補班日」上傳';
-  const f = buildFixture({ ...EXAMPLE_READY, calendar: { holidayCount: 3 } });
+  const f = buildFixture(withExamples({ ...EXAMPLE_READY, calendar: { holidayCount: 3 } }));
   // 範例「財報準備期間的人工假日分錄」排除補班日，所以也要補班日清單；只缺這份清單時原因只寫這一句。
   const example = () => f.$('[data-template-key="preparationManualHoliday"]');
   assert.equal(example().disabled, true, 'the example needs the make-up list');
@@ -1320,7 +1537,7 @@ test('every field button stays listed, the unmapped ones cannot be pressed and t
 // 這裡核對傳票核准日底下五項與編製分錄較少的人員停用、都連到分頁最後那一段；人工/自動分錄是類別組的欄位，核對它的「加入」。
 // 範例在右側托盤，需要未配對欄位的範例也停用並寫出原因。
 test('field shortcuts, examples, common cards and prescreen rules that need an unmapped field are disabled with the same reason until it is mapped', () => {
-  const f = fieldPane({ availableGlFields: PARTLY_MAPPED, rdeFields: DEPARTMENT });
+  const f = fieldPane(withExamples({ availableGlFields: PARTLY_MAPPED, rdeFields: DEPARTMENT }));
   const fieldNote = unmapped('傳票核准日', '傳票建立人員', '傳票核准人員', '分錄來源模組', '人工/自動分錄');
   const blocked = ['approvalDateWeekend', 'approvalDateHoliday', 'approvalDateNonBusinessDay', 'approvalDateRange', 'prepPeriodApproval', 'rarePreparers'];
   assert.deepEqual(disabledKeys(f, 'data-add-shortcut'), blocked);
@@ -1428,7 +1645,7 @@ test('the field menus on condition cards disable unmapped fields and a condition
 // 不停用的話，套用後要到預覽才被後端擋下。
 test('the two cash examples stay disabled until the account mapping has categories and give the fixed-asset card reason', () => {
   for (const mapping of [null, { hasAnyCategory: false, hasRevenue: false, hasCounterpart: false }]) {
-    const f = buildFixture({ accountMapping: mapping });
+    const f = buildFixture(withExamples({ accountMapping: mapping }));
     for (const key of ['cashDebitNonCashCredit', 'cashCreditNonCashDebit']) {
       const button = f.$('[data-template-key="' + key + '"]');
       assert.equal(button.disabled, true, key);
@@ -1437,7 +1654,7 @@ test('the two cash examples stay disabled until the account mapping has categori
       assert.deepEqual(rulesOf(f), [], key + ' adds nothing');
     }
   }
-  const f = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: false } });
+  const f = buildFixture(withExamples({ accountMapping: { hasAnyCategory: true, hasRevenue: false, hasCounterpart: false } }));
   f.click('[data-template-key="cashDebitNonCashCredit"]');
   assert.deepEqual(rulesOf(f), [['specialAccountCategoryPair']]);
 });

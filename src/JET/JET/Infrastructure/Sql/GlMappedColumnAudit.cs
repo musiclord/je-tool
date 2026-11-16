@@ -5,18 +5,18 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 提交後的「必填文字欄整欄空白」偵測：把投影後 target 中整欄皆空（NULL 或 trim 後空字串）的
-/// 必填文字欄，轉成可行動的非阻斷提交警示（疑似配錯欄）。
+/// 確認 GL 配對後，找出 gl 資料表裡整欄空白的必填文字欄，回傳提醒文字。整欄空白是指每一列都是 NULL，
+/// 或去掉前後空白後是空字串，多半是配錯了來源欄。提醒只是顯示給審計員看，不會擋下確認配對。
 ///
-/// 動機：來源活頁簿可能有兩個都叫「摘要」的欄（第一個整欄空、第二個才有
-/// 內容，正規化後成「摘要_2」）。description 若配到空的那欄，blank_description 會對全列誤命中，
-/// 而症狀要到資料驗證才浮現。此提醒在「欄位配對提交」當下就點出哪個必填欄空、配到哪個來源欄。
-/// 金額欄不在此（退化母體守門已擋全 0）、日期欄不在此（期外日期另計）。純呈現，不阻斷投影。
+/// 需要這個提醒的原因：來源活頁簿可能有兩個都叫「摘要」的欄，第一個整欄空白，第二個才有內容，
+/// 欄名正規化後第二個叫「摘要_2」。description 如果配到空白的那一欄，blank_description 會把每一列都算成空白，
+/// 而這個問題要到資料驗證才看得出來。這個提醒在確認欄位配對的當下就指出哪個必填欄是空白的、配到了哪個來源欄。
+/// 金額欄不在這裡檢查：借方與貸方總額都是 0 時，確認配對會直接失敗。日期欄也不在這裡檢查：期外日期另外計算。
 /// 欄位清單與查詢都由欄位目錄產生，GL 倉儲直接使用，和 TB 的 <see cref="TbMappedColumnAudit"/> 同一個寫法。
 /// </summary>
 internal static class GlMappedColumnAudit
 {
-    // (必填文字欄 fieldKey, target 欄名, 使用者可懂的欄位名)。顯示順序即此順序。
+    // 每一項是必填文字欄的 fieldKey、它在 gl 資料表的欄名，以及畫面上的欄位名稱。提醒依這個順序列出。
     internal static readonly (string FieldKey, string TargetColumn, string FriendlyName)[] RequiredTextColumns =
         JetFieldCatalog.GlFields
             .Where(static field => field.Kind == JetFieldValueKind.Text)
@@ -30,8 +30,8 @@ internal static class GlMappedColumnAudit
             .ToArray();
 
     /// <summary>
-    /// 在確認配對的同一個交易裡，查投影後整欄空白的必填文字欄，回傳每欄的提醒（含使用者實際所配的來源欄名）。
-    /// 空母體不偵測：沒有資料可判，避免把「沒資料」誤報成每一欄都配錯。計數轉成 BIGINT，避免大母體溢位。
+    /// 在確認配對的同一個交易裡，查 gl 中整欄空白的必填文字欄，回傳每一欄的提醒，提醒裡寫出實際配到的來源欄名。
+    /// gl 沒有資料時不檢查，否則會把沒有資料誤報成每一欄都配錯。計數轉成 BIGINT，資料量大時才不會溢位。
     /// </summary>
     internal static async Task<IReadOnlyList<string>> ReadAsync(DbConnection connection, DbTransaction transaction,
         GlMappingSpec spec, long rowCount, IProviderSqlDialect dialect, CancellationToken ct, string prefix = "")

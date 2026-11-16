@@ -5,8 +5,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 解析目前 validation summary 的原始事實，交由 AuditCore 分開判定結果可用性與差異提醒。
-/// 所有後續 handler 共用此入口；已完成驗證的審計差異不阻擋篩選與匯出。
+/// 讀出目前驗證結果摘要裡記的原始數字與狀態，交給 AuditCore 分別判斷兩件事：這份結果能不能用，以及要不要提醒有差異。
+/// 後續步驟的 handler 都從這裡取驗證結果；驗證已經完成時，查出的審計差異不擋篩選與匯出。
 /// </summary>
 internal static class CompletenessEligibilitySupport
 {
@@ -75,8 +75,8 @@ internal static class CompletenessEligibilitySupport
     }
 
     /// <summary>
-    /// 回應邊界重寫「可否繼續後續步驟」判定：整個衍生判定依 raw facts 重算，
-    /// 不能沿用存檔中的阻擋布林值。
+    /// 組成回應時重新算一次「可否繼續後續步驟」，寫進 completenessTest：依摘要裡的原始數字與狀態重算，
+    /// 不沿用存檔裡當時算好的布林值。
     /// </summary>
     internal static JsonElement ToWireSummary(ResultRecord run)
     {

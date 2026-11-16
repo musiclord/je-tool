@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// project.create 的技術執行 adapter。案件政策值由 Domain document 提供；
-/// 資料夾、資料庫與工作鎖由 Infrastructure 執行。
+/// 執行 project.create 的實際動作：發布案件資料夾與設定檔、取得工作鎖、建立資料庫，失敗時回復。
+/// 案件的設定值都由計畫帶來的 <see cref="ProjectDocument"/> 提供，這裡不決定任何設定值。
 /// </summary>
 internal sealed class ProjectCreateFactsPort(
     IProjectStore projectStore,
@@ -27,8 +27,8 @@ internal sealed class ProjectCreateFactsPort(
         }
         catch (ProjectStoreCollisionException exception)
         {
-            // JsonFileProjectStore 的同名檢查也涵蓋 TOCTOU 並行發布；在 case-create
-            // adapter 這個具語意的邊界補上欄位歸屬，不讓通用 project store 猜 UI 欄位。
+            // JsonFileProjectStore 的同名檢查也擋得住兩個建案在檢查過後同時發布的情形。
+            // 錯誤要標在畫面的哪個欄位由這裡決定：這裡知道名稱是審計員填的還是系統產生的，通用的 project store 不知道。
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
                 plan.HasUserSuppliedProjectName
@@ -58,8 +58,8 @@ internal sealed class ProjectCreateFactsPort(
             }
             if (lockOutcome is not LockOutcome.Acquired { NewlyAcquired: true })
             {
-                // 新案不得繼承同 principal 既有鎖。若前一 attempt 的 release 失敗，fail closed
-                // 可避免等待者在前一 attempt rollback 後，以即將消失的 reentrant lease 發布。
+                // 新案件不能沿用同一個帳號已經持有的鎖，一定要是這次新取得的。前一次建案釋放鎖失敗時鎖還留著，
+                // 這裡直接丟出例外，後一次建案才不會拿著那把會隨前一次回復而消失的鎖繼續建案。
                 throw new ProjectCreateExistingWorkLockException();
             }
             lockAcquiredThisCall = true;
@@ -160,7 +160,7 @@ internal sealed class ProjectCreateFactsPort(
         }
         catch (Exception)
         {
-            // 補償失敗不得遮蔽原始 create failure。
+            // 案件資料夾刪不掉時不往外丟，保留原本建案失敗的例外。
         }
     }
 }

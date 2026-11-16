@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 完整性差異 keyset 分頁(本地引擎)。共用 <see cref="ValidationProcedures.CompletenessDiffCte"/>,
-/// 只列 <c>tb_s &lt;&gt; gl_s</c> 的科目;排序、搜尋與換頁見 <see cref="CompletenessAccountPageQuery"/>。
+/// 分頁讀出完整性測試有差異的科目。用的是 <see cref="ValidationProcedures.CompletenessDiffCte"/>，
+/// 只列 <c>tb_s &lt;&gt; gl_s</c> 的科目；排序、搜尋與換頁見 <see cref="CompletenessAccountPageQuery"/>。
 /// </summary>
 public sealed class LocalCompletenessDiffPageRepository(ILocalProjectDatabase database)
     : ICompletenessDiffPageRepository

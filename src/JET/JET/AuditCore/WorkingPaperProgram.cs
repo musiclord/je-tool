@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// 工作底稿 planning 的 bounded Application input。來源版本必須先由既有
-/// ReportExportSupport stale 機制驗證；本 request 不建立第二套失效判定。
+/// Application 交來規劃工作底稿的輸入。引用的驗證結果與情境版本是否仍然有效，必須先由 ReportExportSupport 檢查；
+/// 這份輸入不另做第二套失效判斷。
 /// <see cref="ScenarioRevision"/> 是 null 表示案件還沒有儲存任何篩選情境；
 /// <see cref="CompletenessNaReason"/> 有值表示這次驗證無法執行 GL 與 TB 逐科目比對。
 /// </summary>
@@ -41,9 +41,9 @@ internal sealed record WorkingPaperScenarioSelection(
     string? ConditionLogic = null);
 
 /// <summary>
-/// Infrastructure planning port 回傳的 bounded first-row presence facts 與情境計數。
-/// 完整母體列、分頁 rows 與 OpenXML layout 不進入 AuditCore；缺少的情境計數沿用
-/// 既有 GetValueOrDefault 零值語意。
+/// 規劃工作底稿時 Infrastructure 查回的結果：完整性差異與不平傳票各自有沒有資料、每個情境的命中數，
+/// 以及 TB 與 GL 配對後的欄位定義。母體的資料列、分頁讀到的列與 OpenXML 版面都不進 AuditCore。
+/// 字典裡沒有的情境，命中數當成 0。
 /// </summary>
 internal sealed record WorkingPaperPlanningFacts(
     bool HasCompletenessDifferences,
@@ -52,7 +52,7 @@ internal sealed record WorkingPaperPlanningFacts(
     IReadOnlyList<FieldInfo> TargetTbDefinitions,
     IReadOnlyList<FieldInfo> TargetGlDefinitions);
 
-/// <summary>供 step3 row 與 step4／step4-1 動態欄集共用的 finalized 情境計畫。</summary>
+/// <summary>一個情境在底稿裡的計畫，含命中的傳票數與分錄數。step3 的情境列，以及 step4 與 step4-1 依情境產生的欄位，都用這一份。</summary>
 internal sealed record WorkingPaperScenarioPlan(
     int Position,
     string Name,
@@ -63,8 +63,9 @@ internal sealed record WorkingPaperScenarioPlan(
     string? ConditionLogic = null);
 
 /// <summary>
-/// 單張正準工作表的 audit planning decision。名稱與順序仍取 Domain catalog；
-/// writer 保留欄標、cell 座標、layout、style、SAX 與 continuation paging。
+/// 一張工作表的計畫：要不要產生、要不要附例外表、用哪些情境，以及表上的說明文字。
+/// 工作表的名稱與順序取自 Domain 的 <see cref="WorkingPaperSheetCatalog"/>；
+/// 欄標、儲存格位置、版面、樣式、串流寫出與續頁工作表仍由寫出程式負責。
 /// </summary>
 internal sealed record WorkingPaperSheetPlan(
     string SheetName,
@@ -122,7 +123,7 @@ internal static class WorkingPaperResultTexts
             : "#本案件試算表欄位配對尚未確認，無法執行試算表科目金額本期異動與會計分錄(JE)之推滾比對。";
 }
 
-/// <summary>step4-1 欄值來源；只有 RawField 會讀原始 row_json，其餘皆取 target normalized row。</summary>
+/// <summary>step4-1 每一欄的值從哪裡來。只有 RawField 讀來源檔的原始列 row_json，其他都讀整理後的分錄。</summary>
 internal enum WorkingPaperStep41ValueSource
 {
     RawField,
@@ -143,8 +144,8 @@ internal enum WorkingPaperStep41ValueSource
 }
 
 /// <summary>
-/// Finalized step4-1 actual 欄。Header 與排序由 Legacy target field facts 決定；
-/// RawFieldName 只供非 canonical actual 欄回取原始值。
+/// step4-1 實際輸出的一欄。<c>Header</c> 與欄位順序由 GL 配對後的欄位定義決定；
+/// <c>RawFieldName</c> 只在值取自來源檔原始列時使用，用它從原始列取值。
 /// </summary>
 internal sealed record WorkingPaperStep41Column(
     string Header,
@@ -155,8 +156,8 @@ internal sealed record WorkingPaperStep41Column(
     string? RdeFieldId = null);
 
 /// <summary>
-/// 記憶體內的工作底稿 plan。Plan 動詞先綁定 request；
-/// Finalize 才依 raw planning facts 產生 ordered sheet decisions。
+/// 工作底稿的計畫，只留在記憶體裡。Plan 先記下輸入；
+/// Finalize 才依 Infrastructure 查回的結果，照固定順序定出每張工作表的計畫。
 /// </summary>
 internal sealed record WorkingPaperPlan(
     WorkingPaperRequest Request,
@@ -171,8 +172,8 @@ internal sealed record WorkingPaperPlan(
     bool IsFinalized);
 
 /// <summary>
-/// 工作底稿的 typed planning facts port。實作只讀 bounded counts；
-/// writer 的 keyset rows、交易、檔案與 OpenXML 都不屬於此 port。
+/// 規劃工作底稿時查詢用的介面，由 Infrastructure 實作。實作只讀筆數這類大小有上限的結果；
+/// 寫出程式分頁讀的資料列、交易、檔案與 OpenXML 都不在這個介面。
 /// </summary>
 internal interface IWorkingPaperPlanningFactsPort
 {
@@ -182,8 +183,8 @@ internal interface IWorkingPaperPlanningFactsPort
 }
 
 /// <summary>
-/// 底稿寫出器的唯一入口：依已 Finalize 的計畫把整份底稿串流寫進輸出；layout、style、SAX、
-/// keyset paging、cancellation 與 progress 仍由實作負責。
+/// 底稿寫出程式的唯一入口：依已 Finalize 的計畫，把整份底稿以串流方式寫進輸出。
+/// 版面、樣式、串流寫出、分頁讀取、取消與進度回報由實作負責。
 /// </summary>
 internal interface IWorkingPaperPlanWriter
 {
@@ -195,7 +196,7 @@ internal interface IWorkingPaperPlanWriter
         Action<WorkingPaperProgress>? progress = null);
 }
 
-/// <summary>Production formal writer marker；相容測試／第三方 plan writer 不必承擔 workbook metadata。</summary>
+/// <summary>標記正式匯出用的底稿寫出程式。測試用或其他的寫出程式不實作它，也就不必處理活頁簿的 metadata。</summary>
 internal interface IFormalWorkingPaperPlanWriter : IWorkingPaperPlanWriter
 {
 }
@@ -237,39 +238,6 @@ public static partial class JetAuditProgram
         "此JE測試的WorkingPaper係透過JE Testing Tool產生之工作底稿，並依下列步驟分別記錄會計分錄測試" +
         "(JE Testing)所需之程序。\n(有關高風險JE測試的篩選判斷由查核團隊在該工具執行過程中完成定義。)");
 
-    private static readonly IReadOnlyList<string> Step2Methodology = Texts(
-        "測試說明：",
-        "1. 依照KAEG-I [ISA | 815.13507]，JE攸關母體有納入高風險條件(HRC)的欄位即攸關資料元素(RDE)，需先確認RDE的可靠性後，方執行高風險篩選條件。\n    若為初步篩選(Screening)之預篩選程序，因屬於風險評估，則於該階段可不用確認RDE可靠性。",
-        "2. 上述提到之高風險條件的RDE大多屬於非財務性質，例如篩選條件考量過帳日期、分錄摘要的關鍵字、分錄標註為人工分錄者、特定人員。",
-        "3. 若高風險條件除上述非財務性質欄位外，亦有使用會計科目編號、科目名稱或金額等欄位來進行篩選，則這些納入篩選條件的欄位亦屬於RDE。",
-        "4. JE的RDE可靠性確認包括確認完整性及正確性，由於完整性已於JE攸關母體完整性測試程序中執行，故此處可靠性測試係針對JE RDE的正確性進行測試。",
-        "5. 依照KAEG-I [ISA | 2701.1500]，需依照屬性抽樣表格[ISA | 4164.1300]選取樣本(選樣方法可採隨機、隨意或系統抽樣)核對會計傳票附件以確認RDE的正確性。",
-        "   (由於JE具有管理階層逾越控制之顯著風險，因此其固有風險為Significant，對照上述表格後的最低測試樣本量為59筆。)",
-        "測試程序：(若JE高風險條件(HRC)不包含下列A~G程序提到的欄位，則該測試程序可設為N/A)",
-        "- 財務類型RDE (如會計科目編號、科目名稱、借貸方代號、分錄金額)",
-        "A.",
-        "確認是否已於JE母體完整性測試時，完成此類RDE的測試。若無，則確認分錄金額是否與傳票附件符合，其餘則核至已核准的會計科目表。",
-        "(此類型RDE通常已於JE母體完整性測試過程與TB(試算表)比對時完成可靠性測試)",
-        "- 非財務類型RDE",
-        "B.",
-        "過帳日期/過帳時間：屬內部交易過帳者，核至經核准的內部交易日期。若屬於外部交易者，則核對相關交易憑證的日期",
-        "C.",
-        "傳票建立日期/分錄時間：根據案件情況及所選樣本來判斷選擇以下一項或多項程序來執行，以驗證其可靠性。",
-        "D.",
-        "分錄編製人員(或過帳人員)：根據案件情況及所選樣本來判斷選擇以下一項或多項程序來執行，以驗證其可靠性。",
-        "E.",
-        "分錄來源：核對分錄至傳票附件內容(若為人工分錄)與受查者系統畫面資訊(若為自動分錄)，以確認是否符合其所標註的分錄來源或是對於人工/自動分錄之標記。",
-        "F.",
-        "分錄備註/說明：選取以下一項或多項程序來執行，以驗證其可靠性。",
-        "G.",
-        "除上述以外之RDE(勾選以下適合程序來執行測試)",
-        "註1:",
-        "建議透過詢問JE資料流與流程作業，來決定JE高風險範圍條件所要篩選的日期要使用過帳日(Posting date)還是編製日/立帳日(Create date/Document date)。",
-        "註2:",
-        "若下列樣本未涵蓋自動分錄且自動分錄未於其他程序執行測試者，當高風險條件有篩選到自動分錄，應補執行上述對自動分錄提到的程序。",
-        "註3:",
-        "若有其他用在高風險條件的RDE欄位，請自行於工作表：可靠性樣本_所有欄位中複製貼上至此底稿中。");
-
     private static readonly IReadOnlyList<string> Step4Methodology = Texts(
         "測試目的",
         "取得查核證據，以測試會計分錄及其他調整：\ni)  不存在因舞弊所導致的重大不實表達；\nii) 有適當的支持性文件；\niii) 反映了相關的事項、情況和交易，並且\niv) 按照財務報導架構，記錄在正確的會計期間。",
@@ -287,8 +255,7 @@ public static partial class JetAuditProgram
         "或未入帳直接對財務報表之調整(Other adjustments)，\n則可將此類調整記錄於此處，或說明無此類情形。\n";
 
     /// <summary>
-    /// 綁定已由 Application 驗證為 current 的 validation 與 filter reference；不重查報告檔
-    /// stale，也不讀資料列。
+    /// 記下 Application 已確認仍然有效的驗證結果與情境版本；這一步不重新檢查報告檔是否過期，也不讀資料列。
     /// </summary>
     internal static WorkingPaperPlan Plan(WorkingPaperRequest request)
     {
@@ -357,9 +324,9 @@ public static partial class JetAuditProgram
             : WorkingPaperScenarioTagScope.DirectHitRows;
 
     /// <summary>
-    /// writer 的工作表取捨：完整性差異為零時省略 step1-3，
-    /// step1-1 固定 emit、但僅在不平傳票有列時顯示例外表；step4 使用全部所選
-    /// position，step4-1 只使用 row-hit count 大於零的 position。
+    /// 決定每張工作表要不要產生、用哪些情境。沒有完整性差異時不產生 step1-3。
+    /// step1-1 一定產生，但只有存在不平傳票時才附例外表。step4 用所選的全部情境；
+    /// step4-1 只用命中分錄數大於 0 的情境。
     /// </summary>
     internal static WorkingPaperPlan Finalize(
         WorkingPaperPlan plan,
@@ -447,9 +414,8 @@ public static partial class JetAuditProgram
                     "基於上述程序，查核團隊對出現差異之科目均已取得足夠的查核證據，已確認其原因尚屬合理或進行調節使其無差異，" +
                     "因此可確認JE測試母體之完整性。",
                 naText: naText),
-            Sheet(
-                WorkingPaperSheetCatalog.Step2,
-                methodology: Step2Methodology),
+            // step2 的說明、測試程序與欄標都是範本的原字，底稿計畫不帶這張表的文字。
+            Sheet(WorkingPaperSheetCatalog.Step2),
             Sheet(
                 WorkingPaperSheetCatalog.Step3,
                 scenarioPositions: selected,

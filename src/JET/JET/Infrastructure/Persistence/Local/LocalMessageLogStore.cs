@@ -3,8 +3,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// message_log 的本地引擎實作。每專案保留最近 RetainedCount 則，
-/// 每次寫入後以 AUTOINCREMENT 單調 id 修剪（id 不回收，位移修剪恆正確）。
+/// message_log 的 SQLite 實作。每個案件只保留最近 RetainedCount 則訊息：每次寫入後，
+/// 刪掉 message_id 比目前最大值小 RetainedCount 以上的舊訊息。message_id 是 AUTOINCREMENT，
+/// 只增不減、不重複使用，所以用編號相減來刪一定正確。
 /// </summary>
 public sealed class LocalMessageLogStore(ILocalProjectDatabase database) : IMessageLogStore
 {

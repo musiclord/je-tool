@@ -1,6 +1,9 @@
 namespace JET.Infrastructure;
 
-/// <summary>Keep ordinary cells unchanged; oversized condition text continues in readable, lossless parts.</summary>
+/// <summary>
+/// 把篩選條件的文字切成可以各放進一個儲存格的幾段。文字不超過 32,767 個字元、換行不超過 253 個時，原樣回傳一段；
+/// 超過時切成每段最多 500 個字元、最多 40 個換行的小段，不切開成對的 surrogate 與 CRLF，各段接起來和原文完全相同。
+/// </summary>
 internal static class FilterConditionExcelText
 {
     internal static IReadOnlyList<string> Parts(string text)

@@ -8,11 +8,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 預篩選規則的 set-based SQL 執行。row-tag 規則一律以同一條
-/// SELECT COUNT(*), COUNT(DISTINCT voucher_number) FROM gl g WHERE 共用述詞片段，
-/// 同時取得命中行與去重傳票數；
-/// 編製者彙總/罕用科目為彙總（各限 50 列）。每條逐筆規則的述詞都從 <see cref="PrescreenRulePredicates"/> 取，和第五步同一個方法。
-/// 診斷日誌（dev-only）：每個 COUNT/彙總 SELECT 走 <see cref="DiagnosticDb"/> 擴充方法記錄完整 SQL/參數。
+/// 用集合式 SQL 執行預篩選規則。逐筆判斷的規則都用同一句
+/// SELECT COUNT(*), COUNT(DISTINCT voucher_number) FROM gl g WHERE 加上各自的條件，
+/// 一次取得命中的分錄數與不重複的傳票數。
+/// 編製者彙總與罕用科目是彙總查詢，各自最多回 50 列。每條逐筆規則的條件都從 <see cref="PrescreenRulePredicates"/> 取，和第五步同一個方法。
+/// 每一句計數與彙總的 SELECT 都經 <see cref="DiagnosticDb"/> 的擴充方法執行；記錄層級開到 Debug 時（開發用），診斷日誌會記下完整的 SQL 與參數。
 /// </summary>
 public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, ILogger<LocalPrescreenRunRepository>? logger = null)
     : IPrescreenFactsPort
@@ -82,8 +82,8 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             ? await ReadPreparersAsync(connection, input, cancellationToken)
             : [];
 
-        // rulePeriod 的分母不依賴 createdBy mapping，故永遠取得全期 GL 行母體；
-        // 相異編製人員只在 preparer_summary 適用時向外使用。
+        // 期間分錄總筆數不需要配對編製人員欄位就算得出來，所以一律查；
+        // 相異編製人員數只在編製者彙總適用時回傳，不適用時回 0。
         var (observedPreparerCount, totalEntries) =
             await ReadPreparerPopulationAsync(connection, input, cancellationToken);
         var totalPreparers = input.RunPreparerSummary ? observedPreparerCount : 0L;
@@ -166,7 +166,8 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         Func<FilterSqlParameterPlanBuilder, string> predicateFactory)
     {
         await using var command = connection.CreateCommand();
-        // 一般命中列只取投影已落地的有效分錄；規則自己的日期窗口與要列出的分錄範圍仍由 predicateFactory 參數化。
+        // 只算已經寫進 gl、而且納入測試的分錄。規則自己的日期範圍，以及要算直接命中的列還是整張傳票，
+        // 由 predicateFactory 組出的條件決定。
         var parameters = new FilterSqlParameterPlanBuilder(database.Dialect);
         var predicate = predicateFactory(parameters);
         parameters.Build(predicate).BindParametersTo(command);

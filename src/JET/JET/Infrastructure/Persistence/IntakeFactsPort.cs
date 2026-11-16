@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// AuditCore intake plan 到同一個資料庫組裡 import repository 的 typed facts adapter。
-/// 檔案串流與交易仍由該種資料庫的 Infrastructure 元件負責。
+/// 照 AuditCore 排好的 <see cref="IntakePlan"/> 呼叫 <see cref="IImportRepository"/>：取代匯入或追加匯入，
+/// 結果包成 <see cref="IntakeFacts"/> 交回。讀檔與交易都在 repository 裡處理。
 /// </summary>
 internal sealed class IntakeFactsPort(IImportRepository importRepository) : IIntakeFactsPort
 {

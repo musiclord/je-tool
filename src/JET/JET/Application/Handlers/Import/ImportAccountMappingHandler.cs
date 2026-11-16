@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// import.accountMapping.fromFile：科目配對檔匯入。
-/// 格式固定三欄（科目代號、科目名稱、標準化分類），匯入即投影——
-/// staging 與 target 寫入由 store 在同一 transaction 完成。
-/// replace-only：科目配對是整份替換的設定檔（append → unsupported_mode）。
+/// import.accountMapping.fromFile：匯入科目配對檔。
+/// 格式固定三欄：科目代號、科目名稱、標準化分類。匯入時直接轉成正式資料，不必另外確認配對；
+/// 匯入暫存表 pbc_account_mapping 與正式資料表 account_mapping 由 store 在同一個交易裡寫入。
+/// 科目配對是整份替換的設定檔，只能整份取代；mode 不是 replace 就回 unsupported_mode。
 /// </summary>
 public sealed partial class ImportAccountMappingHandler : IApplicationActionHandler
 {
@@ -75,7 +75,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                 }
                 catch (JetActionException) when (extension == ".xlsx")
                 {
-                    // 正式 legacy AccountMapping 的標頭在第 3 列、資料自第 4 列；
+                    // 舊版 JET 的科目配對範本，標頭在第 3 列、資料從第 4 列開始；
                     // 標頭在第 1 列的檔案（例如工作底稿的「自動化工具-科目配對資訊」工作表、一般 CSV）照第 1 列讀。只在第 1 列無法辨識時回退兩列。
                     // 這兩列是舊範本固定的版面，不是審計員指定的欄名列。
                     effectiveRequest = request with { LeadingRowsToSkip = 2, FixedLeadingRows = true };

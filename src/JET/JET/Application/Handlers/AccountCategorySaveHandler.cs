@@ -7,8 +7,10 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// project-scoped 科目分類 replace-all action。categoryId 缺省或為 draft-N 代表新增 custom；既有 ID、
-/// built-in 身分與 semantic role 由目前 revision 校驗，持久化層再以交易重驗 revision／刪除使用中分類。
+/// accountCategory.save：把目前案件的科目分類整份換成送來的清單。categoryId 沒填或是 draft-N 的列是新增的自訂分類，
+/// 由這裡配發正式 ID；填了既有 ID 的列沿用原本的 ID 與是否為內建分類，填了不存在的 ID 就拒絕。
+/// 送來的 revision 要和目前存的版本相同；內建分類不能刪，也不能改 semanticRole。
+/// 存檔時在同一個交易裡再核對一次版本，並拒絕刪除科目配對還在使用的分類。
 /// </summary>
 public sealed class AccountCategorySaveHandler(
     ProjectSession session, ILogger? logger = null) : IApplicationActionHandler

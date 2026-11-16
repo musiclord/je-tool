@@ -73,7 +73,10 @@ public sealed record ProjectOperationEvent(
     }
 }
 
-/// <summary>專案資料庫 append-only 稽核寫入埠；本階段刻意不提供查詢、更新或刪除 API。</summary>
+/// <summary>
+/// 專案資料庫 append-only 稽核寫入埠；刻意不提供查詢、更新或刪除 API，
+/// 會讀紀錄的只有判斷要不要記重新配對的內部檢查。
+/// </summary>
 public interface IProjectOperationLog
 {
     Task AppendAsync(

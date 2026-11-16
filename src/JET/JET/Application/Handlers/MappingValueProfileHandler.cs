@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// mapping.valueProfile：對目前 GL import batch 的單一來源欄做有界、唯讀值分布查詢。
-/// 欄位存在性在 Application 以 batch.Columns exact match 驗證；聚合留在 provider SQL。
+/// mapping.valueProfile：查目前 GL 匯入批次裡一個來源欄有哪些值、各出現幾次。只讀不寫，回傳的值個數有上限。
+/// 來源欄在不在，由這裡拿欄名和 batch.Columns 逐字比對；計數留在資料庫的 SQL 裡做。
 /// </summary>
 public sealed class MappingValueProfileHandler(
     ProjectSession session) : IApplicationActionHandler
@@ -62,7 +62,7 @@ public sealed class MappingValueProfileHandler(
         {
             if (!hasComparisonValues)
                 throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "comparison_values_missing");
-            // 純前端值對應 metadata；不查匯入批次、不讀母體，也不保存或驗證配對政策。
+            // 只整理前端送來的值：哪些值算同一個代碼，以及每個值的比對鍵。不查匯入批次，不讀資料，也不儲存或驗證配對設定。
             return new
             {
                 sourceColumn,

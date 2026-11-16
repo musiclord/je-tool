@@ -849,12 +849,15 @@ internal sealed class AgentGuiTestFixtures
     private sealed class AuthorizedListFixtureHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
         : IApplicationActionHandler
     {
+        // 授權編製人員清單卡片的選檔標題照 import-step.js；標題對不上時交給正式的選檔視窗。
+        private const string AuthorizedPreparerTitle = "選擇授權編製人員清單";
+
         private int remaining = 1;
         public string Action => inner.Action;
         public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
         {
             if (Action == "host.selectFile" && payload.TryGetProperty("title", out var title)
-                && title.GetString() == "授權編製人員清單")
+                && title.GetString() == AuthorizedPreparerTitle)
             {
                 var path = fixtures._authorizedListSource ?? throw new InvalidOperationException("Synthetic source not prepared.");
                 fixtures._trace.Write(AuthorizedListSourceId, "source.selected");

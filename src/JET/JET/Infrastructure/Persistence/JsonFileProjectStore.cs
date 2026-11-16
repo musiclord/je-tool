@@ -10,7 +10,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 {
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.IndentedOptions;
 
-    // 寫入型 action 由 dispatcher 序列化，但資料預覽、案件清單等唯讀查詢會和它們同時執行。換檔瞬間開檔的讀取
+    // 會改資料的 action 由 dispatcher 一次只放行一個，但資料預覽、案件清單等唯讀查詢會和它們同時執行。換檔瞬間開檔的讀取
     // 會碰到共用違規或找不到檔案，被誤報成 project.json 損壞；開著檔案的讀取也會讓換檔失敗。同一程式內以每個
     // 檔案一把鎖讓讀寫互相等待；其他程式（另一個 JET 視窗、備份或防毒）造成的短暫鎖定，讀寫各自稍候重試。
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> FileGates =
@@ -22,16 +22,18 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
     {
         var directory = folder.GetProjectDirectory(document.ProjectId);
 
-        // 同名資料夾即視為衝突——即使其 project.json 缺漏/損壞(FindAsync 會回 null),也不靜默 re-home
-        // 覆寫,避免新案沿用殘存資料夾內的舊 jet.db。正常重複由 ProjectCreateHandler 提早攔,此為防禦縱深。
+        // 已經有同名資料夾就算衝突。即使裡面的 project.json 不見或損壞（這時 FindAsync 會回 null），
+        // 也不把新案件寫進去，避免新案件沿用資料夾裡留下的舊 jet.db。
+        // 一般的名稱重複由 ProjectCreateHandler 先擋下，這裡是第二道檢查。
         if (Directory.Exists(directory))
         {
             throw new ProjectStoreCollisionException(document.ProjectId);
         }
 
-        // 新案先在同一個 root 的唯一 staging directory 完整寫好 project.json，再以 directory
-        // rename 作發布點。寫入取消／I/O failure 只會清掉 staging，不會留下會永久阻擋同名
-        // create 的半成品正式資料夾；並行同名發布仍只有一方能成功 rename。
+        // 新案件先在同一個根目錄下建一個名稱不重複的暫存資料夾，把 project.json 完整寫好，
+        // 再把暫存資料夾改名成正式的案件資料夾；改名成功的那一刻案件才算存在。
+        // 寫入被取消或讀寫失敗時只清掉暫存資料夾，不會留下寫到一半的正式資料夾，讓同名案件之後永遠建不起來。
+        // 兩個建案同時用同一個名稱時，只有一方改名成功。
         Directory.CreateDirectory(folder.RootPath);
         var stagingDirectory = Path.Combine(
             folder.RootPath,
@@ -70,8 +72,8 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 catch (Exception exception) when (
                     exception is IOException or UnauthorizedAccessException)
                 {
-                    // Staging cleanup is best-effort and must not replace cancellation, collision,
-                    // or the original I/O failure. Dot-prefixed staging names are never project ids.
+                    // 暫存資料夾清不掉時不往外丟，保留原本的取消、名稱衝突或讀寫錯誤。
+                    // 暫存資料夾名以「.」開頭，不是合法的 projectId，留著也不會被當成案件。
                 }
             }
         }
@@ -487,8 +489,8 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 }
 
 /// <summary>
-/// project.json 的 INF 種子讀取防線。AuditCore 保持演算法／版本
-/// 判定的唯一來源；Infrastructure 只把損壞事實轉為明確的檔案讀取錯誤。
+/// 讀 project.json 時檢查 INF 抽樣種子有沒有損壞。種子與演算法版本合不合法只由 AuditCore 判定，
+/// 這裡只把判定為不合法的結果轉成明確的檔案讀取錯誤。
 /// </summary>
 internal static class ProjectDocumentSeedIntegrity
 {

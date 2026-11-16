@@ -4,8 +4,8 @@ namespace JET.Domain;
 public sealed record MappingValueProfileValue(string Value, long Count);
 
 /// <summary>
-/// GL staging 來源欄位的有界 value profile。BlankCount 包含缺欄、null 與 trim 後空字串；
-/// DistinctCount 依 trim 後不分大小寫分組，用 <see cref="MappingCodeIdentity"/>（.NET 的 OrdinalIgnoreCase）。
+/// GL 匯入暫存表裡一個來源欄的值統計，只帶有限筆數的值。BlankCount 包含缺欄、null，以及去掉頭尾空白後是空字串的值；
+/// DistinctCount 依去掉頭尾空白、不分大小寫後的值分組，用 <see cref="MappingCodeIdentity"/>（.NET 的 OrdinalIgnoreCase）。
 /// </summary>
 public sealed record MappingValueProfile(
     string SourceColumn,
@@ -15,8 +15,8 @@ public sealed record MappingValueProfile(
     bool Truncated);
 
 /// <summary>
-/// 只讀、set-based 的 staging value profile port。實作只可回傳 <c>limit</c> 筆聚合值，
-/// 不得把完整 staging rows 載入 Application。
+/// 唯讀查詢匯入暫存表裡來源欄的值統計，用集合式 SQL 計算。實作只能回傳 <c>limit</c> 筆彙總後的值，
+/// 不能把暫存表的全部資料列載入 Application。
 /// </summary>
 public interface IMappingValueProfileRepository
 {

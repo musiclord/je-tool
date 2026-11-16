@@ -7,10 +7,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 四項資料驗證的 set-based SQL 執行（規則一律在 DB 引擎計算，
-/// 不得載入完整 row set 用 LINQ）。完整性測試以 LEFT JOIN + UNION ALL 模擬
-/// FULL OUTER JOIN（不依賴 SQLite 3.39+ 方言）。
-/// 診斷日誌（dev-only）：每個 SELECT/INSERT 走 <see cref="DiagnosticDb"/>、transaction 走 scope。
+/// 用集合式 SQL 執行四項資料驗證。規則一律在資料庫裡算，不可以把整份資料讀進記憶體再用 LINQ 算。
+/// 完整性測試用 LEFT JOIN 加 UNION ALL 做出 FULL OUTER JOIN 的結果；SQLite 3.39 起才有 FULL OUTER JOIN，這裡不依賴它。
+/// 診斷日誌（開發用）：每一句 SELECT 與 INSERT 經 <see cref="DiagnosticDb"/> 記錄，交易的開始與結束也記一筆。
 /// </summary>
 public sealed class LocalValidationRunRepository(ILocalProjectDatabase database, ILogger<LocalValidationRunRepository>? logger = null)
     : IValidationFactsPort
@@ -19,8 +18,8 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
 
     private readonly ILogger _log = logger ?? NullLogger<LocalValidationRunRepository>.Instance;
 
-    // 完整性 CTE 單一事實來源:見 ValidationProcedures.CompletenessDiffCte(completenessDiffPage repo 共用同一份;
-    // GL 側只取投影已落地的有效分錄)。
+    // 完整性的 CTE 只定義在 ValidationProcedures.CompletenessDiffCte，分頁讀差異科目的 repository 也用同一份。
+    // GL 那一側只取已經寫進 gl、而且納入測試的分錄。
     private static readonly string CompletenessDiffCte = ValidationProcedures.CompletenessDiffCte;
 
     Task<ResultRecord> IValidationFactsPort.ExecuteAsync(
@@ -62,7 +61,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
 
         var unbalancedCount = await ScalarAsync(
             connection, transaction, input, cancellationToken,
-            // 借貸不平母體核心走 ValidationProcedures.UnbalancedCore(有效分錄限定)。
+            // 找借貸不平傳票的 SQL 取自 ValidationProcedures.UnbalancedCore，只看納入測試的分錄。
             $"SELECT COUNT(*) FROM (SELECT voucher_number {ValidationProcedures.UnbalancedCore()});");
 
         var unbalancedDetail = await ReadUnbalancedDetailAsync(connection, transaction, input, cancellationToken);
@@ -120,8 +119,8 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     }
 
     /// <summary>
-    /// 讀取投影時落地的 gl_control_total raw facts（單列）。match flags 由 AuditCore
-    /// Finalize 對照目前 GL population facts 判定；Infrastructure 不作審計判斷。
+    /// 讀出投影時寫進 gl_control_total 的數字，這張表只有一列。筆數與合計是否相符，由 AuditCore 在
+    /// Finalize 時拿這些數字和目前 GL 的數字比對後判定；Infrastructure 不做審計判斷。
     /// </summary>
     private async Task<ValidationControlTotalsFacts?> ReadControlTotalsAsync(
         DbConnection connection,
@@ -196,8 +195,8 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     }
 
     /// <summary>
-    /// 有效分錄內依 |amount_scaled| 定義的金額級距。CASE 與 scaled thresholds 由
-    /// AuditCore plan 提供；Local provider 只執行同一個參數化 GROUP BY CASE。
+    /// 納入測試的分錄依金額絕對值分成幾個級距，算出各級距的筆數。分級的 CASE 與各級距的門檻由 AuditCore 提供，
+    /// 門檻是放大成整數的金額；這裡只執行那一句帶參數的 GROUP BY CASE。
     /// </summary>
     private async Task<IReadOnlyList<ValidationAmountBinCount>> ReadAmountDistributionAsync(
         DbConnection connection,
@@ -275,7 +274,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        // INF 抽樣 INSERT 走 ValidationProcedures.InfSampleInsert(只看納入測試的分錄、依資料庫語法取 N 列)。
+        // INF 抽樣的 INSERT 取自 ValidationProcedures.InfSampleInsert：只看納入測試的分錄，取 N 列的寫法依資料庫而定。
         command.CommandText = ValidationProcedures.InfSampleInsert(
             schemaPrefix: string.Empty,
             database.Dialect);
@@ -291,9 +290,9 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        // 四類述詞走 BlankRecordsCategoryPredicate 中心(計數/明細/分頁共用同一份;期外日期判準
-        // = approval_date)，且全部只看納入測試的分錄。
-        // 日期為投影時正規化的 yyyy-MM-dd ISO 字串，文字比較即時間序比較。
+        // 四類的判斷條件都取自 BlankRecordsCategoryPredicate，計數、明細與分頁用同一份；期外日期用 approval_date 判斷。
+        // 四類都只看納入測試的分錄。
+        // 日期在投影時已經正規化成 yyyy-MM-dd 字串，所以文字比大小就是日期先後。
         var columns = string.Join(",\n                ",
             BlankRecordsCategoryPredicate.All.Select(c =>
                 $"COALESCE(SUM(CASE WHEN {BlankRecordsCategoryPredicate.ScopedWhenChecked(c, database.Dialect, approvalDateAvailable)} THEN 1 ELSE 0 END), 0)"));
@@ -329,7 +328,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        // 母體核心走 ValidationProcedures.UnbalancedCore(有效分錄限定)。
+        // 找借貸不平傳票的 SQL 取自 ValidationProcedures.UnbalancedCore，只看納入測試的分錄。
         command.CommandText =
             "SELECT voucher_number, " +
             "COALESCE(SUM(debit_amount_scaled), 0), " +
@@ -357,7 +356,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        // 四類旗標與 WHERE 皆走 BlankRecordsCategoryPredicate 中心，且全部只看納入測試的分錄；這次沒有檢查的類別不成立。
+        // 四類的旗標與 WHERE 都取自 BlankRecordsCategoryPredicate，而且都只看納入測試的分錄；這次沒有檢查的類別一律不成立。
         var flags = string.Join(",\n                   ",
             BlankRecordsCategoryPredicate.All.Select(c =>
                 $"CASE WHEN {BlankRecordsCategoryPredicate.ScopedWhenChecked(c, database.Dialect, approvalDateAvailable)} THEN 1 ELSE 0 END"));
@@ -405,7 +404,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         return result is null or DBNull ? 0L : Convert.ToInt64(result);
     }
 
-    /// <summary>只供 approval_date out-of-range 規則窗口使用；不得作一般母體述詞。</summary>
+    /// <summary>只給判斷 approval_date 是否在查核期間外的規則綁期間參數；不可以拿這兩個參數當限定母體的一般條件。</summary>
     private static void BindPeriod(DbCommand command, ValidationRequest input)
     {
         command.AddWithValue("@periodStart", input.PeriodStart);

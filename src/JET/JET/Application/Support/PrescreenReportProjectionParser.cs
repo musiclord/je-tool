@@ -4,9 +4,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 把 prescreen_result 保存的 prescreen wire summary 重建成 report writer 所需的
-/// internal typed projection。Wire key 的解讀留在 Application；projection 不攜帶
-/// 完整 GL 列集。
+/// 把 prescreen_result 裡保存的預篩選結果摘要 JSON，轉成寫報告的程式要用的 <see cref="PrescreenReportProjection"/>。
+/// JSON 欄位名稱只在 Application 解讀；轉出來的物件只有摘要內容，不帶整份 GL 資料列。
 /// </summary>
 internal static class PrescreenReportProjectionParser
 {

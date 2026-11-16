@@ -32,8 +32,8 @@ internal static class ReportExportSupport
         var refreshToken = timeout.Token;
         try
         {
-            // The deadline covers source refresh and stale marking as well as the final list read.
-            // Refresh may begin with synchronous local database work, so start that optional phase off-thread.
+            // 期限涵蓋更新報告來源、標記過期，以及最後讀清單這三件事。
+            // 更新一開始可能是同步的本機資料庫工作，所以這段可以省略的工作放到背景執行緒開始。
             var pending = refreshSources is null ? store.ListAsync(projectId, refreshToken)
                 : Task.Run(async () =>
                 {
@@ -192,9 +192,10 @@ internal static class ReportExportSupport
     }
 
     /// <summary>
-    /// 依目前的 run 與篩選版本把過期報告標為 stale，不另讀取未使用的清單。stale 判定只委派
-    /// <see cref="IsSourceStale(Report, ResultRecord?, ResultRecord?, bool, string?, IReadOnlyCollection{int}, string?)"/>，
-    /// 不建立第二份 run／revision 規則。
+    /// 依目前的驗證結果、預篩選結果與篩選版本，把來源已經不同的報告標成過期，不另外讀取用不到的報告清單。
+    /// 報告是否過期只由
+    /// <see cref="IsSourceStale(Report, ResultRecord?, ResultRecord?, bool, string?, IReadOnlyCollection{int}, string?)"/>
+    /// 判斷，這裡沒有第二套判斷規則。
     /// </summary>
     public static async Task RefreshReportsAsync(
         string projectId,

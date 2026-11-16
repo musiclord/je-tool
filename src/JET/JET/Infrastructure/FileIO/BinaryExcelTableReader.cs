@@ -75,8 +75,9 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
         var timeOnly = format is not null && ExcelDateFormatDetector.ClassifyFormatCode(format) == ExcelNumberKind.Time;
         if (value is DateTime date && !timeOnly && !DateNormalizer.IsSupportedExcelDate(date))
         {
-            // ExcelDataReader 已套用 1904 位移；用正規化的 OA 數值交由投影報來源列錯。
-            // 不修改 NativeTabularValue，以免把同一限制加到 Access 原生日期。
+            // 日期不在支援的年份範圍內時，不換成 yyyy-MM-dd，改交出序列值的文字，確認配對時這一列會報成日期無法辨識。
+            // ExcelDataReader 已經處理過 1904 日期系統的位移，所以直接用 ToOADate 的值。
+            // 這個限制寫在這裡，不寫進 NativeTabularValue，Access 的日期才不會受同一個限制。
             return (DateNormalizer.ExcelSerialText(date.ToOADate()), LegacyFieldKind.Date, null);
         }
         return NativeTabularValue.Read(value, timeOnly);

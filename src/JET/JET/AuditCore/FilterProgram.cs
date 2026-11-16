@@ -3,16 +3,18 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Canonical filter document keeps the original JSON as the persistence authority and a
-/// typed projection for validation and SQL compilation. The raw document is never rebuilt
-/// from the typed projection.
+/// 一個篩選情境的定義。<c>RawJson</c> 是原始 JSON，存進資料庫的就是這一份；<c>Spec</c> 是解析後的內容，
+/// 供檢查與組 SQL 使用。不會反過來用 <c>Spec</c> 重組原始 JSON。
 /// </summary>
 internal sealed record CanonicalFilterDocument(
     int Position,
     string RawJson,
     FilterScenarioSpec Spec);
 
-/// <summary>Bounded Application input for filter.preview, filter.commit or the one-scenario changes.</summary>
+/// <summary>
+/// Application 交來的輸入，用於 <c>filter.preview</c>、<c>filter.commit</c> 或一次處理一個情境的動作；
+/// 情境的數量有上限。
+/// </summary>
 internal sealed record FilterRequest(
     string ActionName,
     string ProjectId,
@@ -20,7 +22,7 @@ internal sealed record FilterRequest(
     FilterConditionContext RuleContext,
     FilterValidationContext ValidationContext);
 
-/// <summary>AuditCore-owned filter plan shared by preview and materialization.</summary>
+/// <summary>AuditCore 產生的篩選計畫；預覽和把篩選結果寫進資料庫都用這一份。</summary>
 internal sealed record FilterPlan(
     FilterRequest Request,
     IReadOnlyList<FilterCommitItem> CommitItems)
@@ -38,12 +40,12 @@ internal sealed record FilterPlan(
     internal bool SavesOneScenario { get; init; }
 }
 
-/// <summary>Raw execution facts returned by the Infrastructure filter port.</summary>
+/// <summary>Infrastructure 執行篩選後回傳的原始結果：預覽的數字，以及寫進資料庫的情境數。</summary>
 internal sealed record FilterFacts(
     FilterPreviewResult? Preview,
     int MaterializedScenarioCount);
 
-/// <summary>Finalized typed filter result; outward wire shaping remains in Application.</summary>
+/// <summary><c>JetAuditProgram.Finalize</c> 核對過的篩選結果；轉成 action 回應的格式由 Application 負責。</summary>
 internal sealed record FilterResult(
     FilterPlan Plan,
     FilterPreviewResult? Preview,
@@ -56,8 +58,8 @@ internal sealed record FilterResult(
 }
 
 /// <summary>
-/// Typed filter execution port. Infrastructure performs provider-specific command binding,
-/// set-based execution and materialization without owning scenario validity decisions.
+/// 執行篩選的介面，由 Infrastructure 實作。實作負責把參數綁到資料庫命令、用集合式 SQL 執行，
+/// 並把篩選結果寫進資料庫；情境是否有效不由它判斷。
 /// </summary>
 internal interface IFilterFactsPort
 {
@@ -89,8 +91,8 @@ public static partial class JetAuditProgram
         || ReviewedBatchActions.Contains(actionName);
 
     /// <summary>
-    /// Plans one preview document or a bounded commit set. Domain validation remains the
-    /// sole rule validator; AuditCore owns when it is applied in the production lifecycle.
+    /// 規劃一份要預覽的情境，或一組數量有上限、要發布的情境。條件規則只由 Domain 的
+    /// <see cref="FilterScenarioValidator"/> 檢查；AuditCore 決定在流程的哪個時點檢查。
     /// </summary>
     internal static FilterPlan Plan(
         FilterRequest request,
@@ -143,9 +145,10 @@ public static partial class JetAuditProgram
         IReadOnlyList<FilterCommitItem> commitItems;
         if (!isPreview)
         {
-            // filter.commit 的 handler 在逐份解析時重用 Plan 做累進驗證；definitions 尚未完成前只規劃／驗證，
-            // 最終 execution plan 會明示傳入（即使是空陣列）並建立 paired commit items。
-            // 一次處理一個情境的三個動作沒有累進驗證，一定要帶 definitions。
+            // filter.commit 的 handler 逐份解析情境時，每解析一份，就把到目前為止解析好的情境交給 Plan 檢查一次。這時還沒有 definitions，
+            // 所以只檢查，不建立發布項目。最後要執行的那一次一定會帶 definitions，空陣列也照帶，
+            // 這時才把每份 definition 和它的 Spec 配成一個發布項目。
+            // 一次處理一個情境的三個動作沒有逐份檢查這一段，一定要帶 definitions。
             if (definitions is null)
             {
                 if (ReviewedBatchActions.Contains(request.ActionName))
@@ -212,7 +215,10 @@ public static partial class JetAuditProgram
         return Plan(request, [definition]) with { SavesOneScenario = true };
     }
 
-    /// <summary>Finalizes raw facts without changing preview or hit-set semantics.</summary>
+    /// <summary>
+    /// 核對 Infrastructure 回傳的結果：預覽要有預覽數字，發布時寫進資料庫的情境數要和計畫相同。
+    /// 核對過再包成 <see cref="FilterResult"/>；不改預覽數字，也不改命中的分錄。
+    /// </summary>
     internal static FilterResult Finalize(
         FilterPlan plan,
         FilterFacts facts)

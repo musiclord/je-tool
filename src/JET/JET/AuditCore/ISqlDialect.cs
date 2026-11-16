@@ -9,8 +9,8 @@ public interface ISqlDialect
     /// <summary>第 index 個參數的佔位名（如 @p0）。</summary>
     string ParameterName(int index);
 
-    /// <summary>dateExpr 落在設定之非工作日(週幾,.NET DayOfWeek 編碼集合:週日=0…週六=6)的述詞片段；
-    /// 空集合 → 恆偽 "0 = 1"。</summary>
+    /// <summary>判斷 dateExpr 是不是落在案件設定的非工作日。nonWorkingDays 是星期幾的集合，編碼同 .NET 的 DayOfWeek：
+    /// 週日是 0，週六是 6。集合是空的時候回傳永遠不成立的 "0 = 1"。</summary>
     string WeekendPredicate(string dateExpr, IReadOnlyCollection<int> nonWorkingDays);
 
     /// <summary>columnExpr 不分大小寫包含 parameterName 參數值（NULL 以空字串參與）。</summary>
@@ -44,8 +44,8 @@ public interface ISqlDialect
     string DaysInMonth(string dateExpr);
 
     /// <summary>
-    /// INF v2 的 canonical PRF 排序鍵。實作必須精確渲染 AuditCore 的 signed-BIGINT-safe
-    /// 整數語意，不得改用 provider hash／浮點函式。
+    /// INF 抽樣（演算法第 2 版）的排序鍵。實作必須照 AuditCore 定的整數算式產生 SQL，
+    /// 所有中間值都要在有號 BIGINT 的範圍內；不得改用資料庫內建的雜湊函式或浮點函式。
     /// </summary>
     string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression);
 

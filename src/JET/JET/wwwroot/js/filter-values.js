@@ -357,6 +357,8 @@
       if (tree.lastRequest) { readPage(tree.lastRequest.payload, tree.lastRequest.selection); }
     });
   }
+  // 只比一邊的比較各自一個選項，一個選項只對一種比較方式；選項名稱直接取上面讀回用的 labels，
+  // 選單上的字和條件讀回就是同一個詞。含不含門檻寫在名稱上，不另外放勾選框。
   var commonModes = {
     date: [
       { key: 'dates', label: '指定日期', yes: 'in', no: 'notIn', aliases: ['on', 'notEquals'] },
@@ -368,8 +370,10 @@
       { key: 'holiday', label: '國定假日', yes: 'isHoliday', no: 'isNotHoliday' },
       { key: 'makeup', label: '補班日', yes: 'isMakeupDay', no: 'isNotMakeupDay' },
       { key: 'nonBusiness', label: '非營業日', yes: 'isNonBusinessDay', no: 'isNotNonBusinessDay' },
-      { key: 'before', label: '早於日期', yes: 'before', aliases: ['onOrBefore'] },
-      { key: 'after', label: '晚於日期', yes: 'after', aliases: ['onOrAfter'] },
+      { key: 'onOrAfter', label: labels.onOrAfter, yes: 'onOrAfter' },
+      { key: 'after', label: labels.after, yes: 'after' },
+      { key: 'onOrBefore', label: labels.onOrBefore, yes: 'onOrBefore' },
+      { key: 'before', label: labels.before, yes: 'before' },
       { key: 'blank', label: '空白日期', yes: 'isBlank', no: 'isNotBlank' }
     ],
     text: [
@@ -385,17 +389,20 @@
       { key: 'digits', label: '整數部分的特定數字', yes: 'containsDigits', no: 'notContainsDigits' },
       { key: 'tails', label: '整數部分的特定尾數', yes: 'endsWithDigits', no: 'notEndsWithDigits' },
       { key: 'zeros', label: '尾數連續多個 0', yes: 'endsWithZeros', no: 'notEndsWithZeros' },
-      { key: 'above', label: '高於金額', yes: 'greaterThan', aliases: ['greaterThanOrEqual'] },
-      { key: 'below', label: '低於金額', yes: 'lessThan', aliases: ['lessThanOrEqual'] },
+      { key: 'greaterThanOrEqual', label: labels.greaterThanOrEqual, yes: 'greaterThanOrEqual' },
+      { key: 'above', label: labels.greaterThan, yes: 'greaterThan' },
+      { key: 'lessThanOrEqual', label: labels.lessThanOrEqual, yes: 'lessThanOrEqual' },
+      { key: 'below', label: labels.lessThan, yes: 'lessThan' },
       { key: 'blank', label: '空白金額', yes: 'isBlank', no: 'isNotBlank' }
     ]
   };
   // 篩選方式選單依類別分組並加小標，選項名稱不變。
   // 每一種篩選方式都要列在其中一組；「查核期末最後幾天」只在案件有查核截止日時出現。
+  // 只比一邊的比較接在指定值與區間後面，含門檻的排在不含門檻的前面。
   var MODE_GROUPS = {
-    date: [['指定日期', ['dates', 'range', 'before', 'after']], ['每月固定日', ['monthDays', 'monthStart', 'monthEnd', 'periodEnd']],
+    date: [['指定日期', ['dates', 'range', 'onOrAfter', 'after', 'onOrBefore', 'before']], ['每月固定日', ['monthDays', 'monthStart', 'monthEnd', 'periodEnd']],
       ['週末與假日', ['weekend', 'holiday', 'makeup', 'nonBusiness']], ['空白', ['blank']]],
-    amount: [['指定金額', ['exact', 'range', 'above', 'below']], ['特定數字', ['digits']], ['尾數', ['tails', 'zeros']], ['空白', ['blank']]],
+    amount: [['指定金額', ['exact', 'range', 'greaterThanOrEqual', 'above', 'lessThanOrEqual', 'below']], ['特定數字', ['digits']], ['尾數', ['tails', 'zeros']], ['空白', ['blank']]],
     text: [['比對文字', ['contains', 'exact', 'starts', 'ends']], ['空白', ['blank']]]
   };
   function selectedMode(rule, state) {
@@ -488,9 +495,10 @@
     if (view.periodEnd) {
       main += '<input type="number" data-period-end-days min="1" max="366" value="' + view.days + '" aria-label="期末最後幾天"><span>天</span>' +
         '<p class="value-period-range">' + Ui.esc(rule.from || '') + ' 至 ' + Ui.esc(rule.to || '') + '（含起迄日）</p>';
-    } else if (mode === 'range') { main += '<div class="value-editor__range" aria-label="篩選區間">' + input('from', '起點（包含）') + '<span class="rule-row__sep">至</span>' + input('to', '終點（包含）') + '</div>'; }
-    if (choice && ['above', 'below', 'before', 'after'].indexOf(choice.key) >= 0) {
-      main += '<label><input type="checkbox" data-value-inclusive' + (/OrEqual$|^onOr/.test(rule.operator) ? ' checked' : '') + '>' + (type === 'date' ? '含當天' : '含門檻金額') + '</label>';
+    } else if (mode === 'range') {
+      // 區間兩端都包含，在兩個輸入框後面寫出來；日期和「查核期末最後幾天」用同一個詞。
+      main += '<div class="value-editor__range" aria-label="篩選區間">' + input('from', '起點（包含）') + '<span class="rule-row__sep">至</span>' + input('to', '終點（包含）') + '</div>' +
+        '<span>' + (type === 'date' ? '（含起迄日）' : '（含上下限）') + '</span>';
     }
     if (mode === 'set' && isDayOfMonth(rule.operator)) {
       main += '<textarea rows="1" class="value-editor__list value-editor__days" data-value-key="daysOfMonth" inputmode="numeric" aria-label="每月幾日（1 到 31）" placeholder="例如：28,31">' + Ui.esc(values(rule, state).join(',')) + '</textarea><span>日</span><p class="rule-field__hint">' + delimiterHint + '</p>';
@@ -506,7 +514,7 @@
       if (isPerson) { list += '<p class="help-text">請填 GL 裡的姓名或員工代碼；姓名本身有逗號時，請改填員工代碼。</p>'; }
       if (type === 'date') {
         main += Ui.dateInputHtml({ 'data-date-input': true, 'data-focus-key': focusKey + '-date', 'aria-label': '加入日期' }) +
-          '<button type="button" class="btn btn--ghost" data-date-add>加入</button>' +
+          '<button type="button" class="btn btn--ghost" data-date-add aria-label="加入日期">加入</button>' +
           '<p class="form-notice value-editor__date-error" data-date-error data-collapsible role="alert" hidden></p>' +
           '<div class="selected-dates" data-selected-dates data-motion-key="' + Ui.esc('dates-' + motionId(rule)) + '" data-motion-list="selected-dates" aria-label="已選日期">' +
           dateChipsHtml(rule, state) + '</div>';
@@ -580,12 +588,6 @@
       var pairs = { on: ['on', 'notEquals'], equals: ['equals', 'notEquals'], notEquals: [fieldType(rule, state) === 'date' ? 'on' : 'equals', 'notEquals'] };
       var current = selectedMode(rule, state), pair = pairs[rule.operator] || [current.yes, current.no];
       changeOperator(rule, state, pair[polarity.value === 'exclude' ? 1 : 0]); changed(true);
-    }); }
-    var inclusive = root.querySelector('[data-value-inclusive]');
-    if (inclusive) { inclusive.addEventListener('change', function () {
-      var current = selectedMode(rule, state);
-      var inclusiveOperator = fieldType(rule, state) === 'date' ? (current.key === 'before' ? 'onOrBefore' : 'onOrAfter') : current.yes + 'OrEqual';
-      changeOperator(rule, state, inclusive.checked ? inclusiveOperator : current.yes); changed(true);
     }); }
     var periodDays = root.querySelector('[data-period-end-days]');
     if (periodDays && editorView(rule).periodEnd) { periodDays.addEventListener('change', function () {

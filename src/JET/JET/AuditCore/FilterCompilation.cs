@@ -3,10 +3,10 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// 條件 AST → WHERE 片段的組譯（述詞經 <see cref="GlRulePredicates"/>，
-/// 參數經純 ordered plan）。結合律為左折疊累積括號 ((c1 OP c2) OP c3)。
-/// SELECT 骨架（COUNT/LIMIT 等）由
-/// repository 自寫——本類只負責 WHERE。
+/// 把情境的條件組成 SQL 的 WHERE 片段。每種條件的 SQL 由 <see cref="GlRulePredicates"/> 產生，
+/// 參數依加入的順序記在 <see cref="FilterSqlParameterPlanBuilder"/>。
+/// 多個條件由左到右依序結合並加上括號，例如 ((c1 OP c2) OP c3)。
+/// 這個類別只負責 WHERE；SELECT、COUNT、LIMIT 這些外層由各 repository 自己寫。
 /// </summary>
 internal sealed partial class GlFilterWhereBuilder(
     ISqlDialect dialect,
@@ -179,7 +179,8 @@ internal sealed partial class GlFilterWhereBuilder(
                     schemaPrefix, rule.CategorySelection);
 
             case FilterConditionType.SpecialAccountCategoryPair:
-                // 考量特殊科目類別配對：顯式雙類別集合 + 否定（drAndCr/drNotCr/notDrCr，否定走述詞內 NOT EXISTS）。
+                // 考量特殊科目類別配對：借方與貸方各帶一組分類，模式有 drAndCr、drNotCr、notDrCr 三種；
+                // 「另一側沒有」的判斷在 SpecialAccountCategoryPair 裡用 NOT EXISTS 寫。
                 return predicates.SpecialAccountCategoryPair(
                     parameters,
                     rule.PairMode!,
@@ -192,18 +193,19 @@ internal sealed partial class GlFilterWhereBuilder(
                 return predicates.EntityFrequency(parameters, rule, context, schemaPrefix);
 
             case FilterConditionType.RevenueDebitNearQuarterEnd:
-                // 季末前借記收入：季底視窗由 Domain 純函式自查核期間 + windowDays 算出（識別字不來自使用者）。
+                // 季末前借記收入：季底前的日期區間由 Domain 的 QuarterEndWindows 依查核期間與 windowDays 算出；
+                // SQL 裡的識別字都不來自使用者輸入。
                 return predicates.RevenueDebitNearQuarterEnd(
                     parameters,
                     QuarterEndWindows.Compute(context.PeriodStart, context.PeriodEnd, rule.WindowDays!.Value),
                     schemaPrefix);
 
             case FilterConditionType.RevenueWithoutNormalCounterpart:
-                // 收入無一般對方科目：unexpected_account_pair 的否定面（不含 Cash 為一般對方科目）。
+                // 收入無一般對方科目：收入貸方所在的傳票沒有應收款項或預收款的借方分錄；現金不算一般對方科目。
                 return predicates.RevenueWithoutNormalCounterpart(parameters, context, schemaPrefix);
 
             case FilterConditionType.ManualRevenueEntry:
-                // 收入之人工分錄：科目 = Revenue ∧ is_manual = 1。
+                // 收入之人工分錄：科目屬於收入類，而且 is_manual = 1。
                 return predicates.ManualRevenueEntry(parameters, schemaPrefix);
 
             case FilterConditionType.PreparerEqualsApprover:
@@ -211,8 +213,8 @@ internal sealed partial class GlFilterWhereBuilder(
                 return predicates.PreparerEqualsApprover();
 
             case FilterConditionType.TypedField:
-                // typed dynamic rule：fieldId 經 context registry 解析、
-                // blank＝missing value row、負向 operator 不納入 blank；值全部參數綁定。
+                // 攸關資料元素條件：fieldId 要在 context.RdeFields 裡查得到。空白是指這筆分錄在 gl_rde_value 沒有值；
+                // 「不等於」這類否定的比較不會命中空白的分錄。所有值都用參數綁定。
                 return predicates.TypedField(parameters, rule, context, schemaPrefix);
 
             default:
@@ -236,8 +238,9 @@ internal sealed partial class GlFilterWhereBuilder(
 }
 
 /// <summary>
-/// Filter／prescreen／高風險條件彙總共用的 GL 母體 SQL。scope 是 Domain 值；欄位別名只由
-/// Infrastructure 常數傳入。期間與過帳政策已在投影形成 <c>is_excluded</c>，下游不得重算。
+/// 篩選、預篩選與高風險條件彙總共用的 GL 母體條件。母體範圍用 Domain 的 <see cref="GlPopulationScope"/> 表示；
+/// 資料表別名只由 Infrastructure 以常數傳入。查核期間與過帳狀態在整理分錄時已經算成 <c>is_excluded</c>，
+/// 這裡與之後的查詢都不重算。
 /// </summary>
 internal static class GlPopulationScopeSql
 {
@@ -303,9 +306,9 @@ internal static class GlPopulationScopeSql
 }
 
 /// <summary>
-/// 資料缺漏輔助檢視分頁的 category → WHERE 述詞對映(白名單封閉集合,無任意字串注入)。
-/// 空白判定由方言的去空白方法產生，去掉的字元集合和 .NET 相同;
-/// approvalDateNotInPeriod 以 @periodStart/@periodEnd 綁參;
+/// 資料缺漏輔助檢視四個類別各自的 WHERE 條件。類別是固定的列舉，SQL 不會混入呼叫端傳來的字串。
+/// 空白的判定用 <see cref="ISqlDialect"/> 的去空白寫法，去掉的字元集合和 .NET 相同。
+/// approvalDateNotInPeriod 用 @periodStart 與 @periodEnd 兩個參數。
 /// 「核准日不在期間」以核准日 approval_date 判定，不看總帳日期，和舊版 JET 的「Approval date out of period」相同。
 /// 核准日空白的分錄照舊版也算不在期間；傳票核准日沒有配對時這一項不執行。
 /// </summary>

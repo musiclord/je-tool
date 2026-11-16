@@ -11,6 +11,9 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class RuntimeCompositionTests
 {
+    // 用合成身分組裝 runtime，不讀這台電腦的 Windows 帳號，也不向 Windows 查使用者全名。
+    private const string SyntheticPrincipal = "EXAMPLE\\runtime.composition";
+
     [Fact]
     public async Task CreateRuntime_PassesEveryRegisteredHandlerThroughTheDecorator()
     {
@@ -21,6 +24,7 @@ public sealed class RuntimeCompositionTests
             new StubHostShell(),
             root.Path,
             enableDevTools: false,
+            principalName: SyntheticPrincipal,
             userProfileDirectory: Path.Combine(root.Path, "user-profile"),
             decorateHandler: (handler, session) =>
             {
@@ -48,6 +52,7 @@ public sealed class RuntimeCompositionTests
             new StubHostShell(),
             root.Path,
             enableDevTools: false,
+            principalName: SyntheticPrincipal,
             userProfileDirectory: Path.Combine(root.Path, "user-profile"),
             startupWork: async (dispatcher, cancellationToken) =>
             {

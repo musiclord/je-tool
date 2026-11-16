@@ -13,7 +13,6 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 using JET.Tests.Infrastructure;
-using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Application;
 
@@ -21,28 +20,10 @@ namespace JET.Tests.Application;
 /// 五份正式報告與科目配對範本工作檔的 application 驗收測試。Oracle 來自各匯出 action 的回應形狀、
 /// 六種工作簿的本地格式盤點與一個自含的兩列 GL/TB 母體；不讀取外部參考檔或真實帳務資料。
 /// </summary>
-public sealed class ReportExportTests(ReportExportFixture fixture)
+public sealed partial class ReportExportTests(ReportExportFixture fixture)
     : IClassFixture<ReportExportFixture>
 {
     private const string CompletenessDiffSheet = "step1-3 完整性測試之差異說明";
-
-    private static readonly string[] EmbeddedTemplateNames =
-    [
-        "AccountMapping.xlsx",
-        "CriteriaSelectionReport.xlsx",
-        "INFReport.xlsx",
-        "PrescreeningReport.xlsx",
-        "ValidationReport.xlsx",
-        "WorkingPaper.xlsx",
-        "Holiday2025TW.xlsx",
-        "MakeUpDay2025TW.xlsx"
-    ];
-
-    private static readonly HashSet<string> TemplateHygieneExceptions =
-    [
-        "INFReport.xlsx",
-        "WorkingPaper.xlsx"
-    ];
 
     private static readonly string[] OriginalGlHeaders =
     [
@@ -1123,10 +1104,10 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
 
         var summary = workbook.Worksheet("Summary Inforamtion");
         Assert.All(summary.Range("A3:D3").Cells(), cell => Assert.True(cell.IsEmpty()));
-        Assert.True(summary.Cell("A4").IsEmpty());
+        Assert.Equal("編號", summary.Cell("A4").GetString());
         Assert.Equal("條件的內容", summary.Cell("B4").GetString());
-        Assert.True(summary.Cell("C4").IsEmpty());
-        Assert.True(summary.Cell("D4").IsEmpty());
+        Assert.Equal("符合條件的傳票數量", summary.Cell("C4").GetString());
+        Assert.Equal("符合條件的分錄筆數", summary.Cell("D4").GetString());
         Assert.Equal("Prepared by: tester", summary.Cell("D1").GetString());
         Assert.Equal("Criteria Selection 1", summary.Cell("A5").GetString());
         Assert.Contains("調整", summary.Cell("B5").GetString(), StringComparison.Ordinal);
@@ -1456,28 +1437,6 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             pair.OutputPath,
             Path.Combine(templateDirectory, pair.TemplateName),
             pair.AllowCoverEmbeddedDocumentRemoval));
-    }
-
-    [Fact]
-    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
-    public void RuntimeTemplateAssets_MatchSourceAnchors_ExceptClosedHygienePair()
-    {
-        var sourceDirectory = Path.Combine(TestRepositoryPaths.RepositoryRoot, "data");
-        var embeddedDirectory = Path.Combine(TestRepositoryPaths.SolutionRoot, "JET", "Templates");
-
-        Assert.Equal(2, TemplateHygieneExceptions.Count);
-        Assert.All(EmbeddedTemplateNames.Where(fileName => !TemplateHygieneExceptions.Contains(fileName)), fileName =>
-        {
-            var sourcePath = Path.Combine(sourceDirectory, fileName);
-            var embeddedPath = Path.Combine(embeddedDirectory, fileName);
-            Assert.True(File.Exists(sourcePath), $"Missing repository template source: data/{fileName}");
-            Assert.True(
-                File.Exists(embeddedPath),
-                $"Missing embedded template asset: JET/Templates/{fileName}");
-            Assert.Equal(
-                Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath))),
-                Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(embeddedPath))));
-        });
     }
 
     [Theory]

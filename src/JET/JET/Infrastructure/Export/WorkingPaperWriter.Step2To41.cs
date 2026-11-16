@@ -11,15 +11,16 @@ namespace JET.Infrastructure;
 
 public sealed partial class WorkingPaperWriter
 {
-    // ================= step2 / step3 / step4 / step4-1 emitter(高風險條件彙總這一族)=================
+    // ================= step2、step3、step4 與 step4-1：可靠性測試與高風險條件彙總的工作表 =================
 
     /// <summary>
-    /// 「step2 可靠性測試」:表頭跨 49-52 列(含多處合併);資料第 53 列起,逐頁 infSamplePage。
-    /// A 樣本序號為列序 1..N;J 分錄來源與 E 借貸代號由 InfSampleDisplayValues 決定，T 說明手填留空。
+    /// 「step2 可靠性測試」:樣本以上的說明、測試程序與欄標都是範本的原字。JET 只寫 A1、A2、
+    /// 配對了傳票核准人員時的 L51，以及 U 欄起攸關資料元素欄的標題。樣本從第 53 列起，一頁一頁向 infSamples 讀取。
+    /// A 欄的樣本序號是列的順序 1 到 N；J 欄分錄來源與 E 欄借貸代號由 InfSampleDisplayValues 決定；T 欄說明留給審計員填寫。
     /// </summary>
     private async Task EmitStep2Async(
         WorkingPaperWriteSession session, List<SheetStat> stats,
-        WorkingPaperContext context, WorkingPaperSheetPlan? sheetPlan,
+        WorkingPaperContext context,
         ReportWorkbookMetadata? workbookMetadata,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         CancellationToken cancellationToken,
@@ -31,14 +32,15 @@ public sealed partial class WorkingPaperWriter
             cancellationToken);
         // 攸關資料元素的表頭照舊版加 _JE，撞名用整份配對判斷。
         var rdeHeaders = GlRdeOutputNames.For(customFields, workbookMetadata?.GlMapping.GlOptions?.RdeFields);
+        // 這份清單只用來估欄寬，欄標的字在範本裡。
         var headers = new string?[]
             {
                 "樣本編號",
                 "傳票號碼\n(分錄編號)",
                 "會計科目編號",
                 "會計科目名稱",
-                "借方金額",
-                "貸方金額",
+                "借貸方\n代號\n(若有)",
+                "金額 - 借(貸)",
                 "總帳日期",
                 "傳票核准日期\n(若有)",
                 "分錄編製人員\n(或過帳人員)",
@@ -103,16 +105,9 @@ public sealed partial class WorkingPaperWriter
             WorkingPaperSheetCatalog.Step2,
             keptTemplateCells: approverMapped ? null : new HashSet<(uint Row, uint Column)> { (51U, 12U) });
         ConfigureStep2Layout(sheet, spool.Widths);
-        WriteSubstantiveHeader(sheet, context, "此Report將提供測試JE母體攸關資料元素可靠性之樣本");
+        WriteCompanyAndPeriod(sheet, context);
 
-        // 測試說明 + 測試程序固定文字。
-        WriteFixedLines(sheet, PlannedLines(sheetPlan, Step2HeaderLines));
-        foreach (var range in Step2HeaderMerges(customFields.Count))
-        {
-            sheet.AddMerge(range);
-        }
-
-        // 第 49-52 列欄標(多層合併);資料第 53 列起。
+        // 第 49 與 51 列只寫範本沒有的欄標;資料第 53 列起。
         WriteStep2ColumnHeaders(sheet, rdeHeaders, approverMapped);
         var rows = 0L;
         foreach (var projected in spool.ReadRows(cancellationToken))
@@ -236,10 +231,11 @@ public sealed partial class WorkingPaperWriter
         "底稿引用的原始 GL 列已不完整，請重新匯入、配對並執行對應步驟後再產出底稿。");
 
     /// <summary>
-    /// 「step3 高風險條件彙總」:固定測試說明區塊 + C 表(欄標第 18 列;資料第 19 列起,依 position 升冪):
-    /// B 代號 C{position} / C 條件描述=情境 name / D 選擇此條件原因=情境 rationale /
-    /// E 符合條件之傳票數=voucherHitCount。可見表固定止於 E 欄。
-    /// 情境清單(name/rationale/position)取自 scenario store、傳票命中數取自 highRiskSummary counts,於 TagColumnSet 合併;
+    /// 「step3 高風險條件彙總」：上面是固定的測試說明，下面是情境清單。欄標在第 18 列，資料從第 19 列起，依情境的 position 由小到大排。
+    /// B 欄是代號 C{position}；C 欄是條件描述，內容是情境名稱，有條件內容時下面再接「篩選條件：」與條件內容；
+    /// D 欄是選擇此條件的原因；E 欄是符合條件的傳票數。看得到的表格只到 E 欄。
+    /// 情境的名稱、原因與傳票數都取自底稿計畫，由 <see cref="TagColumnSet"/> 整理好。
+    /// 條件描述超過一個儲存格放得下的長度時分成幾列，後面幾列的代號加「（續）」。
     /// </summary>
     private void EmitStep3(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -282,7 +278,7 @@ public sealed partial class WorkingPaperWriter
                     FormalWorkbookTypography.RowHeight(WorkingPaperStyles.RegularFontSize, lines));
             }
         }
-        WriteSubstantiveHeader(sheet, context, "證實測試 - 會計分錄及其他調整", omitSubtitle: true);
+        WriteSubstantiveHeader(sheet, context);
 
         var headerLines = PlannedLines(sheetPlan, Step3HeaderLines(context));
         if (sheetPlan?.AuditCondition is { } auditCondition)
@@ -341,9 +337,10 @@ public sealed partial class WorkingPaperWriter
     private const double Step3RationaleMaxWidth = 50D;
 
     /// <summary>
-    /// 「step4 符合高風險條件傳票」:第 11 列欄標(A 編號/B 傳票號碼/C 總帳日期/D 編製者/E 傳票總金額)
-    /// + 動態 C1..CN 欄(欄集 = 全 position 升冪);第 12 列固定說明;資料第 13 列起,逐頁 highRiskSummaryVoucherPage。
-    /// 每列以該傳票 matchedPositions(PositionsByDoc 對齊)含某 position 標 'Y' 否則空;P-U 手填留空。
+    /// 「step4 符合高風險條件傳票」：第 11 列是欄標，A 到 E 欄依序是編號、傳票號碼、總帳日期、編製者、傳票總金額，
+    /// 後面每個所選情境一欄，欄標是 C 加 position，依 position 由小到大排。第 12 列是固定說明，資料從第 13 列起。
+    /// 有底稿計畫時，符合的傳票用一次只往前讀的查詢全部讀完；沒有計畫時用畫面的分頁查詢一頁一頁讀。
+    /// 每一列看那張傳票符合哪些情境，符合的情境欄寫 Y，其他留白；P 到 U 欄留給審計員填寫。
     /// </summary>
     private async Task EmitStep4Async(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -438,7 +435,7 @@ public sealed partial class WorkingPaperWriter
             ExcelWorksheetConstraints.ContinuationSheetName(WorkingPaperSheetCatalog.Step4, pageNumber),
             lockedArea: Step4LockedArea);
         ConfigureStep4Layout(sheet, dataWidths);
-        WriteSubstantiveHeader(sheet, context, "證實測試 - 會計分錄及其他調整", omitSubtitle: true);
+        WriteSubstantiveHeader(sheet, context);
 
         WriteFixedLines(sheet, PlannedLines(sheetPlan, Step4HeaderLines));
         foreach (var range in Step4HeaderMerges)
@@ -490,11 +487,11 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// Finalized step4-1：prepared session 只開一條 ordered DB reader；無 RDE 時同一遍
-    /// projection 精確聚合全資料欄寬並把 typed cells 寫入 DeleteOnClose spool。有 RDE 時
-    /// 先把 source rows 有界落盤，釋放 prepared transaction 後才分批讀取 RDE，避免在
-    /// provider reader 持鎖期間另開不相容連線。最後依已知欄寬單向 replay projected spool
-    /// 到直接 SAX 範本，整體仍只有一次 population scan 且記憶體有界。
+    /// step4-1 的明細。資料庫只開一個依序往前讀的查詢，整個母體只掃一次，記憶體用量有上限。
+    /// 沒有攸關資料元素欄時，一邊讀一邊把每一列轉成要寫的儲存格、記下各欄最寬的內容，寫進關閉時自動刪除的暫存檔。
+    /// 有攸關資料元素欄時，先把讀到的來源列寫進另一個暫存檔，等查詢與它的交易結束後，再分批讀攸關資料元素的值；
+    /// 這樣不會在查詢還開著、占著資料庫的時候另開一條連線。
+    /// 欄寬確定後，再從暫存檔逐列讀回來，直接寫進範本的工作表。
     /// </summary>
     private async Task EmitStep41Async(
         WorkingPaperWriteSession session,
@@ -873,8 +870,8 @@ public sealed partial class WorkingPaperWriter
         string renderedText;
         if (bool.TryParse(value, out var boolean))
         {
-            // XLSX native Boolean 由 import reader 保存為 Number/0 metadata，row_json
-            // 則保留 invariant true/false；Legacy actual cell 仍須是 Excel numeric 1/0。
+            // xlsx 的布林儲存格，匯入時欄位定義記成數值、小數 0 位，row_json 裡的值則是 true 或 false。
+            // 舊版 JET 的明細在這種格子裡是 Excel 的數值 1 或 0，所以這裡轉成 1 或 0 寫出。
             var number = boolean ? 1m : 0m;
             numberLiteral = number.ToString(CultureInfo.InvariantCulture);
             renderedText = number.ToString(format, CultureInfo.InvariantCulture);
@@ -895,8 +892,8 @@ public sealed partial class WorkingPaperWriter
                      out var doubleNumber)
                  && double.IsFinite(doubleNumber))
         {
-            // Import 對超出 System.Decimal 範圍但仍為合法 finite XLSX Number 的值，
-            // 以 double round-trip literal 保存；Step4-1 必須維持 numeric cell。
+            // 超出 System.Decimal 範圍、但仍是有限數值的 xlsx 數值，匯入時存成 double 能原樣讀回的文字。
+            // step4-1 寫出時仍然要是數值儲存格。
             numberLiteral = doubleNumber.ToString("R", CultureInfo.InvariantCulture);
             renderedText = doubleNumber.ToString(format, CultureInfo.InvariantCulture);
         }
@@ -1042,9 +1039,9 @@ public sealed partial class WorkingPaperWriter
         int TagMask);
 
     /// <summary>
-    /// RDE projection 專用的 DeleteOnClose source spool。prepared session 內只做單向寫入，
-    /// transaction 釋放後才單向 replay；因此不需把 step4-1 population 放進記憶體，
-    /// 也不會在 active provider reader 期間開第二條 RDE connection。
+    /// 有攸關資料元素欄時暫放 step4-1 來源列的暫存檔，關閉時自動刪除。查詢進行中只往檔案寫，
+    /// 查詢的交易結束後才從頭逐列讀回。這樣不必把 step4-1 的母體放進記憶體，
+    /// 也不會在資料庫查詢還開著的時候，為了讀攸關資料元素的值另開第二條連線。
     /// </summary>
     private sealed class Step41SourceSpool : IDisposable
     {
@@ -1259,8 +1256,8 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// 單 reader 與 worksheet cols-before-sheetData 約束之間的 bounded bridge。
-    /// 只保存已投影 typed cells 與 tag bits，不保存 raw JSON，也不建立第二個 workbook。
+    /// 資料只讀一次，而工作表的 cols 必須寫在 sheetData 前面，所以先把每一列要寫的內容放進這個暫存檔，量完欄寬再寫工作表。
+    /// 檔案裡只存已經轉好型別的儲存格內容，以及這一列符合哪些情境的位元旗標；不存原始 JSON，也不另外建立第二份活頁簿。
     /// </summary>
     private sealed class Step41ProjectedSpool : IDisposable
     {
@@ -1551,28 +1548,26 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// 證實測試表頭(step2/3/4 共用前三列):A1 公司名 / A2 財務報表期間 / A3 副標題。
-    /// 與 step1 家族的 <see cref="WriteCommonHeader"/> 不同(那是「測試資料期間/財報準備開始日」),
-    /// 故另立——這是兩組不同的固定表頭,非可統一的重複。
+    /// step3 與 step4 共用的前三列表頭：A1 公司名稱、A2 財務報表期間、A3 副標題「證實測試 - 會計分錄及其他調整」。
+    /// step1 系列用的是 <see cref="WriteCommonHeader"/>，內容是測試資料期間與財報準備開始日；
+    /// 兩組表頭的內容不同，所以分開寫。
     /// </summary>
-    private static void WriteSubstantiveHeader(
-        SheetWriter sheet, WorkingPaperContext context, string subtitle, bool omitSubtitle = false)
+    private static void WriteSubstantiveHeader(SheetWriter sheet, WorkingPaperContext context)
+    {
+        WriteCompanyAndPeriod(sheet, context);
+        sheet.WriteFixedRow(3, [sheet.TextCell(3, 1, "證實測試 - 會計分錄及其他調整", WorkingPaperStyles.Bold)]);
+    }
+
+    /// <summary>A1 公司名與 A2 財務報表期間。step2 只寫這兩列，第 3 列是範本的原字。</summary>
+    private static void WriteCompanyAndPeriod(SheetWriter sheet, WorkingPaperContext context)
     {
         sheet.WriteFixedRow(1, [sheet.TextCell(1, 1, $"公司名稱 : {context.CompanyName}", WorkingPaperStyles.Bold)]);
         sheet.WriteFixedRow(2, [sheet.TextCell(2, 1,
             $"財務報表期間 :  {DigitsOnly(context.PeriodStart)} ~ {DigitsOnly(context.PeriodEnd)}", WorkingPaperStyles.Bold)]);
-        if (!omitSubtitle)
-        {
-            sheet.WriteFixedRow(3, [sheet.TextCell(3, 1, subtitle, WorkingPaperStyles.Bold)]);
-        }
-        else
-        {
-            sheet.WriteFixedRow(3, [sheet.TextCell(3, 1, "證實測試 - 會計分錄及其他調整", WorkingPaperStyles.Bold)]);
-        }
     }
 
     /// <summary>
-    /// 逐列寫固定文字(列號/欄/文字三元組);供 step2/3/4 表頭大段 boilerplate 共用。
+    /// 寫出固定文字，每一項是列號、欄號與文字。step3 與 step4 表頭的大段說明文字共用這個方法。
     /// 同一列的幾段文字合成一列、照欄的順序一次寫出，工作表裡同一個列號才不會出現兩次。
     /// </summary>
     private static void WriteFixedLines(SheetWriter sheet, IReadOnlyList<(uint Row, uint Column, string Text)> lines)
@@ -1587,48 +1582,24 @@ public sealed partial class WorkingPaperWriter
         }
     }
 
-    /// <summary>step2 第 49-52 列多層欄標(合併範圍見 Step2HeaderMerges)。</summary>
+    /// <summary>
+    /// step2 的欄標在範本裡。JET 只寫範本沒有的兩種：配對了傳票核准人員時的 L51，
+    /// 以及 U 欄起攸關資料元素欄在第 49 列的標題與第 51 列的欄名。沒有要寫的格子時，那一列整列照範本。
+    /// </summary>
     private static void WriteStep2ColumnHeaders(
         SheetWriter sheet,
         IReadOnlyList<string> customFields,
         bool approverMapped)
     {
-        var row49 = new List<Cell>
-        {
-            sheet.TextCell(49, 1, "樣本編號", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(49, 3, "擬測試其正確性的攸關資料元素(即RDE，請詳上述說明1~3)", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(49, 13, "測試結果(若左列預設的欄位屬於高風險條件的RDE，則應執行A~G測試程序，不得勾選N/A)", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(49, 20, "說明詳細測試過程", WorkingPaperStyles.BoldWrap)
-        };
         if (customFields.Count > 0)
         {
-            row49.Add(sheet.TextCell(
-                49,
-                21,
-                "所選高風險條件引用RDE",
-                WorkingPaperStyles.BoldWrap));
+            sheet.WriteFixedRow(49,
+            [
+                sheet.TextCell(49, 21, "所選高風險條件引用RDE", WorkingPaperStyles.BoldWrap)
+            ]);
         }
-        sheet.WriteFixedRow(49, row49);
-        sheet.WriteFixedRow(50,
-        [
-            sheet.TextCell(50, 3, "財務類型RDE(對應測試結果A)", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(50, 7, "非財務類型RDE(對應測試結果B~G)", WorkingPaperStyles.BoldWrap)
-        ]);
-        var row51 = new List<Cell>
-        {
-            sheet.TextCell(51, 2, "傳票號碼\n(分錄編號)", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 3, "會計科目編號", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 4, "會計科目名稱", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 5, "借方金額", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 6, "貸方金額", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 7, "總帳日期", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 8, "傳票核准日期\n(若有)", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 9, "分錄編製人員\n(或過帳人員)", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 10, "分錄來源或\n人工/自動分錄判斷(若有)", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 11, "分錄備註/說明", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 14, "非財務類型", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 20, "(例如：向誰詢問、觀察或檢視哪些內容或註記TickMark說明核至哪些相關文件。)", WorkingPaperStyles.BoldWrap)
-        };
+
+        var row51 = new List<Cell>();
         if (approverMapped)
         {
             row51.Add(sheet.TextCell(51, 12, "傳票核准人員", WorkingPaperStyles.BoldWrap));
@@ -1641,24 +1612,17 @@ public sealed partial class WorkingPaperWriter
                 customFields[index],
                 WorkingPaperStyles.BoldWrap));
         }
-        sheet.WriteFixedRow(51, row51);
-        sheet.WriteFixedRow(52,
-        [
-            sheet.TextCell(52, 13, "A", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(52, 14, "B", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(52, 15, "C", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(52, 16, "D", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(52, 17, "E", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(52, 18, "F", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(52, 19, "G", WorkingPaperStyles.BoldWrap)
-        ]);
+        if (row51.Count > 0)
+        {
+            sheet.WriteFixedRow(51, row51);
+        }
     }
 
     /// <summary>
-    /// step2 資料列:A 樣本序號(列序,emitter 給) / B 傳票號 / C 科目編號 / D 名稱 /
-    /// E 借貸代號（若有，規則見 InfSampleDisplayValues）/ F 帶號金額(DebitScaled-CreditScaled→顯示) / G 總帳日 / H 核准日 /
-    /// I 編製人員 / J 分錄來源（GL 整理後的值）/ K 摘要 / L 核准人員；M-S 結果A-G、T 說明(手填留空)；
-    /// U 起依 committed ordinal 附加所選情境引用的 RDE union。
+    /// step2 的一列資料。A 欄是呼叫端給的樣本序號，B 傳票號碼，C 科目編號，D 科目名稱，
+    /// E 借貸代號，沒有時留白，規則見 InfSampleDisplayValues；F 是借方減貸方的帶號金額，G 總帳日期，H 核准日，
+    /// I 編製人員，J 分錄來源，取 GL 整理後的值；K 摘要，L 核准人員。M 到 S 欄的結果 A 到 G 與 T 欄的說明留給審計員填寫。
+    /// U 欄起是所選情境用到的攸關資料元素欄，同一個欄位只出現一次，順序照已確認配對裡的欄位順序。
     /// </summary>
     private static IReadOnlyList<WorkingPaperDisplayCell> ProjectStep2Sample(
         long ordinal,
@@ -1804,13 +1768,13 @@ public sealed partial class WorkingPaperWriter
         return decimals;
     }
 
-    // ---- step4/4-1 動態欄列串流(列 + 該列命中位置配對;沿用 keyset 不全載入)----
+    // ---- step4 的資料來源：每張傳票配上它符合的情境位置，逐列讀取，不整批載入 ----
 
     /// <summary>
-    /// step4 傳票層:逐頁 highRiskSummaryVoucherPage，查詢母體與 matchedPositions 都限定在
-    /// context.ScenarioPositions；每動態欄依該傳票是否含該 position 標 Y。
-    /// 傳票總額由 repository 以「任一所選情境命中的傳票之完整 GL 借方」聚合。
-    /// 編號由呼叫端 nextOrdinal 累計。
+    /// step4 的傳票資料，用畫面的分頁查詢一頁一頁讀。查詢的範圍與回傳的符合情境位置，
+    /// 都只限 <paramref name="scenarioPositions"/> 列出的情境；寫出時每個情境欄依這張傳票有沒有符合那個情境寫 Y。
+    /// 傳票總金額由 repository 計算：傳票只要符合任何一個所選情境，就加總那張傳票全部 GL 分錄的借方金額。
+    /// 編號由呼叫端的 <paramref name="nextOrdinal"/> 累計。
     /// </summary>
     private async IAsyncEnumerable<TaggedVoucherRow> StreamTaggedVoucherRowsAsync(
         WorkingPaperContext context,
@@ -1846,8 +1810,8 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// Finalized step4 production path：一次 ordered forward-only stream 取回全部命中傳票；
-    /// 公開 query 的 200-row paging 只給畫面用。
+    /// 有底稿計畫時 step4 的資料來源：用一次依序、只往前讀的查詢取回全部符合的傳票。
+    /// 每頁 200 筆的分頁查詢只給畫面用。
     /// </summary>
     private async IAsyncEnumerable<TaggedVoucherRow> StreamFinalizedStep4VoucherRowsAsync(
         WorkingPaperContext context,
@@ -1946,7 +1910,7 @@ public sealed partial class WorkingPaperWriter
         14D
     ];
 
-    /// <summary>step4 傳票列:固定 A-E + 動態 C{pos} 欄(matchedPositions 含該 position→Y);P-U 手填留空。</summary>
+    /// <summary>step4 的一列傳票：A 到 E 是固定欄，接著每個所選情境一欄，符合那個情境就寫 Y；P 到 U 欄留給審計員填寫。</summary>
     private static IReadOnlyList<WorkingPaperDisplayCell> ProjectStep4Voucher(
         TaggedVoucherRow tagged,
         TagColumnSet tagColumns,
@@ -1980,72 +1944,7 @@ public sealed partial class WorkingPaperWriter
         return values;
     }
 
-    private static readonly IReadOnlyList<(uint Row, uint Column, string Text)> Step2HeaderLines =
-    [
-        (6, 1, "測試說明："),
-        (6, 3, "1. 依照KAEG-I [ISA | 815.13507]，JE攸關母體有納入高風險條件(HRC)的欄位即攸關資料元素(RDE)，需先確認RDE的可靠性後，方執行高風險篩選條件。\n    若為初步篩選(Screening)之預篩選程序，因屬於風險評估，則於該階段可不用確認RDE可靠性。"),
-        (7, 3, "2. 上述提到之高風險條件的RDE大多屬於非財務性質，例如篩選條件考量過帳日期、分錄摘要的關鍵字、分錄標註為人工分錄者、特定人員。"),
-        (8, 3, "3. 若高風險條件除上述非財務性質欄位外，亦有使用會計科目編號、科目名稱或金額等欄位來進行篩選，則這些納入篩選條件的欄位亦屬於RDE。"),
-        (9, 3, "4. JE的RDE可靠性確認包括確認完整性及正確性，由於完整性已於JE攸關母體完整性測試程序中執行，故此處可靠性測試係針對JE RDE的正確性進行測試。"),
-        (10, 3, "5. 依照KAEG-I [ISA | 2701.1500]，需依照屬性抽樣表格[ISA | 4164.1300]選取樣本(選樣方法可採隨機、隨意或系統抽樣)核對會計傳票附件以確認RDE的正確性。"),
-        (11, 3, "   (由於JE具有管理階層逾越控制之顯著風險，因此其固有風險為Significant，對照上述表格後的最低測試樣本量為59筆。)"),
-        (13, 1, "測試程序：(若JE高風險條件(HRC)不包含下列A~G程序提到的欄位，則該測試程序可設為N/A)"),
-        (14, 1, "- 財務類型RDE (如會計科目編號、科目名稱、借貸方代號、分錄金額)"),
-        (15, 1, "A."),
-        (15, 3, "確認是否已於JE母體完整性測試時，完成此類RDE的測試。若無，則確認分錄金額是否與傳票附件符合，其餘則核至已核准的會計科目表。"),
-        (16, 3, "(此類型RDE通常已於JE母體完整性測試過程與TB(試算表)比對時完成可靠性測試)"),
-        (18, 1, "- 非財務類型RDE"),
-        (19, 1, "B."),
-        (19, 2, "過帳日期/過帳時間：屬內部交易過帳者，核至經核准的內部交易日期。若屬於外部交易者，則核對相關交易憑證的日期"),
-        (20, 1, "C."),
-        (20, 2, "傳票建立日期/分錄時間：根據案件情況及所選樣本來判斷選擇以下一項或多項程序來執行，以驗證其可靠性。"),
-        (27, 1, "D."),
-        (27, 2, "分錄編製人員(或過帳人員)：根據案件情況及所選樣本來判斷選擇以下一項或多項程序來執行，以驗證其可靠性。"),
-        (34, 1, "E."),
-        (34, 2, "分錄來源：核對分錄至傳票附件內容(若為人工分錄)與受查者系統畫面資訊(若為自動分錄)，以確認是否符合其所標註的分錄來源或是對於人工/自動分錄之標記。"),
-        (36, 1, "F."),
-        (36, 2, "分錄備註/說明：選取以下一項或多項程序來執行，以驗證其可靠性。"),
-        (40, 1, "G."),
-        (40, 2, "除上述以外之RDE(勾選以下適合程序來執行測試)"),
-        (45, 2, "註1:"),
-        (45, 3, "建議透過詢問JE資料流與流程作業，來決定JE高風險範圍條件所要篩選的日期要使用過帳日(Posting date)還是編製日/立帳日(Create date/Document date)。"),
-        (46, 2, "註2:"),
-        (46, 3, "若下列樣本未涵蓋自動分錄且自動分錄未於其他程序執行測試者，當高風險條件有篩選到自動分錄，應補執行上述對自動分錄提到的程序。"),
-        (47, 2, "註3:"),
-        (47, 3, "若有其他用在高風險條件的RDE欄位，請自行於工作表：可靠性樣本_所有欄位中複製貼上至此底稿中。"),
-    ];
-
-    /// <summary>step2 表頭合併範圍(欄標多層合併)。固定的那幾個範本裡也有;攸關資料元素欄的合併範圍依欄數另外加。</summary>
-    private static IReadOnlyList<string> Step2HeaderMerges(int customFieldCount)
-    {
-        var ranges = new List<string>
-        {
-            "C6:K6",
-            "A49:A52", "C49:L49", "M49:S50", "T49:T50",
-            "C50:F50", "G50:L50",
-            "B51:B52", "C51:C52", "D51:D52", "E51:E52", "F51:F52", "G51:G52", "H51:H52",
-            "I51:I52", "J51:J52", "K51:K52", "L51:L52", "N51:S51", "T51:T52"
-        };
-        if (customFieldCount <= 0)
-        {
-            return ranges;
-        }
-
-        var firstCustomColumn = 21U;
-        var lastCustomColumn = checked(firstCustomColumn + (uint)customFieldCount - 1);
-        ranges.Add(
-            $"{ReportSheetWriter.Reference(firstCustomColumn, 49)}:"
-            + ReportSheetWriter.Reference(lastCustomColumn, 50));
-        for (var column = firstCustomColumn; column <= lastCustomColumn; column++)
-        {
-            ranges.Add(
-                $"{ReportSheetWriter.Reference(column, 51)}:"
-                + ReportSheetWriter.Reference(column, 52));
-        }
-        return ranges;
-    }
-
-    /// <summary>step3 測試目的 / 範圍 / 理由 / 風險評估文字；母體相關兩列依本 revision scope 明示。</summary>
+    /// <summary>step3 的測試目的、測試範圍、選擇範圍的理由與風險評估文字。測試範圍與理由兩列依這次的篩選範圍寫出。</summary>
     private static IReadOnlyList<(uint Row, uint Column, string Text)> Step3HeaderLines(
         WorkingPaperContext context)
     {
@@ -2080,7 +1979,7 @@ public sealed partial class WorkingPaperWriter
         "B5:E5", "B7:E7", "A9:A12", "B9:E12", "B15:E15", "B16:E16"
     ];
 
-    /// <summary>step4 測試目的 / 測試程序 + 彙總區段標題(欄標另見 EmitStep4Async)。</summary>
+    /// <summary>step4 的測試目的、測試程序與彙總區段的標題。第 11 列的欄標由 CreateStep4Page 寫。</summary>
     private static readonly IReadOnlyList<(uint Row, uint Column, string Text)> Step4HeaderLines =
     [
         (5, 1, "測試目的"),

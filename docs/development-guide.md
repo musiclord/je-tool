@@ -94,11 +94,18 @@ src\JET\tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-direct
 測試專案只靠 `src/JET` 這個方案資料夾就能建置與執行，共用的原始檔與前後端共用的固定答案檔都放在
 `src/JET/tests/JET.Tests/`。少數測試要讀方案資料夾以外的檔案：`data/` 的範本原檔、`legacy/` 的舊版腳本、
 `.gitignore` 與 Git 追蹤清單、`tools/harness/gui-driver` 的情境程式，以及 `docs/action-contract-manifest.md`。
-這些測試標記 `TestProfile=DevelopmentRepository`，在這個儲存庫由 `Public` 照常執行；只有方案資料夾時，
-執行測試程式要多排除這一組。
+這些測試標記 `TestProfile=DevelopmentRepository`，和用真實案件、舊版輸出比對的測試程式一起放在
+`tools/harness/development-repository-tests/`，不在測試專案裡（裁定 2026-11-13-15）。驗證框架建置 `src/JET/JET.slnx` 時，
+用 `/p:CustomBeforeMicrosoftCommonTargets` 帶入這個資料夾的 `DevelopmentRepositoryTests.targets`，把它們編進同一個 `JET.Tests`，
+由 `Public` 照常執行。只有方案資料夾時它們不會編進測試程式，執行時不用為它們多排除一組標記。
 
-寫新測試時，只讀 `src/JET` 裡的檔案就用 `TestRepositoryPaths.SolutionRoot` 找位置，它指向 `JET.slnx` 所在的資料夾。
-要讀外面的檔案才用 `TestRepositoryPaths.RepositoryRoot`，同時加上這個標記。
+直接執行 `dotnet build src/JET/JET.slnx` 不會帶入這個設定檔，建出來的測試程式沒有這些測試，下一次用 `tools/verify.ps1` 建置時才會編回來。
+要讓 `dotnet build` 也帶入，先把環境變數 `CustomBeforeMicrosoftCommonTargets` 設成這個設定檔的完整路徑。
+
+寫新測試時，只讀 `src/JET` 裡的檔案就放在測試專案，用 `TestRepositoryPaths.SolutionRoot` 找位置，它指向 `JET.slnx` 所在的資料夾。
+要讀外面的檔案就寫在 `tools/harness/development-repository-tests/`，用 `TestRepositoryPaths.RepositoryRoot` 找位置，同時加上這個標記。
+同一個資料夾的 `SolutionFolderSelfContainedTests` 會掃 `src/JET`，裡面提到只有開發儲存庫才有的東西就失敗，
+例如 `AGENTS.md`、`tools/harness`、`RepositoryRoot`、`DevelopmentRepository`，以及真實案件驗收程式與舊版輸出比對程式的名稱。
 
 本機設定、秘密、連線字串、案件資料夾、建置輸出與 WebView2 使用者資料都不得加入原始碼樹。
 

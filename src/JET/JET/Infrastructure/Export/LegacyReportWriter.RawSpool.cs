@@ -5,9 +5,9 @@ namespace JET.Infrastructure;
 public sealed partial class LegacyReportWriter
 {
     /// <summary>
-    /// Bridges a single repository pass with the worksheet requirement that
-    /// column definitions precede sheetData. Only projected display strings are
-    /// retained, in a delete-on-close file; memory remains bounded to one row.
+    /// 工作表的欄寬定義必須寫在 sheetData 前面，但欄寬要讀完全部資料才知道，而資料只從 repository 讀一次。
+    /// 所以先把每一列要顯示的文字寫到關閉時自動刪除的暫存檔，一邊寫一邊記下各欄最寬的內容；
+    /// 全部讀完後，再從暫存檔逐列讀回來寫進工作表。記憶體裡一次只放一列。
     /// </summary>
     private sealed class RawReportSpool : IDisposable
     {

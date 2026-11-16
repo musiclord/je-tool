@@ -33,7 +33,7 @@ internal readonly record struct GlExcludedPopulationClassification(GlExclusionRe
     internal string? StorageReason => Reason is { } reason ? GlExcludedPopulation.StorageReasonOf(reason) : null;
 }
 
-/// <summary>投影熱路徑重用的 posting-status matcher；建構一次，逐列 O(1) 查找。</summary>
+/// <summary>判斷過帳狀態值是否在接受的清單裡。整理分錄時每一列都要查，所以只建立一次，之後每列查一次雜湊表。</summary>
 internal sealed class GlExcludedPopulationMatcher
 {
     private readonly HashSet<string> acceptedValues;
@@ -53,8 +53,8 @@ internal sealed class GlExcludedPopulationMatcher
 }
 
 /// <summary>
-/// GL 有效分錄母體的 provider-neutral 單一契約。投影以日期優先形成互斥分類；
-/// 所有下游 SQL 只消費已落地的 <c>is_excluded</c>，不重做期間或過帳政策。
+/// 分錄列入 GL 或 GL(未納入測試) 的規則只定義在這裡，不綁特定資料庫。整理分錄時先看總帳日期、再看過帳狀態，
+/// 每一列只會有一種分類。之後的 SQL 一律只讀存好的 <c>is_excluded</c>，不重新判斷查核期間或過帳狀態。
 /// </summary>
 internal static class GlExcludedPopulation
 {
@@ -96,7 +96,8 @@ internal static class GlExcludedPopulation
             .Select(static reason => "'" + StorageReasonOf(reason) + "'")) + ")";
 
     /// <summary>
-    /// 下游查詢「只看納入測試的分錄」共用的唯一 SQL 述詞。Alias 只接受呼叫端持有的 bare table alias。
+    /// 之後的查詢要「只看納入測試的分錄」時共用的 SQL 條件，只有這一個定義。
+    /// <paramref name="tableAlias"/> 只能是呼叫端自己寫在 SQL 裡的資料表別名，不帶其他內容。
     /// </summary>
     internal static string SqlPredicate(string? tableAlias = null)
     {
@@ -110,8 +111,8 @@ internal static class GlExcludedPopulation
     }
 
     /// <summary>
-    /// 驗證 mapping 與 posting policy 的配對，並產生可直接保存及逐列分類的 canonical policy。
-    /// Accepted values 保留第一個出現的 casing／順序，先 trim、去空，再以 OrdinalIgnoreCase 去重。
+    /// 檢查「有沒有配對過帳狀態欄位」和「有沒有提供過帳狀態設定」是否一致，並整理出可以直接保存、逐列分類用的設定。
+    /// 接受的值先去掉頭尾空白並丟掉空字串，再不分大小寫去掉重複；重複的值保留第一次出現的寫法與順序。
     /// </summary>
     internal static GlPostingStatusPolicy? NormalizePolicy(
         bool postingStatusMapped,
@@ -189,7 +190,9 @@ internal static class GlExcludedPopulation
     }
 
     /// <summary>
-    /// 投影熱路徑使用已由 plan 正規化的 policy，避免逐列重新配置集合。
+    /// 傳入的過帳狀態設定已經由 <see cref="NormalizePolicy"/> 整理過，這裡不再整理一次。
+    /// 每次呼叫仍會建立一個 <see cref="GlExcludedPopulationMatcher"/>；要逐列分類時改用
+    /// <see cref="ClassifyWithMatcher"/>，重用同一個。
     /// </summary>
     internal static GlExcludedPopulationClassification ClassifyNormalized(
         DateOnly? glDate,

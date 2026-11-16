@@ -12,12 +12,13 @@ internal static class SqlWhitespaceList
 }
 
 /// <summary>
-/// Infrastructure 的 SQL 方言合成介面。<see cref="ProviderName"/> 是診斷事件標籤而非 SQL 片段，
-/// 因此不進 <see cref="ISqlDialect"/>；本介面讓 repository 仍從同一個 provider 物件取得兩種職責。
+/// Infrastructure 用的 SQL 方言介面：<see cref="ISqlDialect"/> 加上 <see cref="ProviderName"/>。
+/// <see cref="ProviderName"/> 是寫進診斷日誌的資料庫名稱，不是 SQL 片段，所以不放進 <see cref="ISqlDialect"/>；
+/// 有了這個介面，repository 可以從同一個物件拿到 SQL 寫法和這個名稱。
 /// </summary>
 public interface IProviderSqlDialect : ISqlDialect
 {
-    /// <summary>診斷日誌用的引擎標籤（sql.executed／tx.* 的 provider 欄位）。目前只有 sqlite。</summary>
+    /// <summary>診斷日誌裡的資料庫名稱，寫在 sql.executed 與 tx.* 事件的 provider 欄位。目前只有 sqlite。</summary>
     string ProviderName { get; }
 }
 
@@ -56,7 +57,7 @@ public sealed class SqliteDialect : IProviderSqlDialect
     public string DayOfMonth(string dateExpr) => $"CAST(substr(({dateExpr}), 9, 2) AS INTEGER)";
 
     public string DaysInMonth(string dateExpr) =>
-        // December is always 31 days; avoid stepping beyond SQLite's year 9999 limit.
+        // 12 月固定 31 天，直接回 31：用「下個月第一天減一天」來算的話，9999 年 12 月會超出 SQLite 的日期上限。
         $"(CASE WHEN substr(({dateExpr}), 6, 2) = '12' THEN 31 "
         + $"ELSE CAST(strftime('%d', date({dateExpr}, 'start of month', '+1 month', '-1 day')) AS INTEGER) END)";
 
@@ -65,7 +66,7 @@ public sealed class SqliteDialect : IProviderSqlDialect
 
     public string LimitClause(string parameterName) => $"LIMIT {parameterName}";
 
-    // dev 檢視（LocalDevDatabaseInspector 消費）：sqlite_master 列表 + sqlite_version()。
+    // 以下兩句給開發用的唯讀檢視工具 LocalDevDatabaseInspector 用：從 sqlite_master 列出資料表，以及用 sqlite_version() 查版本。
     public string ListTablesSql =>
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name;";
 

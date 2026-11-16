@@ -5,11 +5,11 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 不截斷的全編製人員彙總(本地引擎,預篩選報告 R5 與匯出底稿 step1-2)。人員的分組與
-/// <see cref="LocalPrescreenRunRepository"/> 的 preparer 彙總相同,但**去掉 LIMIT 50**——要列出每一位編製人員。
-/// 照舊版再依人工旗標分列;同一位人員的列排在一起:先按這位人員的總筆數降冪、再按人員,
-/// 人員內照舊版先自動、再人工,未判定放最後。沒有配對人工傳票欄位時 is_manual 全是 NULL,就是一人一列。
-/// 不需分頁:distinct created_by 基數有界(實務數十~數百),全載入即可。
+/// 列出每一位編製人員的彙總，不截斷，供預篩選報告 R5 與工作底稿 step1-2 使用。人員的分組方式和
+/// <see cref="LocalPrescreenRunRepository"/> 的編製者彙總相同，但沒有 LIMIT 50，因為這裡要列出每一位編製人員。
+/// 照舊版 JET 再依人工傳票旗標分列。同一位人員的列排在一起：先依這位人員的總筆數降冪，再依人員；
+/// 同一位人員裡照舊版 JET 先列自動、再列人工，未判定的放最後。沒有配對人工傳票欄位時 is_manual 全是 NULL，就是一人一列。
+/// 不分頁：相異的 created_by 數量不多（實務上幾十到幾百位），一次全部讀進來。
 /// </summary>
 public sealed class LocalPreparerSummaryExportRepository(ILocalProjectDatabase database)
     : IPreparerSummaryExportRepository

@@ -4,8 +4,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.accountMappingBlankPage：科目配對檔分類欄留白的科目（已視為 Others）keyset 分頁。
-/// 排序鍵 account_number ASC、cursor opaque、pageSize 預設 200／上限 500。只供第四步顯示，不影響篩選。
+/// query.accountMappingBlankPage：分頁列出科目配對檔裡分類欄留白的科目，這些科目已經當成 Others。
+/// 依 account_number 由小到大排列，下一頁從上一頁最後一筆的排序鍵接著讀（keyset 分頁）；cursor 的內容前端不解讀，照原樣帶回。
+/// pageSize 預設 200，最多也是 200。只給第四步顯示用，不影響篩選。
 /// </summary>
 public sealed class QueryAccountMappingBlankPageHandler(
     ProjectSession session) : IApplicationActionHandler

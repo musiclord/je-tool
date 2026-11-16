@@ -16,7 +16,7 @@ def insert(root,node):
 # Workbook key -> path under docs/SAT. The keys are used by the print rules below.
 BOOKS={'Code review':'Code Review/Code review','Unit test Report':'Code Review/Unit test Report','版本更新紀錄':'版本更新紀錄'}
 # Sheet name -> last printed column. A sheet that is not listed here stops the script, so a renamed sheet cannot print with the wrong range.
-LAST={'複核紀錄':'D','複核範圍':'E','固定值與規則':'G','測試結果':'F','核心審計規則':'E','程式碼涵蓋率':'D','版本更新紀錄':'C'}
+LAST={'複核紀錄':'D','複核範圍':'E','固定值與規則':'G','測試結果':'F','核心查核邏輯':'E','程式碼涵蓋率':'D','版本更新紀錄':'C'}
 # Landscape sheets, and sheets that must fit on one page. Every other sheet is one page wide and as many pages tall as it needs.
 WIDE=['複核範圍','固定值與規則']
 ONE_PAGE=['複核範圍']

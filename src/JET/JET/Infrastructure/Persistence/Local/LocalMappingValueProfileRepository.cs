@@ -5,8 +5,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite 案件的 mapping value profile。JSON key 只以參數比對 json_each.key，
-/// 不組成 JSON path 或 SQL identifier；SQL 只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時先填補再計數，
+/// 「讀取來源值」的 SQLite 查詢：統計 PBC-GL 某一個來源欄有哪些值、各出現幾次。
+/// 來源欄名只當成參數拿去比對 json_each.key，不拼進 JSON path 或 SQL 識別字。
+/// SQL 只回摘要和最多 limit 組值。來源欄勾了往下填補時先填補再計數，
 /// 寫法見 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
 /// </summary>
 public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase database)
@@ -85,7 +86,8 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         const string sourceValue = "CAST(j.value AS TEXT)";
         const string requestedValue = "CAST(c.value AS TEXT)";
         await using var command = connection.CreateCommand();
-        // 完整來源先求相異正準值，再與最多 100 個請求值做集合式存在性核對，不使用 top-values 清單。
+        // 先從整份來源算出相異的比對鍵，再用一句 SQL 核對最多 100 個指定的值有沒有出現在來源裡；
+        // 不拿出現次數最多的那份清單來核對。
         command.CommandText = $"""
             WITH available AS (
                 SELECT DISTINCT jet_mapping_ordinal_key({sourceValue}) AS comparison_key

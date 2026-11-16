@@ -2,7 +2,10 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>分類欄留白科目的 keyset 分頁（本地引擎）：排序鍵 account_number ASC，游標為展開布林式。</summary>
+/// <summary>
+/// 分頁讀出分類欄留白的科目。依 account_number 升冪排序，
+/// 下一頁從上一頁最後一個科目編號之後接著讀（<c>account_number &gt; @cursor</c>）。
+/// </summary>
 public sealed class LocalAccountMappingBlankPageRepository(ILocalProjectDatabase database)
     : IAccountMappingBlankPageRepository
 {

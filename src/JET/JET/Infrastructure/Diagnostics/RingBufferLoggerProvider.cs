@@ -4,10 +4,12 @@ using Microsoft.Extensions.Logging;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 診斷日誌的 <see cref="ILoggerProvider"/>（dev-only 註冊;寫入 in-memory ring buffer,實作
-/// <see cref="IDiagnosticLogStore"/> 供 dev.log.exportFile 在檔案 sink 不可讀時取用）。實作 <see cref="ISupportExternalScope"/>:
-/// LoggerFactory 注入共享 scope provider,使 ActionDispatcher 開的 correlation scope 跨層（AsyncLocal）
-/// 對所有 logger 可見,不需手動傳遞。Release 不註冊此 provider（log 變 no-op）。
+/// 把診斷日誌寫進記憶體的 <see cref="ILoggerProvider"/>。日誌放在固定容量、滿了覆寫最舊紀錄的記憶體緩衝區。
+/// 只在啟用開發者工具時註冊；Release 組建不註冊，不會留下診斷日誌。
+/// 實作 <see cref="IDiagnosticLogStore"/>，dev.log.exportFile 讀不到診斷日誌檔時改從這裡取紀錄。
+/// 實作 <see cref="ISupportExternalScope"/>，LoggerFactory 會把各 provider 共用的 scope provider 交給它。
+/// ActionDispatcher 建立的 scope 帶有 correlation_id，靠 AsyncLocal 在同一個非同步流程裡讓每一層的 logger 都讀得到，
+/// 不必手動傳遞。
 /// </summary>
 public sealed class RingBufferLoggerProvider : ILoggerProvider, ISupportExternalScope, IDiagnosticLogStore
 {
@@ -26,17 +28,17 @@ public sealed class RingBufferLoggerProvider : ILoggerProvider, ISupportExternal
 
     public void Dispose()
     {
-        // ring buffer 為 in-memory、無外部資源;重啟即清空（程序生命週期）。
+        // 緩衝區只在記憶體裡，沒有要釋放的外部資源；程式結束就清空。
     }
 }
 
-/// <summary>把 M.E.Logging 的 state＋active scopes＋exception 轉成 <see cref="DiagnosticLogEntry"/> 寫入 ring buffer。</summary>
+/// <summary>把 Microsoft.Extensions.Logging 的一筆日誌轉成 <see cref="DiagnosticLogEntry"/>，寫進記憶體緩衝區。</summary>
 internal sealed class RingBufferLogger(string category, BoundedRingBuffer<DiagnosticLogEntry> buffer, RingBufferLoggerProvider owner)
     : ILogger
 {
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => owner.ScopeProvider.Push(state);
 
-    public bool IsEnabled(LogLevel logLevel) => true; // dev-only:全收（Release 不註冊本 provider）
+    public bool IsEnabled(LogLevel logLevel) => true; // 每個層級都收；這個 provider 只在啟用開發者工具時註冊，Release 組建不註冊。
 
     public void Log<TState>(
         LogLevel logLevel,
@@ -45,7 +47,7 @@ internal sealed class RingBufferLogger(string category, BoundedRingBuffer<Diagno
         Exception? exception,
         Func<TState, Exception?, string> formatter)
     {
-        // scope 攤平與 state 轉換共用 DiagnosticLogEntryFactory（檔案 sink 走同一條路,避免漂移）。
+        // 轉換交給 DiagnosticLogEntryFactory，和寫檔的 logger 用同一份，兩邊的欄位才會一致。
         var entry = DiagnosticLogEntryFactory.Create(
             owner.ScopeProvider, category, logLevel, eventId, state, exception, formatter);
         buffer.Add(entry);

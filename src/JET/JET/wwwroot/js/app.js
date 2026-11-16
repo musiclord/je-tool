@@ -55,7 +55,7 @@
   // 讓身分徽章區分「偵測中」（尚未結論）與「應用程式連線失敗」（已結論且未就緒）；純渲染旗標、不進 state、不進後端 payload。
   var bridgeProbeSettled = false;
 
-  // 本階段共用的最小焦點 seam：app 殼層持有移動焦點與 dialog Tab 圈限，
+  // 各步驟共用的最小焦點 seam：app 殼層持有移動焦點與 dialog Tab 圈限，
   // 步驟模組只透過 JetFocus 使用「安全移動／延後移動」，不把此純 UI 行為擴張到 wire。
   // options.preventScroll：畫面正由動態平順捲到這個元素時（例如加入的條件），移焦點不要再瞬間捲一次。
   function focusElement(element, options) {
@@ -403,7 +403,7 @@
   }
 
   // 右上角身分徽章。狀態序：
-  // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分時顯示「操作人員：{短名}」。
+  // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分時顯示「目前帳號：{短名}」。
   // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法；畫面不露出系統用詞）。title 帶完整 principal。
   function renderIdentityBadge(state) {
     var badge = Ui.$('user-identity');
@@ -496,7 +496,7 @@
         '</button>' +
         '<button type="button" class="project-row__delete" data-action="picker-delete" ' +
           'data-project-id="' + Ui.esc(p.projectId) + '" data-project-name="' + Ui.esc(displayName) + '" ' +
-          'title="刪除案件" aria-label="刪除案件">' + ICON_TRASH + '</button>' +
+          'title="刪除案件" aria-label="刪除案件 ' + Ui.esc(displayName) + '">' + ICON_TRASH + '</button>' +
       '</div>'
     );
   }
@@ -524,7 +524,7 @@
     if (!state.devToolsEnabled) { return ''; }
     var context = state.pickerFeedbackContext;
     var devExport = context && context.projectId
-      ? '<button type="button" class="btn btn--tiny" data-action="picker-dev-log-export">輸出診斷日誌（DEV）</button>'
+      ? '<button type="button" class="btn btn--tiny" data-action="picker-dev-log-export">輸出診斷日誌</button>'
       : '';
     var results = [];
     if (state.pickerSupportLogPath) { results.push('支援日誌已輸出：' + state.pickerSupportLogPath); }
@@ -560,7 +560,7 @@
     var motion = contentMotion(container, pickerShownBefore);
     container.innerHTML =
       // 每個按鈕放在它作用的內容旁邊，全排在底部會看不出用途：
-      // 「新增案件」放在標題右側；「重新整理本機」放在區標題右側。標題下不寫重述標題的說明句。
+      // 「新增案件」放在標題右側；「重新整理案件清單」放在區標題右側。標題下不寫重述標題的說明句。
       '<div class="picker-panel">' +
         '<div class="picker-panel__head">' +
           '<div class="picker-panel__heading">' +
@@ -573,7 +573,7 @@
           '<div class="picker-section__head">' +
             '<h3 class="picker-section__title">本地資料庫</h3>' +
             '<div class="picker-section__tools">' +
-              '<button type="button" class="btn btn--tiny" data-action="picker-refresh-local">重新整理本機</button>' +
+              '<button type="button" class="btn btn--tiny" data-action="picker-refresh-local">重新整理案件清單</button>' +
             '</div>' +
           '</div>' +
           '<div class="picker-section__list" data-motion-list="local">' + localBody + '</div>' +
@@ -586,7 +586,7 @@
           '<h3 class="modal__title" id="delete-modal-title">刪除案件</h3>' +
           '<p class="modal__body">確定要刪除「<span data-bind="delete-modal-name"></span>」嗎？' +
             '<span data-bind="delete-modal-detail"></span></p>' +
-          '<button type="button" class="btn btn--ghost" data-action="delete-preview-retry" data-collapsible hidden>重新確認數量</button>' +
+          '<button type="button" class="btn btn--ghost" data-action="delete-preview-retry" data-collapsible hidden>重新載入</button>' +
           '<div class="modal__actions">' +
             '<button type="button" class="btn btn--ghost" data-action="modal-cancel">取消</button>' +
             '<button type="button" class="btn btn--danger" data-action="modal-confirm">刪除</button>' +
@@ -1329,7 +1329,7 @@
 
     // (view, step, contentVersion, 展開/收合)：資料更新或收合切換才重建，
     // 純訊息或 busy 變動不會（保住展開步驟渲染器已綁定的事件與輸入焦點）。
-    // 身分晚到由上方只更新建立案件的操作人員提示，不能清掉已輸入的案件資料。
+    // 身分晚到由上方只更新建立案件的「目前帳號」提示，不能清掉已輸入的案件資料。
     var failure = state.operationFailure;
     var key = state.view + '|' + current.id + '|' + state.contentVersion + '|' +
       (failure ? failure.id : '') + '|' + (state.stepFlowCollapsed ? 'c' : 'e');
@@ -1685,7 +1685,7 @@
     }
   }
 
-  /* ---- 流程總覽（4b modal）：純檢視補充視窗 -----------------------------------
+  /* ---- 流程總覽（modal）：純檢視補充視窗 --------------------------------------
      資料全讀既有 state；步驟狀態／閘門一律取自 ui-core。六階段只在 modal 內切換
      執行紀錄，不改 currentStepIndex、不送 project.saveProgress；流程切換留在主畫面。 */
 
@@ -2477,7 +2477,7 @@
     button.setAttribute('aria-label', text);
     messageCopyFeedbackTimer = global.setTimeout(function () {
       button.textContent = '複製紀錄';
-      button.setAttribute('aria-label', '複製最近 100 則操作紀錄');
+      button.setAttribute('aria-label', '複製紀錄（最近 100 則訊息）');
     }, 2200);
   }
 
@@ -2491,7 +2491,7 @@
     var projectId = project.projectId;
     button.disabled = true;
     button.textContent = '整理中…';
-    button.setAttribute('aria-label', '正在整理最近 100 則操作紀錄');
+    button.setAttribute('aria-label', '正在整理最近 100 則訊息');
     return Promise.resolve()
       .then(function () {
         requireOperationLogSession(project, projectId);
@@ -4879,7 +4879,7 @@
     var openProjectFolderBtn = document.querySelector('[data-action="open-project-folder"]');
     if (openProjectFolderBtn) {
       openProjectFolderBtn.addEventListener('click', function () {
-        Ui.run('開啟案件資料夾', function () {
+        Ui.run('開啟資料夾', function () {
           return global.JetApi.hostOpenFolder({ target: 'projectFolder' });
         });
       });
@@ -4942,7 +4942,7 @@
       });
     }
 
-    // 流程總覽（4b）：標題列鈕開啟；靜態背景遮罩關閉（卡片內動態 ✕ 於 bindOverview 綁定）。
+    // 流程總覽：標題列鈕開啟；靜態背景遮罩關閉（卡片內動態 ✕ 於 bindOverview 綁定）。
     var overviewOpenBtn = document.querySelector('[data-action="overview-open"]');
     if (overviewOpenBtn) {
       overviewOpenBtn.addEventListener('click', function () {

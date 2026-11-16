@@ -40,7 +40,7 @@ public sealed class TextLimitOwnershipTests
         var core = ProductSources.Frontend("ui-core.js");
         Assert.Equal(GlRdeStorageLimits.LabelUtf16CodeUnits, ProductSources.FrontendInt(core, "RDE_MAX_LABEL_LENGTH"));
         Assert.Equal(AccountCategoryInvariant.MaxLabelLength, ProductSources.FrontendInt(core, "CATEGORY_MAX_LABEL_LENGTH"));
-        // 註解曾寫成不存在的 GlMappingOptionRules；鏡像的是 GlRdeStorageLimits。
+        // 前端註明鏡像的對象是 GlRdeStorageLimits，不能寫成不存在的 GlMappingOptionRules。
         Assert.DoesNotContain("GlMappingOptionRules", core, StringComparison.Ordinal);
         Assert.Contains("GlRdeStorageLimits", core, StringComparison.Ordinal);
     }

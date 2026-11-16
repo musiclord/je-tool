@@ -6,7 +6,8 @@ namespace JET.Infrastructure;
 internal static class InfSamplePageSql
 {
     /// <summary>
-    /// 指定 resultId 是來源追溯契約的一部分；值只以參數綁定，不插入 SQL。
+    /// 只讀指定那一次驗證結果（result_id）抽出的樣本，樣本才對得回是哪一次驗證抽的。
+    /// resultId 的值用參數綁定，不串進 SQL 字串。
     /// </summary>
     public const string ResultFilter = "s.result_id = @resultId";
 }

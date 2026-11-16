@@ -1,13 +1,13 @@
 {
-  "title": "JET 單元測試報告",
-  "date": "2026-11-12",
+  "title": "JE Tool 單元測試報告",
+  "date": "2026-11-16",
   "status": "passed",
   "runId": "",
   "receipt": "",
   "revision": "",
   "configuration": "Debug",
-  "command": "dotnet build JET.slnx -c Debug\ntests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe --filter-not-trait \"TestProfile=PrivateCase\" \"TestProfile=Scale\" \"TestProfile=DevelopmentRepository\"\nnode --test --test-concurrency=4 tests/frontend/",
-  "scope": "全部測試使用合成測試資料。",
+  "command": "dotnet build JET.slnx -c Debug\ntests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe --filter-not-trait \"TestProfile=Scale\"\nnode --test --test-concurrency=4 tests/frontend/",
+  "scope": "合成測試資料",
   "environment": {
     "os": "Windows 11 專業版 64 位元（10.0.26300）",
     "dotnetSdk": "10.0.404",
@@ -15,23 +15,23 @@
     "node": "26.13.0",
     "coverageTool": "Microsoft.Testing.Extensions.CodeCoverage 18.12.0"
   },
-  "exitCriteria": "全部測試案例通過，無失敗與略過。",
+  "exitCriteria": "上列命令執行的測試案例全數通過，無失敗與略過。",
   "steps": [
     {
       "name": "public-tests",
       "status": "passed",
-      "total": 5073,
-      "executed": 5073,
-      "passed": 5073,
+      "total": 4810,
+      "executed": 4810,
+      "passed": 4810,
       "failed": 0,
       "skipped": 0
     },
     {
       "name": "frontend-tests",
       "status": "passed",
-      "total": 1016,
-      "executed": 1016,
-      "passed": 1016,
+      "total": 1028,
+      "executed": 1028,
+      "passed": 1028,
       "failed": 0,
       "skipped": 0
     }
@@ -107,20 +107,20 @@
     }
   ],
   "coverage": {
-    "covered": 41106,
-    "total": 44238,
+    "covered": 41010,
+    "total": 44161,
     "modules": [
       {
         "module": "Application",
-        "covered": 9813,
-        "total": 10296,
-        "rate": 0.953088578088578
+        "covered": 9834,
+        "total": 10317,
+        "rate": 0.9531840651352137
       },
       {
         "module": "AuditCore",
-        "covered": 3953,
-        "total": 4115,
-        "rate": 0.9606318347509113
+        "covered": 3920,
+        "total": 4082,
+        "rate": 0.9603135717785399
       },
       {
         "module": "Bridge",
@@ -130,21 +130,21 @@
       },
       {
         "module": "Domain",
-        "covered": 5319,
-        "total": 5572,
-        "rate": 0.9545944005743001
+        "covered": 5324,
+        "total": 5577,
+        "rate": 0.9546351084812623
       },
       {
         "module": "Infrastructure",
-        "covered": 21168,
-        "total": 22960,
-        "rate": 0.9219512195121952
+        "covered": 21066,
+        "total": 22857,
+        "rate": 0.9216432602703767
       },
       {
-        "module": "WinForms 主機（JET 資料夾根目錄的原始檔）",
-        "covered": 584,
-        "total": 958,
-        "rate": 0.6096033402922756
+        "module": "Host（JET 資料夾最上層的原始檔）",
+        "covered": 597,
+        "total": 991,
+        "rate": 0.6024217961654894
       }
     ],
     "files": [
@@ -156,14 +156,14 @@
       },
       {
         "path": "src/JET/JET/AppCompositionRoot.cs",
-        "covered": 194,
-        "total": 223,
-        "rate": 0.8699551569506726
+        "covered": 196,
+        "total": 236,
+        "rate": 0.8305084745762712
       },
       {
         "path": "src/JET/JET/Application/Contracts/CurrentPrincipal.cs",
-        "covered": 2,
-        "total": 2,
+        "covered": 23,
+        "total": 23,
         "rate": 1.0
       },
       {
@@ -888,9 +888,9 @@
       },
       {
         "path": "src/JET/JET/AuditCore/WorkingPaperProgram.cs",
-        "covered": 426,
-        "total": 440,
-        "rate": 0.9681818181818181
+        "covered": 393,
+        "total": 407,
+        "rate": 0.9656019656019657
       },
       {
         "path": "src/JET/JET/AuditCore/WorkingPaperStep4.cs",
@@ -1206,8 +1206,8 @@
       },
       {
         "path": "src/JET/JET/Domain/Primitives/ProjectMetadataRules.cs",
-        "covered": 14,
-        "total": 14,
+        "covered": 19,
+        "total": 19,
         "rate": 1.0
       },
       {
@@ -1488,8 +1488,8 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/DiagnosticLogEntryFactory.cs",
-        "covered": 48,
-        "total": 48,
+        "covered": 49,
+        "total": 49,
         "rate": 1.0
       },
       {
@@ -1620,9 +1620,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.Criteria.cs",
-        "covered": 241,
-        "total": 247,
-        "rate": 0.9757085020242915
+        "covered": 237,
+        "total": 243,
+        "rate": 0.9753086419753086
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.Inf.cs",
@@ -1632,9 +1632,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.Prescreen.cs",
-        "covered": 723,
-        "total": 743,
-        "rate": 0.9730820995962315
+        "covered": 726,
+        "total": 745,
+        "rate": 0.974496644295302
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/LegacyReportWriter.RawSpool.cs",
@@ -1728,9 +1728,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Step2To41.cs",
-        "covered": 1424,
-        "total": 1573,
-        "rate": 0.905276541640178
+        "covered": 1322,
+        "total": 1471,
+        "rate": 0.8987083616587356
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Streaming.cs",
@@ -1746,9 +1746,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.cs",
-        "covered": 801,
-        "total": 948,
-        "rate": 0.8449367088607594
+        "covered": 800,
+        "total": 947,
+        "rate": 0.8447729672650475
       },
       {
         "path": "src/JET/JET/Infrastructure/FileIO/AccessTableReader.cs",
@@ -2388,9 +2388,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Sql/WorkingPaperStep4StreamReader.cs",
-        "covered": 60,
-        "total": 61,
-        "rate": 0.9836065573770492
+        "covered": 61,
+        "total": 62,
+        "rate": 0.9838709677419355
       },
       {
         "path": "src/JET/JET/JetApplicationRuntime.cs",
@@ -2415,10 +2415,16 @@
         "covered": 40,
         "total": 48,
         "rate": 0.8333333333333334
+      },
+      {
+        "path": "src/JET/JET/UserFullNameLookup.cs",
+        "covered": 11,
+        "total": 20,
+        "rate": 0.55
       }
     ],
-    "measure": "行涵蓋率（line coverage），以 Microsoft.Testing.Extensions.CodeCoverage 18.12.0 量測。\n後端測試命令另加 --coverage、--coverage-output-format cobertura 與 --coverage-output。",
-    "method": "計算範圍為後端原始碼，不含編譯時自動產生的程式碼與原生程式庫；依原始檔與行號計算。"
+    "measure": "行涵蓋率（line coverage），以 Microsoft.Testing.Extensions.CodeCoverage 18.12.0 量測。",
+    "method": "計算範圍為後端原始碼，不含編譯時自動產生的程式碼與原生程式庫。"
   },
   "additionalChecks": []
 }

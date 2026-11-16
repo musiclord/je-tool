@@ -3,9 +3,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 專案資料夾路徑規約：{root}/{projectId}/project.json + jet.db。
-/// root 由 composition root 單點注入；正式預設為 %USERPROFILE%\JET，
-/// 開發與 portable 環境可以用 JET_PROJECTS_ROOT 明示覆寫。
+/// 案件資料夾的位置：根目錄下每個案件一個資料夾，資料夾名就是 projectId，裡面放 project.json 與 jet.db。
+/// 根目錄只在 composition root 決定，再傳進來；正式預設為 %USERPROFILE%\JET，
+/// 開發環境與可攜（portable）環境可以用環境變數 JET_PROJECTS_ROOT 改到別的位置。
 /// </summary>
 public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
 {
@@ -14,7 +14,10 @@ public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
 
     public string RootPath { get; } = rootPath;
 
-    /// <summary>projectId 即案件名稱即資料夾名；規則(含 path-traversal 守衛)見 <see cref="ProjectNameRules"/>。</summary>
+    /// <summary>
+    /// projectId、案件名稱與資料夾名是同一個字串。命名規則在 <see cref="ProjectNameRules"/>，
+    /// 其中也擋掉會跳出根目錄的寫法（例如 "..\.."）。
+    /// </summary>
     public static bool IsValidProjectId(string? projectId)
         => ProjectNameRules.IsValid(projectId);
 

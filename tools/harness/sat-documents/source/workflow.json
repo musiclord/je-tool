@@ -3,7 +3,8 @@
     "Workflow.xlsx 的來源。Build-Workflow.py 讀這個檔案，產生一張工作表。",
     "圖形與文字方塊的 left、top、width、height 以儲存格為單位。left 的整數部分是欄的序號，A 欄是 0，小數部分是在該欄裡的比例；top 的整數部分是列的序號，第 1 列是 0。",
     "連接線從 from 的接點出發，依序經過 bends 的折點，到 to 的接點結束，箭頭畫在終點。side 是圖形的接點，可填 top、left、bottom、right。相鄰兩點必須同欄或同列。",
-    "connectors 的 label 是這條線代表的判定結果。labels 記錄 Pass 與 Fail 的文字放在哪裡：有 cell 的寫在儲存格，有 left 與 top 的用文字方塊。"
+    "connectors 的 label 是這條線代表的判定結果。labels 記錄 Pass 與 Fail 的文字放在哪裡：有 cell 的寫在儲存格，有 left 與 top 的用文字方塊。",
+    "cells 是公司範本裡不屬於泳道、階段帶與連接線標籤的儲存格。range 是單一儲存格或合併範圍；text 可以省略，只合併儲存格；align 填 left 時靠左，不填時置中；font 填 label 時用 Pass、Fail 標籤的字級。X21 的 Pass 在範本裡沒有對應的連接線，位置在「測試」圖形底下，照範本保留。"
   ],
   "sheet": {
     "name": "Workflow",
@@ -26,7 +27,9 @@
     { "id": "production", "text": "Production", "band": "C55:C63" }
   ],
   "cells": [
-    { "range": "Z7:AM32", "text": "-" }
+    { "range": "Z7", "text": "-", "align": "left" },
+    { "range": "Z33:AM54" },
+    { "range": "X21", "text": "Pass", "font": "label" }
   ],
   "shapes": [
     { "id": "start", "type": "flowChartTerminator", "text": "需求產生/功能異常", "lane": "dev", "phase": "dev-testing", "left": 3.8, "top": 7.2, "width": 2.3, "height": 2.1 },
@@ -41,7 +44,7 @@
     { "id": "sat", "type": "flowChartDecision", "text": "SAT", "lane": "sat-its", "phase": "staging", "left": 25.85, "top": 40.55, "width": 2.6, "height": 4.4 },
     { "id": "track-security", "type": "flowChartProcess", "text": "Track Security", "lane": "dev", "phase": "production", "left": 3.9, "top": 56.4, "width": 2.1, "height": 4.4 },
     { "id": "production-version-dev-lane", "type": "flowChartDocument", "text": "Production version", "lane": "dev", "phase": "production", "left": 6.55, "top": 56.4, "width": 2.1, "height": 4.4 },
-    { "id": "production-version-sat-lane", "type": "flowChartDocument", "text": "Production version", "lane": "sat-its", "phase": "production", "left": 29.65, "top": 56.4, "width": 2.1, "height": 4.4 },
+    { "id": "production-version-sat-lane", "type": "flowChartDocument", "text": "Production\nversion", "lane": "sat-its", "phase": "production", "left": 29.65, "top": 56.4, "width": 2.1, "height": 4.4 },
     { "id": "deploy", "type": "flowChartProcess", "text": "Deploy", "lane": "sat-its", "phase": "production", "left": 32.95, "top": 56.4, "width": 2.1, "height": 4.4 },
     { "id": "end", "type": "flowChartTerminator", "text": "End", "lane": "sat-its", "phase": "production", "left": 36.1, "top": 57.5, "width": 2.1, "height": 2.2 }
   ],

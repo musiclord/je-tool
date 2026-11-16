@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// import.holiday / import.makeupDay 的共同流程。
-/// Payload `{ dates: ["yyyy-MM-dd", …] }`；replace 語意（同 type 先清後寫）；重複日期只存一次。
+/// import.holiday 與 import.makeupDay 的共同流程。
+/// Payload 是 `{ dates: ["yyyy-MM-dd", …] }`。每次匯入整份取代同一種日期：先清掉原本的，再寫入這一批；重複的日期只存一次。
 /// </summary>
 public abstract class ImportCalendarHandler : IApplicationActionHandler
 {
@@ -64,8 +64,8 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
         var updated = document with { CalendarImported = true };
         if (document.CalendarImported != true)
         {
-            // reference-data replace 已提交；後置 marker 不再接受 caller cancellation，避免合法零筆匯入
-            // 已生效卻因取消而永久保留「從未匯入」狀態。Save 失敗仍向上回報，重試 replace 為冪等。
+            // 日期清單已經整份取代並提交。接著把 CalendarImported 記成 true，這一步不理會呼叫端的取消要求；
+            // 否則匯入零筆的清單已經生效，案件卻因為取消而一直停在「從未匯入」。存檔失敗仍往外丟；重新匯入一次，結果相同。
             await projectStore.SaveAsync(updated, CancellationToken.None);
         }
     }
@@ -102,9 +102,9 @@ public sealed class ImportMakeupDayHandler : ImportCalendarHandler
 }
 
 /// <summary>
-/// import.holiday.fromFile / import.makeupDay.fromFile:事務所行事曆檔匯入。
-/// 僅 .xlsx;標頭在第 2 列(LeadingRowsToSkip=1);欄位辨識與投影在 AuditCore;
-/// replace 語意,store 在同交易清規則結果。
+/// import.holiday.fromFile 與 import.makeupDay.fromFile：匯入事務所的行事曆檔。
+/// 只收 .xlsx，標頭在第 2 列（LeadingRowsToSkip=1）。哪一欄是日期、怎麼轉成日期清單，由 AuditCore 決定。
+/// 每次匯入整份取代同一種日期，store 在同一個交易裡清掉受影響的規則結果。
 /// </summary>
 public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
 {
@@ -190,7 +190,7 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
         var updated = document with { CalendarImported = true };
         if (document.CalendarImported != true)
         {
-            // 檔案已完整投影且 reference-data replace 已提交；見 inline handler 的同一 commit-point 政策。
+            // 檔案已經整份轉成日期清單，取代也已提交；和 ImportCalendarHandler 一樣，記下 CalendarImported 時不理會呼叫端的取消要求。
             await projectStore.SaveAsync(updated, CancellationToken.None);
         }
     }
@@ -229,9 +229,9 @@ public sealed class ImportMakeupDayFromFileHandler : ImportCalendarFromFileHandl
 }
 
 /// <summary>
-/// calendar.setNonWorkingDays:設定每案「非工作日是週幾」(.NET DayOfWeek 編碼,週日=0…週六=6),
-/// 預設週六、週日。寫入 project.json;影響週末過帳/核准規則與週末篩選條件。
-/// Payload `{ days: [int, …] }`;值需在 0–6,否則 invalid_payload。
+/// calendar.setNonWorkingDays：設定這個案件一週哪幾天是休息日，用 .NET DayOfWeek 的數字，週日是 0、週六是 6，
+/// 預設週六與週日。設定存在 project.json，會影響週末過帳、週末核准兩條預篩選規則與週末的篩選條件。
+/// Payload 是 `{ days: [int, …] }`；值要在 0 到 6 之間，否則回 invalid_payload。
 /// </summary>
 public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
 {
@@ -254,7 +254,7 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
-        // 保留既有錯誤優先序：即使 session 指到已不存在的案件，無效 days 仍先回 invalid_payload。
+        // 先驗證 days，再讀案件：即使 session 指到已經不存在的案件，days 無效時仍然先回 invalid_payload。
         var requested = JetAuditProgram.ValidateNonWorkingDays(
             PayloadReader.GetIntList(payload, "days"));
 
@@ -266,8 +266,8 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
                 document.NonWorkingDays,
                 requested));
 
-        // 先失效再存設定：若失效失敗，重試時仍能看到舊值並再次執行，
-        // 不會出現「設定已存、重試因同值跳過失效」而留下舊命中的情形。
+        // 先清掉依休息日算出的結果，再存新設定。清除失敗時設定還是舊值，重試會再清一次；
+        // 順序反過來的話，設定已經存好，重試時因為新舊值相同而跳過清除，舊的命中就留下來了。
         if (plan.ShouldExecute)
         {
             await repositories.ReferenceDataFacts.ExecuteAsync(plan, cancellationToken);

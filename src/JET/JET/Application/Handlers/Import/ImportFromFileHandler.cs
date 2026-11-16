@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// import.gl.fromFile / import.tb.fromFile 的共同流程。
-/// payload 只帶單一 filePath 或非空 sources（scale constraint：不帶 rows），
-/// 檔案由 reader streaming 直入同一個 provider transaction。
+/// import.gl.fromFile 與 import.tb.fromFile 的共同流程。
+/// payload 只帶一個 filePath，或一份至少有一個來源的 sources；資料量可能很大，所以 payload 不帶資料列。
+/// reader 邊讀檔邊把資料列寫進資料庫，全部來源都在同一個資料庫交易裡。
 /// </summary>
 public abstract class ImportFromFileHandler : IApplicationActionHandler
 {
@@ -88,12 +88,12 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             reader,
             sourceRequests.Select(item => (item.Payload.FilePath, item.Payload.FileName)));
 
-        // 檔案讀取 + bulk insert 移出 UI thread，避免匯入期間介面凍結
+        // 讀檔與大量寫入都移到 UI thread 以外執行，匯入期間畫面才不會凍結。
         var facts = await Task.Run(
             async () =>
             {
-                // 所有 bounded 標頭先讀完，才把任何 row stream 交給 repository；因此後來源的
-                // 標頭／選項失敗不會讓 provider 白做前來源的 staging 寫入。
+                // 先把每個來源的標頭都讀完，才把資料列交給 repository；讀標頭要讀的內容有上限，不會讀完整個檔。
+                // 這樣後面的來源標頭或選項有問題時，資料庫不會白白寫入前面來源的匯入暫存表。
                 var columnsBySource = new List<IReadOnlyList<string>>(sourceCount);
                 for (var index = 0; index < sourceCount; index++)
                 {
@@ -132,8 +132,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                         // 欄名在第幾列：只有審計員指定第 2 列以後才記下來；第 1 列就是預設的讀法，不另外記。
                         HeaderRow: item.Request.LeadingRowsToSkip > 0 ? item.Request.LeadingRowsToSkip + 1 : null);
 
-                    // 串流途中推播 import.progress（完成以本 action 的 response 為準，無完成事件）；
-                    // sourceNo/sourceCount 是本 action 內的位置，不是批次累積的 source ordinal。
+                    // 讀檔途中推播 import.progress；沒有完成事件，是否完成看這個 action 的回應。
+                    // sourceNo 與 sourceCount 是這次 action 裡的第幾個來源與來源總數，不是這一批匯入累計的來源序號。
                     var rows = WithSourceContext(
                         WithProgress(
                             reader.ReadRowsAsync(item.Request, cancellationToken),
@@ -165,8 +165,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
-        // repository 已完成 transaction commit 後即跨過取消邊界；必要的 workflow metadata
-        // 必須完成，不能因晚到的取消把已匯入資料留在舊步驟。
+        // 資料庫交易已經提交，之後不再理會呼叫端的取消要求：案件的流程步驟一定要更新，
+        // 不能因為晚到的取消，讓資料已經匯入而案件還停在舊的步驟。
         await AdvanceStepAsync(projectId, WorkflowStep, CancellationToken.None);
 
         var batch = result.Data.Batch;
@@ -247,7 +247,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             }).ToArray();
     }
 
-    /// <summary>每滿 interval 列回報一次累計列數（public static 以利直測節奏，不經 WebView）。</summary>
+    /// <summary>每讀滿 interval 列，回報一次累計列數。宣告成 public static，不經 WebView 也能直接呼叫來核對回報的間隔。</summary>
     public static async IAsyncEnumerable<StagingRow> WithProgress(
         IAsyncEnumerable<StagingRow> rows,
         int interval,

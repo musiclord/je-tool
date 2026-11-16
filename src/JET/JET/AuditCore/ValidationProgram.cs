@@ -3,8 +3,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// Validation typed lifecycle 的 Application 輸入。只攜帶有界案件事實、run identity
-/// 與抽樣參數，不攜帶 GL／TB 完整列集。可用欄位的意義同 <see cref="AuditProjectSnapshot"/>。
+/// Application 交給資料驗證的輸入。只帶案件現況、這次執行的結果代號與時間，以及抽樣參數，
+/// 不帶 GL 與 TB 的資料列。可用欄位的意義同 <see cref="AuditProjectSnapshot"/>。
 /// </summary>
 internal sealed record ValidationRequest(
     string ProjectId,
@@ -22,8 +22,8 @@ internal sealed record ValidationRequest(
     bool HasTbImport = false);
 
 /// <summary>
-/// Validation typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
-/// 讓 typed production path 與既有 Plan／Finalize 只有一套程序判定。
+/// 資料驗證的計畫。<see cref="ReviewPlan"/> 是公開的 <c>JetAuditProgram.Plan</c> 產生的程序判定，
+/// 所以各項程序適不適用只有一套判斷。
 /// <see cref="OutOfPeriodApprovalNaReason"/> 只在傳票核准日不可用、「核准日不在期間」無法執行時有值。
 /// </summary>
 internal sealed record ValidationPlan(
@@ -39,32 +39,32 @@ internal sealed record ValidationPlan(
 }
 
 /// <summary>
-/// 金額級距 SQL 的 scaled threshold。ParameterName 是 AuditCore 固定正準名，
-/// Infrastructure 只負責綁定 ValueScaled，不解讀級距語意。
+/// 金額級距 SQL 用的一個門檻，已換算成 scaled 整數。<c>ParameterName</c> 是 AuditCore 定的固定參數名；
+/// Infrastructure 只把 <c>ValueScaled</c> 綁上去，不解讀級距的意義。
 /// </summary>
 internal sealed record ValidationAmountThreshold(
     string ParameterName,
     long ValueScaled);
 
 /// <summary>
-/// 流程總覽金額級距的 typed plan。CASE、keys、順序與開閉區間皆由 AuditCore 擁有；
-/// provider 只把同一片段套到各自的 target table。
+/// 流程總覽金額級距的計畫。CASE 運算式、級距的鍵、順序，以及區間含不含邊界，都由 AuditCore 決定；
+/// 資料庫實作只把同一個片段套到自己的分錄表上。
 /// </summary>
 internal sealed record ValidationAmountDistributionPlan(
     IReadOnlyList<ValidationAmountThreshold> Thresholds);
 
-/// <summary>Provider 單一 GROUP BY CASE 回傳的 raw 非空 bucket。</summary>
+/// <summary>資料庫用一個 GROUP BY CASE 查回的一個級距與筆數；沒有分錄的級距不會出現。</summary>
 internal sealed record ValidationAmountBinCount(
     string Key,
     long Count);
 
-/// <summary>AuditCore finalized 的單一金額級距；ECDF 已排除零元並取一位小數。</summary>
+/// <summary>AuditCore 整理好的一個金額級距。累計百分比不算零元分錄，取到小數一位。</summary>
 internal sealed record ValidationAmountDistributionBin(
     string Key,
     long Count,
     decimal? EcdfPct);
 
-/// <summary>validate.run 新增的有界金額級距統計（固定 15 bins）。</summary>
+/// <summary>validate.run 的金額級距統計，固定 15 個級距。</summary>
 internal sealed record ValidationAmountDistribution(
     IReadOnlyList<ValidationAmountDistributionBin> Bins);
 
@@ -156,8 +156,8 @@ internal static class ValidationAmountDistributionCatalog
 }
 
 /// <summary>
-/// gl_control_total 中納入核對的來源控制總數。Match flags 不在 Infrastructure 計算，
-/// 由 AuditCore Finalize 依目前 GL 那一側的 facts 判定。
+/// <c>gl_control_total</c> 裡納入核對的來源筆數與借貸合計。是否相符不在 Infrastructure 算，
+/// 由 AuditCore 的 Finalize 拿它和目前 GL 的筆數與合計比對。
 /// </summary>
 internal sealed record ValidationControlTotalsFacts(
     long EligibleSourceRowCount,
@@ -165,8 +165,8 @@ internal sealed record ValidationControlTotalsFacts(
     long EligibleSourceCreditScaled);
 
 /// <summary>
-/// Provider transaction 執行後回到 AuditCore 的 raw facts。明細皆沿用既有有界列型別；
-/// status、N/A 與控制總數是否相符都不在 facts port 決定。
+/// 資料庫交易執行完後交回 AuditCore 的原始數字與明細。明細沿用原有的列型別，筆數有上限。
+/// status、N/A，以及存入筆數與合計是否相符，都不在 Infrastructure 決定。
 /// </summary>
 internal sealed record ValidationFacts(
     GlPopulationSummary PopulationSummary,
@@ -187,8 +187,8 @@ internal sealed record ValidationFacts(
     IReadOnlyList<SourceQualityFindingRow>? SourceQualitySampleRows = null);
 
 /// <summary>
-/// AuditCore Finalize 的 typed validation 產物。Data 保留既有 wire／report compatibility
-/// shape；Manifest 保留每項程序的適用性判定、狀態與計數。
+/// 資料驗證 Finalize 的結果。<c>Data</c> 的形狀和 action 回應、報告使用的相同；
+/// <c>Manifest</c> 保留每項程序的適用性判定、狀態與計數。
 /// </summary>
 internal sealed record ValidationResult(
     ValidationRunResult Data,
@@ -196,8 +196,9 @@ internal sealed record ValidationResult(
     ValidationAmountDistribution AmountDistribution);
 
 /// <summary>
-/// Validation 的 typed Infrastructure port。SQL facts、INF 樣本及摘要共用交易。
-/// finalize 由上層提供，只用有界facts決定status及摘要；Infrastructure不解讀Application的wire形狀。
+/// 資料驗證的執行介面，由 Infrastructure 實作。查詢各項數字、寫入 INF 樣本與儲存摘要都在同一個交易裡。
+/// <c>finalize</c> 由呼叫端提供，只用查回的數字與筆數有上限的明細決定 status 與摘要；
+/// Infrastructure 不解讀 action 回應的格式。
 /// </summary>
 internal interface IValidationFactsPort
 {

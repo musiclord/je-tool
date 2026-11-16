@@ -9,7 +9,7 @@ namespace JET.Infrastructure;
 
 public sealed partial class WorkingPaperWriter
 {
-    // ================= 封面 / 固定文字 emitter(一次性、固定文字;非資料表)=================
+    // ================= 封面與固定文字的工作表：只寫固定文字，沒有資料列 =================
 
     /// <summary>
     /// 「資料預先整理之說明」:公司名、測試期間與固定說明。
@@ -35,7 +35,7 @@ public sealed partial class WorkingPaperWriter
         AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
     }
 
-    /// <summary>「JE WorkingPaper說明」:A1「說明：」標籤 + B1 整段 boilerplate(合併 B1:O1)。</summary>
+    /// <summary>「JE WorkingPaper說明」：A1 是「說明：」標籤，B1 是整段固定說明文字，合併 B1:O1。</summary>
     private static void EmitIntroSheet(
         WorkingPaperWriteSession session, List<SheetStat> stats, WorkingPaperSheetPlan? sheetPlan,
         CancellationToken cancellationToken,
@@ -78,11 +78,11 @@ public sealed partial class WorkingPaperWriter
         AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
     }
 
-    // ================= 三張「自動化工具」參考資料表 emitter(結構各異,各自處理)=================
+    // ================= 三張「自動化工具」參考資料工作表：結構各不相同，各自處理 =================
 
     /// <summary>
-    /// 「自動化工具-檔案欄位資訊」：只接受 AuditCore finalized 的完整 target Field Info projection；
-    /// TB 完整列後保留兩個 physical blank rows，再以動態列號接 GL。
+    /// 「自動化工具-檔案欄位資訊」：內容只用 AuditCore 算好的那一份配對後欄位資訊，這裡不自己推算。
+    /// TB 的欄位列完後空兩列，再接 GL；GL 的起始列號隨 TB 的列數變動。
     /// </summary>
     private async Task EmitFieldInfoSheetAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -263,9 +263,9 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// 「自動化工具-假期假日資訊」:週末表 + 假日表(calendar store holiday)+ 補班段(makeup)。
-    /// 週末表照案件設定的每週休息日寫出(<see cref="WeekendRows"/>)。
-    /// 假日/補班逐日列出(日數有界):日期由 yyyy-MM-dd 轉成 yyyy/MM/dd 顯示;假日 IS_HOLIDAY 一律 Y。
+    /// 「自動化工具-假期假日資訊」：依序是週末表、國定假日表與補班日表。
+    /// 週末表照案件設定的每週休息日寫出，見 <see cref="WeekendRows"/>。
+    /// 國定假日與補班日一天一列，日數有限；日期由 yyyy-MM-dd 轉成 yyyy/MM/dd 顯示，假日的 IS_HOLIDAY 一律寫 Y。
     /// 沒有匯入國定假日或補班日時,照舊版寫提示句,寫在原本該段標題的那一列:
     /// 舊版把假日的提示句寫在第 12 列,有補班日時又被補班標題蓋掉,所以 JET 不照舊版的列號。
     /// </summary>
@@ -504,11 +504,11 @@ public sealed partial class WorkingPaperWriter
         sheet.WriteFixedRow(row, [sheet.TextCell(row, 1, notice)]);
 
     /// <summary>
-    /// 「自動化工具-科目配對資訊」:GL_NUMBER / GL_NAME / STANDARDIZED_ACCOUNT_NAME + 每科目列。
-    /// **Not-in-TB**(在 GL 有、TB 無的科目)GL_NAME 寫字面「Not in TB」而非 account_name——
-    /// 為什麼用字面值:照舊版 JET 寫固定字串「Not in TB」,標示「該科目在 GL 出現卻未配對到 TB 餘額」,
-    /// 供審計員一眼辨識完整性缺口。判定來源是完整性 not_in_tb 集合(repo 以 ValidationProcedures.CompletenessDiffCte 為單一事實來源),
-    /// emitter 只依旗標渲染(data-structure 對映,非逐列特判)。
+    /// 「自動化工具-科目配對資訊」：表頭是 GL_NUMBER、GL_NAME、STANDARDIZED_ACCOUNT_NAME，下面每個科目一列。
+    /// 在 GL 出現但 TB 沒有的科目，GL_NAME 不寫科目名稱，照舊版 JET 寫固定字串「Not in TB」，
+    /// 讓審計員一眼看出這個科目在 GL 出現卻對不到 TB 餘額。
+    /// 哪些科目算 TB 沒有，由 repository 用完整性測試的同一段 SQL（ValidationProcedures.CompletenessDiffCte）判定；
+    /// 這裡只看每一列的 NotInTb 旗標決定寫什麼。
     /// </summary>
     private async Task EmitAccountMappingSheetAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -517,9 +517,9 @@ public sealed partial class WorkingPaperWriter
     {
         var mappings = await accountMapping.FetchAllAsync(
             context.ProjectId, context.PeriodStart, context.PeriodEnd, cancellationToken);
-        // Production internal DI uses import-batch presence, so a successful zero-row
-        // source still receives the legacy header/AutoFit. The public compatibility
-        // constructor has no presence store and retains its bounded row-count fallback.
+        // 正式組裝時有 _accountMappingStateStore，用有沒有科目配對的匯入紀錄判斷來源存不存在；
+        // 所以匯入成功但一列都沒有時，仍然套用舊版 JET 的表頭外觀與自動調整欄寬。
+        // 用公開建構子建立時沒有這個 store，改用列數是否大於 0 判斷。
         var sourceExists = _accountMappingStateStore is null
             ? mappings.Count > 0
             : await _accountMappingStateStore.FindStateAsync(

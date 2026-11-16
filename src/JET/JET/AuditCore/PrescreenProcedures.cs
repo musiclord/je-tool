@@ -5,8 +5,8 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// 預篩選家族的軟依賴與 N/A 語意。此載體只供 AuditCore facade 使用；
-/// wire composite 的塑形仍由 Application 負責。
+/// 預篩選各規則缺少案件資料時的處理：缺資料的規則判為 N/A 並寫出原因，其他規則照常執行。
+/// 這個類別只給 <see cref="JetAuditProgram"/> 使用；組出 action 回應仍由 Application 負責。
 /// </summary>
 internal static class PrescreenProcedures
 {

@@ -3,7 +3,6 @@ using System.Text.Json;
 using JET.Application;
 using JET.Domain;
 using Xunit;
-using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Architecture;
 
@@ -12,7 +11,7 @@ namespace JET.Tests.Architecture;
 /// 不影響 action、識別字、wire 欄位或資料庫內容。每項鎖住現行字樣，並確認停用的字樣不出現在畫面程式。
 /// 程式註解不算畫面文字；檢查前先移除註解，只看字串與程式本體。
 /// </summary>
-public sealed class TerminologyUnificationFrontendTests
+public sealed partial class TerminologyUnificationFrontendTests
 {
     [Fact]
     public void TestScope_ReplacesPopulationWordingOnScreenAndInReadback()
@@ -117,21 +116,6 @@ public sealed class TerminologyUnificationFrontendTests
         Assert.Contains("{ value: 'blankDescription', label: '空白摘要', prerequisites:", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
         Assert.Equal("預篩選：空白摘要",
             RenderAtom("""{"join":"AND","type":"prescreen","prescreenKey":"blankDescription"}"""));
-    }
-
-    // 這四項讀方案資料夾以外的桌面情境程式，
-    // 所以獨立成一個測試並加上標記，只有方案資料夾時可以排除。
-    [Fact]
-    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
-    public void GuiScenarioChecks_UseTheSameSaveWordingAsTheProduct()
-    {
-        // 桌面情境檢查跟著產品字樣改；舊字樣留在檢查裡會讓情境永遠找不到提示。
-        var guiScenarios = ReadRepoFile("tools", "harness", "gui-driver", "GuiScenarios.cs");
-        Assert.Contains("配對已修改，請按「重新確認配對」儲存。", guiScenarios, StringComparison.Ordinal);
-        var guiFilter = StripComments(ReadRepoFile("tools", "harness", "gui-driver", "GuiFilterWorkflowScenarios.cs"), js: false);
-        Assert.Contains(".Contains(\"已儲存\", StringComparison.Ordinal)", guiFilter, StringComparison.Ordinal);
-        Assert.Contains("textContent.includes('已儲存')", guiFilter, StringComparison.Ordinal);
-        Assert.DoesNotContain("已保存", guiFilter, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -415,9 +399,6 @@ public sealed class TerminologyUnificationFrontendTests
 
     private static string ReadLegacyCatalogueFixture()
         => File.ReadAllText(Path.Combine(SolutionRoot(), "tests", "JET.Tests", "Fixtures", "legacy-form-2024-1210.json"));
-
-    private static string ReadRepoFile(params string[] segments)
-        => File.ReadAllText(Path.Combine(new[] { SolutionRoot(), "..", ".." }.Concat(segments).ToArray()));
 
     private static string SolutionRoot()
     {

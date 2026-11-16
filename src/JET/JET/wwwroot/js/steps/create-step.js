@@ -110,6 +110,26 @@
     warning.hidden = !unusual;
   }
 
+  // 查核期間建案後不能修改，年份明顯打錯時在送出前指出是哪一欄。
+  // 兩句和後端 ProjectMetadataRules 的 PeriodStartYearOutOfRange、PeriodEndYearOutOfRange 一字不差。
+  var periodYearMessages = {
+    periodStart: '查核起始日的年份須在 1900 到 2100 之間。請修正年份後再建立案件。',
+    periodEnd: '查核截止日的年份須在 1900 到 2100 之間。請修正年份後再建立案件。'
+  };
+
+  // 回傳第一個年份不在 1900 到 2100 的欄位名稱，都合格時回傳 null。年份多於四位數也算不合格；
+  // 空白不在這裡判斷，由必填檢查處理。
+  function periodYearProblemField(payload) {
+    var fields = ['periodStart', 'periodEnd'];
+    for (var i = 0; i < fields.length; i++) {
+      var value = payload[fields[i]];
+      if (!value) { continue; }
+      var match = /^(\d{4})-\d{2}-\d{2}$/.exec(value);
+      if (!match || Number(match[1]) < 1900 || Number(match[1]) > 2100) { return fields[i]; }
+    }
+    return null;
+  }
+
   function preparationWarningHtml() {
     return '<p class="form-notice form-notice--warning" data-bind="preparation-date-warning" data-collapsible role="status" hidden></p>';
   }
@@ -280,6 +300,12 @@
       };
       if (!payload.projectName) {
         showCreateError(form, { field: 'projectName', message: '案件名稱不可為空白，請輸入可辨識這個案件的名稱。' });
+        return;
+      }
+      // 年份先看：年份多於四位數的日期做字串比較會排錯順序，不能落到下面的起訖比較。
+      var yearProblemField = periodYearProblemField(payload);
+      if (yearProblemField) {
+        showCreateError(form, { field: yearProblemField, message: periodYearMessages[yearProblemField] });
         return;
       }
       if (payload.periodStart && payload.periodEnd && payload.periodStart > payload.periodEnd) {

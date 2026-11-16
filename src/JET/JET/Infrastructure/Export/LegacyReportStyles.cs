@@ -4,11 +4,11 @@ using SpreadsheetColor = DocumentFormat.OpenXml.Spreadsheet.Color;
 
 namespace JET.Infrastructure;
 
-/// <summary>六份 legacy 報告共用的乾淨樣式表；不複製參考檔的 metadata、圖片或外部關聯。</summary>
+/// <summary>照舊版 JET 版型寫出的六份報告共用的樣式表。樣式全部由這裡的程式建立，不從別的活頁簿複製中繼資料、圖片或外部關聯。</summary>
 internal static class LegacyReportStyles
 {
-    // cellXfs 0-14 are the long-standing JET report styles. New legacy parity
-    // styles are append-only so every existing writer keeps its stable index.
+    // cellXfs 0 到 14 是 JET 報告原有的樣式。照舊版 JET 外觀補上的樣式只能加在後面，
+    // 這樣每個既有的寫出程式用到的索引都不會變。
     public const uint Default = 0;
     public const uint Title = 1;
     public const uint Section = 2;
@@ -26,35 +26,35 @@ internal static class LegacyReportStyles
     public const uint RawBody = 14;
 
     /// <summary>
-    /// ValidationReport D20:D25 conditional yellow marker from legacy JET Step1.
+    /// 資料驗證報告 D20:D25 依條件標示的黃色底，取自舊版 JET 的 Step1。
     /// </summary>
     public const uint ValidationWarning = 15;
 
     /// <summary>
-    /// Validation field-info TB header from legacy JET Step1: Calibri 12 bold + FFF0F000.
-    /// Kept distinct from the GL header.
+    /// 資料驗證報告欄位資訊頁的 TB 表頭，取自舊版 JET 的 Step1：Calibri 12 點粗體，底色 FFF0F000。
+    /// 底色和 GL 表頭不同，兩者分開定義。
     /// </summary>
     public const uint ValidationTbHeader = 16;
 
     /// <summary>
-    /// Validation field-info GL header from legacy JET Step1: Calibri 12 bold + FFE6E600.
-    /// Kept distinct from the TB header.
+    /// 資料驗證報告欄位資訊頁的 GL 表頭，取自舊版 JET 的 Step1：Calibri 12 點粗體，底色 FFE6E600。
+    /// 底色和 TB 表頭不同，兩者分開定義。
     /// </summary>
     public const uint ValidationGlHeader = 17;
 
     /// <summary>
-    /// Calibri 12 bold red conditional message from legacy JET Step5.
-    /// This named palette entry prevents magic style indices.
+    /// 依條件顯示的訊息，取自舊版 JET 的 Step5：Calibri 12 點粗體紅字。
+    /// 取了名稱，寫出程式就不必直接寫樣式的數字索引。
     /// </summary>
     public const uint LegacyConditionalMessage = 18;
 
     /// <summary>
-    /// Calibri 12 bold white on FF0066FF table header from legacy JET Step5.
+    /// 表格表頭，取自舊版 JET 的 Step5：Calibri 12 點粗體白字，底色 FF0066FF。
     /// </summary>
     public const uint LegacyBlueTableHeader = 19;
 
     /// <summary>
-    /// Calibri 16 bold red on FF0066FF version banner from legacy JET Step5.
+    /// 版本字樣那一列，取自舊版 JET 的 Step5：Calibri 16 點粗體紅字，底色 FF0066FF。
     /// </summary>
     public const uint LegacyVersionBanner = 20;
 
@@ -79,7 +79,7 @@ internal static class LegacyReportStyles
     private const uint ExportDatabaseAmountStyle =
         ExportDatabaseNumberStyleFirst + MaximumDecimalPlaces + 1;
 
-    // Font indices; cellXf constants 15-20 above name the legacy step each style comes from.
+    // 字型的索引。上面 15 到 20 號 cellXf 常數的說明寫了各自取自舊版 JET 的哪一個步驟。
     private const uint FontRegular = 0;
     private const uint FontTitle = 1;
     private const uint FontWhiteBold = 2;
@@ -90,8 +90,8 @@ internal static class LegacyReportStyles
     private const uint FontCalibri16BoldRed = 7;
     private const uint FontArial10 = 8;
 
-    // Fill indices 0(None) and 1(Gray125) are reserved by Excel. The named
-    // legacy colors retain their distinct source values rather than normalizing.
+    // 底色索引 0（None）與 1（Gray125）是 Excel 保留的。取自舊版 JET 的幾個顏色
+    // 各自保留原本的色碼，不合併成同一個顏色。
     private const uint FillNone = 0;
     private const uint FillNavy = 2;
     private const uint FillPaleBlue = 3;
@@ -226,8 +226,8 @@ internal static class LegacyReportStyles
             font.Append(new SpreadsheetColor { Rgb = color });
         }
 
-        // CT_Font schema order places color before name. Appending color after FontName
-        // makes Excel-readable files that nevertheless fail the OpenXML schema validator.
+        // OpenXML 的 CT_Font 規定 color 要排在 name 前面。color 接在 FontName 後面的檔案 Excel 打得開，
+        // 但通不過 OpenXML 的結構驗證。
         font.Append(new FontName { Val = name });
 
         return font;

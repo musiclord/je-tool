@@ -304,9 +304,8 @@ public sealed class WorkingPaperProgramTests
             "此JE測試的WorkingPaper係透過JE Testing Tool產生之工作底稿，並依下列步驟分別記錄會計分錄測試" +
             "(JE Testing)所需之程序。\n(有關高風險JE測試的篩選判斷由查核團隊在該工具執行過程中完成定義。)",
             Assert.Single(Sheet(finalized, WorkingPaperSheetCatalog.Intro).Methodology));
-        Assert.Equal(
-            "測試說明：",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step2).Methodology[0]);
+        // step2 的說明與測試程序全部是範本的原字，底稿計畫不帶這張表的說明文字。
+        Assert.Empty(Sheet(finalized, WorkingPaperSheetCatalog.Step2).Methodology);
         // Step 3 的 B7 與 B9 寫舊版原文，JET 寫的查核期間與排除範圍另起一行接在後面。
         Assert.Equal(
             "期末財務報表準備期間與整個財務報導期間之會計分錄\n查核期間內（2025-01-01 ~ 2025-12-31）之會計分錄",

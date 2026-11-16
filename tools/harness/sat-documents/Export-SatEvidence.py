@@ -12,13 +12,11 @@ def load(p):return json.loads(p.read_text(encoding='utf-8-sig'))
 # 方案資料夾底下的三行命令，和技術文件第 14 節的程式碼區塊相同；路徑以 JET.slnx 所在的資料夾為起點。
 COMMANDS=[
  'dotnet build JET.slnx -c Debug',
- 'tests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe --filter-not-trait "TestProfile=PrivateCase" "TestProfile=Scale" "TestProfile=DevelopmentRepository"',
+ 'tests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe --filter-not-trait "TestProfile=Scale"',
  'node --test --test-concurrency=4 tests/frontend/',
 ]
-# 量測涵蓋率時，後端測試那一行命令另外加上的三個參數；最後一個後面接輸出檔的位置。
-COVERAGE_ARGUMENTS='--coverage、--coverage-output-format cobertura 與 --coverage-output'
-# 涵蓋率表裡直接放在 JET 資料夾、不屬於任何子資料夾的那一組原始檔；技術文件第 6 節把這一層稱為 WinForms 主機。
-ROOT_MODULE='WinForms 主機（JET 資料夾根目錄的原始檔）'
+# 涵蓋率表裡直接放在 JET 資料夾、不屬於任何子資料夾的那一組原始檔；技術文件第 6 節把這一層稱為 Host。
+ROOT_MODULE='Host（JET 資料夾最上層的原始檔）'
 def tool_version(*command):
  # 轉換當下實際查到的版本；查不到就停止，不填推測的值。
  text=subprocess.run(command,cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
@@ -139,7 +137,7 @@ for row in review['scope']:
  names=row['tests'].split('、')
  selected=[x for x in records if any('.'+name+'.' in x['fqn'] for name in names)]
  checks.append({'title':row['title'],'classes':names,'total':len(selected),'passed':sum(x['outcome']=='Passed' for x in selected),'failed':sum(x['outcome']=='Failed' for x in selected)})
-data={'title':'JET 單元測試報告','date':r['startedUtc'][:10],'status':r['status'],'runId':r['runId'],'receipt':receipt_path.relative_to(ROOT).as_posix() if receipt_path else '','revision':(r.get('repository') or {}).get('head','')[:7],'configuration':r['configuration'],'command':'\n'.join(COMMANDS),'scope':'全部測試使用合成測試資料。','environment':env,'exitCriteria':'全部測試案例通過，無失敗與略過。','steps':steps,'reviewTests':checks,'coverage':{'covered':sum(g['covered'] for g in groups),'total':sum(g['total'] for g in groups),'modules':groups,'files':files,'measure':'行涵蓋率（line coverage），以 '+env['coverageTool']+' 量測。\n後端測試命令另加 '+COVERAGE_ARGUMENTS+'。','method':'計算範圍為後端原始碼，不含編譯時自動產生的程式碼與原生程式庫；依原始檔與行號計算。'}}
+data={'title':'JE Tool 單元測試報告','date':r['startedUtc'][:10],'status':r['status'],'runId':r['runId'],'receipt':receipt_path.relative_to(ROOT).as_posix() if receipt_path else '','revision':(r.get('repository') or {}).get('head','')[:7],'configuration':r['configuration'],'command':'\n'.join(COMMANDS),'scope':'合成測試資料','environment':env,'exitCriteria':'上列命令執行的測試案例全數通過，無失敗與略過。','steps':steps,'reviewTests':checks,'coverage':{'covered':sum(g['covered'] for g in groups),'total':sum(g['total'] for g in groups),'modules':groups,'files':files,'measure':'行涵蓋率（line coverage），以 '+env['coverageTool']+' 量測。','method':'計算範圍為後端原始碼，不含編譯時自動產生的程式碼與原生程式庫。'}}
 data['additionalChecks']=[]
 if args.excel_receipt:
  ep=Path(args.excel_receipt).resolve()

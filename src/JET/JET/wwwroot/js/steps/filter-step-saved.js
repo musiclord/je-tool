@@ -80,13 +80,13 @@
 
   function replacementWording(kind, name) {
     if (kind === 'template') { return { effect: '套用範例「' + name + '」會換掉', verb: '套用' }; }
-    var verb = kind === 'copy' ? '複製' : '開啟';
+    var verb = kind === 'copy' ? '複製' : '編輯';
     return { effect: verb + '「' + name + '」會換掉', verb: verb };
   }
 
   FilterStep.saveDraftForReplacement = null; // bind 時接上目前畫面的儲存動作，回傳 Promise。
 
-  // 目前的情境有修改還沒儲存時，開啟或複製已存情境與套用範例都先詢問，
+  // 目前的情境有修改還沒儲存時，編輯或複製已存情境與套用範例都先詢問，
   // 用第四步科目分類也在用的共用對話框（Ui.confirmUnsaved）；沒有修改時直接換。取消編輯是明確放棄修改，不經過這裡。
   // 不儲存時修改會被換掉，所以第二顆按鈕寫「不儲存，直接…」，和科目分類在退出時的寫法相同。
   // 儲存情境不會清掉其他結果，預設焦點停在儲存，比照科目分類沒有東西會被清除時的做法。
@@ -230,7 +230,7 @@
                     'aria-controls="saved-actions-' + i + '" aria-label="操作：' + Ui.esc(s.name) + '">操作</button>' +
                   '<div class="jet-menu__items" id="saved-actions-' + i + '" role="menu" aria-label="操作：' + Ui.esc(s.name) + '" hidden>' +
                     '<button type="button" class="jet-menu__item" role="menuitem" tabindex="-1" data-action="edit-scenario" data-index="' + i + '">編輯</button>' +
-                    '<button type="button" class="jet-menu__item" role="menuitem" tabindex="-1" data-action="copy-scenario" data-index="' + i + '">另存副本</button>' +
+                    '<button type="button" class="jet-menu__item" role="menuitem" tabindex="-1" data-action="copy-scenario" data-index="' + i + '">複製</button>' +
                     '<button type="button" class="jet-menu__item" role="menuitem" tabindex="-1" data-action="remove-scenario" data-index="' + i +
                       '"' + (confirmingRemoval ? ' hidden' : '') + '>移除</button>' +
                   '</div>' +
@@ -484,8 +484,8 @@
         // 會讓已存情境失效的上游修改都會清掉情境，這裡只剩暫時性的讀取失敗，提供重試即可。
         fillSmoothly(previewEl, function () {
           previewEl.innerHTML = '<p role="status">載入失敗：' + Ui.esc(Ui.errorText(error, '請稍後重試。')) + '</p>' +
-            '<p>可以直接重試讀取結果。</p>' +
-            '<button type="button" class="btn btn--ghost" data-scenario-retry>重試讀取結果</button>';
+            '<p>可按「重新載入」重試。</p>' +
+            '<button type="button" class="btn btn--ghost" data-scenario-retry>重新載入</button>';
         });
         previewEl.querySelector('[data-scenario-retry]').addEventListener('click', function () {
           ensureScenarioPreview(container, index);

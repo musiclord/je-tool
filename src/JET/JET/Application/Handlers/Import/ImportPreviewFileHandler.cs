@@ -4,11 +4,11 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// import.previewFile：匯入前的逐來源有界預覽。
-/// 不需 active project、唯讀零副作用；回正規化標頭 + 前 N 列原貌（≤limit），
-/// 供精靈判讀「這份檔案有沒有標頭列」。重用與 inspect/匯入相同的讀取與正規化鏈。
-/// 文字檔可帶 encoding 與 delimiter，所以它也是檢視失敗後改選編碼重試的路徑；只讀到一欄時回 notices。
-/// 失敗時附上匯入診斷（階段、格式、編碼、分隔符）。
+/// import.previewFile：匯入前預覽一個來源的前幾列。
+/// 不需要先開啟案件，只讀檔，不留下任何變更。回傳正規化後的標頭，以及最多 limit 列的原始內容，
+/// 讓匯入精靈判斷這份檔案有沒有標頭列。讀檔與正規化的做法和 import.inspectFile、正式匯入相同。
+/// 文字檔可以帶 encoding 與 delimiter，所以檢視失敗後改選編碼重試也走這個 action；只讀到一欄時回 notices。
+/// 失敗時附上匯入診斷：階段、格式、編碼、分隔符。
 /// </summary>
 public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IApplicationActionHandler
 {
@@ -40,7 +40,7 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
         var limit = Math.Clamp(
             PayloadReader.GetOptionalInt(payload, "limit") ?? DefaultLimit, 1, MaxLimit);
 
-        // 檔案讀取移出 UI thread（與 inspect/匯入同模式）
+        // 讀檔移到 UI thread 以外執行，和 import.inspectFile、正式匯入的做法相同。
         var (columns, sampleRows) = await Task.Run(
             async () =>
             {
@@ -67,7 +67,7 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
                         rows.Add(ProjectRow(row, cols));
                         if (rows.Count >= limit)
                         {
-                            break; // 有界 early-exit：讀滿 limit 列即停，迭代器釋放 → reader 停止讀檔
+                            break; // 讀滿 limit 列就停；迭代器釋放後，reader 不再往下讀檔。
                         }
                     }
                 }
@@ -95,7 +95,7 @@ public sealed class ImportPreviewFileHandler(ITabularFileReader reader) : IAppli
         };
     }
 
-    /// <summary>StagingRow.Values 是稀疏字典（只含非空 cell）；對齊 columns 攤平成陣列，缺值 → null。</summary>
+    /// <summary>StagingRow.Values 只存有內容的儲存格。這裡照 columns 的順序排成陣列，沒有值的位置放 null。</summary>
     private static string?[] ProjectRow(StagingRow row, IReadOnlyList<string> columns)
     {
         var cells = new string?[columns.Count];

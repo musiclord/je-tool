@@ -48,6 +48,54 @@ public sealed class CaseHandoverPreparedByTests
         Assert.Equal("creator.a", reopened.GetProperty("project").GetProperty("operatorId").GetString());
     }
 
+    // 建案者記的是建案當時的使用者全名；換另一個帳號匯出時，三份報告仍寫建案者的使用者全名。
+    [Fact]
+    public async Task AnotherAccountExports_ReportsKeepTheCreatorsUserFullName()
+    {
+        const string creatorFullName = "合成, 建案者 (TW/1234)";
+        const string auditorFullName = "合成, 匯出者 (TW/5678)";
+        using var root = new TempProjectRoot();
+        string id;
+        using (var creator = new HandlerTestHost(
+                   principalName: "creator.a", projectsRootPath: root.Path, userFullName: creatorFullName))
+        {
+            var prepared = await ReportRevisionStateTests.PrepareAsync(creator, "sqlite", fromScratch: true);
+            id = prepared.Id;
+            await creator.DispatchAsync("project.releaseLock");
+        }
+        using var auditor = new HandlerTestHost(
+            principalName: "auditor.b", projectsRootPath: root.Path, userFullName: auditorFullName);
+        var loaded = await auditor.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
+        Assert.Equal(creatorFullName, loaded.GetProperty("project").GetProperty("operatorId").GetString());
+        var validation = await auditor.DispatchAsync("validate.run");
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+        var prescreen = await auditor.DispatchAsync("prescreen.run");
+        var filtered = await auditor.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
+        var revision = filtered.GetProperty("resultRef").GetProperty("revision").GetString();
+        var validationExport = await auditor.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId = validationResultId }));
+        var validationReport = validationExport.GetProperty("reports").EnumerateArray().Single(item => item.GetProperty("kind").GetString() == "validationReport");
+        var prescreenExport = await auditor.DispatchAsync("export.prescreenReport", JsonSerializer.Serialize(new
+            { resultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString() }));
+        var criteriaExport = await auditor.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new { validationResultId, revision }));
+        var excluded = new[] { "auditor.b", auditorFullName, "creator.a" };
+
+        AssertPreparedByName(root.Path, id, validationReport, "ValidationReport", "E4", creatorFullName, excluded);
+        AssertPreparedByName(root.Path, id, prescreenExport.GetProperty("publishedReport"), "Pre-screening_Report", "E4", creatorFullName, excluded);
+        AssertPreparedByName(root.Path, id, criteriaExport.GetProperty("publishedReport"), "Summary Inforamtion", "D1", creatorFullName, excluded);
+    }
+
+    private static void AssertPreparedByName(
+        string root, string id, JsonElement report, string sheet, string cell, string expectedName, IReadOnlyList<string> excluded)
+    {
+        using var book = new XLWorkbook(Path.Combine(root, id, report.GetProperty("fileName").GetString()!));
+        Assert.Equal($"Prepared by: {expectedName}", book.Worksheet(sheet).Cell(cell).GetString());
+        var values = book.Worksheets.SelectMany(worksheet => worksheet.CellsUsed()).Select(value => value.GetString()).ToArray();
+        foreach (var name in excluded)
+        {
+            Assert.DoesNotContain(values, value => value.Contains(name, StringComparison.Ordinal));
+        }
+    }
+
     private static void AssertPreparedBy(string root, string id, JsonElement report, string sheet, string cell)
     {
         using var book = new XLWorkbook(Path.Combine(root, id, report.GetProperty("fileName").GetString()!));

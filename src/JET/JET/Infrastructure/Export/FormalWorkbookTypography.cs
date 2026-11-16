@@ -5,8 +5,8 @@ using SpreadsheetFont = DocumentFormat.OpenXml.Spreadsheet.Font;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 六份正式輸出共用的字型收尾。固定範本與 legacy script 仍可保留字級、粗體、
-/// 顏色等個別語意，但最終活頁簿不得再混用不同字族或 theme font。
+/// 六份正式輸出寫完後共用的字型整理：把活頁簿裡每一個字型的名稱改成微軟正黑體，並拿掉佈景主題字型的設定。
+/// 固定範本與照舊版 JET 做出來的樣式，字級、粗體與顏色都照原樣，只有字型名稱統一。
 /// </summary>
 internal static class FormalWorkbookTypography
 {

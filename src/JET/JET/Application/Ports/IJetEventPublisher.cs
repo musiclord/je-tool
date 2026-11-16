@@ -1,17 +1,17 @@
 namespace JET.Application;
 
 /// <summary>
-/// Host→Web 單向事件推播 port。
-/// Application handler 發出 UX 提示事件（如 import.progress）；marshal 與序列化
-/// 由實作負責（Bridge 的 WebViewEventPublisher）。事件不承載狀態權威
-/// （權威一律以 action response 為準），也不得攜帶資料列（大資料量原則）。
+/// 由 C# 主動通知前端的事件，只有這一個方向。
+/// handler 用它送出進度這類提示，例如 import.progress。切回介面執行緒與序列化由實作負責，
+/// 也就是 Bridge 的 WebViewEventPublisher。事件只是提示：狀態一律以 action 的回應為準，
+/// 事件也不得帶資料列，大量資料不經這裡送到前端。
 /// </summary>
 public interface IJetEventPublisher
 {
     void Publish(string eventName, object payload);
 }
 
-/// <summary>無 WebView 環境（測試預設、host 組裝前）的 no-op 實作。</summary>
+/// <summary>沒有 WebView 時用的實作，什麼都不做。組裝時沒有傳入事件發布者就用它，測試預設也是。</summary>
 public sealed class NullEventPublisher : IJetEventPublisher
 {
     public void Publish(string eventName, object payload)

@@ -55,8 +55,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         var lockService = repositories.LockService;
         var reportStore = repositories.ReportStore;
 
-        // 進入 session 前取工作鎖（跨程序檔案鎖）。
-        // Held → project_locked；不設 session、不進 workflow、不戳 last_opened。
+        // 進入 session 之前先取案件的工作鎖，它是跨程序的檔案鎖。
+        // 鎖被別人持有時回 project_locked：不進入 session，不往下載入，也不更新上次開啟時間。
         SupportOperationStage.Enter("lock_acquire");
         var lockOutcome = await lockService.AcquireAsync(document.ProjectId, principal.Name, cancellationToken);
         if (lockOutcome is LockOutcome.Held held)
@@ -287,8 +287,9 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                 reports = reports.Select(ReportExportSupport.ReportWire).ToArray()
             };
 
-            // response 已完整物化後才發布兩個可見副作用。SaveAsync 是 LastOpened 的 commit point；其後不再
-            // 使用 caller cancellation，避免已戳記卻因後置 best-effort 工作取消而回報載入失敗。
+            // 回應物件完全建好之後，才做兩件外面看得到的事：存下上次開啟時間，以及進入 session。
+            // SaveAsync 成功就算記下了這次開啟；之後的步驟不再理會呼叫端的取消要求，
+            // 以免時間已經記下，卻因為後面那些失敗也不影響結果的工作被取消，而回報載入失敗。
             var openedDocument = document with { LastOpenedUtc = DateTimeOffset.UtcNow };
             SupportOperationStage.Enter("metadata_save");
             await projectStore.SaveAsync(openedDocument, cancellationToken);
@@ -310,7 +311,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             }
             catch (Exception releaseError)
             {
-                // 補償失敗不得遮蔽原始 resume／LastOpened 失敗。工作鎖沒放掉時，下次開案可能顯示已被開啟，
+                // 放鎖失敗時不往外丟，保留原本載入案件或存上次開啟時間時的例外。工作鎖沒放掉時，下次開案可能顯示已被開啟，
                 // 支援日誌另記一筆。
                 if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "lock_release", releaseError);
             }
@@ -371,15 +372,15 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     };
 
     /// <summary>
-    /// validation resume 用：存入筆數與合計核對、GL 與 TB 逐科目比對的原始結果不重算，只由共用後端 renderer
-    /// 補上或覆寫衍生的「可否繼續後續步驟」判定。
+    /// 重新載入案件時回傳資料驗證結果：存入筆數與合計核對、GL 與 TB 逐科目比對的原始結果不重算，
+    /// 只由 CompletenessEligibilitySupport.ToWireSummary 補上或覆寫「可否繼續後續步驟」這個推算出來的判定。
     /// </summary>
     private static object? ToValidationResultSummary(ResultRecord? record) =>
         record is null || !ValidationSummaryShapeValidator.IsValid(record.SummaryJson)
             ? null
             : CompletenessEligibilitySupport.ToWireSummary(record);
 
-    /// <summary>prescreen resume 用：結果原樣回放，只由 AuditCore renderer 補上目前的定位說明。</summary>
+    /// <summary>重新載入案件時回傳預篩選結果：存下的結果照原樣回傳，只由 AuditCore 補上目前的定位說明。</summary>
     private static object? ToPrescreenResultSummary(ResultRecord? record) =>
         record is null ? null : JetAuditProgram.RenderPrescreenSummary(record.SummaryJson);
 

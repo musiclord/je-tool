@@ -4,9 +4,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 借貸不平傳票 keyset 分頁(本地引擎)。GROUP BY voucher_number HAVING SUM(amount_scaled)≠0;
-/// 排序鍵 voucher_number ASC、游標展開布林式 <c>AND voucher_number &gt; @cursor</c> 置於 WHERE
-/// (GROUP BY 前,先過濾游標再彙總;首頁省略)、limit 由注入的 <see cref="ISqlDialect"/> 出。
+/// 分頁讀出借貸不平的傳票，分頁用 keyset 方式：用上一頁最後一筆的排序鍵接下一頁。
+/// 先依 voucher_number 彙總，留下 SUM(amount_scaled) 不是 0 的傳票，包成子查詢；
+/// 排序、搜尋與換頁條件由 <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.VoucherBalance</c> 組出，套在子查詢外層，
+/// 沒有指定排序時依 voucher_number 升冪。LIMIT 的寫法取自 <see cref="ISqlDialect"/>。
 /// </summary>
 public sealed class LocalVoucherBalancePageRepository(ILocalProjectDatabase database)
     : IVoucherBalancePageRepository
@@ -27,8 +28,8 @@ public sealed class LocalVoucherBalancePageRepository(ILocalProjectDatabase data
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
-        // 母體核心走 ValidationProcedures.UnbalancedCore(有效分錄),與計數端同口徑；彙總後包成子查詢，
-        // 排序、搜尋與游標述詞才能用彙總欄（debit_s、credit_s、diff_s）。
+        // 找借貸不平傳票的 SQL 取自 ValidationProcedures.UnbalancedCore，只看納入測試的分錄，和計數用同一段。
+        // 彙總後包成子查詢，排序、搜尋與換頁條件才能用彙總出來的欄位（debit_s、credit_s、diff_s）。
         command.CommandText =
             "SELECT voucher_number, debit_s, credit_s, diff_s" + paging.SelectSuffix + " FROM (" +
             "SELECT voucher_number, " +

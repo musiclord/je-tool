@@ -5,14 +5,14 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 本地檔引擎每專案資料庫的介面。目前只有 SQLite 一種實作。
-/// <c>Local*</c> 家族只依賴這個抽象與 <see cref="ISqlDialect"/>，不感知具體 ADO 型別。
-/// <see cref="IProjectDatabaseInitializer"/> 與 <see cref="IProjectDatabaseDeleter"/> 為既有契約（建立／刪除每專案資料庫）；
+/// 本機案件資料庫的介面，每個案件一個資料庫檔。目前只有 SQLite 一種實作。
+/// 名稱以 <c>Local</c> 開頭的 repository 只用這個介面與 <see cref="ISqlDialect"/>，不直接用特定資料庫的 ADO.NET 型別。
+/// <see cref="IProjectDatabaseInitializer"/> 建立案件資料庫，<see cref="IProjectDatabaseDeleter"/> 刪除案件資料庫；
 /// <see cref="IProjectDatabaseCheckpoint"/> 是作業結束與離開案件時的收尾。
 /// </summary>
 public interface ILocalProjectDatabase : IProjectDatabaseInitializer, IProjectDatabaseDeleter, IProjectDatabaseCheckpoint
 {
-    /// <summary>該專案資料庫檔的實體路徑（dev 唯讀檢視定位檔案、回報檔案大小用）。</summary>
+    /// <summary>這個案件的資料庫檔路徑。開發用的唯讀檢視工具用它找到檔案並回報檔案大小。</summary>
     string GetDatabasePath(string projectId);
 
     /// <summary>
@@ -22,27 +22,30 @@ public interface ILocalProjectDatabase : IProjectDatabaseInitializer, IProjectDa
     Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
         EnsureExistingAsync(projectId, cancellationToken);
 
-    /// <summary>讀寫連線（目錄不存在則建立、檔不存在則建檔）。回傳引擎中立的 <see cref="DbConnection"/>。</summary>
+    /// <summary>
+    /// 建立讀寫連線；案件資料夾不存在時建立資料夾，資料庫檔不存在時開啟連線會建檔。
+    /// 回傳的型別是不分資料庫種類的 <see cref="DbConnection"/>。
+    /// </summary>
     DbConnection CreateConnection(string projectId);
 
-    /// <summary>dev 唯讀檢視專用連線：唯讀、私有快取、不進連線池；DB 檔不存在則開啟即失敗（不建檔）。</summary>
+    /// <summary>開發用的唯讀檢視工具專用的連線：唯讀、私有快取、不進連線池。資料庫檔不存在時開啟就失敗，不建檔。</summary>
     DbConnection CreateReadOnlyConnection(string projectId);
 
-    /// <summary>本地引擎方言（LIMIT／週末判定／不分大小寫包含／參數命名）。</summary>
+    /// <summary>這種資料庫的 SQL 寫法：LIMIT、週末判定、不分大小寫的包含比對與參數命名。</summary>
     IProviderSqlDialect Dialect { get; }
 
     /// <summary>
-    /// 匯入連線層調校：只作用於匯入連線、於開啟後、交易開始前套用。
+    /// 只給匯入用的連線設定，在連線開啟之後、交易開始之前套用。
     /// SQLite 在這裡設定 synchronous、temp_store 與 cache_size 三個 pragma。
     /// </summary>
     Task ApplyImportSessionSettingsAsync(DbConnection connection, CancellationToken cancellationToken);
 
     /// <summary>
-    /// 建立一個批量列寫入器，用來加快大量匯入：把熱路徑的逐列 INSERT 迴圈交給 <see cref="IBulkRowWriter"/>。
-    /// <paramref name="columns"/> 是呼叫端每列會依序給值的欄位名（可少於資料表欄位；缺欄／auto-id 由實作補齊）。
-    /// 寫入器在傳入的 <paramref name="connection"/>／<paramref name="transaction"/> 上運作，
-    /// <see cref="IBulkRowWriter.AppendAsync"/> 完成時已消費該次 values，呼叫端可在 await 後重用同一陣列；
-    /// <see cref="IBulkRowWriter.CompleteAsync"/> 後同交易內可見。
+    /// 建立一個 <see cref="IBulkRowWriter"/>，把列數很多的逐列 INSERT 交給它，用來加快大量匯入。
+    /// <paramref name="columns"/> 是呼叫端每一列會依序給值的欄位名，可以比資料表的欄位少；沒列的欄位與自動編號由實作補上。
+    /// 寫入器用傳入的 <paramref name="connection"/> 與 <paramref name="transaction"/> 執行。
+    /// <see cref="IBulkRowWriter.AppendAsync"/> 回來時已經把那一次的 values 用完，呼叫端可以在 await 之後重用同一個陣列；
+    /// <see cref="IBulkRowWriter.CompleteAsync"/> 之後，同一個交易裡的命令讀得到寫入的列。
     /// </summary>
     IBulkRowWriter CreateBulkRowWriter(
         DbConnection connection, DbTransaction transaction, string table, IReadOnlyList<string> columns);

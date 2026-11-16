@@ -8,17 +8,18 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總行層分頁的兩段查詢讀取器。鏡射 <see cref="HighRiskSummaryVoucherPageReader"/> 的範式,
-/// 鍵改 entry_id、列集改命中傳票之所有行。
+/// 高風險條件彙總行層的分頁讀取，一頁用兩個查詢。做法和 <see cref="HighRiskSummaryVoucherPageReader"/> 相同，
+/// 差別是每列是一筆分錄、以 entry_id 識別，列出的是命中傳票的全部分錄。
 ///
-/// 查詢 1(命中傳票之所有行 keyset 頁):FROM gl g WHERE voucher_number IN(命中傳票集
-/// = 命中行所屬傳票 DISTINCT voucher_number、排除 NULL)、LimitClause。
-/// 列集**含該傳票內未命中任何情境的行**(只要與命中行同傳票即列出)。排序與游標由 <c>KeysetPaging.Plan</c>
+/// 第一個查詢讀這一頁的分錄。先從命中的分錄找出所屬的傳票號碼，去掉重複的與 NULL，再從 gl 讀這些傳票的全部分錄。
+/// 同一張傳票裡沒有命中任何情境的分錄也會列出。排序與游標由 <c>KeysetPaging.Plan</c>
 /// 依 <c>ResultPageSorting.HighRiskSummaryRow</c> 組出，沒有指定排序時依 entry_id 升冪。
-/// reader 取 entry_id 供編游標與對齊位置。查 pageSize+1 作 lookahead，只有 probe 存在才回本頁末鍵 cursor。
+/// 換頁用上一頁最後一筆的排序鍵接下一頁。每次多讀一筆，多出來的那一筆存在才回傳下一頁的游標。
+/// 每列另外讀出 entry_id，用來編游標，也用來對上第二個查詢的結果。
 ///
-/// 查詢 2(本頁各行命中位置):FROM filter_hit WHERE entry_id IN(本頁的 entry_id),
-/// 故每行的命中位置不漏不溢。空頁→不跑查詢 2,回空 dict、空 EntryIds。非命中行不在 dict(handler 補 [])。
+/// 第二個查詢讀這一頁每筆分錄命中了哪些情境位置：從 filter_hit 找 entry_id 在這一頁裡的列，
+/// 所以每筆分錄的命中位置不多也不少。這一頁沒有分錄時不執行第二個查詢，回傳空的對照表與空的 EntryIds。
+/// 沒有命中的分錄不在對照表裡，由 handler 補成空陣列。
 /// </summary>
 internal static class HighRiskSummaryRowPageReader
 {
@@ -61,7 +62,7 @@ internal static class HighRiskSummaryRowPageReader
 
         var paging = KeysetPaging.Plan(dialect, request, ResultPageSorting.HighRiskSummaryRow);
 
-        // 查詢 1:本頁命中傳票之所有行(含非命中行)。
+        // 第一個查詢：這一頁的分錄，取自命中傳票的全部分錄，包含沒有命中的分錄。
         long? totalCount = null;
         var buffer = new KeysetPageBuffer<(RowTagRow Row, long EntryId)>();
         await using (var command = connection.CreateCommand())
@@ -106,7 +107,7 @@ internal static class HighRiskSummaryRowPageReader
         var entryIds = page.Rows.Select(static item => item.EntryId).ToArray();
         var next = page.NextCursor;
 
-        // 空頁:無行 → 無位置。不跑查詢 2。
+        // 這一頁沒有分錄，就沒有命中位置可讀，不執行第二個查詢。
         if (entryIds.Length == 0)
         {
             return (
@@ -115,8 +116,8 @@ internal static class HighRiskSummaryRowPageReader
                 new Dictionary<long, IReadOnlyList<int>>());
         }
 
-        // 查詢 2:本頁各行命中位置。依欄位排序時本頁不是連續的鍵範圍，所以把本頁的 entry_id 全部當參數帶進 IN 清單
-        // （一頁最多 500 列，低於 SQLite 的參數上限）。
+        // 第二個查詢：這一頁每筆分錄命中的情境位置。依欄位排序時，這一頁的 entry_id 不是連續的範圍，
+        // 所以把這一頁的 entry_id 全部當參數放進 IN 清單。一頁最多 500 列，低於 SQLite 的參數上限。
         var positions = new Dictionary<long, List<int>>();
         await using (var command = connection.CreateCommand())
         {
@@ -146,7 +147,7 @@ internal static class HighRiskSummaryRowPageReader
                     positions[entryId] = list;
                 }
 
-                list.Add(pos); // ORDER BY → 已有序;同 (entry_id,position) 在 filter_hit 唯一
+                list.Add(pos); // 查詢已依 entry_id 與 position 排序，讀到的位置是遞增的；同一組 entry_id 與 position 只有一列
             }
         }
 
@@ -158,10 +159,12 @@ internal static class HighRiskSummaryRowPageReader
     }
 
     /// <summary>
-    /// WorkingPaper step4-1 的逐頁讀取路徑：以 voucher_number、line_item、entry_id 作 composite keyset，
-    /// 並在同一 row query bounded join 原始 row_json；第二段只讀本頁 tags。每頁兩個 command，正確但慢。
-    /// 正式匯出用 <see cref="IWorkingPaperStep41PreparedSessionFactory"/> 一次讀完，這條路徑留給測試對照。
-    /// 只有這條路徑用 composite keyset；<see cref="ReadAsync"/> 的排序由 <c>ResultPageSorting.HighRiskSummaryRow</c> 決定。
+    /// 工作底稿 step4-1 逐頁讀取的做法。排序鍵依序是 voucher_number、line_item、entry_id 三欄，
+    /// 換頁時用上一頁最後一筆的這三個值接下一頁。
+    /// 第一個查詢讀這一頁的分錄，同一個查詢裡 JOIN pbc_gl 取得每筆分錄的原始資料 row_json；
+    /// 第二個查詢只讀這一頁分錄命中的情境位置。每頁執行兩個命令，結果正確但比較慢。
+    /// 正式匯出用 <see cref="IWorkingPaperStep41PreparedSessionFactory"/> 一次讀完，這個方法留給測試對照結果。
+    /// 只有這個方法用三欄的排序鍵換頁；<see cref="ReadAsync"/> 的排序由 <c>ResultPageSorting.HighRiskSummaryRow</c> 決定。
     /// </summary>
     public static async Task<WorkingPaperStep41Page> ReadWorkingPaperAsync(
         DbConnection connection,

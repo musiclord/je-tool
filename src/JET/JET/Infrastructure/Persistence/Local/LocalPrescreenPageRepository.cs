@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 本地 provider 的預篩選命中 keyset 分頁；述詞與 filter.preview 共用同一 builder。
+/// 分頁讀出預篩選規則命中的分錄（SQLite）。規則的 WHERE 條件和 filter.preview 用同一個 <see cref="GlFilterWhereBuilder"/> 組出。
 /// 第四步明細與預篩選報告的明細、摘要筆數都從這裡取，列出哪些分錄由 <see cref="HitRowsPredicate"/> 決定。
 /// </summary>
 public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database) : IPrescreenPageRepository
