@@ -12,6 +12,7 @@ public sealed class ExportAccountMappingTemplateHandler(
     IAccountMappingTemplateWriter writer,
     IProjectStore projectStore,
     IProjectExportLocator projectLocator,
+    IExportOutputFiles outputFiles,
     ProjectSession session,
     IJetEventPublisher? eventPublisher = null) : IApplicationActionHandler
 {
@@ -72,6 +73,7 @@ public sealed class ExportAccountMappingTemplateHandler(
         var fileName = ProjectFileNames.AccountMappingTemplate(projectId);
         var result = await ProjectWorkFileWriter.WriteAsync(
             projectLocator,
+            outputFiles,
             projectId,
             fileName,
             async (stream, ct) =>

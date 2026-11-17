@@ -48,6 +48,7 @@ internal sealed class ReportSheetWriter : IDisposable
 {
     private readonly string _name;
     private readonly WorksheetPart _part;
+    private readonly Stream _content;
     private readonly OpenXmlWriter _writer;
     private readonly List<string> _merges = [];
     private readonly List<(string Range, string Formula)> _validations = [];
@@ -70,7 +71,8 @@ internal sealed class ReportSheetWriter : IDisposable
         _part = part;
         _options = options;
         _mapStyle = mapStyle ?? (static style => style);
-        _writer = OpenXmlPartWriter.Create(part);
+        _content = FormalWorkbookArchive.OpenWorksheetContent(part);
+        _writer = OpenXmlWriter.Create(_content);
         _writer.WriteStartDocument();
         _writer.WriteStartElement(new Worksheet());
 
@@ -196,6 +198,7 @@ internal sealed class ReportSheetWriter : IDisposable
         }
 
         _writer.Dispose();
+        _content.Dispose();
         _disposed = true;
     }
 

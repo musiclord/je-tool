@@ -52,6 +52,7 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
     private readonly CancellationToken _cancellationToken;
     private readonly FileStream _templateCopy;
     private readonly StreamingWorksheet _template;
+    private readonly Stream _content;
     private readonly XmlWriter _output;
     private XElement? _templateRow;
     private uint _lastSourceRow;
@@ -89,9 +90,8 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
             worksheetName,
             _templateCopy,
             cancellationToken);
-        _output = XmlWriter.Create(
-            templatePart.GetStream(FileMode.Create, FileAccess.Write),
-            WriterSettings());
+        _content = FormalWorkbookArchive.OpenWorksheetContent(templatePart);
+        _output = XmlWriter.Create(_content, WriterSettings());
     }
 
     internal void Start(XElement? generatedDimension, XElement? generatedColumns)
@@ -250,6 +250,7 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
             return;
         }
         _output.Dispose();
+        _content.Dispose();
         _template.Dispose();
         _templateCopy.Dispose();
         _disposed = true;

@@ -449,14 +449,15 @@ public sealed class AccountMappingTemplateExportTests
     {
         using var cancellation = new CancellationTokenSource();
         using var stream = new MemoryStream();
+        var rows = new MaximumRowsCancelingOnFirstAccess(cancellation);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             new AccountMappingTemplateWriter().WriteAsync(
                 stream,
-                new MaximumRowsCancelingOnFirstAccess(cancellation),
+                rows,
                 cancellation.Token));
 
-        Assert.True(stream.Length > 0, "合法最大列數應先進入 template copy／write path，再由測試 token 取消。");
+        Assert.True(rows.FirstRowRead, "合法最大列數不應在讀資料列之前被擋下；讀到資料列時才由測試 token 取消。");
     }
 
     // ================= (c) round-trip：產範本→填 C→匯入→account_mapping 落地 =================
@@ -735,10 +736,13 @@ public sealed class AccountMappingTemplateExportTests
     {
         public int Count => 1_048_573;
 
+        public bool FirstRowRead { get; private set; }
+
         public AccountMappingTemplateRow this[int index]
         {
             get
             {
+                FirstRowRead = true;
                 cancellation.Cancel();
                 return new AccountMappingTemplateRow(index.ToString(), null);
             }

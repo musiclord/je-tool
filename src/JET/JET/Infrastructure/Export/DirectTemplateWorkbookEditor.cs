@@ -759,7 +759,7 @@ internal static class DirectTemplateWorksheetRewriter
             CloseOutput = false
         };
 
-        using var target = part.GetStream(FileMode.Create, FileAccess.Write);
+        using var target = FormalWorkbookArchive.OpenWorksheetContent(part);
         using var reader = XmlReader.Create(sourceCopy, readerSettings);
         using var writer = XmlWriter.Create(target, writerSettings);
         try

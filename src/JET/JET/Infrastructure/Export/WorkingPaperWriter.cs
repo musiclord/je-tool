@@ -653,6 +653,7 @@ public sealed partial class WorkingPaperWriter(
     {
         private readonly string _name;
         private readonly WorksheetPart? _part;
+        private readonly Stream? _content;
         private readonly OpenXmlWriter? _writer;
         private readonly DirectTemplateWorksheetOverlayWriter? _overlay;
         private readonly WorkbookStyleMap _styles;
@@ -717,7 +718,8 @@ public sealed partial class WorkingPaperWriter(
             _pageSetupRelationshipId = pageSetupRelationshipId;
             if (part is not null && overlay is null)
             {
-                _writer = OpenXmlPartWriter.Create(part);
+                _content = FormalWorkbookArchive.OpenWorksheetContent(part);
+                _writer = OpenXmlWriter.Create(_content);
                 _writer.WriteStartDocument();
                 _writer.WriteStartElement(new Worksheet());
             }
@@ -1054,6 +1056,7 @@ public sealed partial class WorkingPaperWriter(
                 CloseElements();
             }
             _writer?.Dispose();
+            _content?.Dispose();
             _overlay?.Dispose();
             _disposed = true;
         }

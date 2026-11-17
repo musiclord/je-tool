@@ -12,6 +12,7 @@ internal static class ProjectWorkFileWriter
 
     public static async Task<WriteResult> WriteAsync(
         IProjectExportLocator projectLocator,
+        IExportOutputFiles outputFiles,
         string projectId,
         string fileName,
         Func<Stream, CancellationToken, Task> writeAsync,
@@ -20,6 +21,7 @@ internal static class ProjectWorkFileWriter
         bool onlyIfMissing = false)
     {
         ArgumentNullException.ThrowIfNull(projectLocator);
+        ArgumentNullException.ThrowIfNull(outputFiles);
         ArgumentNullException.ThrowIfNull(writeAsync);
         if (string.IsNullOrWhiteSpace(fileName)
             || !string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal))
@@ -53,18 +55,20 @@ internal static class ProjectWorkFileWriter
         try
         {
             SupportOperationStage.Enter("work_file_write");
-            await using (var stream = new FileStream(
-                temporaryPath,
-                FileMode.CreateNew,
-                FileAccess.ReadWrite,
-                FileShare.None,
-                bufferSize: 128 * 1024,
-                FileOptions.Asynchronous))
+            var stream = outputFiles.CreateNew(temporaryPath, FileOptions.Asynchronous);
+            try
             {
                 await writeAsync(stream, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                stream.Flush(flushToDisk: true);
+                stream.FlushToDisk();
             }
+            catch
+            {
+                await stream.CloseAfterFailedWriteAsync().ConfigureAwait(false);
+                throw;
+            }
+
+            await stream.DisposeAsync().ConfigureAwait(false);
 
             publishing?.Invoke();
             cancellationToken.ThrowIfCancellationRequested();

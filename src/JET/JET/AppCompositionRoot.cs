@@ -242,7 +242,7 @@ public static partial class AppCompositionRoot
             new ExportCriteriaSelectionReportHandler(projectStore, session, events),
             // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。
             new ExportAccountMappingTemplateHandler(
-                accountMappingTemplateWriter, projectStore, folder, session, events),
+                accountMappingTemplateWriter, projectStore, folder, new LocalExportOutputFiles(), session, events),
             new LogAppendHandler(session),
             new LogRecentHandler(session),
             new SupportLogExportHandler(

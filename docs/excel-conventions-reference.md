@@ -171,7 +171,7 @@ JET 與範本寫出的公式：沒有任何儲存格公式。只有資料驗證�
 
 ## JET 的 Excel 操作
 
-共 40 種：讀取 13 種，寫出 27 種。理由欄寫程式註解、`jet-guide.md` 或裁定裡寫的原因，沒寫的標「未寫」。
+共 41 種：讀取 13 種，寫出 28 種。理由欄寫程式註解、`jet-guide.md` 或裁定裡寫的原因，沒寫的標「未寫」。
 
 | 操作 | 位置 | 理由 |
 |:---|:---|:---|
@@ -189,22 +189,22 @@ JET 與範本寫出的公式：沒有任何儲存格公式。只有資料驗證�
 | 由底稿匯入欄位 | `FileIO/OpenXmlMappingMetadataReader.cs` | 帶入第三步的欄位配對 |
 | 讀 JET 中繼資料 | `Export/ReportWorkbookMetadataCodec.cs` | 同上 |
 | 寫文字格子與跳脫 | `Export/ExcelText.cs` 第 18 到 136 行、第 266 到 304 行 | 來源含控制字元也能產生報告（裁定 2026-10-21-10）；超過每格上限的文字寫到上限並註明，匯出不失敗 |
-| 寫數值格子 | `Export/ReportSheetWriter.cs` 第 163 行、`Export/WorkingPaperWriter.cs` 第 980 行 | 未寫 |
+| 寫數值格子 | `Export/ReportSheetWriter.cs` 第 165 行、`Export/WorkingPaperWriter.cs` 第 982 行 | 未寫 |
 | 日期寫成文字 | 例如 `Export/LegacyReportWriter.Validation.cs` 第 274 行 | 裁定 2026-11-16-07 |
 | 日期與時間寫成序列值 | `Export/WorkingPaperWriter.Step2To41.cs` 第 912 到 953 行、第 1689 到 1711 行 | 未寫 |
 | 布林寫成 1 或 0 | 同檔第 871 到 878 行 | 舊版明細是數值 1 或 0 |
 | 建樣式表 | `Export/LegacyReportStyles.cs`、`Export/WorkingPaperStyles.cs`、`Export/FormalFieldInfoAppearance.cs` | 照舊版 JET 的樣式 |
-| 修補範本樣式與數字格式 | `Export/ReportTemplatePackage.cs` 第 347 到 432 行、第 539 行起 | 同一組修改只追加一次，數量有上限 |
+| 修補範本樣式與數字格式 | `Export/ReportTemplatePackage.cs` 第 346 到 431 行、第 538 行起 | 同一組修改只追加一次，數量有上限 |
 | 鎖定與不鎖定樣式 | `Export/DirectTemplateWorkbookEditor.cs` 第 79 到 88 行 | 照舊版的鎖定範圍 |
-| 統一字型 | `Export/FormalWorkbookTypography.cs` 第 34 到 79 行 | 未寫 |
+| 統一字型 | `Export/FormalWorkbookTypography.cs` 第 36 到 66 行 | 未寫 |
 | 估算欄寬 | `Export/ExcelDisplayWidth.cs` | Open XML 不能執行 AutoFit，照舊版用最寬的內容 |
-| 設定列高 | `Export/FormalWorkbookTypography.cs` 第 15 到 32 行 | 微軟正黑體比 Arial 高（裁定 2026-10-29-08）；最高到 Excel 的列高上限 409 點 |
-| 工作表視圖與凍結窗格 | `Export/ReportSheetWriter.cs` 第 353 到 389 行、`Export/WorkingPaperWriter.cs` 第 1326 到 1346 行 | 避免高 DPI 的 Excel 把列高折半 |
-| 合併儲存格 | `Export/ReportSheetWriter.cs` 第 295 到 304 行、`Export/WorkingPaperWriter.cs` 第 1226 行 | 未寫 |
+| 設定列高 | `Export/FormalWorkbookTypography.cs` 第 17 到 34 行 | 微軟正黑體比 Arial 高（裁定 2026-10-29-08）；最高到 Excel 的列高上限 409 點 |
+| 工作表視圖與凍結窗格 | `Export/ReportSheetWriter.cs` 第 356 到 392 行、`Export/WorkingPaperWriter.cs` 第 1329 到 1349 行 | 避免高 DPI 的 Excel 把列高折半 |
+| 合併儲存格 | `Export/ReportSheetWriter.cs` 第 298 到 307 行、`Export/WorkingPaperWriter.cs` 第 1229 行 | 未寫 |
 | 資料驗證清單 | `Export/AccountMappingTemplateWriter.cs` 第 303 到 307 行、`Export/LegacyReportWriter.Inf.cs` 第 356 到 365 行 | 裁定 2026-11-09-13、2026-11-12-34 |
-| 延伸資料驗證範圍 | `Export/ReportSheetWriter.cs` 第 208 到 234 行的 `ExtendSqref` | 只延伸結束列是範本最後一列的範圍 |
+| 延伸資料驗證範圍 | `Export/ReportSheetWriter.cs` 第 211 到 237 行的 `ExtendSqref` | 只延伸結束列是範本最後一列的範圍 |
 | 工作表保護 | 規範文末「重複的寫法與常數」列的五處 | 照舊版的範圍（裁定 2026-11-09-14） |
-| 頁面設定 | `Export/ReportSheetWriter.cs` 第 325 到 352 行、`Export/WorkingPaperWriter.cs` 第 1265 行 | 未寫 |
+| 頁面設定 | `Export/ReportSheetWriter.cs` 第 328 到 355 行、`Export/WorkingPaperWriter.cs` 第 1268 行 | 未寫 |
 | 工作表與續頁命名 | `Export/ExcelWorksheetConstraints.cs` 第 41 到 70 行、`Export/LegacyReportWriter.cs` 第 570 到 579 行 | 未寫 |
 | 列欄上限與換頁 | `Export/ExcelWorksheetConstraints.cs` 第 11 到 39 行、第 73 到 109 行 | 不寫出超過上限的列號或欄號 |
 | 超長條件說明切段 | `Export/FilterConditionExcelText.cs` | 保留完整文字 |
@@ -214,4 +214,5 @@ JET 與範本寫出的公式：沒有任何儲存格公式。只有資料驗證�
 | 對齊定義名稱 | `Export/WorkingPaperWriter.Template.cs` 第 551 到 636 行 | 未寫 |
 | 寫隱藏的中繼資料工作表 | `Export/ReportWorkbookMetadataCodec.cs` 第 189 行 | 供第三步由底稿匯入欄位 |
 | 串流寫出到暫存檔再改名 | `Export/ReportSheetWriter.cs`；`jet-guide.md` 第 7 節「檔案、發布與版本」 | 產生大型工作簿 |
+| 工作表內容直接壓縮進輸出檔 | `Export/FormalWorkbookArchive.cs`、`Export/ReportTemplatePackage.cs` 的 `FillDirectCoreAsync` | OpenXML SDK 的可寫活頁簿把改過的項目整份留在記憶體，單一項目到約 2 GB 就失敗 |
 | 寫入失敗時記下位置 | `Export/ExcelText.cs` 第 183 到 217 行 | 只記位置與碼位，不記文字 |

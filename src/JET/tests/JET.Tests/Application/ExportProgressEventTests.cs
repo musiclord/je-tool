@@ -26,12 +26,13 @@ public sealed class ExportProgressEventTests
     [Fact]
     public void AccountMappingHandler_WritesWorkFileThroughProjectLocatorNotReportStore()
     {
-        // 範本是工作檔：handler 只拿案件資料夾定位器，不依賴報告 store。
+        // 範本是工作檔：handler 只拿案件資料夾定位器與建立輸出檔的埠，不依賴報告 store。
         Assert.NotNull(typeof(ExportAccountMappingTemplateHandler).GetConstructor(
         [
             typeof(IAccountMappingTemplateWriter),
             typeof(IProjectStore),
             typeof(IProjectExportLocator),
+            typeof(IExportOutputFiles),
             typeof(ProjectSession),
             typeof(IJetEventPublisher)
         ]));

@@ -74,8 +74,10 @@ internal static class AuthorizedPreparerMetadataSql
         }
 
         // 名單人員只計一次；只比對 GL，不算 GL(未納入測試) 的建立人員；GL 僅在資料庫內比對，不把大量識別值帶回記憶體。
+        // 先在資料庫內取出不重複的建立人員，再去空白、轉大寫：GL 有幾百萬列時建立人員通常只有幾百種寫法，
+        // 轉大寫的函式由 .NET 提供，逐列轉換會多出幾百萬次呼叫。同一個寫法轉出的結果相同，比對結果不變。
         var personKey = dialect.Upper(dialect.Trim("ap.name"));
-        var preparerKey = dialect.Upper(dialect.Trim("g.created_by"));
+        var preparerKey = dialect.Upper(dialect.Trim("d.created_by"));
         const string count = "COUNT";
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -84,8 +86,10 @@ internal static class AuthorizedPreparerMetadataSql
             FROM {prefix}authorized_preparer ap
             WHERE {personKey} IN (
                 SELECT {preparerKey}
-                FROM {prefix}gl g
-                WHERE {GlExcludedPopulation.SqlPredicate("g")} AND g.created_by IS NOT NULL);
+                FROM (
+                    SELECT DISTINCT g.created_by
+                    FROM {prefix}gl g
+                    WHERE {GlExcludedPopulation.SqlPredicate("g")} AND g.created_by IS NOT NULL) d);
             """;
         var result = await command.ExecuteScalarAsync(ct);
         return result is null or DBNull ? 0L : Convert.ToInt64(result, CultureInfo.InvariantCulture);

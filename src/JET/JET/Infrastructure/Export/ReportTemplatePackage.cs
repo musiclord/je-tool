@@ -182,40 +182,48 @@ internal static class ReportTemplatePackage
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(allowedWorksheetNames);
         ArgumentNullException.ThrowIfNull(fill);
+        if (!output.CanWrite || !output.CanSeek)
+        {
+            throw new JetActionException(
+                JetErrorCodes.FileReadError,
+                "正式報表的輸出需要可寫且可定位的 staging stream。");
+        }
 
-        await catalog.CopyToAsync(templateName, output, cancellationToken).ConfigureAwait(false);
+        // 範本先複製到記憶體裡的小活頁簿，樣式、workbook 與摘要頁這些小的修改都在這裡做；
+        // 工作表內容由 FormalWorkbookArchive 直接壓縮進 output，最後再把小活頁簿其餘的項目複製過去。
+        await using var workbook = new MemoryStream();
+        await catalog.CopyToAsync(templateName, workbook, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         try
         {
             IReadOnlyList<SheetStat> sheetStats;
             IReadOnlyList<TruncatedTextCells> truncatedCells;
+            // 輸出從頭寫起，原本的內容整份清掉，不留在檔尾。
+            output.Position = 0;
+            output.SetLength(0);
+            // 失敗或取消時不寫完壓縮檔：output 寫到一半就丟掉，沒有必要再寫目錄。
+            var archive = new FormalWorkbookArchive(output);
             using (var target = SpreadsheetDocument.Open(
-                       output,
+                       workbook,
                        true,
                        new OpenSettings { AutoSave = false }))
             {
                 ValidateWorkbook(target, templateName);
+                archive.Attach(target);
                 var editor = new DirectTemplateWorkbookEditor(target, allowedWorksheetNames);
                 sheetStats = await fill(editor, cancellationToken).ConfigureAwait(false);
                 editor.EnsureAllAllowedWorksheetsWereRewritten();
                 cancellationToken.ThrowIfCancellationRequested();
+                // 統一字型只改樣式表與共用字串表，寫出的程式也是透過同一份物件改它們，
+                // 所以在同一次開啟裡做，不必關閉後重開，也不會碰到剛寫完的明細工作表。
+                FormalWorkbookTypography.Normalize(target);
                 // 截斷格數記在這次開啟的工作表物件上，關閉活頁簿後就讀不到，所以在這裡先收齊。
                 truncatedCells = TruncatedCellsBySheet(target);
-            }
-
-            // 前面逐列寫出的程式已經用更新模式開過被改寫的工作表。統一字型時要載入每一張工作表，
-            // 而封裝 API 不允許在同一次開啟裡把同一個項目開兩次，所以先關閉活頁簿，再重新開啟一次。
-            using (var target = SpreadsheetDocument.Open(
-                       output,
-                       true,
-                       new OpenSettings { AutoSave = false }))
-            {
-                ValidateWorkbook(target, templateName);
-                FormalWorkbookTypography.Normalize(target);
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
+            archive.Complete(workbook, cancellationToken);
             output.Flush();
             return new ExportStats(output.Length, sheetStats) { TruncatedCellsBySheet = truncatedCells };
         }
@@ -226,6 +234,12 @@ internal static class ReportTemplatePackage
         catch (JetActionException)
         {
             throw;
+        }
+        catch (Exception exception) when (ExportFileWriteErrors.TryTranslateTemporaryFolder(exception) is { } writeFailure)
+        {
+            // 正式匯出的輸出檔是 ExportOutputStream，它的磁碟已滿與沒有權限已經轉成案件資料夾的 JetActionException，從上一段原樣丟出；
+            // 範本也已經複製到記憶體。這裡剩下的磁碟已滿與沒有權限，來自寫出程式放在 Windows 暫存資料夾裡的暫存檔。
+            throw writeFailure;
         }
         catch (Exception exception) when (exception is IOException
                                            or UnauthorizedAccessException

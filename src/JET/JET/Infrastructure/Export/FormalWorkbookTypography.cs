@@ -7,6 +7,8 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 六份正式輸出寫完後共用的字型整理：把活頁簿裡每一個字型的名稱改成微軟正黑體，並拿掉佈景主題字型的設定。
 /// 固定範本與照舊版 JET 做出來的樣式，字級、粗體與顏色都照原樣，只有字型名稱統一。
+/// 字型只寫在樣式表與共用字串表的格式文字裡；工作表的儲存格只引用樣式編號，文字是純文字，
+/// 所以整理字型不用打開工作表，明細有幾百萬列也不會整張載入記憶體。
 /// </summary>
 internal static class FormalWorkbookTypography
 {
@@ -60,21 +62,6 @@ internal static class FormalWorkbookTypography
             {
                 sharedStrings.Save();
             }
-        }
-
-        foreach (var worksheetPart in workbookPart.WorksheetParts)
-        {
-            var runFonts = worksheetPart.RequiredWorksheet().Descendants<RunFont>().ToArray();
-            if (runFonts.Length == 0)
-            {
-                continue;
-            }
-
-            foreach (var runFont in runFonts)
-            {
-                runFont.Val = CanonicalFontName;
-            }
-            ExcelText.SaveWorksheet(worksheetPart);
         }
     }
 }

@@ -48,6 +48,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ProjectReportStore> _logger;
     private readonly Action<string, string, bool> _moveFile;
+    private static readonly LocalExportOutputFiles OutputFiles = new();
 
     public ProjectReportStore(
         JetProjectFolder folder,
@@ -359,6 +360,8 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
                 }
 
                 if (exception is not IOException and not UnauthorizedAccessException) throw;
+                // 備份同名舊檔與寫報告清單索引都要再占空間；磁碟已滿時關閉 Excel 或取消唯讀都沒有用。
+                if (ExportFileWriteErrors.IsDiskFull(exception)) throw ExportFileWriteErrors.DiskFull(exception);
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
                     "報告檔無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再重新匯出。",
@@ -591,12 +594,10 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken).ConfigureAwait(false);
             }
-            catch (UnauthorizedAccessException exception)
+            catch (Exception exception) when (ExportFileWriteErrors.TryTranslateCaseLocation(exception) is { } lockFailure)
             {
-                throw new JetActionException(
-                    JetErrorCodes.FileReadError,
-                    "無法寫入案件位置，本次報告未產生。請確認案件資料夾的寫入權限後再試一次。",
-                    innerException: exception);
+                // 鎖檔在案件位置的根目錄、案件資料夾旁邊，所以訊息指向案件位置。
+                throw lockFailure;
             }
         }
     }
@@ -612,16 +613,22 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
         ReportContentWriter writer,
         CancellationToken cancellationToken)
     {
-        await using var output = new FileStream(
+        var output = OutputFiles.CreateNew(
             temporaryPath,
-            FileMode.CreateNew,
-            FileAccess.ReadWrite,
-            FileShare.None,
-            bufferSize: 128 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await writer(output, cancellationToken).ConfigureAwait(false);
-        await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-        output.Flush(flushToDisk: true);
+        try
+        {
+            await writer(output, cancellationToken).ConfigureAwait(false);
+            await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+            output.FlushToDisk();
+        }
+        catch
+        {
+            await output.CloseAfterFailedWriteAsync().ConfigureAwait(false);
+            throw;
+        }
+
+        await output.DisposeAsync().ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<Report>> ReadManifestAsync(

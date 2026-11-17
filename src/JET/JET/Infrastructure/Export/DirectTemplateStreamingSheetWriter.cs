@@ -14,6 +14,7 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
 {
     private readonly string _name;
     private readonly WorksheetPart _part;
+    private readonly Stream _content;
     private readonly OpenXmlWriter _writer;
     private readonly IReadOnlyList<OpenXmlElement> _afterSheetData;
     private readonly bool _ensureProtection;
@@ -65,7 +66,8 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
             .Select(element => element.CloneNode(true))
             .ToArray();
 
-        _writer = OpenXmlPartWriter.Create(part);
+        _content = FormalWorkbookArchive.OpenWorksheetContent(part);
+        _writer = OpenXmlWriter.Create(_content);
         _writer.WriteStartDocument();
         _writer.WriteStartElement(new Worksheet());
         foreach (var element in before)
@@ -147,15 +149,18 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
         }
 
         // 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因。
+        // 關閉時寫結束標記也可能失敗，例如輸出檔所在磁碟剛好滿了；所以開始寫之前就記成已關閉，
+        // 呼叫端在 finally 再 Dispose 一次時不會重寫，往外丟的仍是第一次的錯誤。
         if (!_closed && !_faulted)
         {
+            _closed = true;
             _writer.WriteEndElement();
             WriteElementsAfterSheetData();
             _writer.WriteEndElement();
-            _closed = true;
         }
 
         _writer.Dispose();
+        _content.Dispose();
         _disposed = true;
     }
 
