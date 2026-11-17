@@ -2,7 +2,7 @@ using System.Text;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     /// <summary>
     /// 工作表的欄寬定義必須寫在 sheetData 前面，但欄寬要讀完全部資料才知道，而資料只從 repository 讀一次。

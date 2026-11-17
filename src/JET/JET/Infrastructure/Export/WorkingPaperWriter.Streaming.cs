@@ -5,7 +5,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class WorkingPaperWriter
+internal sealed partial class WorkingPaperWriter
 {
     /// <summary>
     /// 可能超過 Excel 列上限的資料表共用續頁骨架。每頁重建固定表頭與欄標；普通規模只建立正準 sheet 名，

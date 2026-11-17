@@ -2456,6 +2456,44 @@
             "items": "string"
           },
           "batchId": "string",
+          "dateNotices": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "count": "number",
+                "field": "string",
+                "handling": "string",
+                "kind": "string",
+                "label": "string",
+                "omittedValueRowCount": "number",
+                "sourceColumn": "string",
+                "values": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "fields": {
+                      "count": "number",
+                      "markLength": "number",
+                      "markStart": "number",
+                      "problem": "null|string",
+                      "rows": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "row": "number",
+                            "source": "null|string"
+                          }
+                        }
+                      },
+                      "value": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "fillDownCount": "number",
           "fillDownFields": {
             "kind": "array",
@@ -4515,6 +4553,7 @@
               "glDateMax",
               "glDateMin",
               "postingStatusCount",
+              "unrecognizedGlDateCount",
               "voucherCount"
             ],
             "fields": {
@@ -4526,6 +4565,7 @@
               "glDateMax": "string",
               "glDateMin": "string",
               "postingStatusCount": "number",
+              "unrecognizedGlDateCount": "number",
               "voucherCount": "number"
             }
           },
@@ -4779,6 +4819,7 @@
               }
             }
           },
+          "conditionSql": "null|string",
           "conditionText": "string",
           "countsWholeVoucherRows": "boolean",
           "nextCursor": "null|string",
@@ -4972,6 +5013,7 @@
               }
             }
           },
+          "conditionSql": "null",
           "conditionText": "string",
           "nextCursor": "null|string",
           "queryRevision": "string",

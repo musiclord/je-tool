@@ -7,7 +7,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class WorkingPaperWriter
+internal sealed partial class WorkingPaperWriter
 {
     // ================= step1 家族 emitter =================
 
@@ -18,17 +18,13 @@ public sealed partial class WorkingPaperWriter
     private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessAccounts(
         WorkingPaperContext context,
         CancellationToken cancellationToken) =>
-        completenessAccounts is ICompletenessAccountStreamRepository rows
-            ? rows.StreamAsync(context.ProjectId, cancellationToken)
-            : throw new InvalidOperationException("WorkingPaper step1 完整性全科目串流未設定。");
+        completenessAccounts.StreamAsync(context.ProjectId, cancellationToken);
 
     /// <summary>差異表用一個查詢依序讀完，做法和 <see cref="StreamCompletenessAccounts"/> 相同。</summary>
     private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessDifferences(
         WorkingPaperContext context,
         CancellationToken cancellationToken) =>
-        completenessDiffs is ICompletenessDiffStreamRepository rows
-            ? rows.StreamAsync(context.ProjectId, cancellationToken)
-            : throw new InvalidOperationException("WorkingPaper step1-3 完整性差異串流未設定。");
+        completenessDiffs.StreamAsync(context.ProjectId, cancellationToken);
 
     /// <summary>
     /// 「step1 完整性測試」:A1-A4 共同表頭 + Step1 程序固定文字 + 結論 + 第 19 列欄標 +
@@ -39,18 +35,12 @@ public sealed partial class WorkingPaperWriter
     private async Task EmitStep1Async(
         WorkingPaperWriteSession session, List<SheetStat> stats,
         WorkingPaperContext context, WorkingPaperSheetPlan? sheetPlan,
-        bool? hasCompletenessDifferences,
+        bool hasCompletenessDifferences,
         CancellationToken cancellationToken,
         Action<WorkingPaperProgress>? progress)
     {
-        var applyDifferenceAppearance = hasCompletenessDifferences
-            ?? (await completenessDiffs.GetPageAsync(
-                context.ProjectId,
-                context.MoneyScale,
-                context.PeriodStart,
-                context.PeriodEnd,
-                new PageRequest(Cursor: null, PageSize: 1),
-                cancellationToken)).Rows.Count > 0;
+        // 有沒有差異由底稿計畫決定，和 step1-3 要不要寫出是同一個判斷。
+        var applyDifferenceAppearance = hasCompletenessDifferences;
         using var spool = WorkingPaperDisplaySpool.Create(
             [
                 "試算表科目\n編號",

@@ -205,8 +205,39 @@ public sealed class DateNormalizerTests
         Assert.Null(isoDate);
     }
 
-    // 讀取器對超出 1900 到 2100 年的日期型儲存格，交給投影帶小數點的序列文字；它是純數字，所以拒絕，
-    // 投影報「無法辨識為日期」並寫出列號（工作流程見 ExcelNativeDateImportTests）。
+    // 無法辨識的日期要標出哪一段有問題：月或日不存在時標月或日，其他情形標整個值。位置都是手算的。
+    [Theory]
+    [InlineData("2025/13/05", DateProblemKind.NoSuchDate, 5, 2)]   // 沒有 13 月
+    [InlineData("2025-02-30", DateProblemKind.NoSuchDate, 8, 2)]   // 2 月沒有 30 日
+    [InlineData("2025.4.31", DateProblemKind.NoSuchDate, 7, 2)]    // 4 月沒有 31 日
+    [InlineData("20251340", DateProblemKind.NoSuchDate, 4, 2)]     // 八位數寫法的 13 月
+    [InlineData("20250199", DateProblemKind.NoSuchDate, 6, 2)]     // 八位數寫法的 99 日
+    [InlineData("45292", DateProblemKind.Number, 0, 5)]
+    [InlineData("2025.12", DateProblemKind.Number, 0, 7)]
+    [InlineData("-5.0", DateProblemKind.Number, 0, 4)]
+    [InlineData("05/01/25", DateProblemKind.AmbiguousOrder, 0, 8)]
+    [InlineData("31/12/2025", DateProblemKind.AmbiguousOrder, 0, 10)]
+    [InlineData("not-a-date", DateProblemKind.NotDate, 0, 10)]
+    [InlineData("  2025/13/05  ", DateProblemKind.NoSuchDate, 5, 2)]  // 位置照去掉頭尾空白後的原文算
+    public void DescribeUnrecognized_MarksThePartThatIsWrong(string raw, DateProblemKind kind, int start, int length)
+    {
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out _));
+
+        Assert.Equal(new DateProblem(kind, start, length), DateNormalizer.DescribeUnrecognized(raw));
+    }
+
+    [Theory]
+    [InlineData("1899-12-31", true)]
+    [InlineData("1900-01-01", false)]
+    [InlineData("2100-12-31", false)]
+    [InlineData("2101-01-01", true)]
+    [InlineData("9999-12-31", true)]
+    [InlineData("0114-06-11", true)]
+    public void HasUnusualYear_IsTrueOutside1900Through2100(string isoDate, bool expected) =>
+        Assert.Equal(expected, DateNormalizer.HasUnusualYear(isoDate));
+
+    // 讀取器對換算不出日期的日期型儲存格，交給投影帶小數點的序列文字；它是純數字，所以讀不成日期，
+    // 確認配對時列為無法辨識的日期（工作流程見 ExcelNativeDateImportTests）。
     [Theory]
     [InlineData(73416d, "73416.0")]       // 2101-01-01
     [InlineData(1140611d, "1140611.0")]   // 小數點讓它不會被讀成民國 114 年 6 月 11 日

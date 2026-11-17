@@ -8,7 +8,7 @@ namespace JET.Tests.Architecture;
 /// 完成句與失敗句的寫法、耗時、最後進度、複製最近 100 則與取消時記下的進度，
 /// 由前端測試核對。
 /// </summary>
-public sealed class OperationLogFrontendTests
+public sealed class MessageLogFrontendTests
 {
     [Fact]
     public void WorkflowLongOperations_ExplicitlyOptIntoOneCompletionSummary()

@@ -21,11 +21,12 @@ public sealed class ValidationRunLoggingTests
     // v2 INF PRF 是 SQLite 方言渲染後的 SQL，所以 command-sequence digest 跟著實際執行的 SQL 文字走；SQL 文字改變時 digest 要依新 SQL 更新。
     // 驗證規則與 INF 只讀 GL 的分錄；原始統計、存入筆數與合計核對，以及總帳日期空白的檢查不受這個範圍限制。
     // 空白紀錄述詞的去空白走 SQLite 方言的 Trim（字元集合和 .NET 相同）。
-    // 第 1 條命令的日期不符筆數是三種日期原因的合計，原因清單由 GlExcludedPopulation.ExcludedByPeriodSqlPredicate 產生並嵌入 SQL。
+    // 第 1 條命令的日期不符筆數是四種日期原因的合計，原因清單由 GlExcludedPopulation.ExcludedByPeriodSqlPredicate 產生並嵌入 SQL。
+    // 第 9 條命令數總帳日期空白的列，不含來源有內容卻讀不成日期的列。
     // 核准日空白照舊版也算成不在期間；這個情境有配對核准日，所以沒有出現核准日不可用時的 `(1 = 0)`。
     // 第 10 條命令的空值明細在旗標後面多讀傳票核准日 `, approval_date`。
     // 第 12 條命令是傳票號碼跨日重用的檢查，「不是空白」的片段走 AuditCore 的 SqlBlankText。
-    private const string SqliteSnapshotDigest = "0767C4965E9B63A077A4A2FE1CBA080C4933B3240C49BBD2CAB1CEBB35E8E122";
+    private const string SqliteSnapshotDigest = "2A953F50151DBCCD698948F0CEA56B618AC2623BEB0874F613CE9608EB99623A";
 
     // 只填 NOT NULL + 少數欄，entry_id 為自增。
     private static string SeedThreeGlRows(string schemaPrefix = "") =>

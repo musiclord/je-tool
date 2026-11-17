@@ -20,8 +20,21 @@ public sealed record FilterVoucherDetail(long EntryId, string VoucherNumber, str
 public sealed record FilterVoucherPage(IReadOnlyList<FilterVoucherSummary> Vouchers,
     IReadOnlyList<FilterVoucherDetail> Details, string? NextKey, long? TotalCount = null);
 
+/// <summary>
+/// 情境選出命中分錄時實際送進資料庫的條件：從 FROM 起的查詢文字，以及依序綁定的參數值。
+/// </summary>
+public sealed record FilterConditionSql(string Sql, IReadOnlyList<FilterConditionSqlParameter> Parameters);
+
+/// <summary>條件裡的一個參數：查詢文字裡的名稱與綁定的值。</summary>
+public sealed record FilterConditionSqlParameter(string Name, object Value);
+
 public interface IFilterVoucherRepository
 {
+    /// <summary>
+    /// 這個情境選出命中分錄的條件。只組出文字與參數，不讀資料庫；母體條件與情境條件和儲存命中時用的是同一份。
+    /// </summary>
+    FilterConditionSql BuildConditionSql(FilterScenarioSpec scenario, FilterConditionContext context);
+
     Task<string> ReadRevisionAsync(string projectId, CancellationToken ct);
 
     /// <param name="countWholeVoucherRows">

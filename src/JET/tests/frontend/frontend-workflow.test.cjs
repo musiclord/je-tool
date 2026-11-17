@@ -1428,6 +1428,32 @@ test('paged sorting and search retry the exact failed request without discarding
   assert.deepEqual(f.rows, ['matched']); assert.equal(f.input.value, 'JV'); assert.equal(f.more.disabled, true);
 });
 
+// 後端回 stale_result 表示手上的接續位置不能再用，原因句也請審計員從第一頁重新載入：
+// 「重新載入」改讀第一頁，排序與搜尋照舊。其他原因的失敗照樣重送失敗的那一頁。
+test('a later page that can no longer continue reloads from the first page with the same sort and search', async () => {
+  const f = pagedReadFixture(); f.start();
+  f.requests[0].resolve({ rows: ['initial'], nextCursor: 'cursor-1' }); await settle();
+  f.table.fire('click', { target: f.sort });
+  f.requests[1].resolve({ rows: ['sorted'], nextCursor: 'sorted-cursor' }); await settle();
+  f.more.fire('click');
+  assert.equal(f.requests[2].cursor, 'sorted-cursor');
+  f.requests[2].reject(Object.assign(new Error('資料或情境已變更，請從第一頁重新載入，不能接續先前的結果。'), { code: 'stale_result' })); await settle();
+  assert.deepEqual(f.rows, ['sorted'], 'the rows on screen stay until the reload succeeds');
+  f.retry.fire('click');
+  assert.equal(f.requests[3].cursor, null, 'the reload asks for the first page');
+  assert.deepEqual(JSON.parse(JSON.stringify(f.requests[3].sort)), { key: 'amount', direction: 'asc' });
+  f.requests[3].resolve({ rows: ['fresh'], nextCursor: 'fresh-cursor', totalCount: 401 }); await settle();
+  assert.deepEqual(f.rows, ['fresh']);
+  assert.equal(f.position.textContent, '1/3');
+  assert.equal(f.previous.disabled, true);
+
+  f.more.fire('click');
+  assert.equal(f.requests[4].cursor, 'fresh-cursor');
+  f.requests[4].reject(new Error('synthetic failed page')); await settle();
+  f.retry.fire('click');
+  assert.equal(f.requests[5].cursor, 'fresh-cursor', 'any other failure resends the page that failed');
+});
+
 test('a synchronous page failure restores the controls, and the validation step uses no whole-page read helper', async () => {
   const f = pagedReadFixture({ throwSync: true }); f.start(); await settle();
   assert.equal(f.retry.disabled, false); assert.deepEqual(f.rows, ['existing']);
@@ -2208,6 +2234,9 @@ test('picking files continues after one fails, offers an encoding retry in place
   let page = w.render();
   assert.match(page.html(), /bad\.txt/, 'the failed source stays in the list');
   assert.match(page.html(), /good\.csv/, 'the later source is still inspected');
+  // 每一列的「移除」報讀時念出是哪一個來源，寫法和「刪除案件 名稱」「移除日期 日期」相同。
+  assert.match(page.html(), /data-action="pending-remove" data-index="0" aria-label="移除來源 bad\.txt"/);
+  assert.match(page.html(), /data-action="pending-remove" data-index="1" aria-label="移除來源 good\.csv"/);
   assert.match(page.html(), /synthetic decode failure/);
   assert.match(page.html(), /開始匯入（1 個來源）/);
   assert.match(page.html(), /data-pending-bind="include" data-index="0"[^>]*disabled/, 'a source that could not be read cannot be sent');
@@ -3043,19 +3072,35 @@ function filterEditorsFixture() {
   return { window, store, ui, api, editor, text: html => html.replace(/<[^>]+>/g, '') };
 }
 
-test('list editors split the accepted separators without splitting literal text lists or money grouping commas', () => {
+// 文字欄位的值清單不分比較方式都用同一套分隔；金額清單一行一個，千分位逗號不拆。
+test('text list editors split the accepted separators for every comparison without splitting money grouping commas', () => {
   const f = filterEditorsFixture(), values = f.ui.FilterValues;
-  for (const field of ['description', 'createdBy', 'approvedBy', 'accountNumber']) {
-    const rule = { type: 'fieldValue', field, operator: field === 'description' ? 'contains' : 'in', values: [] };
+  for (const [field, operator] of [['description', 'contains'], ['description', 'in'], ['description', 'notIn'], ['voucherNumber', 'in'],
+    ['createdBy', 'in'], ['approvedBy', 'in'], ['accountNumber', 'in']]) {
+    const rule = { type: 'fieldValue', field, operator, values: [] };
     const page = f.editor(rule); page.input('values', '001,002，003、004\t005\n006');
-    assert.deepEqual(plain(values.wire(rule, f.store.getState()).values), ['001', '002', '003', '004', '005', '006'], field);
+    assert.deepEqual(plain(values.wire(rule, f.store.getState()).values), ['001', '002', '003', '004', '005', '006'], field + ' ' + operator);
     assert.ok(page.changes() > 0); assert.match(page.html, /換行.*逗號.*頓號.*Tab/);
+    assert.doesNotMatch(page.html, /不會拆開/, field + ' ' + operator);
   }
-  for (const [field, text, expected] of [['description', 'Alpha,Beta\nGamma，Delta', ['Alpha,Beta', 'Gamma，Delta']], ['amount', '1,234.00\n5,678.00', ['1,234.00', '5,678.00']]]) {
-    const rule = { type: 'fieldValue', field, operator: 'in', values: [] };
-    const page = f.editor(rule); page.input('values', text);
-    assert.deepEqual(plain(values.wire(rule, f.store.getState()).values), expected);
-    assert.match(page.html, /每行一個/);
+  const amount = { type: 'fieldValue', field: 'amount', operator: 'in', values: [] };
+  const page = f.editor(amount); page.input('values', '1,234.00\n5,678.00');
+  assert.deepEqual(plain(values.wire(amount, f.store.getState()).values), ['1,234.00', '5,678.00']);
+  assert.match(page.html, /每行一個/);
+});
+
+// 完整內容相同與排除：同一行用半形逗號隔開的兩個值是兩個值。以前存下、值裡有逗號的清單照原樣顯示與送出。
+test('exact text comparisons take two comma-separated values on one line and keep saved values as stored', () => {
+  const f = filterEditorsFixture(), values = f.ui.FilterValues, state = f.store.getState();
+  for (const operator of ['in', 'notIn']) {
+    const rule = { type: 'fieldValue', field: 'description', operator, values: [] };
+    const page = f.editor(rule); page.input('values', '甲部門費用報銷,乙部門費用報銷');
+    assert.deepEqual(plain(values.wire(rule, state).values), ['甲部門費用報銷', '乙部門費用報銷'], operator);
+    assert.equal(page.dom.querySelector('[data-value-count]').textContent, '已輸入 2 個值，上限 100', operator);
+    assert.equal(values.problem(rule, state), '');
+    const saved = { type: 'fieldValue', field: 'description', operator, values: ['Alpha,Beta', 'Gamma'] };
+    assert.deepEqual(plain(values.wire(saved, state).values), ['Alpha,Beta', 'Gamma'], operator);
+    assert.match(f.editor(saved).html, />Alpha,Beta\nGamma<\/textarea>/);
   }
 });
 
@@ -3452,10 +3497,11 @@ test('excluded data stays available through the sidebar without a duplicate popu
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8'), /populationSummaryHtml|preview-excluded-entries/);
   f.ui.openDataPreview('glExcluded');
   assert.deepEqual(plain(f.requests[0].payload), { dataset: 'glExcluded', offset: 0, limit: 200 }); // glExcluded 是「GL(未納入測試)」這份資料。
-  // 「日期不符」分成三種原因，正式後端回四個計數；這裡的假資料照正式的形狀。
+  // 「日期不符」分成四種原因，正式後端回五個計數；這裡的假資料照正式的形狀。
   f.requests[0].resolve({ columns: [], rows: [], totalCount: 0,
-    stats: { blankGlDateCount: 4, beforePeriodCount: 5, afterPeriodCount: 6, postingStatusCount: 5 } }); await settle();
+    stats: { blankGlDateCount: 4, unrecognizedGlDateCount: 1, beforePeriodCount: 5, afterPeriodCount: 6, postingStatusCount: 5 } }); await settle();
   assert.match(f.previewDom.node('note').innerHTML, /過帳狀態不符/);
+  assert.equal(f.window.exposedPreview.displayCell('glExcluded', 'exclusionReason', 'unrecognizedGlDate'), '總帳日期無法辨識');
   assert.equal(f.window.exposedPreview.displayCell('glExcluded', 'exclusionReason', 'postingStatus'), '過帳狀態不符');
   const request = f.v.DETAIL_PAGE_SPECS.sourceQuality.fetchPage('cursor-2', { key: 'sourceRowNumber', direction: 'asc' }, 'JV');
   assert.deepEqual(plain(f.requests[1].payload), { cursor: 'cursor-2', pageSize: 200, sort: { key: 'sourceRowNumber', direction: 'asc' }, search: 'JV' });

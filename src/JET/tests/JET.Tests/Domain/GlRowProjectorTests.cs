@@ -254,6 +254,32 @@ public sealed class GlRowProjectorTests
         Assert.Equal(expected, projected!.GlDate);
     }
 
+    // 年份不在 1900 到 2100 年之間的日期照樣存下來，並記一筆年份不尋常，原文與存下來的日期都帶著。
+    [Fact]
+    public void DateProjection_UnusualYear_IsKeptAndReported()
+    {
+        var row = new StagingRow(14, new Dictionary<string, string>
+        {
+            ["傳票號碼"] = "X",
+            ["日期"] = "9999/12/31",
+            ["會計項目"] = "1",
+            ["項目名稱"] = "n",
+            ["摘要"] = "d",
+            ["借方金額"] = "1"
+        });
+
+        Assert.True(GlRowProjector.TryProject(row, DualSpec(), Scale, out var projected, out _));
+        Assert.Equal("9999-12-31", projected!.GlDate);
+        Assert.False(projected.GlDateUnrecognized);
+        var issue = Assert.Single(projected.DateIssues);
+        Assert.Equal(GlMappingKeys.GlDate, issue.Field);
+        Assert.Equal("總帳日期", issue.Label);
+        Assert.Equal("日期", issue.SourceColumn);
+        Assert.Equal("9999/12/31", issue.RawValue);
+        Assert.Equal(GlDateIssueKind.UnusualYear, issue.Kind);
+        Assert.Equal("9999-12-31", issue.IsoDate);
+    }
+
     [Fact]
     public void DateProjection_GarbageFails_MissingIsNull()
     {
@@ -267,11 +293,17 @@ public sealed class GlRowProjectorTests
             ["借方金額"] = "1"
         });
 
-        Assert.False(GlRowProjector.TryProject(garbage, DualSpec(), Scale, out _, out var error));
-        Assert.Equal(9, error!.SourceRowNumber);
-        Assert.Equal("日期", error.Field);
-        // 這句的用字已定案。
-        Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
+        // 讀不成日期不算這一列失敗：總帳日期記成沒有日期，並記下原文。
+        Assert.True(GlRowProjector.TryProject(garbage, DualSpec(), Scale, out var unreadable, out var error));
+        Assert.Null(error);
+        Assert.Null(unreadable!.GlDate);
+        Assert.True(unreadable.GlDateUnrecognized);
+        var issue = Assert.Single(unreadable.DateIssues);
+        Assert.Equal(GlMappingKeys.GlDate, issue.Field);
+        Assert.Equal("日期", issue.SourceColumn);
+        Assert.Equal("not-a-date", issue.RawValue);
+        Assert.Equal(GlDateIssueKind.Unrecognized, issue.Kind);
+        Assert.Null(issue.IsoDate);
 
         var missing = new StagingRow(10, new Dictionary<string, string>
         {
@@ -284,11 +316,13 @@ public sealed class GlRowProjectorTests
 
         Assert.True(GlRowProjector.TryProject(missing, DualSpec(), Scale, out var projected, out _));
         Assert.Null(projected!.GlDate);
+        Assert.False(projected.GlDateUnrecognized);
+        Assert.Empty(projected.DateIssues);
     }
 
-    // 總帳日期帶千分位時和其他無法辨識的日期相同，確認配對列出列號，不換成 1903 年。
+    // 總帳日期帶千分位時和其他無法辨識的日期相同，記成讀不成日期，不換成 1903 年。
     [Fact]
-    public void DateProjection_NumberWithThousandsSeparator_FailsWithRowNumber()
+    public void DateProjection_NumberWithThousandsSeparator_IsUnrecognized()
     {
         var row = new StagingRow(12, new Dictionary<string, string>
         {
@@ -300,20 +334,21 @@ public sealed class GlRowProjectorTests
             ["借方金額"] = "1"
         });
 
-        Assert.False(GlRowProjector.TryProject(row, DualSpec(), Scale, out _, out var error));
-        Assert.Equal(12, error!.SourceRowNumber);
-        Assert.Equal("日期", error.Field);
-        Assert.Equal("1,234", error.RawValue);
-        Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
+        Assert.True(GlRowProjector.TryProject(row, DualSpec(), Scale, out var projected, out _));
+        Assert.Null(projected!.GlDate);
+        Assert.True(projected.GlDateUnrecognized);
+        var issue = Assert.Single(projected.DateIssues);
+        Assert.Equal("日期", issue.SourceColumn);
+        Assert.Equal("1,234", issue.RawValue);
+        Assert.Equal(GlDateIssueKind.Unrecognized, issue.Kind);
     }
 
-    // 總帳日期是純數字時不當成 Excel 序列值，和其他無法辨識的日期相同，
-    // 確認配對列出列號。
+    // 總帳日期是純數字時不當成 Excel 序列值，和其他無法辨識的日期相同，記成讀不成日期。
     [Theory]
     [InlineData("2025")]     // 當成 Excel 序列值會是 1905-07-17
     [InlineData("2025.12")]  // 當成 Excel 序列值也會落在 1905 年
     [InlineData("45292")]    // 當成 Excel 序列值會是 2024-01-01
-    public void DateProjection_PlainNumber_FailsWithRowNumber(string raw)
+    public void DateProjection_PlainNumber_IsUnrecognized(string raw)
     {
         var row = new StagingRow(13, new Dictionary<string, string>
         {
@@ -325,11 +360,13 @@ public sealed class GlRowProjectorTests
             ["借方金額"] = "1"
         });
 
-        Assert.False(GlRowProjector.TryProject(row, DualSpec(), Scale, out _, out var error));
-        Assert.Equal(13, error!.SourceRowNumber);
-        Assert.Equal("日期", error.Field);
-        Assert.Equal(raw, error.RawValue);
-        Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
+        Assert.True(GlRowProjector.TryProject(row, DualSpec(), Scale, out var projected, out _));
+        Assert.Null(projected!.GlDate);
+        Assert.True(projected.GlDateUnrecognized);
+        var issue = Assert.Single(projected.DateIssues);
+        Assert.Equal("日期", issue.SourceColumn);
+        Assert.Equal(raw, issue.RawValue);
+        Assert.Equal(GlDateIssueKind.Unrecognized, issue.Kind);
     }
 
     [Fact]
@@ -489,9 +526,39 @@ public sealed class GlRowProjectorTests
             value => Assert.Equal(123_457L, value.AmountScaled));
     }
 
+    // 日期型別的攸關資料元素讀不成日期時，這一列照樣成功，只是不產生這個欄位的值，並記下原文。
+    [Fact]
+    public void TypedRde_UnrecognizedDate_HasNoValueAndIsReported()
+    {
+        var mapping = new Dictionary<string, string> { [GlMappingKeys.Amount] = "amt" };
+        var spec = new GlMappingSpec(mapping, GlAmountMode.SignedAmount)
+        {
+            Options = GlMappingOptions.NormalizeLegacy(mapping) with
+            {
+                RdeFields =
+                [
+                    new GlRdeFieldMetadata("rde.00000000000000000000000000000004", "custom", "Custom", "date")
+                ]
+            }
+        };
+        var row = new StagingRow(12, new Dictionary<string, string>
+        {
+            ["amt"] = "1",
+            ["custom"] = "2025/13/40"
+        });
+
+        Assert.True(GlRowProjector.TryProject(row, spec, Scale, out var projected, out var error));
+        Assert.Null(error);
+        Assert.Empty(projected!.RdeValues);
+        var issue = Assert.Single(projected.DateIssues);
+        Assert.Equal("rde.00000000000000000000000000000004", issue.Field);
+        Assert.Equal("Custom", issue.Label);
+        Assert.Equal("custom", issue.SourceColumn);
+        Assert.Equal("2025/13/40", issue.RawValue);
+        Assert.Equal(GlDateIssueKind.Unrecognized, issue.Kind);
+    }
+
     [Theory]
-    // 這句的用字已定案。
-    [InlineData("date", "2025/13/40", "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字")]
     // 超過四位小數會四捨五入，不會失敗，案件也沒有小數位數設定；所以這句寫金額無效或超出可儲存的範圍。
     [InlineData("amount", "12.abc", "不是有效的金額，或超出可儲存的範圍。請確認來源資料，或將此攸關資料元素欄位改為文字")]
     public void TypedRde_InvalidValue_ReturnsChineseReasonWithNextStep(string valueType, string raw, string expectedReason)

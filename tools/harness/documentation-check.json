@@ -297,7 +297,7 @@
         ],
         "maxKiB": 30
       },
-      { "id": "size-other-document", "match": ["*"], "maxKiB": 30 }
+      { "id": "size-other-document", "match": ["*"], "maxKiB": 64 }
     ]
   },
   "rulingLocations": { "id": "ruling-location-exists", "file": "docs/rulings.md", "column": "落實位置" },

@@ -3,6 +3,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml.Packaging;
+using Spreadsheet = DocumentFormat.OpenXml.Spreadsheet;
 
 namespace JET.Infrastructure;
 
@@ -166,6 +167,46 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
         EnsureStarted();
         _cancellationToken.ThrowIfCancellationRequested();
         var sourceIndex = RowIndex(sourceRow);
+        if (!AdvanceToSourceRow(sourceIndex))
+        {
+            return;
+        }
+        WriteSourceRow(sourceRow, sourceIndex);
+    }
+
+    /// <summary>
+    /// 寫一列產生端建立的列。明細大多落在範本列之後，而且每一格都由產生端決定；這種列直接寫出，
+    /// 不先轉成文字再解析成 XML 物件，寫出的內容和 <see cref="WriteRow(XElement)"/> 相同。
+    /// 範本在同一列有內容、有格子不歸產生端，或樣式要和範本合併卻沒有帶樣式時，照原本的做法合併。
+    /// 樣式要合併時會直接改 <paramref name="sourceRow"/> 裡格子的樣式，呼叫端寫完後不再使用這一列。
+    /// </summary>
+    internal void WriteRow(Spreadsheet.Row sourceRow)
+    {
+        ArgumentNullException.ThrowIfNull(sourceRow);
+        EnsureStarted();
+        _cancellationToken.ThrowIfCancellationRequested();
+        var sourceIndex = sourceRow.RowIndex?.Value
+            ?? throw new InvalidDataException("WorkingPaper worksheet row 缺少有效 index。");
+        if (!AdvanceToSourceRow(sourceIndex))
+        {
+            return;
+        }
+        if ((_templateRow is null || RowIndex(_templateRow) > sourceIndex)
+            && TryPrepareGeneratedRow(sourceRow, sourceIndex))
+        {
+            WriteGeneratedRow(sourceRow);
+            return;
+        }
+        WriteSourceRow(
+            XElement.Parse(sourceRow.OuterXml, LoadOptions.PreserveWhitespace),
+            sourceIndex);
+    }
+
+    /// <summary>
+    /// 確認來源列沒有倒退，並把排在它前面的範本列寫完。這一列不歸產生端時回傳 false，呼叫端略過它。
+    /// </summary>
+    private bool AdvanceToSourceRow(uint sourceIndex)
+    {
         if (sourceIndex < _lastSourceRow)
         {
             throw new InvalidDataException(
@@ -175,7 +216,7 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
         _lastSourceRow = sourceIndex;
         if (!_plan.IsDynamicRow(sourceIndex))
         {
-            return;
+            return false;
         }
 
         while (_templateRow is not null && RowIndex(_templateRow) < sourceIndex)
@@ -183,7 +224,84 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
             WriteTemplateOnlyRow(_templateRow);
             _templateRow = _template.ReadNextRow(_cancellationToken);
         }
+        return true;
+    }
 
+    /// <summary>
+    /// 判斷這一列能不能直接寫出，可以的話先把要和範本合併的樣式算好。
+    /// 先整列看過一次、確定可以才動樣式，回傳 false 時這一列沒有被改過。
+    /// </summary>
+    private bool TryPrepareGeneratedRow(Spreadsheet.Row sourceRow, uint sourceIndex)
+    {
+        if (string.IsNullOrEmpty(sourceRow.Prefix)
+            || sourceRow.NamespaceDeclarations.Any()
+            || sourceRow.ExtendedAttributes.Any()
+            || sourceRow.MCAttributes is not null)
+        {
+            return false;
+        }
+        var mergeCellStyle = _plan.MergeCellStyle;
+        foreach (var child in sourceRow.ChildElements)
+        {
+            if (child is not Spreadsheet.Cell cell
+                || cell.CellReference?.Value is not { } reference
+                || !_plan.IsDynamicCell(sourceIndex, ParseReference(reference).Column))
+            {
+                return false;
+            }
+            if (mergeCellStyle is not null
+                && cell.StyleIndex is null
+                && _plan.UseSourceCellStyle(sourceIndex, ParseReference(reference).Column))
+            {
+                return false;
+            }
+        }
+        if (mergeCellStyle is null)
+        {
+            return true;
+        }
+
+        foreach (var child in sourceRow.ChildElements)
+        {
+            var cell = (Spreadsheet.Cell)child;
+            var column = ParseReference(cell.CellReference!.Value!).Column;
+            if (_plan.UseSourceCellStyle(sourceIndex, column))
+            {
+                cell.StyleIndex = mergeCellStyle(
+                    sourceIndex,
+                    column,
+                    null,
+                    cell.StyleIndex!.Value);
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// 列的元素帶著命名空間前置詞。前置詞的宣告明確寫在每一列上，和交 XML 物件時寫出的內容相同，
+    /// 也不會因為範本的根元素有沒有宣告同一個前置詞而不同。
+    /// </summary>
+    private void WriteGeneratedRow(Spreadsheet.Row row)
+    {
+        _output.WriteStartElement(row.Prefix, row.LocalName, row.NamespaceUri);
+        foreach (var attribute in row.GetAttributes())
+        {
+            _output.WriteAttributeString(
+                attribute.Prefix,
+                attribute.LocalName,
+                attribute.NamespaceUri,
+                attribute.Value);
+        }
+        _output.WriteAttributeString("xmlns", row.Prefix, null, row.NamespaceUri);
+        foreach (var child in row.ChildElements)
+        {
+            child.WriteTo(_output);
+        }
+        _output.WriteEndElement();
+    }
+
+    private void WriteSourceRow(XElement sourceRow, uint sourceIndex)
+    {
         if (_templateRow is null || RowIndex(_templateRow) > sourceIndex)
         {
             var generated = new XElement(sourceRow);

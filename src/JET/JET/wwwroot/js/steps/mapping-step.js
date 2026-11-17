@@ -1294,6 +1294,7 @@
           committedTableHtml(kind, fields, importInfo, committed) +
           literalNoteHtml(fields, committed) +
           committedOptionsHtml(kind, committed) +
+          dateNoticesHtml(kind, committed) +
           '<div class="panel__actions panel__actions--start">' +
             // 打開右側資料預覽的檢視一律寫「資料預覽」，字後面接面板圖示。
             '<button type="button" class="jet-view jet-view--preview" data-action="preview-target-' + kind +
@@ -1303,6 +1304,83 @@
         '</div>' +
       '</section>'
     );
+  }
+
+  // 確認配對後的日期提醒：來源的日期有讀不成日期的值，或年份不尋常的日期。配對照常完成，
+  // 這一塊只說明是哪個欄位的哪些值、問題在值的哪一段，以及 JET 怎麼處理。
+  var DATE_PROBLEM_TEXT = {
+    number: '只有數字，看不出年月日',
+    noSuchDate: '日曆上沒有這一天',
+    ambiguousOrder: '分不出年月日的順序',
+    notDate: '不是日期'
+  };
+  var DATE_UNUSUAL_YEAR_TEXT = '年份不在 1900 到 2100 年之間';
+  var DATE_KIND_TEXT = { unrecognized: '無法辨識', unusualYear: '年份不尋常' };
+  var DATE_HANDLING_TEXT = {
+    excluded: '這些分錄列入 GL(未納入測試)',
+    notUsed: '這幾格當成沒有日期',
+    kept: '照來源資料保留'
+  };
+
+  function dateNoticeTotal(notices) {
+    return (notices || []).reduce(function (sum, notice) { return sum + (notice.count || 0); }, 0);
+  }
+
+  // 值照原文顯示，只把後端指的那一段包進 mark；位置不合理時標整個值。
+  function dateSpecimenHtml(value) {
+    var text = String(value.value == null ? '' : value.value);
+    var start = Math.max(0, Math.min(text.length, value.markStart || 0));
+    var end = Math.max(start, Math.min(text.length, start + (value.markLength || 0)));
+    if (end === start) { start = 0; end = text.length; }
+    return '<span class="date-specimen">' + Ui.esc(text.slice(0, start)) +
+      '<mark>' + Ui.esc(text.slice(start, end)) + '</mark>' + Ui.esc(text.slice(end)) + '</span>';
+  }
+
+  // 列號只列一部分；這個值出現的筆數比列出的列多時，句尾加「等」。多個來源檔時每個列號前面寫檔名。
+  function dateRowsText(value) {
+    var rows = Array.isArray(value.rows) ? value.rows : [];
+    if (!rows.length) { return ''; }
+    var named = rows.some(function (row) { return row.source; });
+    var text = named
+      ? rows.map(function (row) { return (row.source ? row.source + ' ' : '') + '第 ' + row.row + ' 列'; }).join('、')
+      : '第 ' + rows.map(function (row) { return row.row; }).join('、') + ' 列';
+    return text + (value.count > rows.length ? '等' : '');
+  }
+
+  function dateNoticesHtml(kind, committed) {
+    var notices = kind === 'gl' && committed && Array.isArray(committed.dateNotices) ? committed.dateNotices : [];
+    if (!notices.length) { return ''; }
+    return '<div class="date-notice" data-bind="mapping-date-notices" data-motion-key="mapping-date-notices" role="status">' +
+      '<p class="date-notice__title">日期提醒<span class="date-notice__lead">來源有 ' +
+        Ui.countText(dateNoticeTotal(notices)) + ' 筆日期需要留意</span></p>' +
+      '<ul class="date-notice__fields">' + notices.map(function (notice) {
+        var values = Array.isArray(notice.values) ? notice.values : [];
+        return '<li class="date-notice__field">' +
+          '<p class="date-notice__head">' +
+            '<strong>' + Ui.esc(notice.label) + '</strong>' +
+            '<span class="date-notice__source">來源欄「' + Ui.esc(notice.sourceColumn) + '」</span>' +
+            '<span class="date-notice__count">' + Ui.countText(notice.count) + ' 筆' +
+              Ui.esc(DATE_KIND_TEXT[notice.kind] || notice.kind) + '</span>' +
+            '<span class="date-notice__handling">' + Ui.esc(DATE_HANDLING_TEXT[notice.handling] || notice.handling) + '</span>' +
+            (notice.handling === 'excluded'
+              ? '<button type="button" class="jet-view jet-view--preview" data-action="preview-date-excluded"' +
+                  ' aria-label="資料預覽：GL(未納入測試)">資料預覽</button>'
+              : '') +
+          '</p>' +
+          '<ul class="date-notice__values">' + values.map(function (value) {
+            var why = notice.kind === 'unusualYear' ? DATE_UNUSUAL_YEAR_TEXT : (DATE_PROBLEM_TEXT[value.problem] || DATE_PROBLEM_TEXT.notDate);
+            var rows = dateRowsText(value);
+            return '<li class="date-notice__value">' + dateSpecimenHtml(value) +
+              '<span class="date-notice__why">' + Ui.esc(why) + '</span>' +
+              (value.count > 1 ? '<span class="date-notice__times">' + Ui.countText(value.count) + ' 筆</span>' : '') +
+              (rows ? '<span class="date-notice__rows">' + Ui.esc(rows) + '</span>' : '') +
+              '</li>';
+          }).join('') + '</ul>' +
+          (notice.omittedValueRowCount > 0
+            ? '<p class="date-notice__more">另有 ' + Ui.countText(notice.omittedValueRowCount) + ' 筆是其他的值，未列出。</p>'
+            : '') +
+          '</li>';
+      }).join('') + '</ul></div>';
   }
 
   // 已提交 GL 配對的標準化政策摘要（唯讀）：只複述後端回傳的 canonical options，不重新推導。
@@ -2271,6 +2349,13 @@
       });
     }
 
+    // 日期提醒裡列入 GL(未納入測試) 的那一則，可以直接打開那份資料。
+    section.querySelectorAll('[data-action="preview-date-excluded"]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        if (Ui.openDataPreview) { Ui.openDataPreview('glExcluded'); }
+      });
+    });
+
     // 標頭下拉：指派來源欄 → JET 欄位（維持一對一；字面值欄不視為欄位指派）。
     // bump 全步重繪後的捲動與焦點由 renderContent 依 data-preserve-scroll 與焦點識別屬性統一還原。
     var literalKeys = fields.filter(function (f) { return f.literal; }).map(function (f) { return f.key; });
@@ -2408,6 +2493,8 @@
             committed.fillDownCount = data.fillDownCount || 0;
             // 這次投影由 GL 借方平均算出的尾數 0 的個數，第四步卡片與第五步預設跟著更新。
             committed.zerosThreshold = data.zerosThreshold || null;
+            // 這次投影遇到的日期提醒，只在這次確認之後顯示。
+            committed.dateNotices = Array.isArray(data.dateNotices) ? data.dateNotices : [];
           }
           Store.setMappingCommitted(kind, committed);
           if (kind === 'gl' && Object.prototype.hasOwnProperty.call(data, 'authorizedPreparerState')) {
@@ -2418,6 +2505,11 @@
           (data.warnings || []).forEach(function (w) {
             Store.addMessage(label + ' 配對提醒：' + w, 'warn');
           });
+          // 日期提醒的明細在配對區，訊息面板只留一則摘要。
+          if (kind === 'gl' && committed.dateNotices.length) {
+            Store.addMessage(label + ' 配對提醒：來源有 ' + Ui.countText(dateNoticeTotal(committed.dateNotices)) +
+              ' 筆日期需要留意，明細在欄位配對的「日期提醒」。', 'warn');
+          }
           focusMapping('[data-action="remap-' + kind + '"]');
           return data;
         }).catch(function (error) {

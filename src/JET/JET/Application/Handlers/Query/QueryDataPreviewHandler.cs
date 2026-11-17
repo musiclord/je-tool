@@ -139,6 +139,7 @@ public sealed class QueryDataPreviewHandler(
         GlExcludedPreviewStats excluded => new
         {
             blankGlDateCount = excluded.BlankGlDateCount,
+            unrecognizedGlDateCount = excluded.UnrecognizedGlDateCount,
             beforePeriodCount = excluded.BeforePeriodCount,
             afterPeriodCount = excluded.AfterPeriodCount,
             postingStatusCount = excluded.PostingStatusCount

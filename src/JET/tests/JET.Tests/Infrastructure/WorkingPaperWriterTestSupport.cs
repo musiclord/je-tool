@@ -52,21 +52,22 @@ internal static class WorkingPaperWriterTestSupport
         HandlerTestHost host,
         WorkingPaperWriterOptions? options = null,
         int progressRowInterval = 10_000,
-        IHighRiskSummaryRowPageRepository? highRiskSummaryRowsOverride = null,
-        IHighRiskSummaryVoucherPageRepository? highRiskSummaryVouchersOverride = null,
-        ICompletenessDiffPageRepository? completenessDiffsOverride = null,
+        IWorkingPaperStep41PreparedSessionFactory? highRiskSummaryRowsOverride = null,
+        IWorkingPaperStep4StreamRepository? highRiskSummaryVouchersOverride = null,
+        ICompletenessDiffStreamRepository? completenessDiffsOverride = null,
         ICalendarExportRepository? calendarDaysOverride = null,
         IAccountMappingExportRepository? accountMappingsOverride = null,
         IAccountMappingStore? accountMappingStateStoreOverride = null,
         ReportTemplateCatalog? templatesOverride = null)
     {
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        var completenessAccounts = new LocalCompletenessAccountPageRepository(database);
+        // 寫出程式只接一個查詢讀完的讀取介面；同一個資料庫類別同時實作畫面的分頁查詢，這裡明確取匯出用的那一種。
+        ICompletenessAccountStreamRepository completenessAccounts = new LocalCompletenessAccountPageRepository(database);
         var completenessDiffs = completenessDiffsOverride
             ?? new LocalCompletenessDiffPageRepository(database);
-        var voucherBalances = new LocalVoucherBalancePageRepository(database);
+        IUnbalancedVoucherDateRowStreamRepository voucherBalances = new LocalVoucherBalancePageRepository(database);
         var preparerSummaries = new LocalPreparerSummaryExportRepository(database);
-        var infSamples = new LocalInfSamplePageRepository(database);
+        IInfSampleStreamRepository infSamples = new LocalInfSamplePageRepository(database);
         var highRiskSummaryVouchers = highRiskSummaryVouchersOverride
             ?? new LocalHighRiskSummaryVoucherPageRepository(database);
         var highRiskSummaryRows = highRiskSummaryRowsOverride
@@ -1052,7 +1053,7 @@ internal static class WorkingPaperWriterTestSupport
     internal static async Task<WorkingPaperAppearanceWriteResult> WriteAppearanceWorkingPaperAsync(
         HandlerTestHost host,
         string projectId,
-        ICompletenessDiffPageRepository completenessDiffs,
+        FixedCompletenessDiffPageRepository completenessDiffs,
         ICalendarExportRepository calendar,
         IAccountMappingExportRepository accountMapping,
         WorkingPaperWriterOptions? options = null)

@@ -8,6 +8,9 @@ namespace JET.AuditCore;
 /// 建立 DbCommand 與綁定參數只由 Infrastructure 負責。
 /// prescreen.run 的計數和第五步的篩選條件用的是同一份片段。
 /// SQL 裡的識別字一律出自 GlFieldWhitelist 或這個檔案的常數；使用者輸入的值只會成為參數。
+/// 「同一張傳票裡有沒有某種分錄」一律寫成不引用 g 的子查詢，先取出一次符合的傳票號碼，再用 IN 或 NOT IN 接回本列。
+/// 子查詢若引用 g，每一筆分錄都要重掃一次自己的傳票，工作量會隨單張傳票的分錄數平方成長。
+/// 子查詢排除傳票號碼是 NULL 的分錄，本列的傳票號碼也先確認不是 NULL，IN 與 NOT IN 的結果才只有真和假。
 /// </summary>
 internal sealed partial class GlRulePredicates(
     ISqlDialect dialect,
@@ -52,16 +55,16 @@ internal sealed partial class GlRulePredicates(
                      {CategoryJoin(schemaPrefix, "m", "tm")}
                      WHERE m.account_number = g.account_number AND tm.semantic_role = {revenue})
              AND g.amount_scaled < 0
-             AND EXISTS (
-                 SELECT 1 FROM {schemaPrefix}gl p
-                 WHERE p.voucher_number = g.voucher_number
+             AND g.voucher_number IN (
+                 SELECT p.voucher_number FROM {schemaPrefix}gl p
+                 WHERE p.voucher_number IS NOT NULL
                    AND {populationScopePredicate(context, "p")}
                    AND p.amount_scaled > 0)
-             AND NOT EXISTS (
-                 SELECT 1 FROM {schemaPrefix}gl d
+             AND g.voucher_number NOT IN (
+                 SELECT d.voucher_number FROM {schemaPrefix}gl d
                  JOIN {schemaPrefix}account_mapping md ON md.account_number = d.account_number
                  {CategoryJoin(schemaPrefix, "md", "td")}
-                 WHERE d.voucher_number = g.voucher_number
+                 WHERE d.voucher_number IS NOT NULL
                    AND {populationScopePredicate(context, "d")}
                    AND d.amount_scaled > 0
                    AND td.semantic_role IN ({counterparts})))
@@ -112,7 +115,7 @@ internal sealed partial class GlRulePredicates(
     ///   drAndCr：傳票同時有 A 借與 B 貸。標記 A 借的列與 B 貸的列。
     ///   drNotCr：傳票有 A 借，而且沒有任何 B 貸。標記 A 借的列，以及同一張傳票貸方那一側的全部列。
     ///   notDrCr：傳票有 B 貸，而且沒有任何 A 借。標記 B 貸的列，以及同一張傳票借方那一側的全部列。
-    /// 「沒有」在這個方法裡用 NOT EXISTS 判斷，呼叫端不必處理。
+    /// 「沒有」在這個方法裡用 NOT 加在 DocHas 的片段前面判斷，呼叫端不必處理。
     /// 後兩種模式照舊版連另一側一起標記，和 <see cref="AccountPair"/> 的 debitAnchor、creditAnchor 模式相同。
     /// drAndCr 的 SQL 和 AccountPair 的 exact 模式相同。兩者在畫面上是不同的條件，模式名稱不同，這裡還多了「沒有」的模式，
     /// 所以刻意各寫一份；共用的只有 <see cref="CategorySides"/> 產生的四個片段。
@@ -143,6 +146,7 @@ internal sealed partial class GlRulePredicates(
     /// 借方類別 A 與貸方類別 B 的四個 SQL 片段，AccountPair 與 SpecialAccountCategoryPair 共用。
     /// RowIs 開頭的兩個片段判斷本列 g 是不是在那一側、而且科目屬於所選的任一分類；
     /// DocHas 開頭的兩個片段判斷同一張傳票裡有沒有這樣的分錄。「沒有」的模式是在 DocHas 的片段前面加 NOT。
+    /// 傳票號碼是 NULL 的分錄不屬於任何傳票：DocHas 的片段是假，前面加 NOT 就是真。
     /// 每個片段每呼叫一次，就把那一側的全部分類加進參數，所以呼叫的順序就是參數的順序。
     /// 分類清單已由 Domain 去掉重複並排序，同一組分類不管原本怎麼排，產生的 SQL 都逐字相同。
     /// 兩側都只判斷「是否屬於清單裡的任一分類」（`IN`），不把兩側的分類兩兩配對，
@@ -176,24 +180,28 @@ internal sealed partial class GlRulePredicates(
 
         string DocHasDebitSide() =>
             $"""
-            EXISTS (SELECT 1 FROM {schemaPrefix}gl d
-                    JOIN {schemaPrefix}account_mapping md ON md.account_number = d.account_number
-                    {CategoryJoin(schemaPrefix, "md", "td")}
-                    WHERE d.voucher_number = g.voucher_number
-                      AND {populationScopePredicate(context, "d")}
-                      AND {CategorySelectionRoles(command, "td", debitCategoryIds, "借方", schemaPrefix, categorySelection)}
-                      AND d.amount_scaled >= 0)
+            (g.voucher_number IS NOT NULL
+             AND g.voucher_number IN (
+                 SELECT d.voucher_number FROM {schemaPrefix}gl d
+                 JOIN {schemaPrefix}account_mapping md ON md.account_number = d.account_number
+                 {CategoryJoin(schemaPrefix, "md", "td")}
+                 WHERE d.voucher_number IS NOT NULL
+                   AND {populationScopePredicate(context, "d")}
+                   AND {CategorySelectionRoles(command, "td", debitCategoryIds, "借方", schemaPrefix, categorySelection)}
+                   AND d.amount_scaled >= 0))
             """;
 
         string DocHasCreditSide() =>
             $"""
-            EXISTS (SELECT 1 FROM {schemaPrefix}gl c
-                    JOIN {schemaPrefix}account_mapping mc ON mc.account_number = c.account_number
-                    {CategoryJoin(schemaPrefix, "mc", "tc")}
-                    WHERE c.voucher_number = g.voucher_number
-                      AND {populationScopePredicate(context, "c")}
-                      AND {CategorySelectionRoles(command, "tc", creditCategoryIds, "貸方", schemaPrefix, categorySelection)}
-                      AND c.amount_scaled < 0)
+            (g.voucher_number IS NOT NULL
+             AND g.voucher_number IN (
+                 SELECT c.voucher_number FROM {schemaPrefix}gl c
+                 JOIN {schemaPrefix}account_mapping mc ON mc.account_number = c.account_number
+                 {CategoryJoin(schemaPrefix, "mc", "tc")}
+                 WHERE c.voucher_number IS NOT NULL
+                   AND {populationScopePredicate(context, "c")}
+                   AND {CategorySelectionRoles(command, "tc", creditCategoryIds, "貸方", schemaPrefix, categorySelection)}
+                   AND c.amount_scaled < 0))
             """;
 
         return new CategorySidePredicates(
@@ -204,7 +212,7 @@ internal sealed partial class GlRulePredicates(
     /// 依條件指定的選取方式比對：分類本身（node）、下層（subtree）或審計角色（role）。
     /// 沒有指定選取方式的舊條件比對審計角色 semantic_role，所以角色相同的自訂分類結果不變。
     /// 分類的 ID 一律用參數綁定；改分類的顯示名稱不影響命中。
-    /// 分類清單是空的就直接丟出例外。「沒有」的模式用 NOT EXISTS，遇到空清單會變成全部命中，
+    /// 分類清單是空的就直接丟出例外。「沒有」的模式在 DocHas 的片段前面加 NOT，遇到空清單會變成全部命中，
     /// 所以一定要在組 SQL 之前擋下：驗證器先擋一次，這裡是最後一道。
     /// </summary>
     private static string CategorySelectionRoles(
@@ -581,11 +589,11 @@ internal sealed partial class GlRulePredicates(
                      {CategoryJoin(schemaPrefix, "m", "tm")}
                      WHERE m.account_number = g.account_number AND tm.semantic_role = {revenue})
              AND g.amount_scaled < 0
-             AND NOT EXISTS (
-                 SELECT 1 FROM {schemaPrefix}gl d
+             AND g.voucher_number NOT IN (
+                 SELECT d.voucher_number FROM {schemaPrefix}gl d
                  JOIN {schemaPrefix}account_mapping md ON md.account_number = d.account_number
                  {CategoryJoin(schemaPrefix, "md", "td")}
-                 WHERE d.voucher_number = g.voucher_number
+                 WHERE d.voucher_number IS NOT NULL
                    AND {populationScopePredicate(context, "d")}
                    AND d.amount_scaled >= 0
                    AND td.semantic_role IN ({receivables}, {receiptInAdvance})))

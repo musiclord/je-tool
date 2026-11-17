@@ -385,6 +385,12 @@ internal sealed class WorkbookStylePatcher
     internal uint Patch(uint prototypeStyleIndex, WorkbookStylePatch patch)
     {
         ArgumentNullException.ThrowIfNull(patch);
+        // 寫出程式每寫一格就問一次。問過的組合直接回答：當時已經確認過修改內容有效、範本有這個樣式，
+        // 而樣式表只會在最後面追加，不會讓已經存在的樣式消失。這樣不必每一格都把整張樣式表列舉一遍。
+        if (_cache.TryGetValue((prototypeStyleIndex, patch), out var cached))
+        {
+            return cached;
+        }
         Validate(patch);
         var cellFormats = _stylesheet.CellFormats
             ?? throw new InvalidDataException("Template stylesheet has no cell formats.");
@@ -396,11 +402,8 @@ internal sealed class WorkbookStylePatcher
         }
         if (patch.IsEmpty)
         {
+            _cache[(prototypeStyleIndex, patch)] = prototypeStyleIndex;
             return prototypeStyleIndex;
-        }
-        if (_cache.TryGetValue((prototypeStyleIndex, patch), out var cached))
-        {
-            return cached;
         }
 
         var prototype = formats[prototypeStyleIndex];

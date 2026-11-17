@@ -53,16 +53,17 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "GetCountsAsync",
             source,
             StringComparison.Ordinal);
+        // 每一條規則的明細都由同一處用一個查詢讀完，而且只在計畫決定要寫明細之後才讀。
         Assert.Equal(
             1,
-            CountOccurrences(source, "prescreenPages.GetPageAsync("));
+            CountOccurrences(source, "prescreenHitEntries.StreamEntryIdsAsync("));
         AssertAppearsInOrder(
             detailPath,
             "var detail = plan.RequireDetail(kind);",
             "if (!detail.Emit)",
             "return;",
-            "await EmitRawPagedSheetsAsync(",
-            "prescreenPages.GetPageAsync(");
+            "prescreenHitEntries.StreamEntryIdsAsync(",
+            "await EmitRawPagedSheetsAsync(");
         Assert.DoesNotContain(
             "RowHitCount",
             detailPath,

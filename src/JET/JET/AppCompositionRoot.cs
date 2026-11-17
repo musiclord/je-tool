@@ -35,6 +35,7 @@ public static partial class AppCompositionRoot
 
     /// <summary>
     /// 測試可以指定暫存的案件根目錄與開發工具開關；開關預設開啟，測試才涵蓋得到 dev.db.* 這些 action。
+    /// 測試還可以多交一個觀察 SQL 語句的物件，用來量資料庫的工作量；它排在監看模組之外，不影響監看模組的紀錄。
     /// 呼叫端也可以包裝每個 action handler，並交給 runtime 一段啟動後在背景執行的工作；桌面程式本身兩者都不用。
     /// </summary>
     public static JetApplicationRuntime CreateRuntime(
@@ -49,7 +50,8 @@ public static partial class AppCompositionRoot
         Func<IApplicationActionHandler, ProjectSession, IApplicationActionHandler>? decorateHandler = null,
         Func<ActionDispatcher, CancellationToken, Task>? startupWork = null,
         string? userFullName = null,
-        OperationMonitorOptions? operationMonitorOptions = null)
+        OperationMonitorOptions? operationMonitorOptions = null,
+        ISqlStatementObserver? additionalSqlStatementObserver = null)
     {
         var folder = new JetProjectFolder(projectsRootPath);
         var projectStore = new JsonFileProjectStore(folder);
@@ -110,7 +112,11 @@ public static partial class AppCompositionRoot
         // 它只接在 dispatcher、SQLite 命令、事件發布與進入步驟的紀錄這四個地方。
         var operationMonitor = new OperationMonitor(loggerFactory.CreateLogger<OperationMonitor>(), operationMonitorOptions);
         // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
-        var sqliteDatabase = new SqliteProjectDatabase(folder, operationMonitor);
+        var sqliteDatabase = new SqliteProjectDatabase(
+            folder,
+            additionalSqlStatementObserver is null
+                ? operationMonitor
+                : new AdditionalSqlStatementObserver(operationMonitor, additionalSqlStatementObserver));
         var baseReportStore = new ProjectReportStore(
             folder,
             logger: loggerFactory.CreateLogger<ProjectReportStore>());
@@ -349,6 +355,18 @@ public static partial class AppCompositionRoot
             ["export_progress_interval_ms"] = options.ExportProgressInterval.TotalMilliseconds,
             ["summary_after_ms"] = options.SummaryAfter.TotalMilliseconds,
         };
+
+    /// <summary>每條 SQL 語句先讓額外的觀察者看過，再照常交給監看模組；語句的紀錄仍由監看模組負責。</summary>
+    private sealed class AdditionalSqlStatementObserver(
+        ISqlStatementObserver monitor,
+        ISqlStatementObserver additional) : ISqlStatementObserver
+    {
+        public SqlStatementWatch? Begin(System.Data.Common.DbCommand command)
+        {
+            additional.Begin(command);
+            return monitor.Begin(command);
+        }
+    }
 
     /// <summary>
     /// 先把事件照原樣交給原本的發布者，再讓監看模組讀匯出進度；監看模組出錯時吞掉，

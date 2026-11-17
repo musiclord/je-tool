@@ -11,9 +11,28 @@ public sealed record DateParseOptions(bool RocYearEnabled)
     public static DateParseOptions Default { get; } = new(RocYearEnabled: true);
 }
 
+/// <summary>無法辨識的日期是哪一種問題。</summary>
+public enum DateProblemKind
+{
+    /// <summary>只有數字，分不出是年份、序列值還是日期。</summary>
+    Number,
+
+    /// <summary>月或日不存在，例如 13 月或 2 月 30 日。</summary>
+    NoSuchDate,
+
+    /// <summary>年份只有兩位數或寫在最後，分不出年月日的順序。</summary>
+    AmbiguousOrder,
+
+    /// <summary>其他讀不成日期的內容。</summary>
+    NotDate
+}
+
+/// <summary>無法辨識的日期的問題種類，以及要標出的那一段在去掉頭尾空白的原文裡的起點與長度。</summary>
+public readonly record struct DateProblem(DateProblemKind Kind, int MarkStart, int MarkLength);
+
 /// <summary>
 /// 日期字串正規化的權威實作。純函式、provider 無關；輸出一律 "yyyy-MM-dd"。
-/// 判定順序固定：ISO → 顯式西元（yyyy/M/d、yyyy.M.d、yyyyMMdd）→ 民國年（開關）→
+/// 判定順序固定：補零成四位數的民國年（開關）→ ISO → 顯式西元（yyyy/M/d、yyyy.M.d、yyyyMMdd）→ 民國年（開關）→
 /// 純數字一律拒絕 → 寬鬆 fallback（年份 1900 到 2100 的 sanity guard，且原文要寫出四位數年份與日）。
 /// 純數字不當成 Excel 序列值：日期型儲存格由讀取器依儲存格格式換成 ISO，
 /// 走到這裡的數字是沒套日期格式的儲存格或文字檔裡的數字，分不出是年份還是序列值，一律視為無法辨識。
@@ -32,6 +51,13 @@ public static partial class DateNormalizer
 
     [GeneratedRegex(@"^(1\d{2})(\d{2})(\d{2})$")]
     private static partial Regex RocCompactPattern();
+
+    // 民國年前面補一個 0 寫成四位數：0114/06/11、0114-06-11、01140611。
+    [GeneratedRegex(@"^0(1\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$")]
+    private static partial Regex RocPaddedSeparatedPattern();
+
+    [GeneratedRegex(@"^0(1\d{2})(\d{2})(\d{2})$")]
+    private static partial Regex RocPaddedCompactPattern();
 
     [GeneratedRegex(@"^\d{1,3}[/.]\d{1,2}[/.]\d{1,2}$")]
     private static partial Regex AmbiguousShortYearPattern();
@@ -61,6 +87,27 @@ public static partial class DateNormalizer
         }
 
         var text = raw.Trim();
+
+        // 0. 補零的民國年（開關）：有些系統把民國年補成四位數，0114 是民國 114 年。要排在西元的判定前面，
+        // 否則 0114/06/11 會被當成西元 114 年存進資料庫。只認 0100 到 0199，和三位數民國年的範圍相同；
+        // 其他 0 開頭的年份照寫出來的年份處理。月日不合法時直接視為無法辨識，不再往下猜。
+        if (options.RocYearEnabled)
+        {
+            var rocPadded = RocPaddedSeparatedPattern().Match(text);
+            if (!rocPadded.Success)
+            {
+                rocPadded = RocPaddedCompactPattern().Match(text);
+            }
+
+            if (rocPadded.Success)
+            {
+                return TryBuildIsoDate(
+                    int.Parse(rocPadded.Groups[1].Value, CultureInfo.InvariantCulture) + 1911,
+                    int.Parse(rocPadded.Groups[2].Value, CultureInfo.InvariantCulture),
+                    int.Parse(rocPadded.Groups[3].Value, CultureInfo.InvariantCulture),
+                    out isoDate);
+            }
+        }
 
         // 1. ISO 直通
         if (IsoPattern().IsMatch(text)
@@ -115,10 +162,10 @@ public static partial class DateNormalizer
 
         // 4. 純數字一律拒絕：把 1 到 2,958,465 的數字當 Excel 序列值換算的話，
         // 2025 會變成 1905-07-17、2025.12 也是 1905 年。沒套日期格式的數字儲存格與文字檔裡的數字，
-        // 都在確認配對時列為無法辨識並寫出列號，審計員在 Excel 把欄位設成日期格式後重新匯入。
+        // 都在確認配對時列為無法辨識的日期，不當成日期使用。
         // 帶千分位的數字與逗號不在三位一組位置的數字（「12,31」「1,2024」）同樣在這裡拒絕，
-        // 不能交給下面的寬鬆解析讀成今年的月日或某年的 1 月 1 日。讀取器對超出 1900 到 2100 年的日期型儲存格
-        // 交給投影的序列文字（例如 73416.0）也在這裡拒絕。前端 filter-values.js 的日期清單照同一規則。
+        // 不能交給下面的寬鬆解析讀成今年的月日或某年的 1 月 1 日。讀取器對換算不出日期的日期型儲存格
+        // 交給投影的序列文字（例如 -5.0）也在這裡拒絕。前端 filter-values.js 的日期清單照同一規則。
         if (decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
         {
             return false;
@@ -179,12 +226,61 @@ public static partial class DateNormalizer
             number.Length <= 2 && int.Parse(number, CultureInfo.InvariantCulture) == value;
     }
 
-    // 讀取器把日期型儲存格換成 ISO 時只接受 1900 到 2100 年；明確西元與民國文字日期仍依上面的格式規則處理。
-    internal static bool IsSupportedExcelDate(DateTime date) => date.Year is >= 1900 and <= 2100;
+    // Excel 的日期型儲存格換得出 1900 年以後的日期就交出 yyyy-MM-dd，最晚到 9999-12-31，和文字寫法、Access 的日期一致。
+    internal static bool IsReadableExcelDate(DateTime date) => date.Year >= 1900;
 
-    // 讀取器對超出範圍的日期型儲存格交給投影的文字。小數點保留數值身分，避免超限的七位序列被讀成民國年月日文字；
-    // TryNormalize 把它當成純數字拒絕，投影因此報「無法辨識為日期」並寫出列號。
+    // 讀取器對換算不出日期的日期型儲存格交給投影的文字，例如負的序列值。小數點保留數值身分，避免七位數的序列值被讀成民國年月日文字；
+    // TryNormalize 把它當成純數字，確認配對時這個值列為無法辨識的日期。
     internal static string ExcelSerialText(double serial) => serial.ToString("0.0################", CultureInfo.InvariantCulture);
+
+    /// <summary>yyyy-MM-dd 的年份不在 1900 到 2100 年之間。這種日期照樣保留，只在確認配對後提醒審計員。</summary>
+    internal static bool HasUnusualYear(string isoDate) =>
+        string.CompareOrdinal(isoDate, "1900-01-01") < 0 || string.CompareOrdinal(isoDate, "2100-12-31") > 0;
+
+    [GeneratedRegex(@"^(\d{3,4})[-/.](\d{1,2})[-/.](\d{1,2})$")]
+    private static partial Regex YearFirstPattern();
+
+    [GeneratedRegex(@"^(\d{3,4})(\d{2})(\d{2})$")]
+    private static partial Regex YearFirstCompactPattern();
+
+    /// <summary>
+    /// 無法辨識的日期哪裡有問題，給畫面標示用：問題的種類，以及要標出的那一段在去掉頭尾空白的原文裡的位置。
+    /// 只在 <see cref="TryNormalize"/> 回 false 之後呼叫。年份寫在前面、月或日不存在時標出月或日；其他情形標出整個值。
+    /// </summary>
+    internal static DateProblem DescribeUnrecognized(string raw)
+    {
+        var text = raw.Trim();
+        var separated = YearFirstPattern().Match(text);
+        var parts = separated.Success ? separated : YearFirstCompactPattern().Match(text);
+        if (parts.Success)
+        {
+            var month = int.Parse(parts.Groups[2].Value, CultureInfo.InvariantCulture);
+            var day = int.Parse(parts.Groups[3].Value, CultureInfo.InvariantCulture);
+            if (month is < 1 or > 12)
+            {
+                return new DateProblem(DateProblemKind.NoSuchDate, parts.Groups[2].Index, parts.Groups[2].Length);
+            }
+
+            // 有分隔符號時，月份對了還讀不成日期，就是那個月沒有這一天，例如 2 月 30 日。
+            // 沒有分隔符號的一串數字只在日超過 31 時才這樣判斷，其餘照純數字處理。
+            if (separated.Success || day is < 1 or > 31)
+            {
+                return new DateProblem(DateProblemKind.NoSuchDate, parts.Groups[3].Index, parts.Groups[3].Length);
+            }
+        }
+
+        if (decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
+        {
+            return new DateProblem(DateProblemKind.Number, 0, text.Length);
+        }
+
+        if (AmbiguousShortYearPattern().IsMatch(text) || NumericYearLastPattern().IsMatch(text))
+        {
+            return new DateProblem(DateProblemKind.AmbiguousOrder, 0, text.Length);
+        }
+
+        return new DateProblem(DateProblemKind.NotDate, 0, text.Length);
+    }
 
     private static bool TryBuildIsoDate(int year, int month, int day, out string? isoDate)
     {

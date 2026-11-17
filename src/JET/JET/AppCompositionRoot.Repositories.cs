@@ -224,14 +224,18 @@ public static partial class AppCompositionRoot
             materializeService,
             scenarioCounts);
 
+    /// <summary>
+    /// 底稿寫出程式只接一個查詢讀完的讀取介面，不接畫面的分頁查詢；兩種介面由同一個資料庫類別實作，
+    /// 這裡把寫出程式要的那一種明確交給它。
+    /// </summary>
     private static WorkingPaperWriter CreateWorkingPaperWriter(
-        ICompletenessAccountPageRepository completenessAccountPages,
-        ICompletenessDiffPageRepository completenessDiffPages,
-        IVoucherBalancePageRepository voucherBalancePages,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherDateRowStreamRepository unbalancedVoucherDateRows,
         IPreparerSummaryExportRepository preparerSummaryExport,
-        IInfSamplePageRepository infSamplePages,
-        IHighRiskSummaryVoucherPageRepository highRiskSummaryVoucherPages,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRowPages,
+        IInfSampleStreamRepository infSamples,
+        IWorkingPaperStep4StreamRepository step4Vouchers,
+        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarExport,
         IAccountMappingExportRepository accountMappingExport,
@@ -239,13 +243,13 @@ public static partial class AppCompositionRoot
         IRawGlExportRepository rawGlExport,
         IResultPageRdeValuesPort resultPageRdeValues) =>
         new(
-            completenessAccountPages,
-            completenessDiffPages,
-            voucherBalancePages,
+            completenessAccounts,
+            completenessDiffs,
+            unbalancedVoucherDateRows,
             preparerSummaryExport,
-            infSamplePages,
-            highRiskSummaryVoucherPages,
-            highRiskSummaryRowPages,
+            infSamples,
+            step4Vouchers,
+            step41PreparedSessions,
             mappingStates,
             calendarExport,
             accountMappingExport,
@@ -253,38 +257,41 @@ public static partial class AppCompositionRoot
             rawGlExport,
             resultPageRdeValues);
 
+    /// <summary>
+    /// 報告寫出程式只接一個查詢讀完的讀取介面，不接畫面的分頁查詢，做法和 <see cref="CreateWorkingPaperWriter"/> 相同。
+    /// </summary>
     private static LegacyReportWriter CreateLegacyReportWriter(
-        ICompletenessAccountPageRepository completenessAccountPages,
-        ICompletenessDiffPageRepository completenessDiffPages,
-        IUnbalancedVoucherPageRepository unbalancedGlEntryPages,
-        IBlankRecordsPageRepository blankRecordsPages,
-        IInfSamplePageRepository infSamplePages,
-        IPrescreenPageRepository prescreenPages,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherEntryStreamRepository unbalancedVoucherEntries,
+        IBlankRecordEntryStreamRepository blankRecordEntries,
+        IInfSampleStreamRepository infSamples,
+        IPrescreenHitEntryStreamRepository prescreenHitEntries,
         IRawGlExportRepository rawGlExport,
         IImportRepository imports,
         IMappingStateStore mappingStates,
         IPreparerSummaryExportRepository preparerSummaryExport,
         IAccountUsageExportRepository accountUsageExport,
         IHighRiskSummaryScenariosRepository highRiskSummaryScenarios,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRowPages,
+        IHighRiskSummaryRowStreamRepository highRiskSummaryRows,
         IFieldInfoFactsPort fieldInfoFacts,
         IResultPageRdeValuesPort resultPageRdeValues,
-        ISourceQualityPageRepository sourceQualityPages) =>
+        ISourceQualityFindingStreamRepository sourceQualityFindings) =>
         new(
-            completenessAccountPages,
-            completenessDiffPages,
-            unbalancedGlEntryPages,
-            blankRecordsPages,
-            infSamplePages,
-            prescreenPages,
+            completenessAccounts,
+            completenessDiffs,
+            unbalancedVoucherEntries,
+            blankRecordEntries,
+            infSamples,
+            prescreenHitEntries,
             rawGlExport,
             imports,
             mappingStates,
             preparerSummaryExport,
             accountUsageExport,
             highRiskSummaryScenarios,
-            sourceQualityPages,
-            highRiskSummaryRowPages,
+            sourceQualityFindings,
+            highRiskSummaryRows,
             fieldInfoFacts,
             resultPageRdeValues);
 }

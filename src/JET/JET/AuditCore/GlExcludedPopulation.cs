@@ -11,8 +11,8 @@ internal enum GlExcludedPopulationDisposition
 
 /// <summary>
 /// 一列 GL 的分類：<see cref="Reason"/> 是 null 表示列入 GL，否則是未納入原因。
-/// GL 範圍、控制總數與驗證摘要只看由原因推出的 <see cref="Disposition"/>；日期不符的三種原因合計就是日期不符
-/// （三種原因分開標示）。
+/// GL 範圍、控制總數與驗證摘要只看由原因推出的 <see cref="Disposition"/>；日期不符的四種原因合計就是日期不符
+/// （四種原因分開標示）。
 /// </summary>
 internal readonly record struct GlExcludedPopulationClassification(GlExclusionReason? Reason)
 {
@@ -21,7 +21,8 @@ internal readonly record struct GlExcludedPopulationClassification(GlExclusionRe
     internal GlExcludedPopulationDisposition Disposition => Reason switch
     {
         null => GlExcludedPopulationDisposition.Gl,
-        GlExclusionReason.BlankGlDate or GlExclusionReason.BeforePeriod or GlExclusionReason.AfterPeriod =>
+        GlExclusionReason.BlankGlDate or GlExclusionReason.UnrecognizedGlDate
+            or GlExclusionReason.BeforePeriod or GlExclusionReason.AfterPeriod =>
             GlExcludedPopulationDisposition.ExcludedByPeriod,
         GlExclusionReason.PostingStatus => GlExcludedPopulationDisposition.ExcludedByPostingStatus,
         _ => throw new InvalidOperationException(
@@ -59,24 +60,27 @@ internal sealed class GlExcludedPopulationMatcher
 internal static class GlExcludedPopulation
 {
     internal const string BlankGlDateStorageReason = "blank_gl_date";
+    internal const string UnrecognizedGlDateStorageReason = "unrecognized_gl_date";
     internal const string BeforePeriodStorageReason = "before_period";
     internal const string AfterPeriodStorageReason = "after_period";
     internal const string PostingStatusStorageReason = "posting_status";
 
-    /// <summary><c>gl.exclusion_reason</c> 的儲存值；四種原因各一個，列入 GL 的列存 NULL。</summary>
+    /// <summary><c>gl.exclusion_reason</c> 的儲存值；五種原因各一個，列入 GL 的列存 NULL。</summary>
     internal static string StorageReasonOf(GlExclusionReason reason) => reason switch
     {
         GlExclusionReason.BlankGlDate => BlankGlDateStorageReason,
+        GlExclusionReason.UnrecognizedGlDate => UnrecognizedGlDateStorageReason,
         GlExclusionReason.BeforePeriod => BeforePeriodStorageReason,
         GlExclusionReason.AfterPeriod => AfterPeriodStorageReason,
         GlExclusionReason.PostingStatus => PostingStatusStorageReason,
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "未知的 GL 未納入原因。")
     };
 
-    /// <summary>讀回儲存值；不是四種之一就是資料庫被改壞，直接丟出，不猜測原因。</summary>
+    /// <summary>讀回儲存值；不是五種之一就是資料庫被改壞，直接丟出，不猜測原因。</summary>
     internal static GlExclusionReason ReasonOfStorage(string? storageReason) => storageReason switch
     {
         BlankGlDateStorageReason => GlExclusionReason.BlankGlDate,
+        UnrecognizedGlDateStorageReason => GlExclusionReason.UnrecognizedGlDate,
         BeforePeriodStorageReason => GlExclusionReason.BeforePeriod,
         AfterPeriodStorageReason => GlExclusionReason.AfterPeriod,
         PostingStatusStorageReason => GlExclusionReason.PostingStatus,
@@ -86,7 +90,7 @@ internal static class GlExcludedPopulation
 
     /// <summary>
     /// 日期不符這組原因的 SQL 述詞：由 <see cref="GlExcludedPopulationClassification.Disposition"/> 是日期不符的原因產生，
-    /// C# 的分組和 SQL 只有這一個來源（三種原因分開標示；驗證摘要的日期不符仍是三種原因的合計）。
+    /// C# 的分組和 SQL 只有這一個來源（四種原因分開標示；驗證摘要的日期不符仍是四種原因的合計）。
     /// 儲存值是內部常數，直接嵌成字面值。
     /// </summary>
     internal static string ExcludedByPeriodSqlPredicate() =>
@@ -163,7 +167,7 @@ internal static class GlExcludedPopulation
     }
 
     /// <summary>
-    /// 先判斷總帳日期空白、早於查核起日或晚於查核迄日，再判斷過帳狀態，確保每列只落入一個 disposition。
+    /// 先判斷總帳日期無法辨識、空白、早於查核起日或晚於查核迄日，再判斷過帳狀態，確保每列只落入一個 disposition。
     /// 日期邊界為閉區間；未配對過帳狀態欄位時，期內列一律有效。
     /// </summary>
     internal static GlExcludedPopulationClassification Classify(
@@ -215,7 +219,8 @@ internal static class GlExcludedPopulation
         DateOnly periodStart,
         DateOnly periodEnd,
         bool postingStatusMapped,
-        GlExcludedPopulationMatcher? matcher)
+        GlExcludedPopulationMatcher? matcher,
+        bool glDateUnrecognized = false)
     {
         if (periodStart > periodEnd)
         {
@@ -227,6 +232,12 @@ internal static class GlExcludedPopulation
             throw new ArgumentException(
                 "已配對過帳狀態欄位時必須提供 canonical postingStatusPolicy。",
                 nameof(matcher));
+        }
+
+        // 來源有內容卻讀不成日期，和空白分開記，審計員才知道要回頭看來源寫了什麼。
+        if (glDateUnrecognized)
+        {
+            return new GlExcludedPopulationClassification(GlExclusionReason.UnrecognizedGlDate);
         }
 
         if (glDate is null)

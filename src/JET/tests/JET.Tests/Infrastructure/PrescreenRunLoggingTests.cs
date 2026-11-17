@@ -15,7 +15,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class PrescreenRunLoggingTests
 {
     // SQLite 的指紋取自實際執行的完整命令序列（14 條命令），不由推算得出。
-    private const string SqliteSnapshotDigest = "EE1E31977E90BC1EA7DB29AAF669829D383754CA2A6AA1352CC74A67DB4FF527";
+    private const string SqliteSnapshotDigest = "2005C9DE55FCB5DA4B51DA0FE754C85B3B14BCFDDA240F152443BFCCC5D6221E";
 
     private const string PeriodStart = "2025-09-30"; // 可辨識的期末日，後期核准述詞綁定後應現身於 parameters
 

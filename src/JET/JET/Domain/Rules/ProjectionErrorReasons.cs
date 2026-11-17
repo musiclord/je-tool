@@ -42,9 +42,6 @@ internal static class ProjectionErrorReasons
     public const string DateInvalid =
         "無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄";
 
-    public const string RdeDateInvalid =
-        "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字";
-
     public const string RdeMoneyInvalid =
         "不是有效的金額，或超出可儲存的範圍。請確認來源資料，或將此攸關資料元素欄位改為文字";
 

@@ -487,6 +487,83 @@ public sealed class WorkingPaperWriterStep3Step4Tests
     }
 
     [Fact]
+    public async Task Step41_DateCellThatIsNotADate_IsWrittenAsTheStoredText()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                // 「核准人員」整欄是 Excel 的日期儲存格，配成文字欄位傳票核准人員，欄位型態照來源記成日期。
+                // 第二列是 2150 年，照樣讀成日期。第三列的序列值是負數，換算不出 Excel 的日期，
+                // 存下來的是序列值的文字，不是 yyyy-MM-dd。
+                gl.WithColumns(
+                    "傳票號碼",
+                    "傳票項次",
+                    "傳票日期",
+                    "核准日期",
+                    "科目代號",
+                    "科目名稱",
+                    "摘要",
+                    "金額",
+                    "借方旗標",
+                    "核准人員");
+                gl.AddRow("DOC-0001", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0001", 1m, 1, new DateTime(2025, 3, 6));
+                gl.AddRow("DOC-0002", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0002", 1m, 0, new DateTime(2150, 1, 1));
+                gl.AddRow("DOC-0003", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0003", 1m, 0, new DateTime(1850, 1, 1));
+            },
+            validateForDownstream: true);
+        await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new
+            {
+                populationScope = GlPopulationScopeValues.AuditPeriod,
+                scenarios = new[]
+                {
+                    new
+                    {
+                        name = "換算不出日期的日期儲存格",
+                        rationale = "匯出不能因為這一格失敗",
+                        groups = new[]
+                        {
+                            new
+                            {
+                                join = "and",
+                                conditions = new[]
+                                {
+                                    new
+                                    {
+                                        join = "and",
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+
+        var context = await CurrentContextForAsync(host, projectId);
+        var plan = await CurrentPlanForAsync(host, context);
+        await using var stream = new MemoryStream();
+        await ((IWorkingPaperPlanWriter)BuildWriter(host)).WriteAsync(stream, context, plan, CancellationToken.None);
+
+        var approverColumn = plan.Step41Columns
+            .Select(column => column.Header)
+            .ToList()
+            .IndexOf("傳票核准人員_JE") + 1;
+        Assert.True(approverColumn > 0);
+        stream.Position = 0;
+        using var workbook = new XLWorkbook(stream);
+        var sheet = workbook.Worksheet(Step41Sheet);
+        Assert.Equal(new DateTime(2025, 3, 6), sheet.Cell(6, approverColumn).GetDateTime());
+        Assert.Equal(new DateTime(2150, 1, 1), sheet.Cell(7, approverColumn).GetDateTime());
+        // Excel 的序列值 1 是 1900-01-01，1850-01-01 比它早 18262 天，所以這一格的序列值是 -18261。
+        Assert.Equal(XLDataType.Text, sheet.Cell(8, approverColumn).DataType);
+        Assert.Equal("-18261.0", sheet.Cell(8, approverColumn).GetString());
+    }
+
+    [Fact]
     public async Task Step41_FinalSchema_UsesLatePageRawValuesSignedAmountAndFullDataWidths()
     {
         const int rowCount = 205;

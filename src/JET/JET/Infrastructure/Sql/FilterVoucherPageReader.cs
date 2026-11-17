@@ -21,6 +21,20 @@ internal static class FilterVoucherPageReader
         return Convert.ToString(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) ?? "0";
     }
 
+    /// <summary>
+    /// 這個情境選出命中分錄的條件，寫成從 FROM 起的查詢文字。母體條件與情境條件由同一個編譯器產生，
+    /// 和儲存命中、草稿即時判斷用的是同一份，所以這段文字選出的分錄就是命中的分錄。
+    /// </summary>
+    internal static FilterConditionSql ConditionSql(ISqlDialect dialect, string prefix,
+        FilterScenarioSpec scenario, FilterConditionContext context)
+    {
+        var builder = new GlFilterWhereBuilder(dialect, new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate));
+        var plan = builder.BuildPlan(scenario, context, prefix);
+        return new(
+            $"FROM {prefix}gl g\nWHERE {GlPopulationScopeSql.Predicate(context, "g")}\n  AND ({plan.Sql})",
+            plan.Parameters.Select(parameter => new FilterConditionSqlParameter(parameter.Name, parameter.Value)).ToArray());
+    }
+
     internal static async Task<FilterVoucherPage> ReadAsync(DbConnection connection, ISqlDialect dialect, string prefix,
         FilterScenarioSpec scenario, FilterConditionContext context, string? voucherNumber, PageRequest request,
         bool countWholeVoucherRows, CancellationToken ct)
@@ -145,16 +159,18 @@ internal static class FilterVoucherPageReader
             throw new JetActionException(JetErrorCodes.InvalidPayload, "無法接續上一頁，請重新預覽。");
         command.AddWithValue("@document", voucherNumber);
         command.AddWithValue("@afterId", afterId);
+        // 明細只看 @document 這一張傳票，「這張傳票有命中的分錄」直接比對 @document，整個查詢只判斷一次；
+        // 若比對外層每一列的傳票號碼，每一列都要重掃整張傳票，大傳票的工作量會隨分錄數平方成長。
         command.CommandText = cte + "SELECT e.entry_id,e.voucher_number,e.line_item,e.gl_date,e.approval_date,"
             + "e.account_number,e.account_name,e.description,e.amount_scaled,e.dr_cr,e.is_hit"
             + extraColumns + " "
             + "FROM evaluated e WHERE e.voucher_number = @document AND e.entry_id > @afterId "
-            + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = e.voucher_number AND hit.is_hit = 1) "
+            + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = @document AND hit.is_hit = 1) "
             + "ORDER BY e.entry_id " + dialect.LimitClause("@pageSize");
         var detailCount = await PageTotalCount.ReadAsync(command, request, cte
             + "SELECT COUNT(*) "
             + "FROM evaluated e WHERE e.voucher_number = @document "
-            + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = e.voucher_number AND hit.is_hit = 1)", ct);
+            + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = @document AND hit.is_hit = 1)", ct);
         var details = new List<FilterVoucherDetail>();
         await using (var reader = await command.ExecuteReaderAsync(ct))
         {

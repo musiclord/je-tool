@@ -62,12 +62,13 @@ public static class DataPreviewDatasetNames
 }
 
 /// <summary>
-/// GL(未納入測試) 每一列的未納入原因。日期不符分成前三種，分開標示並各自計數，
-/// 資料預覽可以只看其中一種）；GL 範圍與審計結果不變。
+/// GL(未納入測試) 每一列的未納入原因。日期不符分成前四種，分開標示並各自計數，
+/// 資料預覽可以只看其中一種；GL 範圍與審計結果不變。
 /// </summary>
 public enum GlExclusionReason
 {
     BlankGlDate,
+    UnrecognizedGlDate,
     BeforePeriod,
     AfterPeriod,
     PostingStatus
@@ -81,6 +82,9 @@ public static class GlExclusionReasonNames
         {
             case "blankGlDate":
                 reason = GlExclusionReason.BlankGlDate;
+                return true;
+            case "unrecognizedGlDate":
+                reason = GlExclusionReason.UnrecognizedGlDate;
                 return true;
             case "beforePeriod":
                 reason = GlExclusionReason.BeforePeriod;
@@ -100,6 +104,7 @@ public static class GlExclusionReasonNames
     public static string ToWireName(GlExclusionReason reason) => reason switch
     {
         GlExclusionReason.BlankGlDate => "blankGlDate",
+        GlExclusionReason.UnrecognizedGlDate => "unrecognizedGlDate",
         GlExclusionReason.BeforePeriod => "beforePeriod",
         GlExclusionReason.AfterPeriod => "afterPeriod",
         GlExclusionReason.PostingStatus => "postingStatus",
@@ -122,11 +127,12 @@ public sealed record GlPreviewStats(
     long VoucherCount) : DataPreviewStats;
 
 /// <summary>
-/// glExcluded（GL(未納入測試)）四種互斥未納入原因的筆數，空 dataset 時仍明示為 0。
-/// 只看一種原因時，這四個數字仍描述全部未納入測試的分錄。
+/// glExcluded（GL(未納入測試)）五種互斥未納入原因的筆數，空 dataset 時仍明示為 0。
+/// 只看一種原因時，這五個數字仍描述全部未納入測試的分錄。
 /// </summary>
 public sealed record GlExcludedPreviewStats(
     long BlankGlDateCount,
+    long UnrecognizedGlDateCount,
     long BeforePeriodCount,
     long AfterPeriodCount,
     long PostingStatusCount) : DataPreviewStats
@@ -134,6 +140,7 @@ public sealed record GlExcludedPreviewStats(
     public long CountOf(GlExclusionReason reason) => reason switch
     {
         GlExclusionReason.BlankGlDate => BlankGlDateCount,
+        GlExclusionReason.UnrecognizedGlDate => UnrecognizedGlDateCount,
         GlExclusionReason.BeforePeriod => BeforePeriodCount,
         GlExclusionReason.AfterPeriod => AfterPeriodCount,
         GlExclusionReason.PostingStatus => PostingStatusCount,

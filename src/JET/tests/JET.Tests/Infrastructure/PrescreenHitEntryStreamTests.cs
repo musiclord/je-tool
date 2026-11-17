@@ -68,17 +68,55 @@ public sealed class PrescreenHitEntryStreamTests
         }
 
         Assert.Equal(expectedEntryIds, streamed);
-        Assert.Equal(await WalkEveryPageAsync(repository, projectId, ruleKey), streamed);
+        Assert.Equal(await WalkEveryPageAsync(repository, projectId, ruleKey, Context), streamed);
+    }
+
+    /// <summary>
+    /// 預篩選報告每一條規則的明細都用一個查詢讀完，所以每一條可以列明細的規則，讀出的分錄與順序都要和逐頁讀完相同。
+    /// </summary>
+    [Fact]
+    public async Task Stream_ReadsEveryRuleWithDetail_SameAsWalkingEveryPage()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
+        var projectId = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+        await ExecuteAsync(database, projectId, FixtureSql);
+        var repository = new LocalPrescreenPageRepository(database);
+
+        // 尾數規則要有 0 的個數才能編譯；這裡給 3 個。
+        var context = Context with { ZerosThreshold = 3 };
+        Assert.NotEmpty(PrescreenRuleKeys.FilterableKeys);
+        foreach (var ruleKey in PrescreenRuleKeys.FilterableKeys)
+        {
+            var streamed = new List<long>();
+            await foreach (var entryId in ((IPrescreenHitEntryStreamRepository)repository).StreamEntryIdsAsync(
+                               projectId,
+                               ruleKey,
+                               context,
+                               CancellationToken.None))
+            {
+                streamed.Add(entryId);
+            }
+
+            Assert.Equal(await WalkEveryPageAsync(repository, projectId, ruleKey, context), streamed);
+        }
     }
 
     /// <summary>畫面的分頁查詢沒有指定排序，每頁 2 筆逐頁讀到底。</summary>
-    private static async Task<List<long>> WalkEveryPageAsync(IPrescreenPageRepository pages, string projectId, string ruleKey)
+    private static async Task<List<long>> WalkEveryPageAsync(
+        IPrescreenPageRepository pages,
+        string projectId,
+        string ruleKey,
+        FilterConditionContext context)
     {
         var walked = new List<long>();
         string? cursor = null;
         do
         {
-            var page = await pages.GetPageAsync(projectId, ruleKey, Context, new PageRequest(cursor, 2), CancellationToken.None);
+            var page = await pages.GetPageAsync(projectId, ruleKey, context, new PageRequest(cursor, 2), CancellationToken.None);
             walked.AddRange(page.Rows.Select(row => row.EntryId));
             cursor = page.NextCursor;
         } while (cursor is not null);

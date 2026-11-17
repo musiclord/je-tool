@@ -76,10 +76,11 @@
   var DAY_TYPE_LABELS = { holiday: '假日', makeup: '補班' };
 
   // GL(未納入測試) 的未納入原因（後端 closed wire value）→ 中文顯示與統計鍵；未登錄值原樣呈現。
-  // 日期不符分成三種原因並各自計數，資料預覽可以只看其中一種；三種日期原因的名稱逐字照當時的選項。
+  // 日期不符分成四種原因並各自計數，資料預覽可以只看其中一種；總帳日期空白、早於與晚於查核期間的名稱逐字照當時的選項。
   // 原因欄、下方統計列與篩選選項都用這一組名稱。
   var EXCLUSION_REASONS = [
     { value: 'blankGlDate', label: '總帳日期空白', countKey: 'blankGlDateCount' },
+    { value: 'unrecognizedGlDate', label: '總帳日期無法辨識', countKey: 'unrecognizedGlDateCount' },
     { value: 'beforePeriod', label: '早於查核期間', countKey: 'beforePeriodCount' },
     { value: 'afterPeriod', label: '晚於查核期間', countKey: 'afterPeriodCount' },
     { value: 'postingStatus', label: '過帳狀態不符', countKey: 'postingStatusCount' }
@@ -632,7 +633,7 @@
     var count = '共 ' + total + unit + '，全 ' + Ui.countText(cols) + ' 欄';
 
     // stats 的形狀依資料集而異，由後端決定：GL 回金額、日期與傳票概況，
-    // GL(未納入測試) 回四種未納入原因各自的筆數，只看一種原因時仍是全部未納入測試分錄的筆數。
+    // GL(未納入測試) 回五種未納入原因各自的筆數，只看一種原因時仍是全部未納入測試分錄的筆數。
     // 畫面只複述既有欄位，不跨資料集猜欄位，也不在畫面相加或相減。
     var statsHtml = '';
     if (data.stats && data.stats.postingStatusCount != null) {

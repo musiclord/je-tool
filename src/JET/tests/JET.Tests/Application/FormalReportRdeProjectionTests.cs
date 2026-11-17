@@ -133,6 +133,74 @@ public sealed class FormalReportRdeProjectionTests
         Assert.DoesNotContain(MoneyHeader, valueHeaders);
     }
 
+    // Excel 的日期從 1900-03-01 起才和實際日期一致，更早的日期換不成正確的序列值，西元 100 年以前還會換算失敗。
+    // 這種日期在底稿照存下來的年月日寫成文字，匯出照常完成；確認配對後的日期提醒寫出欄位、值與筆數。
+    [Theory]
+    [InlineData("0025-04-02", true)]
+    [InlineData("1850-04-02", true)]
+    [InlineData("1900-02-28", false)]
+    public async Task WorkingPaper_DateBeforeExcelCanShowIt_IsWrittenAsTextAsStored(string rdeDate, bool yearReminder)
+    {
+        using var host = new HandlerTestHost();
+        var setup = await SetupAsync(host, rdeDate);
+        if (yearReminder)
+        {
+            var notice = Assert.Single(setup.DateNotices);
+            Assert.Equal("RDE 日期", notice.GetProperty("label").GetString());
+            Assert.Equal("unusualYear", notice.GetProperty("kind").GetString());
+            Assert.Equal("kept", notice.GetProperty("handling").GetString());
+            Assert.Equal(1, notice.GetProperty("count").GetInt64());
+            Assert.Equal(rdeDate, Assert.Single(notice.GetProperty("values").EnumerateArray()).GetProperty("value").GetString());
+        }
+        else
+        {
+            Assert.Empty(setup.DateNotices);
+        }
+
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var committed = await host.DispatchAsync("filter.commit", ScenarioPayload(setup));
+        var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()!;
+        var workingPaperResponse = await host.DispatchAsync(
+            "export.workingPaperStream",
+            JsonSerializer.Serialize(new
+            {
+                validationResultId = setup.ValidationResultId,
+                prescreenResultId,
+                scenarioRevision = revision,
+                scenarioPositions = new[] { 1 }
+            }));
+        var workingPaperPath = Path.Combine(
+            host.ProjectsRoot,
+            setup.ProjectId,
+            workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
+        using var workingPaper = new XLWorkbook(workingPaperPath);
+
+        var step2 = workingPaper.Worksheet("step2 可靠性測試");
+        var step2Row = FindRow(step2, FindHeaderColumn(step2, 51, "傳票號碼\n(分錄編號)"), "RDE-001", 53);
+        var step2Cell = step2.Cell(step2Row, FindHeaderColumn(step2, 51, DateHeader));
+        Assert.Equal(XLDataType.Text, step2Cell.DataType);
+        Assert.Equal(rdeDate, step2Cell.GetString());
+
+        var step41 = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
+        var step41DateColumn = FindHeaderColumn(step41, 5, DateHeader);
+        var step41Cells = Enumerable.Range(6, (step41.LastRowUsed()?.RowNumber() ?? 5) - 5)
+            .Select(row => step41.Cell(row, step41DateColumn))
+            .Where(cell => !cell.IsEmpty())
+            .ToArray();
+        var step41Cell = Assert.Single(step41Cells);
+        Assert.Equal(XLDataType.Text, step41Cell.DataType);
+        Assert.Equal(rdeDate, step41Cell.GetString());
+    }
+
+    [Fact]
+    public async Task MappingCommit_DatesWithinTheUsualYears_GiveNoDateNotice()
+    {
+        using var host = new HandlerTestHost();
+        var setup = await SetupAsync(host);
+        Assert.Empty(setup.DateNotices);
+    }
+
     // 舊版 JET 的攸關資料元素欄是把來源欄改名加 _JE，
     // 條件篩選的明細頁再由 IDEA 匯出整個資料庫（Z_ExportDatabaseXLSX 的 IncludeAllFields），
     // 所以攸關資料元素欄的表頭與內容和它的來源欄外觀相同，沒有一般明細的框線。
@@ -236,7 +304,7 @@ public sealed class FormalReportRdeProjectionTests
         }
     }
 
-    private static async Task<RdeSetup> SetupAsync(HandlerTestHost host)
+    private static async Task<RdeSetup> SetupAsync(HandlerTestHost host, string rdeDate = "2025-04-02")
     {
         InlineGlWorkbookBuilder? builder = null;
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -249,7 +317,7 @@ public sealed class FormalReportRdeProjectionTests
                         "RDE 金額來源", "RDE 文字來源", "RDE 日期來源")
                     .AddRow(
                         "RDE-001", "2025-04-01", "1100", "Synthetic debit", "valued row", 100m, "1",
-                        12.34m, "alpha", "2025-04-02")
+                        12.34m, "alpha", rdeDate)
                     .AddRow(
                         "RDE-002", "2025-04-03", "2100", "Synthetic credit", "blank row", 100m, "0",
                         null, null, null);
@@ -293,7 +361,8 @@ public sealed class FormalReportRdeProjectionTests
             validation.GetProperty("resultRef").GetProperty("resultId").GetString()!,
             ids[MoneyLabel],
             ids[TextLabel],
-            ids[DateLabel]);
+            ids[DateLabel],
+            mapping.GetProperty("dateNotices").EnumerateArray().Select(item => item.Clone()).ToArray());
     }
 
     private static string ScenarioPayload(RdeSetup setup) => JsonSerializer.Serialize(new
@@ -419,5 +488,6 @@ public sealed class FormalReportRdeProjectionTests
         string ValidationResultId,
         string MoneyFieldId,
         string TextFieldId,
-        string DateFieldId);
+        string DateFieldId,
+        IReadOnlyList<JsonElement> DateNotices);
 }

@@ -177,8 +177,9 @@ internal static class KeysetPaging
             _ => text
         };
 
+    // 接續位置和這次的排序對不上：和資料或情境改變時一樣回 stale_result，畫面的「重新載入」據此改讀第一頁。
     private static JetActionException CursorMismatch() => new(
-        JetErrorCodes.InvalidPayload,
+        JetErrorCodes.StaleResult,
         "排序已改變，無法接續上一頁，請從第一頁重新載入。");
 }
 

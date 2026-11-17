@@ -204,9 +204,15 @@ public sealed class WorkingPaperDirectTemplatePackageTests
                 committed.GetProperty("resultRef").GetProperty("revision").GetString()!,
                 [1]);
             await using var output = new MemoryStream();
-            ICompletenessDiffPageRepository completenessDiffs = hasCompletenessDifference
-                ? new FixedCompletenessDiffPageRepository()
-                : new LocalCompletenessDiffPageRepository(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
+            // 計畫用畫面的分頁查詢判斷有沒有差異，寫出程式用一個查詢讀完；兩者來自同一個物件。
+            var fixedDiffs = new FixedCompletenessDiffPageRepository();
+            var localDiffs = new LocalCompletenessDiffPageRepository(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
+            JET.AuditCore.ICompletenessDiffStreamRepository completenessDiffs = hasCompletenessDifference
+                ? fixedDiffs
+                : localDiffs;
+            ICompletenessDiffPageRepository completenessDiffPages = hasCompletenessDifference
+                ? fixedDiffs
+                : localDiffs;
             var stats = await WorkingPaperWriterTestSupport.WriteWithCurrentPlanAsync(
                 host,
                 BuildWriter(
@@ -218,7 +224,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
                 output,
                 context,
                 CancellationToken.None,
-                completenessDiffsOverride: completenessDiffs);
+                completenessDiffsOverride: completenessDiffPages);
             Assert.Equal(output.Length, stats.BytesWritten);
             return output.ToArray();
         }
@@ -251,7 +257,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
     private static WorkingPaperWriter BuildWriter(
         HandlerTestHost host,
         WorkingPaperWriterOptions options,
-        ICompletenessDiffPageRepository completenessDiffs)
+        JET.AuditCore.ICompletenessDiffStreamRepository completenessDiffs)
     {
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         return new WorkingPaperWriter(

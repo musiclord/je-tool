@@ -132,12 +132,29 @@ public sealed class GlExcludedPopulationTests
     public void ExcludedByPeriodSqlPredicate_CoversExactlyTheReasonsWhoseDispositionIsDateMismatch()
     {
         Assert.Equal(
-            "exclusion_reason IN ('blank_gl_date', 'before_period', 'after_period')",
+            "exclusion_reason IN ('blank_gl_date', 'unrecognized_gl_date', 'before_period', 'after_period')",
             GlExcludedPopulation.ExcludedByPeriodSqlPredicate());
         var byPeriod = Enum.GetValues<GlExclusionReason>()
             .Where(reason => new GlExcludedPopulationClassification(reason).Disposition == GlExcludedPopulationDisposition.ExcludedByPeriod)
             .ToArray();
-        Assert.Equal([GlExclusionReason.BlankGlDate, GlExclusionReason.BeforePeriod, GlExclusionReason.AfterPeriod], byPeriod);
+        Assert.Equal(
+            [GlExclusionReason.BlankGlDate, GlExclusionReason.UnrecognizedGlDate, GlExclusionReason.BeforePeriod, GlExclusionReason.AfterPeriod],
+            byPeriod);
+    }
+
+    // 來源有內容卻讀不成日期的總帳日期，和空白分開記；兩者都不看過帳狀態。
+    [Fact]
+    public void ClassifyWithMatcher_UnrecognizedGlDate_HasItsOwnReasonAheadOfBlank()
+    {
+        var unrecognized = GlExcludedPopulation.ClassifyWithMatcher(
+            null, "posted", PeriodStart, PeriodStart.AddDays(30), postingStatusMapped: false, matcher: null, glDateUnrecognized: true);
+        var blank = GlExcludedPopulation.ClassifyWithMatcher(
+            null, "posted", PeriodStart, PeriodStart.AddDays(30), postingStatusMapped: false, matcher: null);
+
+        Assert.Equal(GlExclusionReason.UnrecognizedGlDate, unrecognized.Reason);
+        Assert.Equal("unrecognized_gl_date", unrecognized.StorageReason);
+        Assert.Equal(GlExcludedPopulationDisposition.ExcludedByPeriod, unrecognized.Disposition);
+        Assert.Equal(GlExclusionReason.BlankGlDate, blank.Reason);
     }
 
     [Fact]

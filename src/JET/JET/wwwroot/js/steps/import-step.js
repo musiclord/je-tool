@@ -722,7 +722,9 @@
               : '<button type="button" class="jet-view jet-view--expand pending-row__preview" data-action="pending-preview" ' +
                   'data-index="' + index + '"' + Ui.disclosureAttributes(item.previewOpen) + '>預覽</button>') +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-remove" ' +
-              'data-index="' + index + '" title="從清單移除這個來源">移除</button>' +
+              // 報讀時念出是哪一個來源，每一列才分得出來。
+              'data-index="' + index + '" aria-label="' + Ui.esc('移除來源 ' + item.fileName + (item.sheetName ? ' ' + item.sheetName : '')) +
+              '" title="從清單移除這個來源">移除</button>' +
           '</div>' +
           (failed
             ? '<p class="pending-row__error" role="alert" data-motion-key="' + Ui.esc('pending-error-' + pendingMotionKey(item)) + '">讀不出這個檔案：' + Ui.esc(item.inspectError) +

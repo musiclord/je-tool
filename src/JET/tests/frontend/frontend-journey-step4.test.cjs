@@ -474,9 +474,9 @@ test('entries left out of the test are their own preview dataset, each reason ha
   assert.equal(filterRow.hidden, false, 'reason filter offered for GL(未納入測試)');
   const select = filterRow.querySelector('select');
   assert.ok(select !== null, 'reason filter is a select');
-  // 三種日期原因逐字照選項原文；「全部」表示不篩選。
+  // 日期原因逐字照選項原文；「全部」表示不篩選。
   assert.deepEqual(select.querySelectorAll('option').map(option => option.textContent),
-    ['全部', '總帳日期空白', '早於查核期間', '晚於查核期間', '過帳狀態不符']);
+    ['全部', '總帳日期空白', '總帳日期無法辨識', '早於查核期間', '晚於查核期間', '過帳狀態不符']);
   assert.equal(select.value, '');
 
   // 第一頁還沒回來就改看晚於查核期間：晚到的全部原因那一頁不能蓋掉篩選後的結果。
@@ -484,7 +484,7 @@ test('entries left out of the test are their own preview dataset, each reason ha
   const filtered = f.requests.slice(before + 1);
   assert.deepEqual(filtered.map(r => r.action), ['queryDataPreview']);
   assert.deepEqual(plain(filtered[0].payload), { dataset: 'glExcluded', limit: 200, offset: 0, exclusionReason: 'afterPeriod' });
-  const stats = { blankGlDateCount: 3, beforePeriodCount: 5, afterPeriodCount: 207, postingStatusCount: 11 };
+  const stats = { blankGlDateCount: 3, unrecognizedGlDateCount: 2, beforePeriodCount: 5, afterPeriodCount: 207, postingStatusCount: 11 };
   added[0].resolve({ columns: ['voucherNumber', 'exclusionReason'],
     rows: [['JV-21', 'blankGlDate'], ['JV-22', 'beforePeriod'], ['JV-23', 'afterPeriod'], ['JV-24', 'postingStatus']],
     totalCount: 226, stats });
@@ -495,9 +495,9 @@ test('entries left out of the test are their own preview dataset, each reason ha
   filtered[0].resolve({ columns: ['voucherNumber', 'exclusionReason'], rows: [['JV-23', 'afterPeriod']], totalCount: 207, stats });
   await flush();
   assert.deepEqual(reasons(), ['晚於查核期間']);
-  // 註記照後端的四個計數寫出筆數，不在畫面相加或相減；篩選時四個計數仍是全部未納入測試的分錄，總筆數是這種原因的筆數。
+  // 註記照後端的五個計數寫出筆數，不在畫面相加或相減；篩選時五個計數仍是全部未納入測試的分錄，總筆數是這種原因的筆數。
   const note = () => aside.querySelector('.data-preview__note').textContent;
-  assert.match(note(), /總帳日期空白 3 筆/); assert.match(note(), /早於查核期間 5 筆/);
+  assert.match(note(), /總帳日期空白 3 筆/); assert.match(note(), /總帳日期無法辨識 2 筆/); assert.match(note(), /早於查核期間 5 筆/);
   assert.match(note(), /晚於查核期間 207 筆/); assert.match(note(), /過帳狀態不符 11 筆/);
   assert.doesNotMatch(note(), /日期不符/);
   assert.match(note(), /共 207 筆/);
@@ -845,6 +845,8 @@ test('built-in categories cannot be removed or repurposed, while a category used
   assert.equal(customRole.disabled, false);
   assert.equal(customRole.getAttribute('aria-disabled'), null);
   assert.equal(f.$('[data-category-remove="bank"]').disabled, false);
+  // 每一列的「移除分類」報讀時念出是哪一個分類，寫法和「刪除案件 名稱」「移除日期 日期」相同。
+  assert.equal(f.$('[data-category-remove="bank"]').getAttribute('aria-label'), '移除分類 銀行存款');
   assert.equal(f.body().textContent.includes('不可刪除'), false);
   // 停用狀態沒更新時硬改內建分類的用途：草稿不採用，儲存時仍是 cash。
   builtInRole.value = 'revenue'; builtInRole.dispatch('change');

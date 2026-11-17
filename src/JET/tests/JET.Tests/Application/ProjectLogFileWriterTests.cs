@@ -29,7 +29,7 @@ public sealed class ProjectLogFileWriterTests
         }
 
         var actual = await Record.ExceptionAsync(() => ProjectLogFileWriter.WriteAsync(
-            fixture, "synthetic-project", "JET-log-test", Lines(), CancellationToken.None));
+            fixture, "synthetic-project", new ProjectLogFile("JET-log-test", "診斷日誌"), Lines(), CancellationToken.None));
 
         Assert.Same(expected, actual);
         Assert.Empty(Directory.GetFileSystemEntries(fixture.Path));
@@ -48,9 +48,10 @@ public sealed class ProjectLogFileWriterTests
         }
 
         var exception = await Assert.ThrowsAsync<JetActionException>(() => ProjectLogFileWriter.WriteAsync(
-            fixture, "synthetic-project", "JET-log-test", Lines(), CancellationToken.None));
+            fixture, "synthetic-project", new ProjectLogFile("JET-log-test", "診斷日誌"), Lines(), CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.SupportLogExportFailed, exception.Code);
+        Assert.Equal("診斷日誌無法寫入案件資料夾。請確認磁碟空間與資料夾權限後再試一次。", exception.Message);
         Assert.Empty(Directory.GetFiles(fixture.Path));
     }
 

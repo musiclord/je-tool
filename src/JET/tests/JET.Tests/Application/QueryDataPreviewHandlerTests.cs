@@ -429,9 +429,10 @@ public sealed class QueryDataPreviewHandlerTests
     private static void AssertExclusionReasonCounts(JsonElement stats)
     {
         Assert.Equal(
-            new[] { "afterPeriodCount", "beforePeriodCount", "blankGlDateCount", "postingStatusCount" },
+            new[] { "afterPeriodCount", "beforePeriodCount", "blankGlDateCount", "postingStatusCount", "unrecognizedGlDateCount" },
             stats.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
         Assert.Equal(1, stats.GetProperty("blankGlDateCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("unrecognizedGlDateCount").GetInt64());
         Assert.Equal(2, stats.GetProperty("beforePeriodCount").GetInt64());
         Assert.Equal(3, stats.GetProperty("afterPeriodCount").GetInt64());
         Assert.Equal(4, stats.GetProperty("postingStatusCount").GetInt64());

@@ -20,7 +20,14 @@ public sealed record GlProjectedRow(
     long DebitAmountScaled,
     long CreditAmountScaled,
     string DrCr,
-    IReadOnlyList<GlProjectedRdeValue> RdeValues);
+    IReadOnlyList<GlProjectedRdeValue> RdeValues)
+{
+    /// <summary>來源的總帳日期有內容卻讀不成日期。<see cref="GlDate"/> 這時是 null，這一列列入 GL(未納入測試)。</summary>
+    public bool GlDateUnrecognized { get; init; }
+
+    /// <summary>這一列的日期欄位裡，讀不成日期或年份不在 1900 到 2100 年之間的值；沒有時是空的。</summary>
+    public IReadOnlyList<GlDateIssue> DateIssues { get; init; } = [];
+}
 
 public sealed record GlProjectedRdeValue(
     string FieldId,
@@ -47,9 +54,20 @@ public sealed record RowProjectionError(
 /// <summary>
 /// 依欄位配對，把匯入暫存表的一列轉成標準化的 GL 分錄。
 /// 這是純函式：一列失敗時回傳錯誤，要不要整批 rollback 由呼叫端決定。
+/// 日期讀不成日期時不算失敗：總帳日期與傳票核准日記成沒有日期，日期型別的攸關資料元素不產生值，
+/// 並把原文記在 <see cref="GlProjectedRow.DateIssues"/>，由呼叫端決定怎麼提醒審計員。
 /// </summary>
 public static class GlRowProjector
 {
+    private static readonly string GlDateLabel = MappingLabel(GlMappingKeys.GlDate);
+    private static readonly string ApprovalDateLabel = MappingLabel(GlMappingKeys.ApprovalDate);
+
+    private static string MappingLabel(string key) =>
+        JetFieldCatalog.GlFields
+            .SelectMany(static field => field.MappingSlots)
+            .First(slot => slot.Key == key)
+            .Label;
+
     /// <summary>便利 overload：日期解析採預設選項（民國年啟用）。</summary>
     public static bool TryProject(
         StagingRow row,
@@ -109,9 +127,10 @@ public static class GlRowProjector
             return false;
         }
 
-        if (!TryProjectDate(row, spec, GlMappingKeys.GlDate, dateOptions, out var glDate, out error)
-            || !TryProjectApprovalDate(row, spec, glDate, dateOptions, out var approvalDate, out error)
-            || !TryProjectManual(row, spec, out var isManual, out error)
+        List<GlDateIssue>? dateIssues = null;
+        var glDate = ProjectDate(row, spec, GlMappingKeys.GlDate, GlDateLabel, dateOptions, ref dateIssues, out var glDateUnrecognized);
+        var approvalDate = ProjectApprovalDate(row, spec, glDate, dateOptions, ref dateIssues);
+        if (!TryProjectManual(row, spec, out var isManual, out error)
             || !TryProjectRdeValues(
                 row,
                 spec,
@@ -119,6 +138,7 @@ public static class GlRowProjector
                 dateOptions,
                 cancellationToken,
                 collectRdeValues,
+                ref dateIssues,
                 out var rdeValues,
                 out error))
         {
@@ -154,7 +174,11 @@ public static class GlRowProjector
             debitScaled,
             creditScaled,
             drCr,
-            rdeValues);
+            rdeValues)
+        {
+            GlDateUnrecognized = glDateUnrecognized,
+            DateIssues = dateIssues is null ? [] : dateIssues
+        };
 
         return true;
     }
@@ -268,56 +292,51 @@ public static class GlRowProjector
         return false;
     }
 
-    private static bool TryProjectDate(
+    // 空白是沒有日期。有內容卻讀不成日期時也回 null，並記下原文；讀得成但年份不在 1900 到 2100 年之間的照樣回日期，也記下來。
+    private static string? ProjectDate(
         StagingRow row,
         GlMappingSpec spec,
         string key,
+        string label,
         DateParseOptions dateOptions,
-        out string? isoDate,
-        out RowProjectionError? error)
+        ref List<GlDateIssue>? issues,
+        out bool unrecognized)
     {
-        error = null;
-
         var raw = GetMappedValue(row, spec, key);
-        if (DateNormalizer.TryNormalize(raw, dateOptions, out isoDate))
+        if (DateNormalizer.TryNormalize(raw, dateOptions, out var isoDate))
         {
-            return true;
+            unrecognized = false;
+            if (isoDate is not null && DateNormalizer.HasUnusualYear(isoDate))
+            {
+                (issues ??= []).Add(new GlDateIssue(
+                    key, label, MappedColumnOrKey(spec, key), raw!, GlDateIssueKind.UnusualYear, isoDate));
+            }
+
+            return isoDate;
         }
 
-        error = new RowProjectionError(
-            row.SourceRowNumber,
-            MappedColumnOrKey(spec, key),
-            raw ?? string.Empty,
-            ProjectionErrorReasons.DateInvalid);
-        return false;
+        unrecognized = true;
+        (issues ??= []).Add(new GlDateIssue(
+            key, label, MappedColumnOrKey(spec, key), raw ?? string.Empty, GlDateIssueKind.Unrecognized, null));
+        return null;
     }
 
-    private static bool TryProjectApprovalDate(
+    private static string? ProjectApprovalDate(
         StagingRow row,
         GlMappingSpec spec,
         string? glDate,
         DateParseOptions dateOptions,
-        out string? approvalDate,
-        out RowProjectionError? error)
+        ref List<GlDateIssue>? issues)
     {
         switch (spec.Options.ApprovalDateMode)
         {
             case ApprovalDateModeNames.Unmapped:
-                approvalDate = null;
-                error = null;
-                return true;
+                return null;
             case ApprovalDateModeNames.Mapped:
-                return TryProjectDate(
-                    row,
-                    spec,
-                    GlMappingKeys.ApprovalDate,
-                    dateOptions,
-                    out approvalDate,
-                    out error);
+                return ProjectDate(row, spec, GlMappingKeys.ApprovalDate, ApprovalDateLabel, dateOptions, ref issues, out _);
             case ApprovalDateModeNames.SameAsGlDate:
-                approvalDate = glDate;
-                error = null;
-                return true;
+                // 沿用總帳日期，總帳日期的情形已經記過一次，不重複記。
+                return glDate;
             default:
                 throw new InvalidOperationException(
                     $"未知的 approvalDateMode：'{spec.Options.ApprovalDateMode}'。");
@@ -389,6 +408,7 @@ public static class GlRowProjector
         DateParseOptions dateOptions,
         CancellationToken cancellationToken,
         bool collectValues,
+        ref List<GlDateIssue>? dateIssues,
         out IReadOnlyList<GlProjectedRdeValue> values,
         out RowProjectionError? error)
     {
@@ -437,13 +457,16 @@ public static class GlRowProjector
                 case RdeFieldValueTypeNames.Date:
                     if (!DateNormalizer.TryNormalize(raw, dateOptions, out var dateValue))
                     {
-                        values = [];
-                        error = new RowProjectionError(
-                            row.SourceRowNumber,
-                            field.SourceColumn,
-                            raw,
-                            ProjectionErrorReasons.RdeDateInvalid);
-                        return false;
+                        // 讀不成日期的值不存成攸關資料元素，這一格等同沒有日期；原文記下來給提醒用。
+                        (dateIssues ??= []).Add(new GlDateIssue(
+                            field.FieldId, field.Label, field.SourceColumn, raw, GlDateIssueKind.Unrecognized, null));
+                        break;
+                    }
+
+                    if (DateNormalizer.HasUnusualYear(dateValue!))
+                    {
+                        (dateIssues ??= []).Add(new GlDateIssue(
+                            field.FieldId, field.Label, field.SourceColumn, raw, GlDateIssueKind.UnusualYear, dateValue));
                     }
 
                     result?.Add(new GlProjectedRdeValue(

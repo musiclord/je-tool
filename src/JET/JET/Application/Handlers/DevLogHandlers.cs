@@ -43,7 +43,7 @@ public sealed class SupportLogExportHandler(
         var filePath = await ProjectLogFileWriter.WriteAsync(
             projectLocator,
             projectId,
-            "JET-support",
+            ProjectLogFile.Support,
             CountAsync(history.LinesAsync(Header(scope, history.Summary), cancellationToken), () => lineCount++),
             cancellationToken).ConfigureAwait(false);
 
@@ -62,7 +62,7 @@ public sealed class SupportLogExportHandler(
             .ToArray();
         var filePath = await ProjectLogFileWriter.WriteToDirectoryAsync(
             supportLogDirectory,
-            "JET-support",
+            ProjectLogFile.Support,
             ProjectLogFileWriter.ToAsyncLines(lines),
             cancellationToken).ConfigureAwait(false);
 
@@ -159,7 +159,7 @@ public sealed class DevLogExportFileHandler(
             filePath = await ProjectLogFileWriter.WriteAsync(
                 projectLocator,
                 projectId,
-                "JET-dev-log",
+                ProjectLogFile.Diagnostic,
                 PrependAsync(
                     SnapshotLine(source, projectId, correlationId),
                     ReadSinkLinesAsync(
@@ -187,7 +187,7 @@ public sealed class DevLogExportFileHandler(
             filePath = await ProjectLogFileWriter.WriteAsync(
                 projectLocator,
                 projectId,
-                "JET-dev-log",
+                ProjectLogFile.Diagnostic,
                 ProjectLogFileWriter.ToAsyncLines(lines, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
         }
@@ -315,11 +315,19 @@ public sealed class DevLogExportFileHandler(
                 && string.Equals(entryCorrelationId, correlationId, StringComparison.Ordinal));
 }
 
+/// <summary>
+/// 一種可以輸出成檔案的日誌：檔名開頭，以及失敗訊息裡對審計員與開發人員說的名稱。
+/// 支援日誌與診斷日誌共用寫檔的程式，失敗時各自寫出按下的是哪一種。
+/// </summary>
+internal readonly record struct ProjectLogFile(string Prefix, string Name)
+{
+    public static ProjectLogFile Support { get; } = new("JET-support", "支援日誌");
+
+    public static ProjectLogFile Diagnostic { get; } = new("JET-dev-log", "診斷日誌");
+}
+
 internal static class ProjectLogFileWriter
 {
-    // 支援日誌寫不進資料夾時的句子，不寫例外型別。
-    private const string LogFolderWriteFailure = "支援日誌無法寫入 JET 的日誌資料夾。請確認磁碟空間與資料夾權限後再試一次。";
-
     public static async IAsyncEnumerable<string> ToAsyncLines(
         IEnumerable<string> lines,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -335,7 +343,7 @@ internal static class ProjectLogFileWriter
     public static async Task<string> WriteAsync(
         IProjectExportLocator projectLocator,
         string projectId,
-        string prefix,
+        ProjectLogFile log,
         IAsyncEnumerable<string> lines,
         CancellationToken cancellationToken)
     {
@@ -346,7 +354,7 @@ internal static class ProjectLogFileWriter
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
-                "找不到案件資料夾，無法輸出支援日誌。");
+                $"找不到案件資料夾，無法輸出{log.Name}。");
         }
 
         var attributes = File.GetAttributes(projectDirectory);
@@ -354,10 +362,15 @@ internal static class ProjectLogFileWriter
         {
             throw new JetActionException(
                 JetErrorCodes.SupportLogExportFailed,
-                "案件資料夾連結到其他位置，未輸出支援日誌。");
+                $"案件資料夾連結到其他位置，未輸出{log.Name}。");
         }
 
-        return await WriteFileAsync(projectDirectory, prefix, lines, "支援日誌無法寫入案件資料夾。請確認磁碟空間與資料夾權限後再試一次。", cancellationToken)
+        return await WriteFileAsync(
+                projectDirectory,
+                log.Prefix,
+                lines,
+                $"{log.Name}無法寫入案件資料夾。請確認磁碟空間與資料夾權限後再試一次。",
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -366,11 +379,13 @@ internal static class ProjectLogFileWriter
     /// </summary>
     public static async Task<string> WriteToDirectoryAsync(
         string directory,
-        string prefix,
+        ProjectLogFile log,
         IAsyncEnumerable<string> lines,
         CancellationToken cancellationToken)
     {
         var fullDirectory = Path.GetFullPath(directory);
+        // 寫不進資料夾時的句子，不寫例外型別。
+        var writeFailure = $"{log.Name}無法寫入 JET 的日誌資料夾。請確認磁碟空間與資料夾權限後再試一次。";
         try
         {
             Directory.CreateDirectory(fullDirectory);
@@ -379,11 +394,11 @@ internal static class ProjectLogFileWriter
         {
             throw new JetActionException(
                 JetErrorCodes.SupportLogExportFailed,
-                LogFolderWriteFailure,
+                writeFailure,
                 innerException: exception);
         }
 
-        return await WriteFileAsync(fullDirectory, prefix, lines, LogFolderWriteFailure, cancellationToken)
+        return await WriteFileAsync(fullDirectory, log.Prefix, lines, writeFailure, cancellationToken)
             .ConfigureAwait(false);
     }
 

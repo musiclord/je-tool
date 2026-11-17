@@ -246,8 +246,9 @@ public sealed class GlProjectionQualityProviderTests
             CancellationToken.None);
 
         Assert.Equal(0, failed.ProjectedRowCount);
-        Assert.Equal(2, failed.TotalErrorCount);
-        Assert.Equal(["customDate", "customMoney"], failed.Errors.Select(static error => error.Field));
+        // 讀不成日期的攸關資料元素不是錯誤，那一格當成沒有日期；讀不成數值的那一格仍讓整批投影復原。
+        Assert.Equal(1, failed.TotalErrorCount);
+        Assert.Equal(["customMoney"], failed.Errors.Select(static error => error.Field));
         await using var connection = connectionFactory();
         await connection.OpenAsync();
         Assert.Equal(4, await ScalarAsync(

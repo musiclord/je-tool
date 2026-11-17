@@ -9,7 +9,8 @@ public sealed class ImportParsingErrorWorkflowTests
     public static IEnumerable<object[]> Cases()
     {
         foreach (var provider in new[] { "sqlite" })
-        foreach (var kind in new[] { "amount", "glDate", "rdeAmount", "rdeDate" }) yield return [provider, kind];
+        // 日期型別的攸關資料元素讀不成日期時不是錯誤，那一格當成沒有日期，所以不在這裡。
+        foreach (var kind in new[] { "amount", "glDate", "rdeAmount" }) yield return [provider, kind];
     }
 
     [Theory]
@@ -22,7 +23,7 @@ public sealed class ImportParsingErrorWorkflowTests
         object[] rde = [];
         var source = kind is "amount" or "rdeAmount" ? "BadAmount" : "BadDate";
         if (kind.StartsWith("rde", StringComparison.Ordinal))
-            rde = [new { sourceColumn = source, label = "Synthetic RDE", valueType = kind == "rdeAmount" ? "amount" : "date" }];
+            rde = [new { sourceColumn = source, label = "Synthetic RDE", valueType = "amount" }];
         else mapping[kind] = source;
 
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "signed", rde));

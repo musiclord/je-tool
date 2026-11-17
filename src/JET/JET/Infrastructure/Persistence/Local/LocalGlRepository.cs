@@ -119,6 +119,10 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         await using var insert = database.CreateBulkRowWriter(connection, transaction, JetSchemaCatalog.GlTableName, TargetColumns);
 
         var errors = new ProjectionErrorCollector();
+        // 讀不成日期的值與年份不在 1900 到 2100 年之間的日期不擋確認配對，逐列記下來，提交後給畫面的日期提醒。
+        var dateNotices = new GlDateNoticeCollector();
+        // 讀不成日期的總帳日期另外照無法轉換的寫法記一份：整批沒有一列納入 GL 時，用它說明是哪些值讀不成日期。
+        var unrecognizedGlDates = new ProjectionErrorCollector();
         var insertedCount = 0;
         // 只指定一側的代碼時，人工/自動清單代碼有沒有出現在來源裡，逐列記錄，提交後給不擋的提醒。
         var manualAutoCodes = new ManualAutoListedCodeAudit(spec);
@@ -179,12 +183,22 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 }
 
                 manualAutoCodes.Observe(stagingRow);
+                foreach (var issue in projected!.DateIssues)
+                {
+                    var sourceLabel = sourceLabels?.GetValueOrDefault(sourceNo);
+                    dateNotices.Observe(issue, sourceRowNumber, sourceLabel);
+                    if (issue.Kind == GlDateIssueKind.Unrecognized && issue.Field == GlMappingKeys.GlDate)
+                    {
+                        unrecognizedGlDates.Observe(new RowProjectionError(
+                            sourceRowNumber, issue.SourceColumn, issue.RawValue, ProjectionErrorReasons.DateInvalid, sourceLabel));
+                    }
+                }
 
                 // gl 的 source_row_number 存的是暫存表的 row_number，也就是批次內的排序鍵，INF 抽樣以它為準；
                 // 批次只有一個來源時它等於來源列號。
                 // 值照 TargetColumns 的順序放；null 由寫入器轉成 NULL；is_manual 存 1、0 或 NULL。
                 targetValues[1] = rowNumber;
-                targetValues[2] = projected!.VoucherNumber;
+                targetValues[2] = projected.VoucherNumber;
                 targetValues[3] = projected.LineItem;
                 targetValues[4] = projected.GlDate;
                 targetValues[5] = projected.ApprovalDate;
@@ -213,7 +227,8 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                     periodStart,
                     periodEnd,
                     postingStatusMapped,
-                    postingStatusMatcher);
+                    postingStatusMatcher,
+                    projected.GlDateUnrecognized);
 
                 long nextTargetDebit;
                 long nextTargetCredit;
@@ -287,6 +302,12 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
+            // 沒有一列納入 GL，而且有總帳日期讀不成日期：多半是選錯日期欄或日期寫法不合，列出那些值與列號。
+            if (unrecognizedGlDates.TotalErrorCount > 0)
+            {
+                return unrecognizedGlDates.FailedResult();
+            }
+
             throw new JetActionException(
                 JetErrorCodes.EmptyGl,
                 GlProjectionGuard.EmptyGlMessage);
@@ -424,6 +445,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         return new ProjectionResult(insertedCount, [])
         {
             Warnings = warnings,
+            DateNotices = dateNotices.Notices(),
             GlTotals = new GlTotals(
                 pbcRowCount,
                 glRowCount,

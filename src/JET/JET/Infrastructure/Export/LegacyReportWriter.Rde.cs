@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     private async Task<IReadOnlyDictionary<long, IReadOnlyDictionary<string, string?>>> ReadReportRdeValuesAsync(
         string projectId,

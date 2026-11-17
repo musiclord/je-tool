@@ -127,6 +127,35 @@ public sealed class SupportLogUnavailableProjectTests
         }
     }
 
+    [Theory]
+    [InlineData("support.log.export", "支援日誌", "診斷日誌")]
+    [InlineData("dev.log.exportFile", "診斷日誌", "支援日誌")]
+    public async Task DestinationFailures_NameTheLogThatWasRequested(string action, string requested, string other)
+    {
+        using var host = new HandlerTestHost(enableDevTools: true);
+        var targetId = await CreateAsync(host, "sqlite", "Synthetic link target");
+        await host.DispatchAsync("project.releaseLock");
+
+        var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(action,
+            """{"projectId":"Missing synthetic case"}"""));
+        Assert.Equal($"找不到案件資料夾，無法輸出{requested}。", missing.Message);
+
+        var link = Path.Combine(host.ProjectsRoot, "Synthetic linked case");
+        await CreateDirectoryLinkAsync(link, Path.Combine(host.ProjectsRoot, targetId));
+        try
+        {
+            var linked = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(action,
+                """{"projectId":"Synthetic linked case"}"""));
+            Assert.Equal($"案件資料夾連結到其他位置，未輸出{requested}。", linked.Message);
+            Assert.DoesNotContain(other, linked.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Assert.StartsWith(Path.GetFullPath(host.ProjectsRoot) + Path.DirectorySeparatorChar, Path.GetFullPath(link), StringComparison.OrdinalIgnoreCase);
+            Directory.Delete(link, recursive: false);
+        }
+    }
+
     private static async Task CreateDirectoryLinkAsync(string link, string target)
     {
         if (!OperatingSystem.IsWindows())

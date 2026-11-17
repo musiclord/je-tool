@@ -25,13 +25,19 @@ public static class ValidationProcedures
 
     public const string MissingTbMappingReason = AccountComparisonProcedure.MissingTbMappingReason;
 
-    /// <summary>總帳日期空白的條件，連未納入測試的分錄一起看。這是來源資料品質的發現，不併進資料缺漏輔助檢視。</summary>
-    public const string BlankGlDateSourceQualityPredicate = "gl_date IS NULL";
+    /// <summary>
+    /// 總帳日期空白的條件，連未納入測試的分錄一起看。這是來源資料品質的發現，不併進資料缺漏輔助檢視。
+    /// 來源有內容卻讀不成日期的列也沒有存日期，但它不是空白，另有自己的未納入原因，所以排除在外。
+    /// </summary>
+    public const string BlankGlDateSourceQualityPredicate =
+        "gl_date IS NULL AND (exclusion_reason IS NULL OR exclusion_reason <> '"
+        + GlExcludedPopulation.UnrecognizedGlDateStorageReason + "')";
 
     public static string BlankGlDateSourceQualityPredicateWith(string tableAlias)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableAlias);
-        return $"{tableAlias}.gl_date IS NULL";
+        return $"{tableAlias}.gl_date IS NULL AND ({tableAlias}.exclusion_reason IS NULL OR {tableAlias}.exclusion_reason <> '"
+            + GlExcludedPopulation.UnrecognizedGlDateStorageReason + "')";
     }
 
     /// <summary>

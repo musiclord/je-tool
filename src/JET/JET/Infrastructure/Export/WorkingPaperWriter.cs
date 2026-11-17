@@ -10,7 +10,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 匯出底稿(WorkingPaper).xlsx 寫出器。<see cref="IWorkingPaperPlanWriter"/> 的實作:
-/// 對外只 <see cref="IWorkingPaperPlanWriter.WriteAsync"/>,內部隱藏全部 OpenXML 細節與資料表 keyset 串流。
+/// 對外只 <see cref="IWorkingPaperPlanWriter.WriteAsync"/>,內部隱藏全部 OpenXML 細節。
+/// 每一份明細都透過一個查詢讀完的讀取介面取得，不呼叫畫面的分頁查詢。
 ///
 /// 為什麼 SAX(OpenXmlPartWriter)、不用 ClosedXML:
 ///   真實母體達百萬列(實務見過 ~140 萬列)。ClosedXML(及 OpenXML DOM)要把整個 worksheet
@@ -31,24 +32,23 @@ namespace JET.Infrastructure;
 ///   完整性差異科目數為零時,step1-3 不註冊工作表;條件由各 emitter 自己的前置判斷決定,不集中成一個大分支。
 ///
 /// step2/3/4/4-1 高風險條件彙總這一族:
-///   step2 可靠性逐頁 infSamplePage，依 legacy 範本以借貸代號＋帶號金額落欄；
+///   step2 可靠性的樣本一個查詢讀完，依 legacy 範本以借貸代號＋帶號金額落欄；
 ///   production 另以 bounded raw-row port 回填原始借貸代號與來源模組。
 ///   step3/4/4-1 的 C 欄集由本次所選情境決定——step4 用全部所選 position，
 ///   step4-1 只用所選集合中「行層命中(rowHitCount>0)」的 position。
 ///   這是業務分支:先以 scenarios 算出欄集 list(<see cref="TagColumnSet"/>),再逐列依該列
 ///   matchedPositions 是否含某 position 對映 Y——用 data structure 消特例,不寫「第幾欄特判」。
-///   step4/4-1 逐頁串流,且每頁回的 matchedPositions 是「另一個 dict」(voucher 以 voucherNumber、row 以 entry_id 對齊),
-///   step4 另備 <see cref="StreamTaggedVoucherRowsAsync"/> 把「列 + 該列命中位置」配對成串流(沿用 keyset 不全載入)；
+///   step4 用一次只往前讀的查詢取回全部符合的傳票與各傳票符合的情境位置；
 ///   step4-1 走 prepared session，只往前讀一次。
 /// </summary>
-public sealed partial class WorkingPaperWriter(
-    ICompletenessAccountPageRepository completenessAccounts,
-    ICompletenessDiffPageRepository completenessDiffs,
-    IVoucherBalancePageRepository voucherBalances,
+internal sealed partial class WorkingPaperWriter(
+    ICompletenessAccountStreamRepository completenessAccounts,
+    ICompletenessDiffStreamRepository completenessDiffs,
+    IUnbalancedVoucherDateRowStreamRepository voucherBalances,
     IPreparerSummaryExportRepository preparerSummaries,
-    IInfSamplePageRepository infSamples,
-    IHighRiskSummaryVoucherPageRepository highRiskSummaryVouchers,
-    IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+    IInfSampleStreamRepository infSamples,
+    IWorkingPaperStep4StreamRepository step4Vouchers,
+    IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
     IMappingStateStore mappingStates,
     ICalendarExportRepository calendarDays,
     IAccountMappingExportRepository accountMapping,
@@ -66,20 +66,16 @@ public sealed partial class WorkingPaperWriter(
     private readonly int _progressRowInterval = DefaultProgressRowInterval;
     private readonly ReportTemplateCatalog _templates = ReportTemplateCatalog.Default;
     private readonly IRawGlExportRepository? _rawRows;
-    private readonly IWorkingPaperStep4StreamRepository? _step4Vouchers =
-        highRiskSummaryVouchers as IWorkingPaperStep4StreamRepository;
-    private readonly IWorkingPaperStep41PreparedSessionFactory? _step41PreparedSessions =
-        highRiskSummaryRows as IWorkingPaperStep41PreparedSessionFactory;
     private readonly IAccountMappingStore? _accountMappingStateStore;
 
     internal WorkingPaperWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IVoucherBalancePageRepository voucherBalances,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
-        IInfSamplePageRepository infSamples,
-        IHighRiskSummaryVoucherPageRepository highRiskSummaryVouchers,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        IInfSampleStreamRepository infSamples,
+        IWorkingPaperStep4StreamRepository step4Vouchers,
+        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -90,8 +86,8 @@ public sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            highRiskSummaryVouchers,
-            highRiskSummaryRows,
+            step4Vouchers,
+            step41PreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping)
@@ -100,13 +96,13 @@ public sealed partial class WorkingPaperWriter(
     }
 
     internal WorkingPaperWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IVoucherBalancePageRepository voucherBalances,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
-        IInfSamplePageRepository infSamples,
-        IHighRiskSummaryVoucherPageRepository highRiskSummaryVouchers,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        IInfSampleStreamRepository infSamples,
+        IWorkingPaperStep4StreamRepository step4Vouchers,
+        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -117,8 +113,8 @@ public sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            highRiskSummaryVouchers,
-            highRiskSummaryRows,
+            step4Vouchers,
+            step41PreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping)
@@ -128,13 +124,13 @@ public sealed partial class WorkingPaperWriter(
     }
 
     internal WorkingPaperWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IVoucherBalancePageRepository voucherBalances,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
-        IInfSamplePageRepository infSamples,
-        IHighRiskSummaryVoucherPageRepository highRiskSummaryVouchers,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        IInfSampleStreamRepository infSamples,
+        IWorkingPaperStep4StreamRepository step4Vouchers,
+        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -147,8 +143,8 @@ public sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            highRiskSummaryVouchers,
-            highRiskSummaryRows,
+            step4Vouchers,
+            step41PreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping,
@@ -160,13 +156,13 @@ public sealed partial class WorkingPaperWriter(
     }
 
     internal WorkingPaperWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IVoucherBalancePageRepository voucherBalances,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
-        IInfSamplePageRepository infSamples,
-        IHighRiskSummaryVoucherPageRepository highRiskSummaryVouchers,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        IInfSampleStreamRepository infSamples,
+        IWorkingPaperStep4StreamRepository step4Vouchers,
+        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -182,8 +178,8 @@ public sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            highRiskSummaryVouchers,
-            highRiskSummaryRows,
+            step4Vouchers,
+            step41PreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping,
@@ -1144,9 +1140,7 @@ public sealed partial class WorkingPaperWriter(
 
                 if (_overlay is not null)
                 {
-                    _overlay.WriteRow(XElement.Parse(
-                        row.OuterXml,
-                        LoadOptions.PreserveWhitespace));
+                    _overlay.WriteRow(row);
                     return;
                 }
 

@@ -9,27 +9,26 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 寫出資料驗證報告、資料可靠性抽樣清單、預篩選報告與條件篩選報告，資料列用 OpenXML 一列一列寫出。
-/// 大型明細一批一批讀，每一批再用那一批的 entry_id 取回原始欄位，不把整個母體載入記憶體。
-/// 每一頁都要重算整體範圍的明細不逐頁讀，改用一個查詢讀完再分批取回原始欄位：
-/// 條件篩選報告每個情境的命中傳票、預篩選報告 R3 的命中傳票與 V_Report 6 的不平傳票各只算一次，
-/// 全科目表與差異表的各科目彙總也只算一次。條件篩選報告讀到的 entry_id 先寫進暫存檔；
-/// 其他規則的明細每頁從上一頁最後一筆接著讀，不會重算，照舊用分頁查詢一頁一頁讀。
+/// 每一份明細都透過一個查詢讀完的讀取介面取得，不呼叫畫面的分頁查詢；畫面的分頁查詢一次只讀一頁，
+/// 有些查詢的每一頁都要重算整個範圍，逐頁讀完整份資料時總時間會隨資料量平方成長。
+/// 大型明細先讀完全部 entry_id，再一批一批用那一批的 entry_id 取回原始欄位，不把整個母體載入記憶體；
+/// 條件篩選報告讀到的 entry_id 先寫進暫存檔。
 /// </summary>
-public sealed partial class LegacyReportWriter(
-    ICompletenessAccountPageRepository completenessAccounts,
-    ICompletenessDiffPageRepository completenessDiffs,
-    IUnbalancedVoucherPageRepository unbalancedGlEntries,
-    IBlankRecordsPageRepository blankRecords,
-    IInfSamplePageRepository infSamples,
-    IPrescreenPageRepository prescreenPages,
+internal sealed partial class LegacyReportWriter(
+    ICompletenessAccountStreamRepository completenessAccounts,
+    ICompletenessDiffStreamRepository completenessDiffs,
+    IUnbalancedVoucherEntryStreamRepository unbalancedGlEntries,
+    IBlankRecordEntryStreamRepository blankRecords,
+    IInfSampleStreamRepository infSamples,
+    IPrescreenHitEntryStreamRepository prescreenHitEntries,
     IRawGlExportRepository rawRows,
     IImportRepository imports,
     IMappingStateStore mappings,
     IPreparerSummaryExportRepository preparerSummaries,
     IAccountUsageExportRepository accountUsage,
     IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
-    ISourceQualityPageRepository sourceQualityPages,
-    IHighRiskSummaryRowPageRepository? highRiskSummaryRows = null,
+    ISourceQualityFindingStreamRepository sourceQualityFindings,
+    IHighRiskSummaryRowStreamRepository? highRiskSummaryRows = null,
     IResultPageRdeValuesPort? resultPageRdeValues = null)
     : IValidationReportWriter, IInfReportWriter, IPrescreenReportWriter, ICriteriaSelectionReportWriter
 {
@@ -43,19 +42,19 @@ public sealed partial class LegacyReportWriter(
     private readonly IFieldInfoFactsPort? _fieldInfoFactsPort;
 
     internal LegacyReportWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedVoucherPageRepository unbalancedGlEntries,
-        IBlankRecordsPageRepository blankRecords,
-        IInfSamplePageRepository infSamples,
-        IPrescreenPageRepository prescreenPages,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherEntryStreamRepository unbalancedGlEntries,
+        IBlankRecordEntryStreamRepository blankRecords,
+        IInfSampleStreamRepository infSamples,
+        IPrescreenHitEntryStreamRepository prescreenHitEntries,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
         IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
         IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
-        ISourceQualityPageRepository sourceQualityPages,
+        ISourceQualityFindingStreamRepository sourceQualityFindings,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval)
         : this(
@@ -64,14 +63,14 @@ public sealed partial class LegacyReportWriter(
             unbalancedGlEntries,
             blankRecords,
             infSamples,
-            prescreenPages,
+            prescreenHitEntries,
             rawRows,
             imports,
             mappings,
             preparerSummaries,
             accountUsage,
             highRiskSummaryCounts,
-            sourceQualityPages)
+            sourceQualityFindings)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
         if (progressRowInterval <= 0)
@@ -82,20 +81,20 @@ public sealed partial class LegacyReportWriter(
     }
 
     internal LegacyReportWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedVoucherPageRepository unbalancedGlEntries,
-        IBlankRecordsPageRepository blankRecords,
-        IInfSamplePageRepository infSamples,
-        IPrescreenPageRepository prescreenPages,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherEntryStreamRepository unbalancedGlEntries,
+        IBlankRecordEntryStreamRepository blankRecords,
+        IInfSampleStreamRepository infSamples,
+        IPrescreenHitEntryStreamRepository prescreenHitEntries,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
         IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
         IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
-        ISourceQualityPageRepository sourceQualityPages,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        ISourceQualityFindingStreamRepository sourceQualityFindings,
+        IHighRiskSummaryRowStreamRepository highRiskSummaryRows,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval)
         : this(
@@ -104,14 +103,14 @@ public sealed partial class LegacyReportWriter(
             unbalancedGlEntries,
             blankRecords,
             infSamples,
-            prescreenPages,
+            prescreenHitEntries,
             rawRows,
             imports,
             mappings,
             preparerSummaries,
             accountUsage,
             highRiskSummaryCounts,
-            sourceQualityPages,
+            sourceQualityFindings,
             highRiskSummaryRows)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
@@ -123,20 +122,20 @@ public sealed partial class LegacyReportWriter(
     }
 
     internal LegacyReportWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedVoucherPageRepository unbalancedGlEntries,
-        IBlankRecordsPageRepository blankRecords,
-        IInfSamplePageRepository infSamples,
-        IPrescreenPageRepository prescreenPages,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherEntryStreamRepository unbalancedGlEntries,
+        IBlankRecordEntryStreamRepository blankRecords,
+        IInfSampleStreamRepository infSamples,
+        IPrescreenHitEntryStreamRepository prescreenHitEntries,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
         IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
         IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
-        ISourceQualityPageRepository sourceQualityPages,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        ISourceQualityFindingStreamRepository sourceQualityFindings,
+        IHighRiskSummaryRowStreamRepository highRiskSummaryRows,
         IFieldInfoFactsPort fieldInfoFactsPort,
         IResultPageRdeValuesPort? resultPageRdeValues = null)
         : this(
@@ -145,14 +144,14 @@ public sealed partial class LegacyReportWriter(
             unbalancedGlEntries,
             blankRecords,
             infSamples,
-            prescreenPages,
+            prescreenHitEntries,
             rawRows,
             imports,
             mappings,
             preparerSummaries,
             accountUsage,
             highRiskSummaryCounts,
-            sourceQualityPages,
+            sourceQualityFindings,
             highRiskSummaryRows,
             resultPageRdeValues)
     {
@@ -161,20 +160,20 @@ public sealed partial class LegacyReportWriter(
     }
 
     internal LegacyReportWriter(
-        ICompletenessAccountPageRepository completenessAccounts,
-        ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedVoucherPageRepository unbalancedGlEntries,
-        IBlankRecordsPageRepository blankRecords,
-        IInfSamplePageRepository infSamples,
-        IPrescreenPageRepository prescreenPages,
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherEntryStreamRepository unbalancedGlEntries,
+        IBlankRecordEntryStreamRepository blankRecords,
+        IInfSampleStreamRepository infSamples,
+        IPrescreenHitEntryStreamRepository prescreenHitEntries,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
         IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
         IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
-        ISourceQualityPageRepository sourceQualityPages,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        ISourceQualityFindingStreamRepository sourceQualityFindings,
+        IHighRiskSummaryRowStreamRepository highRiskSummaryRows,
         IFieldInfoFactsPort fieldInfoFactsPort,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval,
@@ -185,14 +184,14 @@ public sealed partial class LegacyReportWriter(
             unbalancedGlEntries,
             blankRecords,
             infSamples,
-            prescreenPages,
+            prescreenHitEntries,
             rawRows,
             imports,
             mappings,
             preparerSummaries,
             accountUsage,
             highRiskSummaryCounts,
-            sourceQualityPages,
+            sourceQualityFindings,
             highRiskSummaryRows,
             fieldInfoFactsPort,
             resultPageRdeValues)

@@ -170,14 +170,15 @@ public sealed class PagedQuerySortSearchTests
             JsonSerializer.Serialize(new { search = new string('x', 201) })));
         Assert.Equal("invalid_payload", tooLong.Code);
 
-        // 換了排序卻沿用舊游標：明確擋下，不靜默回到第一頁。demo 的非授權編製人員命中超過一頁，游標一定存在。
+        // 換了排序卻沿用舊游標：後端明確擋下並回 stale_result，畫面據此改從第一頁重新載入。
+        // demo 的非授權編製人員命中超過一頁，游標一定存在。
         var first = await host.DispatchAsync("query.prescreenPage",
             JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, sort = new { key = "amount", direction = "asc" } }));
         var cursor = first.GetProperty("nextCursor").GetString();
         Assert.False(string.IsNullOrEmpty(cursor));
         var mismatch = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.prescreenPage",
             JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, cursor, sort = new { key = "glDate", direction = "asc" } })));
-        Assert.Equal("invalid_payload", mismatch.Code);
+        Assert.Equal("stale_result", mismatch.Code);
         Assert.Contains("從第一頁重新載入", mismatch.Message, StringComparison.Ordinal);
     }
 

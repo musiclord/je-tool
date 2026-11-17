@@ -8,6 +8,58 @@ namespace JET.Tests.Application;
 
 public sealed class ConfigurableInfSamplingTests
 {
+    /// <summary>
+    /// 原始欄位與攸關資料元素一次最多讀 500 筆。樣本比這個數目多時，抽樣清單與底稿要分批讀完，照樣匯出全部樣本。
+    /// </summary>
+    [Fact]
+    public async Task MoreSamplesThanOneReadBatch_AreAllExported()
+    {
+        const int count = 501;
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "建立人員", "金額", "借方旗標");
+                for (var index = 1; index <= 300; index++)
+                {
+                    gl.AddRow($"JV-{index:000}", "2025-03-03", "1101", "現金", $"借方 {index}", "甲", "100.00", 1);
+                    gl.AddRow($"JV-{index:000}", "2025-03-03", "6101", "費用", $"貸方 {index}", "甲", "100.00", 0);
+                }
+            },
+            validateForDownstream: true);
+        var validation = await host.DispatchAsync("validate.run", JsonSerializer.Serialize(new { sampleSize = count }));
+        Assert.Equal(count, validation.GetProperty("infSamplingTest").GetProperty("sampleSize").GetInt32());
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+
+        var exports = await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
+        var report = exports.GetProperty("publishedReports").EnumerateArray()
+            .Single(item => item.GetProperty("kind").GetString() == "infReport");
+        using (var book = new XLWorkbook(Path.Combine(host.ProjectsRoot, projectId, report.GetProperty("fileName").GetString()!)))
+        {
+            var main = book.Worksheet("INF Testing 可靠性測試");
+            Assert.Equal(count, main.Range($"B53:B{52 + count}").Cells().Count(cell => !cell.IsEmpty()));
+            var all = book.Worksheet("可靠性樣本_所有欄位");
+            Assert.Equal(count, all.RowsUsed().Count() - 1);
+            // 每一筆樣本的摘要都讀到了原始欄位，沒有哪一批漏掉。
+            Assert.All(
+                Enumerable.Range(2, count),
+                row => Assert.Matches("^[借貸]方 [0-9]+$", all.Cell(row, 5).GetString()));
+        }
+
+        var paper = await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
+        {
+            validationResultId = resultId,
+            scenarioPositions = Array.Empty<int>()
+        }));
+        using var workingPaper = new XLWorkbook(Path.Combine(
+            host.ProjectsRoot,
+            projectId,
+            paper.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
+        var step2 = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step2);
+        Assert.Equal(count, step2.Range($"B53:B{52 + count}").Cells().Count(cell => !cell.IsEmpty()));
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(17)]

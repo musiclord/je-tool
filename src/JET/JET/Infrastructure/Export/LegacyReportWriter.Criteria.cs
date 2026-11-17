@@ -7,7 +7,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     /// <summary>條件篩選報告的情境列從第 5 列起，一個已存情境一列，列數就是已存情境上限。</summary>
     private const int CriteriaFirstScenarioRow = 5;
@@ -152,7 +152,7 @@ public sealed partial class LegacyReportWriter
     {
         if (!detailRows.IsFilled)
         {
-            if (highRiskSummaryRows is not IHighRiskSummaryRowStreamRepository rowStream)
+            if (highRiskSummaryRows is not { } rowStream)
             {
                 throw new InvalidOperationException(
                     "Criteria Selection whole-voucher export requires the high-risk summary row stream.");

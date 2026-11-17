@@ -8,7 +8,9 @@ namespace JET.Infrastructure;
 /// 高風險條件彙總傳票層的分頁讀取，一頁用兩個查詢。
 ///
 /// 第一個查詢讀這一頁的命中傳票。傳票裡只要有一筆分錄在所選情境的 filter_hit 裡就算命中；
-/// voucher_number 是 NULL 的分錄不算。命中的傳票依 voucher_number 分組，用它在 GL 的全部分錄算出
+/// voucher_number 是 NULL 的分錄不算。命中傳票的號碼和分錄層共用同一個子查詢，整個查詢只取一次，
+/// 不讓每一筆分錄各自回頭找同一張傳票的命中分錄，大傳票的工作量才不會隨分錄數平方成長。
+/// 命中的傳票依 voucher_number 分組，用它在 GL 的全部分錄算出
 /// MIN(gl_date)、MIN(created_by) 與 COALESCE(SUM(debit_amount_scaled), 0)。排序與游標由
 /// <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.HighRiskSummaryVoucher</c> 組出，沒有指定排序時依 voucher_number 升冪。
 /// 換頁用上一頁最後一筆的排序鍵接下一頁。每次多讀一筆，多出來的那一筆存在才回傳下一頁的游標。
@@ -29,13 +31,7 @@ internal static class HighRiskSummaryVoucherPageReader
         "       COALESCE(SUM(g.debit_amount_scaled), 0) AS voucher_total " +
         $"FROM {schemaPrefix}gl g " +
         $"WHERE {populationPredicate} AND g.voucher_number IS NOT NULL " +
-        "  AND EXISTS (" +
-        $"      SELECT 1 FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
-        $"      JOIN {schemaPrefix}gl hit ON hit.entry_id = r.entry_id " +
-        "      WHERE hit.voucher_number = g.voucher_number " +
-        $"        AND {hitPopulationPredicate} " +
-        scenarioPredicate +
-        "  ) ";
+        $"  AND {HighRiskSummaryRowPageReader.HitVoucherPredicate(schemaPrefix, scenarioPredicate, hitPopulationPredicate)}";
 
     private const string PageSqlTail =
         "GROUP BY g.voucher_number";
@@ -67,7 +63,7 @@ internal static class HighRiskSummaryVoucherPageReader
                     schemaPrefix,
                     scenarioScope.Predicate(),
                     GlPopulationScopeSql.Predicate(context, "g"),
-                    GlPopulationScopeSql.Predicate(context, "hit")) + PageSqlTail +
+                    GlPopulationScopeSql.Predicate(context, "g2")) + PageSqlTail +
                 ") v WHERE 1 = 1" + paging.Predicate + " " + paging.OrderBy + " " +
                 dialect.LimitClause("@pageSize") + ";";
             scenarioScope.AddParameters(command);

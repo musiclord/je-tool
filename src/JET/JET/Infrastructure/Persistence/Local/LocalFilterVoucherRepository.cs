@@ -4,6 +4,9 @@ namespace JET.Infrastructure;
 
 public sealed class LocalFilterVoucherRepository(ILocalProjectDatabase database) : IFilterVoucherRepository
 {
+    public FilterConditionSql BuildConditionSql(FilterScenarioSpec scenario, FilterConditionContext context) =>
+        FilterVoucherPageReader.ConditionSql(database.Dialect, "", scenario, context);
+
     public async Task<string> ReadRevisionAsync(string projectId, CancellationToken ct)
     {
         await database.EnsureReadyAsync(projectId, ct);

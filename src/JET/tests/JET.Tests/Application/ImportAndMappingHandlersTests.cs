@@ -538,7 +538,7 @@ public sealed class ImportAndMappingHandlersTests
     }
 
     [Fact]
-    public async Task CommitGl_NonBlankInvalidGlDate_RollsBackWholeProjectionAndPreservesCommittedState()
+    public async Task CommitGl_InvalidAmountInLaterRow_RollsBackWholeProjectionAndPreservesCommittedState()
     {
         using var host = new HandlerTestHost();
         var glPath = WriteGlWorkbook();
@@ -564,7 +564,7 @@ public sealed class ImportAndMappingHandlersTests
             var beforeBatchId = beforeMapping.GetProperty("sourceBatchId").GetString();
             var beforeStep = beforeLoad.GetProperty("project").GetProperty("currentStep").GetInt32();
 
-            // 模擬同一已提交 batch 的第二列來源值被外部修正為非空非法日期：recommit 會先處理
+            // 模擬同一已提交 batch 的第二列來源值被外部改成讀不成金額的內容：recommit 會先處理
             // 第一列，再於第二列失敗。projection transaction 必須把 delete/partial insert/config update 全部回滾。
             var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
             await using (var connection = database.CreateConnection(projectId))
@@ -573,7 +573,7 @@ public sealed class ImportAndMappingHandlersTests
                 await using var command = connection.CreateCommand();
                 command.CommandText =
                     "UPDATE pbc_gl " +
-                    "SET row_json = json_set(row_json, '$.\"日期\"', 'not-a-date') " +
+                    "SET row_json = json_set(row_json, '$.\"借方金額\"', 'not-an-amount') " +
                     "WHERE row_number = (SELECT MIN(row_number) + 1 FROM pbc_gl);";
                 Assert.Equal(1, await command.ExecuteNonQueryAsync());
             }
@@ -582,7 +582,7 @@ public sealed class ImportAndMappingHandlersTests
                 () => host.DispatchAsync("mapping.commit.gl", GlCommitPayload));
 
             Assert.Equal(JetErrorCodes.ProjectionFailed, exception.Code);
-            Assert.Contains("not-a-date", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("not-an-amount", exception.Message, StringComparison.Ordinal);
             var afterRows = await DemoProjectPipeline.QueryStringListAsync(
                 host,
                 projectId,

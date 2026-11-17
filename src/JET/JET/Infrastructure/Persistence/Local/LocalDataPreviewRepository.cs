@@ -308,8 +308,8 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         long? totalCount = null;
         GlExcludedPreviewStats? stats = null;
 
-        // 只在第一頁計算總數與四種原因的筆數；換頁沿用第一頁的數字。
-        // 只看一種原因時總數是那種原因的筆數，四種筆數仍描述全部未納入測試的分錄。
+        // 只在第一頁計算總數與五種原因的筆數；換頁沿用第一頁的數字。
+        // 只看一種原因時總數是那種原因的筆數，五種筆數仍描述全部未納入測試的分錄。
         if (offset == 0)
         {
             await using var statsQuery = connection.CreateCommand();
@@ -317,6 +317,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
                 """
                 SELECT COUNT(*),
                        COUNT(CASE WHEN exclusion_reason = @blankGlDateReason THEN 1 END),
+                       COUNT(CASE WHEN exclusion_reason = @unrecognizedGlDateReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @beforePeriodReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @afterPeriodReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 END)
@@ -324,13 +325,15 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
                 WHERE is_excluded = 1;
                 """;
             statsQuery.AddWithValue("@blankGlDateReason", GlExcludedPopulation.BlankGlDateStorageReason);
+            statsQuery.AddWithValue("@unrecognizedGlDateReason", GlExcludedPopulation.UnrecognizedGlDateStorageReason);
             statsQuery.AddWithValue("@beforePeriodReason", GlExcludedPopulation.BeforePeriodStorageReason);
             statsQuery.AddWithValue("@afterPeriodReason", GlExcludedPopulation.AfterPeriodStorageReason);
             statsQuery.AddWithValue("@postingStatusReason", GlExcludedPopulation.PostingStatusStorageReason);
 
             await using var reader = await statsQuery.ExecuteReaderAsync(cancellationToken);
             await reader.ReadAsync(cancellationToken);
-            stats = new GlExcludedPreviewStats(reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4));
+            stats = new GlExcludedPreviewStats(
+                reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4), reader.GetInt64(5));
             totalCount = exclusionReason is { } filter ? stats.CountOf(filter) : reader.GetInt64(0);
         }
 

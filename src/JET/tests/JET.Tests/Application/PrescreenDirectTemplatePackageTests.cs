@@ -25,9 +25,9 @@ public sealed class PrescreenDirectTemplatePackageTests
         var projectId = await ReportExportFixture.SetupProjectAsync(host);
         var database = new SqliteProjectDatabase(
             new JetProjectFolder(host.ProjectsRoot));
-        var pages = new TrackingPrescreenPageRepository(
+        var pages = new TrackingPrescreenHitEntryStream(
             new LocalPrescreenPageRepository(database),
-            throwOnPageRead: !expectedDetailSheet);
+            throwOnDetailRead: !expectedDetailSheet);
         var writer = CreateWriter(database, pages);
         var projection = Projection(plannedRowCount);
         var plan = Plan(projectId, projection, plannedRowCount);
@@ -60,7 +60,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                 workbook.Worksheets.Any(sheet => sheet.Name == "R1"));
             Assert.Equal(
                 expectedDetailSheet ? 1 : 0,
-                pages.PageCalls);
+                pages.DetailReads);
             var summary = workbook.Worksheet("Pre-screening_Report");
             Assert.Equal(
                 "# 1. 於期末財務報表準備期間核准並入到查核年度總帳之分錄",
@@ -926,7 +926,7 @@ public sealed class PrescreenDirectTemplatePackageTests
 
     private static LegacyReportWriter CreateWriter(
         SqliteProjectDatabase database,
-        IPrescreenPageRepository pages) =>
+        IPrescreenHitEntryStreamRepository pages) =>
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
@@ -945,7 +945,7 @@ public sealed class PrescreenDirectTemplatePackageTests
 
     private static LegacyReportWriter CreateWriter(
         SqliteProjectDatabase database,
-        IPrescreenPageRepository pages,
+        IPrescreenHitEntryStreamRepository pages,
         LegacyReportWriterOptions options) =>
         CreateWriter(
             database,
@@ -956,7 +956,7 @@ public sealed class PrescreenDirectTemplatePackageTests
 
     private static LegacyReportWriter CreateWriter(
         SqliteProjectDatabase database,
-        IPrescreenPageRepository pages,
+        IPrescreenHitEntryStreamRepository pages,
         LegacyReportWriterOptions options,
         IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage) =>
@@ -1409,41 +1409,33 @@ public sealed class PrescreenDirectTemplatePackageTests
         return result;
     }
 
-    private sealed class TrackingPrescreenPageRepository(
-        IPrescreenPageRepository inner,
-        bool throwOnPageRead) : IPrescreenPageRepository
+    // 報告一個查詢讀完一條規則的明細；這裡記下讀了幾次明細。
+    // 寫出程式拿到的讀取介面只能讀明細，沒有取筆數的方法，所以不必另外擋它取筆數。
+    private sealed class TrackingPrescreenHitEntryStream(
+        IPrescreenHitEntryStreamRepository inner,
+        bool throwOnDetailRead) : IPrescreenHitEntryStreamRepository
     {
-        internal int PageCalls { get; private set; }
+        internal int DetailReads { get; private set; }
 
-        public Task<PageResult<PrescreenHitRow>> GetPageAsync(
+        public IAsyncEnumerable<long> StreamEntryIdsAsync(
             string projectId,
             string ruleKey,
             FilterConditionContext context,
-            PageRequest request,
             CancellationToken cancellationToken)
         {
-            PageCalls++;
-            if (throwOnPageRead)
+            DetailReads++;
+            if (throwOnDetailRead)
             {
                 throw new InvalidOperationException(
                     "Summary-only Pre-screening detail must not be read.");
             }
 
-            return inner.GetPageAsync(
+            return inner.StreamEntryIdsAsync(
                 projectId,
                 ruleKey,
                 context,
-                request,
                 cancellationToken);
         }
-
-        public Task<PrescreenHitCounts> GetCountsAsync(
-            string projectId,
-            string ruleKey,
-            FilterConditionContext context,
-            CancellationToken cancellationToken) =>
-            throw new InvalidOperationException(
-                "Infrastructure writer must not acquire Pre-screening counts.");
     }
 
     private sealed class FixedPreparerSummaryRepository(

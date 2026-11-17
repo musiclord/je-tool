@@ -2384,7 +2384,7 @@
   }
 
   // 案件名稱（projectId）是唯一必要識別；案件編號已是選填，留空時複製出的紀錄仍要能辨識案件。
-  function operationLogIdentity(project) {
+  function messageLogIdentity(project) {
     return {
       projectId: project && project.projectId != null ? project.projectId : '',
       projectCode: project && project.projectCode != null ? project.projectCode : '',
@@ -2392,18 +2392,18 @@
     };
   }
 
-  function operationLogSessionIsCurrent(project, projectId) {
+  function messageLogSessionIsCurrent(project, projectId) {
     var currentProject = Store.getState().project;
     // 同一 projectId 離場後再開案也屬新 session；project.load 發布的物件 identity 必須同時一致。
     return projectId != null && projectId !== '' &&
       !!currentProject && currentProject === project && currentProject.projectId === projectId;
   }
 
-  function requireOperationLogSession(project, projectId) {
-    if (operationLogSessionIsCurrent(project, projectId)) { return; }
+  function requireMessageLogSession(project, projectId) {
+    if (messageLogSessionIsCurrent(project, projectId)) { return; }
 
-    var error = new Error('operation log session changed');
-    error.code = 'operation_log_session_changed';
+    var error = new Error('message log session changed');
+    error.code = 'message_log_session_changed';
     throw error;
   }
 
@@ -2424,7 +2424,7 @@
       return String(value == null ? '' : value).replace(/[\t\r\n]+/g, ' ');
     }
 
-    var identity = operationLogIdentity(project);
+    var identity = messageLogIdentity(project);
     var lines = ['案件名稱\t案件編號\t資料庫\t時間\t等級\t訊息'];
     (entries || []).slice(0, 100).reverse().forEach(function (entry) {
       lines.push([
@@ -2437,36 +2437,6 @@
       ].join('\t'));
     });
     return lines.join('\r\n');
-  }
-
-  function writeClipboardText(value) {
-    function fallback() {
-      var textarea = global.document.createElement('textarea');
-      textarea.value = value;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      textarea.style.opacity = '0';
-      global.document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-
-      try {
-        var copied = global.document.execCommand('copy');
-        return copied
-          ? Promise.resolve()
-          : Promise.reject(new Error('clipboard copy was rejected'));
-      } catch (error) {
-        return Promise.reject(error);
-      } finally {
-        textarea.remove();
-      }
-    }
-
-    if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
-      return global.navigator.clipboard.writeText(value).catch(fallback);
-    }
-    return fallback();
   }
 
   var messageCopyFeedbackTimer = null;
@@ -2494,17 +2464,17 @@
     button.setAttribute('aria-label', '正在整理最近 100 則訊息');
     return Promise.resolve()
       .then(function () {
-        requireOperationLogSession(project, projectId);
+        requireMessageLogSession(project, projectId);
         return flushMessageWrites();
       })
       .then(function () {
-        requireOperationLogSession(project, projectId);
+        requireMessageLogSession(project, projectId);
         return global.JetApi.logRecent({ limit: 100 });
       })
       .then(function (data) {
-        requireOperationLogSession(project, projectId);
+        requireMessageLogSession(project, projectId);
         var messages = data && Array.isArray(data.messages) ? data.messages : [];
-        return writeClipboardText(formatMessageLogForCopy(messages, project));
+        return Ui.writeClipboardText(formatMessageLogForCopy(messages, project));
       })
       .then(function () {
         setMessageCopyFeedback(button, '已複製');
@@ -2512,7 +2482,7 @@
       .catch(function (error) {
         setMessageCopyFeedback(
           button,
-          error && error.code === 'operation_log_session_changed'
+          error && error.code === 'message_log_session_changed'
             ? '案件已切換，未複製'
             : '複製失敗');
       })

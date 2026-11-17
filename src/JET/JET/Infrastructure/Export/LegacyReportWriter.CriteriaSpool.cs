@@ -3,7 +3,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     /// <summary>
     /// 條件篩選報告一個情境的整張傳票分錄。第一次取批時用一個查詢依序讀完，每筆的 entry_id 與是否符合條件

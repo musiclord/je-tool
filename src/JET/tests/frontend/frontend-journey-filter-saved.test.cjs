@@ -497,8 +497,84 @@ test('a saved scenario and the high-risk summary fail in place and can be retrie
   f.click('[data-action="toggle-high-risk-summary"]');
   f.click('[data-action="toggle-high-risk-summary"]'); await settle();
   assert.equal(f.sent('queryHighRiskSummaryScenarios').length, 2, 'collapsing and expanding retries the high-risk summary');
+  // 再失敗一次：失敗說明旁有「重新載入」，按下就重讀，不必收合再展開。按鈕上的字和其他讀取失敗處相同，逐字比對。
+  f.request('queryHighRiskSummaryScenarios').reject(new Error('合成彙總失敗')); await settle(); await settle();
+  const summaryRetry = f.$('[data-bind="high-risk-summary-scenarios"] [data-high-risk-summary-retry]');
+  assert.ok(summaryRetry !== null, 'the failure offers a reload button');
+  assert.equal(summaryRetry.textContent, '重新載入');
+  assert.doesNotMatch(f.$('[data-bind="high-risk-summary-scenarios"]').textContent, /收合後再展開/);
+  summaryRetry.fire('click'); await settle();
+  assert.equal(f.sent('queryHighRiskSummaryScenarios').length, 3, 'the reload button reads the summary again');
   f.request('queryHighRiskSummaryScenarios').resolve(HIGH_RISK_SUMMARY); await settle(); await settle();
   assert.match(f.$('[data-bind="high-risk-summary-scenarios"]').textContent, /甲/);
+});
+
+// 資料庫條件式：傳票清單第一頁帶回的文字，已儲存情境展開處與編輯中的預覽都看得到，預設收合，可以複製。
+// 文字是後端給的，這裡用合成值，含 < 與 & 確認照原樣顯示；這一塊和傳票清單一樣用 onclick 綁定，測試直接呼叫；「資料庫條件式」「複製」「已複製」「複製失敗」是畫面上的字，逐字比對。
+const CONDITION_SQL = "FROM gl g\nWHERE g.is_excluded = 0\n  AND (UPPER(TRIM([摘要])) IN ('合成 <值> & 其他'))\n\n-- gl：GL 的分錄，一筆一列。方括號裡是 GL 檔的欄名。";
+function withClipboard(f, accept = true) {
+  const writes = [];
+  f.window.navigator = { clipboard: { writeText(value) {
+    if (!accept) return Promise.reject(new Error('synthetic clipboard denied'));
+    writes.push(value); return Promise.resolve();
+  } } };
+  // 剪貼簿拒絕後正式程式改用 execCommand('copy')；這裡讓它也失敗，才看得到「複製失敗」。
+  f.dom.document.execCommand = () => false;
+  return writes;
+}
+
+test('the database condition is shown collapsed under a saved scenario and in the draft preview, and can be copied', async () => {
+  const f = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
+  const writes = withClipboard(f);
+  const body = () => f.$('[data-bind="scenario-preview-0"]');
+  const toggle = () => body().querySelector('[data-condition-sql-toggle]');
+  const panel = () => body().querySelector('[data-condition-sql-panel]');
+  f.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
+  f.request('queryFilterVoucherPage').resolve({ ...savedFirstPage('JV-1'), conditionSql: CONDITION_SQL }); await settle(); await settle();
+
+  // 預設收合：只有一顆「資料庫條件式」，條件式的文字已經在頁面裡但藏著。
+  assert.equal(toggle().textContent, '資料庫條件式');
+  assert.equal(toggle().getAttribute('aria-expanded'), 'false');
+  assert.equal(panel().hidden, true);
+  assert.equal(toggle().getAttribute('aria-controls'), panel().getAttribute('id'));
+
+  // 展開：文字和後端回的一字不差。
+  toggle().onclick(); await settle();
+  assert.equal(toggle().getAttribute('aria-expanded'), 'true');
+  assert.equal(panel().hidden, false);
+  assert.equal(panel().querySelector('.condition-sql__text').textContent, CONDITION_SQL);
+
+  // 複製：寫進剪貼簿的是同一段文字，按鈕短暫改寫「已複製」。
+  const copy = () => panel().querySelector('[data-condition-sql-copy]');
+  assert.equal(copy().textContent, '複製');
+  copy().onclick(); await settle(); await settle();
+  assert.deepEqual(writes, [CONDITION_SQL]);
+  assert.equal(copy().textContent, '已複製');
+
+  // 再點一次收合；讀取分錄或換頁重畫傳票清單時，開合狀態不變。
+  toggle().onclick(); await settle();
+  assert.equal(panel().hidden, true);
+  assert.equal(toggle().getAttribute('aria-expanded'), 'false');
+
+  // 後端沒有帶條件式（例如舊的回應）時不畫這一塊。
+  const g = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
+  g.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
+  g.request('queryFilterVoucherPage').resolve(savedFirstPage('JV-1')); await settle(); await settle();
+  assert.equal(g.$('[data-bind="scenario-preview-0"]').querySelector('[data-condition-sql]'), null);
+
+  // 編輯中的預覽：同一塊，剪貼簿不能用時按鈕寫「複製失敗」。
+  const d = savedFixture();
+  withClipboard(d, false);
+  d.click('[data-common-card="blankDescription"]');
+  d.click('[data-action="preview-scenario"]'); await settle();
+  d.request('filterPreview').resolve({ scenario: { count: 2, voucherCount: 1, summaryRowCount: 2, populationScope: 'auditPeriod' } }); await settle();
+  d.request('queryFilterVoucherPage').resolve({ ...voucherPage('JV-D'), conditionSql: CONDITION_SQL }); await settle(); await settle();
+  const pane = () => d.$('[data-bind="preview-pane-body"]');
+  assert.equal(pane().querySelector('[data-condition-sql-toggle]').textContent, '資料庫條件式');
+  pane().querySelector('[data-condition-sql-toggle]').onclick(); await settle();
+  assert.equal(pane().querySelector('.condition-sql__text').textContent, CONDITION_SQL);
+  pane().querySelector('[data-condition-sql-copy]').onclick(); await settle(); await settle();
+  assert.equal(pane().querySelector('[data-condition-sql-copy]').textContent, '複製失敗');
 });
 
 test('answers that arrive after the case, the saved list or the version changed are dropped without any message', async () => {

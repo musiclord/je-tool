@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class WorkingPaperWriter
+internal sealed partial class WorkingPaperWriter
 {
     private async Task<IReadOnlyDictionary<long, IReadOnlyDictionary<string, string?>>> ReadWorkingPaperRdeValuesAsync(
         string projectId,

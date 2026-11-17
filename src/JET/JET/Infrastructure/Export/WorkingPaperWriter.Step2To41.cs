@@ -9,7 +9,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class WorkingPaperWriter
+internal sealed partial class WorkingPaperWriter
 {
     // ================= step2、step3、step4 與 step4-1：可靠性測試與高風險條件彙總的工作表 =================
 
@@ -162,19 +162,14 @@ public sealed partial class WorkingPaperWriter
         // 依審計員選的筆數抽樣，先依穩定鍵讀完，再照 INF 報告的順序排，
         // 之後每 DefaultPageSize 筆一批讀原始 GL 列與攸關資料元素的值。
         var samples = new List<InfSampleRow>();
-        string? cursor = null;
-        do
+        await foreach (var sample in infSamples.StreamAsync(
+                           context.ProjectId,
+                           context.ValidationResultId,
+                           cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var page = await infSamples.GetPageAsync(
-                context.ProjectId,
-                context.ValidationResultId,
-                context.MoneyScale,
-                new PageRequest(cursor, PageRequest.DefaultPageSize),
-                cancellationToken);
-            samples.AddRange(page.Rows);
-            cursor = page.NextCursor;
-        } while (cursor is not null);
+            samples.Add(sample);
+        }
 
         if (_rawRows is null)
         {
@@ -339,7 +334,7 @@ public sealed partial class WorkingPaperWriter
     /// <summary>
     /// 「step4 符合高風險條件傳票」：第 11 列是欄標，A 到 E 欄依序是編號、傳票號碼、總帳日期、編製者、傳票總金額，
     /// 後面每個所選情境一欄，欄標是 C 加 position，依 position 由小到大排。第 12 列是固定說明，資料從第 13 列起。
-    /// 有底稿計畫時，符合的傳票用一次只往前讀的查詢全部讀完；沒有計畫時用畫面的分頁查詢一頁一頁讀。
+    /// 符合的傳票用一次只往前讀的查詢全部讀完。
     /// 每一列看那張傳票符合哪些情境，符合的情境欄寫 Y，其他留白；P 到 U 欄留給審計員填寫。
     /// </summary>
     private async Task EmitStep4Async(
@@ -355,17 +350,11 @@ public sealed partial class WorkingPaperWriter
             Step4DisplayHeaders(tagColumns),
             Step4MinimumWidths());
         ReportSheetStarted(stats, progress, WorkingPaperSheetCatalog.Step4);
-        var sourceRows = sheetPlan is null
-            ? StreamTaggedVoucherRowsAsync(
-                context,
-                context.ScenarioPositions,
-                () => ++ordinal,
-                cancellationToken)
-            : StreamFinalizedStep4VoucherRowsAsync(
-                context,
-                tagColumns.AllPositions,
-                () => ++ordinal,
-                cancellationToken);
+        var sourceRows = StreamStep4VoucherRowsAsync(
+            context,
+            tagColumns.AllPositions,
+            () => ++ordinal,
+            cancellationToken);
         await FillDisplaySpoolAsync(
             spool,
             ProjectRowsAsync(
@@ -504,11 +493,6 @@ public sealed partial class WorkingPaperWriter
         CancellationToken cancellationToken,
         Action<WorkingPaperProgress>? progress)
     {
-        if (_step41PreparedSessions is null)
-        {
-            throw new InvalidOperationException(
-                "WorkingPaper step4-1 prepared session factory 未設定。");
-        }
         ValidateStep41NumberScales(columns);
 
         const uint firstDataRow = 6;
@@ -531,7 +515,7 @@ public sealed partial class WorkingPaperWriter
             ? null
             : Step41SourceSpool.Create();
         ReportSheetStarted(stats, progress, WorkingPaperSheetCatalog.Step41);
-        await using (var prepared = await _step41PreparedSessions.PrepareAsync(
+        await using (var prepared = await step41PreparedSessions.PrepareAsync(
                          context.ProjectId,
                          populationContext,
                          tagColumns.AllPositions,
@@ -919,16 +903,51 @@ public sealed partial class WorkingPaperWriter
                 DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.RoundtripKind,
                 out var date))
         {
+            // 換算不出日期的 Excel 日期儲存格，例如負的序列值，讀取器存下的是序列值的文字，不是日期。
+            // 這是來源資料本來的樣子，照存下來的文字寫出；其他讀不成日期的內容才是資料庫的內容不對。
+            if (IsStoredDateSerial(value))
+            {
+                return Text(value);
+            }
+
             throw LocalEngineErrors.DatabaseCorrupt();
+        }
+
+        if (!TryExcelDateSerial(date.Date, out var serial))
+        {
+            return Text(value);
         }
 
         return new Step41ProjectedValue(
             Text: null,
-            NumberLiteral: date.Date.ToOADate().ToString(
-                "R",
-                CultureInfo.InvariantCulture),
+            NumberLiteral: serial,
             Style: WorkingPaperStyles.Step41Date,
             RenderedText: date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+    }
+
+    // Excel 的日期序列值從 1900-03-01 起才和實際日期一致：Excel 把 1900 年當成閏年，更早的日期會差一天，
+    // 1900 年以前的日期顯示不出來，西元 100 年以前連序列值都換算不出來。
+    // 這些日期不寫成日期儲存格，呼叫端改把存下來的日期文字照原樣寫成文字儲存格，匯出照常完成。
+    private static readonly DateTime FirstExcelFaithfulDate = new(1900, 3, 1);
+
+    private static bool IsStoredDateSerial(string value) =>
+        double.TryParse(
+            value,
+            NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture,
+            out var number)
+        && double.IsFinite(number);
+
+    private static bool TryExcelDateSerial(DateTime date, out string serial)
+    {
+        if (date < FirstExcelFaithfulDate)
+        {
+            serial = string.Empty;
+            return false;
+        }
+
+        serial = date.ToOADate().ToString("R", CultureInfo.InvariantCulture);
+        return true;
     }
 
     private static Step41ProjectedValue Time(
@@ -1701,11 +1720,14 @@ public sealed partial class WorkingPaperWriter
                 $"step2 RDE field '{field.FieldId}' has invalid date '{value}'.");
         }
 
+        if (!TryExcelDateSerial(date.ToDateTime(TimeOnly.MinValue), out var serial))
+        {
+            return ProjectText(value);
+        }
+
         return new WorkingPaperDisplayCell(
             Text: null,
-            NumberLiteral: date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(
-                "R",
-                CultureInfo.InvariantCulture),
+            NumberLiteral: serial,
             Style: WorkingPaperStyles.Date,
             RenderedText: value);
     }
@@ -1771,66 +1793,21 @@ public sealed partial class WorkingPaperWriter
     // ---- step4 的資料來源：每張傳票配上它符合的情境位置，逐列讀取，不整批載入 ----
 
     /// <summary>
-    /// step4 的傳票資料，用畫面的分頁查詢一頁一頁讀。查詢的範圍與回傳的符合情境位置，
-    /// 都只限 <paramref name="scenarioPositions"/> 列出的情境；寫出時每個情境欄依這張傳票有沒有符合那個情境寫 Y。
-    /// 傳票總金額由 repository 計算：傳票只要符合任何一個所選情境，就加總那張傳票全部 GL 分錄的借方金額。
-    /// 編號由呼叫端的 <paramref name="nextOrdinal"/> 累計。
+    /// step4 的資料來源：用一次依序、只往前讀的查詢取回全部符合的傳票，每張傳票配上它符合的情境位置。
+    /// 編號由呼叫端的 <paramref name="nextOrdinal"/> 累計。每頁 200 筆的分頁查詢只給畫面用。
     /// </summary>
-    private async IAsyncEnumerable<TaggedVoucherRow> StreamTaggedVoucherRowsAsync(
-        WorkingPaperContext context,
-        IReadOnlyList<int> scenarioPositions,
-        Func<long> nextOrdinal,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var populationContext = new GlPopulationContext(
-            context.PopulationScope,
-            context.PeriodStart,
-            context.PeriodEnd);
-        string? cursor = null;
-        do
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var (page, positionsByDoc) = await highRiskSummaryVouchers.GetPageAsync(
-                context.ProjectId, populationContext, new PageRequest(cursor, PageRequest.DefaultPageSize),
-                scenarioPositions, cancellationToken);
-
-            foreach (var voucher in page.Rows)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var matched = voucher.VoucherNumber is not null
-                    && positionsByDoc.TryGetValue(voucher.VoucherNumber, out var p)
-                    ? p
-                    : (IReadOnlyList<int>)[];
-                var ordinal = nextOrdinal();
-                yield return new TaggedVoucherRow(voucher, matched, ordinal);
-            }
-
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-    }
-
-    /// <summary>
-    /// 有底稿計畫時 step4 的資料來源：用一次依序、只往前讀的查詢取回全部符合的傳票。
-    /// 每頁 200 筆的分頁查詢只給畫面用。
-    /// </summary>
-    private async IAsyncEnumerable<TaggedVoucherRow> StreamFinalizedStep4VoucherRowsAsync(
+    private async IAsyncEnumerable<TaggedVoucherRow> StreamStep4VoucherRowsAsync(
         WorkingPaperContext context,
         IReadOnlyList<int> scenarioPositions,
         Func<long> nextOrdinal,
         [System.Runtime.CompilerServices.EnumeratorCancellation]
         CancellationToken cancellationToken)
     {
-        if (_step4Vouchers is null)
-        {
-            throw new InvalidOperationException(
-                "WorkingPaper step4 stream repository 未設定。");
-        }
-
         var populationContext = new GlPopulationContext(
             context.PopulationScope,
             context.PeriodStart,
             context.PeriodEnd);
-        await foreach (var row in _step4Vouchers.StreamAsync(
+        await foreach (var row in step4Vouchers.StreamAsync(
                            context.ProjectId,
                            populationContext,
                            scenarioPositions,

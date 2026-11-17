@@ -8,7 +8,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     // 舊版 JET 在資料驗證報告摘要頁的六個格子依條件加上的黃色底。
     private static readonly WorkbookStylePatch ValidationSummaryDifferenceFill =
@@ -754,15 +754,17 @@ public sealed partial class LegacyReportWriter
             return;
         }
 
+        // 一類的全部明細用一個查詢讀完 entry_id，再分批取回原始欄位；讀出的分錄與順序和畫面逐頁讀完相同。
+        var entryIds = new BufferedEntryIds(ct => blankRecords.StreamEntryIdsAsync(
+            context.ProjectId, category, context.PeriodStart, context.PeriodEnd, ct));
         await EmitRawPagedSheetsAsync(
             document,
             sheets,
             stats,
             context.ProjectId,
             sheetName,
-            (page, ct) => blankRecords.GetPageAsync(
-                context.ProjectId, category, context.PeriodStart, context.PeriodEnd, page, ct),
-            row => row.EntryId,
+            entryIds.ReadPageAsync,
+            entryId => entryId,
             legacyStyles,
             autoFitMode,
             cancellationToken,
@@ -792,21 +794,13 @@ public sealed partial class LegacyReportWriter
         ];
         ReportSheetStarted(stats, baseName, progress);
         using var spool = RawReportSpool.Create(headers);
-        string? cursor = null;
-        do
+        await foreach (var row in sourceQualityFindings.StreamAsync(projectId, cancellationToken)
+                           .WithCancellation(cancellationToken)
+                           .ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var page = await sourceQualityPages.GetPageAsync(
-                projectId,
-                new PageRequest(cursor, PageRequest.DefaultPageSize),
-                cancellationToken).ConfigureAwait(false);
-            foreach (var row in page.Rows)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                spool.Append(SourceQualityValues(row));
-            }
-            cursor = page.NextCursor;
-        } while (cursor is not null);
+            spool.Append(SourceQualityValues(row));
+        }
         spool.Complete();
 
         var columns = headers.Select((header, index) => new ReportColumn(
@@ -994,19 +988,13 @@ public sealed partial class LegacyReportWriter
     private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessAccounts(
         ReportDocumentContext context,
         CancellationToken cancellationToken) =>
-        completenessAccounts is ICompletenessAccountStreamRepository rows
-            ? rows.StreamAsync(context.ProjectId, cancellationToken)
-            : throw new InvalidOperationException(
-                "Completeness account export requires the completeness account stream.");
+        completenessAccounts.StreamAsync(context.ProjectId, cancellationToken);
 
     /// <summary>差異表用一個查詢依序讀完，做法和 <see cref="StreamCompletenessAccounts"/> 相同。</summary>
     private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessDifferences(
         ReportDocumentContext context,
         CancellationToken cancellationToken) =>
-        completenessDiffs is ICompletenessDiffStreamRepository rows
-            ? rows.StreamAsync(context.ProjectId, cancellationToken)
-            : throw new InvalidOperationException(
-                "Completeness difference export requires the completeness difference stream.");
+        completenessDiffs.StreamAsync(context.ProjectId, cancellationToken);
 
     private static string FormatAmountForAutoFit(long scaled, int moneyScale) =>
         Display(scaled, moneyScale).ToString(
@@ -1071,10 +1059,7 @@ public sealed partial class LegacyReportWriter
         // 分頁查詢的每一頁都要重新彙總全部傳票的借貸；這裡用一個查詢讀完全部 entry_id，哪些傳票不平只算一次，
         // 讀出的分錄與順序和逐頁讀完相同。
         var entryIds = new BufferedEntryIds(ct =>
-            unbalancedGlEntries is IUnbalancedVoucherEntryStreamRepository entries
-                ? entries.StreamEntryIdsAsync(context.ProjectId, ct)
-                : throw new InvalidOperationException(
-                    "Unbalanced voucher export requires the unbalanced voucher entry stream."));
+            unbalancedGlEntries.StreamEntryIdsAsync(context.ProjectId, ct));
         await EmitRawPagedSheetsAsync(
             document,
             sheets,

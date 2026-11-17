@@ -7,7 +7,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     private const int InfReportSampleSize = InfSampling.DefaultSampleSize;
 
@@ -75,11 +75,21 @@ public sealed partial class LegacyReportWriter
             throw MissingRawGlSource();
         }
 
+        // 原始欄位與攸關資料元素一次最多讀一批；樣本比一批多時分批讀完再合起來。
         var sampleEntryIds = samples.Select(row => row.EntryId).ToArray();
-        var raw = await rawRows.FetchJsonByEntryIdsAsync(
-            context.Project.ProjectId,
-            sampleEntryIds,
-            cancellationToken).ConfigureAwait(false);
+        var raw = new Dictionary<long, string>(sampleEntryIds.Length);
+        foreach (var batchEntryIds in sampleEntryIds.Chunk(PageRequest.MaxPageSize))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchRaw = await rawRows.FetchJsonByEntryIdsAsync(
+                context.Project.ProjectId,
+                batchEntryIds,
+                cancellationToken).ConfigureAwait(false);
+            foreach (var (entryId, rowJson) in batchRaw)
+            {
+                raw[entryId] = rowJson;
+            }
+        }
         EnsureRawRowsComplete(sampleEntryIds, raw);
         var glMapping = await mappings.FindAsync(
             context.Project.ProjectId,
@@ -103,13 +113,22 @@ public sealed partial class LegacyReportWriter
                     cancellationToken).ConfigureAwait(false);
         var textColumns = InfTextColumns(targetDefinitions, glMapping);
         var templateSamples = BuildInfTemplateSamples(samples, raw, glMapping);
-        var rdeValues = await ReadReportRdeValuesAsync(
-            context.Project.ProjectId,
-            sampleEntryIds,
-            workbookMetadata.GlMapping.GlOptions?.RdeFields ?? customFields,
-            customFields,
-            context.Project.MoneyScale,
-            cancellationToken).ConfigureAwait(false);
+        var rdeValues = new Dictionary<long, IReadOnlyDictionary<string, string?>>(sampleEntryIds.Length);
+        foreach (var batchEntryIds in sampleEntryIds.Chunk(PageRequest.MaxPageSize))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchRde = await ReadReportRdeValuesAsync(
+                context.Project.ProjectId,
+                batchEntryIds,
+                workbookMetadata.GlMapping.GlOptions?.RdeFields ?? customFields,
+                customFields,
+                context.Project.MoneyScale,
+                cancellationToken).ConfigureAwait(false);
+            foreach (var (entryId, values) in batchRde)
+            {
+                rdeValues[entryId] = values;
+            }
+        }
 
         return await ReportTemplatePackage.FillDirectAsync(
             _templates,
@@ -139,19 +158,16 @@ public sealed partial class LegacyReportWriter
     {
         // 先依穩定鍵讀完實際樣本，再照報告的順序排。
         var samples = new List<InfSampleRow>(InfReportSampleSize);
-        string? cursor = null;
-        do
+        await foreach (var sample in infSamples.StreamAsync(
+                               context.Project.ProjectId,
+                               context.ResultId,
+                               cancellationToken)
+                           .WithCancellation(cancellationToken)
+                           .ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var page = await infSamples.GetPageAsync(
-                context.Project.ProjectId,
-                context.ResultId,
-                context.Project.MoneyScale,
-                new PageRequest(cursor, InfReportSampleSize),
-                cancellationToken).ConfigureAwait(false);
-            samples.AddRange(page.Rows);
-            cursor = page.NextCursor;
-        } while (cursor is not null);
+            samples.Add(sample);
+        }
 
         var ordered = ResultPageSorting.InfSampleReportOrder(samples);
         return ordered;
@@ -368,11 +384,17 @@ public sealed partial class LegacyReportWriter
         // 範本裡 F51 是不換行的表頭樣式。K 欄的表頭改用 F51 的樣式，K 欄每一列的摘要改用同一列 L 欄的不換行樣式，
         // 這樣欄寬照量出來的寬度決定，Excel 不會把文字換行。
         // 這一步要在套用舊版 JET 的文字格式之前做：之後才複製樣式的話，會把已經套上的 "@" 格式蓋掉。
-        SetExactCellStyleFromPrototype(worksheet, "K51", "F51");
+        // 每一列都要查兩個格子；這張表的格子先依位置整理一次，不必每一列都把整張表再找一遍。
+        var cellsByReference = worksheet.Descendants<Cell>()
+            .Where(cell => cell.CellReference?.Value is not null)
+            .ToDictionary(
+                cell => cell.CellReference!.Value!,
+                StringComparer.OrdinalIgnoreCase);
+        SetExactCellStyleFromPrototype(cellsByReference, "K51", "F51");
         for (var row = 53U; row <= 52U + rowCount; row++)
         {
             SetExactCellStyleFromPrototype(
-                worksheet,
+                cellsByReference,
                 ReportSheetWriter.Reference(11, row),
                 ReportSheetWriter.Reference(12, row));
         }
@@ -478,15 +500,10 @@ public sealed partial class LegacyReportWriter
     }
 
     private static void SetExactCellStyleFromPrototype(
-        Worksheet worksheet,
+        IReadOnlyDictionary<string, Cell> cells,
         string targetReference,
         string prototypeReference)
     {
-        var cells = worksheet.Descendants<Cell>()
-            .Where(cell => cell.CellReference?.Value is not null)
-            .ToDictionary(
-                cell => cell.CellReference!.Value!,
-                StringComparer.OrdinalIgnoreCase);
         if (!cells.TryGetValue(targetReference, out var target)
             || !cells.TryGetValue(prototypeReference, out var prototype)
             || prototype.StyleIndex is null)

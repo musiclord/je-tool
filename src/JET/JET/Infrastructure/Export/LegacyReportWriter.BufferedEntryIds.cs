@@ -3,7 +3,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     /// <summary>
     /// 一個查詢讀完的明細 entry_id，先收在記憶體裡，再依序一批一批交給讀原始欄位、寫工作表的程式。

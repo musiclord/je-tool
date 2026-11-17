@@ -7,7 +7,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class LegacyReportWriter
+internal sealed partial class LegacyReportWriter
 {
     private const string PrescreenSummaryOnlyMessage =
         "明細筆數超過10,000筆，明細資料不匯出";
@@ -498,45 +498,21 @@ public sealed partial class LegacyReportWriter
             return;
         }
 
-        // 列出整張命中傳票的規則（未預期借貸組合），分頁查詢的每一頁都要重算全部命中傳票；
-        // 改用一個查詢讀完全部 entry_id，命中傳票只算一次，讀出的分錄與順序和逐頁讀完相同。
-        // 其他規則的每一頁從上一頁最後一筆接著找，不會重算，照舊逐頁讀。
-        if (PrescreenRuleDefinitions.ByKey.TryGetValue(ruleKey, out var rule)
-            && rule.ListsWholeHitVouchersWhenAlone)
-        {
-            var entryIds = new BufferedEntryIds(ct => StreamPrescreenHitEntryIds(
-                context.ProjectId,
-                ruleKey,
-                plan.Request.RuleContext,
-                ct));
-            await EmitRawPagedSheetsAsync(
-                document,
-                sheets,
-                stats,
-                context.ProjectId,
-                sheetName,
-                entryIds.ReadPageAsync,
-                entryId => entryId,
-                styles,
-                RawSheetAutoFitMode.LegacyFirstTwenty,
-                cancellationToken,
-                progress).ConfigureAwait(false);
-            return;
-        }
-
+        // 每一條規則的明細都用一個查詢讀完全部 entry_id，再分批取回原始欄位。
+        // 列出整張命中傳票的規則（未預期借貸組合）這樣只算一次命中傳票；讀出的分錄與順序和畫面逐頁讀完相同。
+        var entryIds = new BufferedEntryIds(ct => prescreenHitEntries.StreamEntryIdsAsync(
+            context.ProjectId,
+            ruleKey,
+            plan.Request.RuleContext,
+            ct));
         await EmitRawPagedSheetsAsync(
             document,
             sheets,
             stats,
             context.ProjectId,
             sheetName,
-            (page, ct) => prescreenPages.GetPageAsync(
-                context.ProjectId,
-                ruleKey,
-                plan.Request.RuleContext,
-                page,
-                ct),
-            row => row.EntryId,
+            entryIds.ReadPageAsync,
+            entryId => entryId,
             styles,
             RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken,
@@ -983,15 +959,4 @@ public sealed partial class LegacyReportWriter
     private static string FormatDisplayedAmount(long scaled, int moneyScale) =>
         Display(scaled, moneyScale)
             .ToString("#,##0.0000;-#,##0.0000", CultureInfo.InvariantCulture);
-
-    /// <summary>一條規則的全部命中分錄用一個查詢讀完，依 entry_id 升冪。</summary>
-    private IAsyncEnumerable<long> StreamPrescreenHitEntryIds(
-        string projectId,
-        string ruleKey,
-        FilterConditionContext ruleContext,
-        CancellationToken cancellationToken) =>
-        prescreenPages is IPrescreenHitEntryStreamRepository entries
-            ? entries.StreamEntryIdsAsync(projectId, ruleKey, ruleContext, cancellationToken)
-            : throw new InvalidOperationException(
-                "Pre-screening whole-voucher export requires the pre-screening hit entry stream.");
 }

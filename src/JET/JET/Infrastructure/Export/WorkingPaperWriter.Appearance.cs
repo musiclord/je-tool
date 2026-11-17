@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class WorkingPaperWriter
+internal sealed partial class WorkingPaperWriter
 {
     // 照舊版 JET 的 Step5_Export_Excel_TW 訂的各工作表外觀。這裡每一項只改字型、字色或底色這類個別項目，
     // 以範本或寫出程式原本的樣式為底，不拿一個完整的儲存格樣式整個換掉；

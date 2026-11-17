@@ -289,6 +289,11 @@ internal static class ActionShapeJourney
             };
             var firstGlCommit = await Send("mapping.commit.gl", GlCommit(misMapped, amountMode, newRdeFields));
             var rdeFields = CommittedRdeFields(firstGlCommit);
+            // 來源有一欄到期日，裡面有讀不成日期的值，也有年份不尋常的日期。審計員把它配成日期型別的攸關資料元素，
+            // 回應帶日期提醒；看過之後不留這個欄位，照原本的攸關資料元素繼續。
+            var withDueDate = (JsonArray)rdeFields.DeepClone();
+            withDueDate.Add(new JsonObject { ["sourceColumn"] = "合成到期日", ["label"] = "合成到期日", ["valueType"] = "date" });
+            await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, withDueDate));
             // 審計員先試借方、貸方金額分開的配對，不配傳票項次，另配分錄來源與過帳狀態（只認列已過帳，空白也算），
             // 人工/自動分錄只指定自動代碼、其餘算人工，空白不分類。重開案件看一次，再改回單一金額欄的配對。
             // mapping-step.js 有配過帳狀態時一併送 postingStatusPolicy；沒有配傳票核准日時 approvalDateMode 送 unmapped。
@@ -717,6 +722,11 @@ internal static class ActionShapeJourney
             {
                 await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx", "append");
             }
+            // 這時總帳有兩份來源檔。審計員先確認一次配對：日期提醒的列號另外寫出是哪一份來源檔。
+            await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, new JsonArray
+            {
+                new JsonObject { ["sourceColumn"] = "合成到期日", ["label"] = "合成到期日", ["valueType"] = "date" },
+            }));
             await ImportAsync("import.gl.fromFile", glExport.GetProperty("filePath").GetString()!, glExport.GetProperty("fileName").GetString()!);
             // 原始總帳沒有前面那份底稿配到的核准人員欄與兩個攸關資料元素的欄：從底稿帶入時這三個列在 unmatchedFields，其餘照樣帶入。
             await Send("mapping.restoreDraft", new { filePath = workingPaperPath });
@@ -1152,6 +1162,11 @@ internal static class ActionShapeJourney
             sheet.Cell(1, extra + 5).Value = "合成貸方金額";
             sheet.Cell(1, extra + 6).Value = "合成分錄來源";
             sheet.Cell(1, extra + 7).Value = "合成過帳狀態";
+            // 到期日欄大多空白：一格是沒有這一天的日期，一格是年份不尋常的日期，一格是一般日期。
+            sheet.Cell(1, extra + 8).Value = "合成到期日";
+            sheet.Cell(3, extra + 8).Value = "2025-13-45";
+            sheet.Cell(4, extra + 8).Value = "9999-12-31";
+            sheet.Cell(5, extra + 8).Value = "2026-06-30";
             for (var row = 2; row <= lastRow; row++)
             {
                 sheet.Cell(row, extra).Value = "部門" + (row % 3);

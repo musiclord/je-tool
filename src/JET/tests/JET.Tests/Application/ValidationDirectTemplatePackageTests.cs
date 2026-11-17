@@ -1596,8 +1596,11 @@ public sealed class ValidationDirectTemplatePackageTests
         IUnbalancedVoucherPageRepository,
         IUnbalancedVoucherEntryStreamRepository,
         IBlankRecordsPageRepository,
+        IBlankRecordEntryStreamRepository,
         IInfSamplePageRepository,
+        IInfSampleStreamRepository,
         IPrescreenPageRepository,
+        IPrescreenHitEntryStreamRepository,
         IFilterHitsPageRepository,
         IRawGlExportRepository,
         IImportRepository,
@@ -1607,7 +1610,8 @@ public sealed class ValidationDirectTemplatePackageTests
         IHighRiskSummaryScenariosRepository,
         IFieldInfoFactsPort,
         IResultPageRdeValuesPort,
-        ISourceQualityPageRepository
+        ISourceQualityPageRepository,
+        ISourceQualityFindingStreamRepository
     {
         private static readonly IReadOnlyDictionary<string, string> GlMapping =
             new Dictionary<string, string>(StringComparer.Ordinal)
@@ -1673,7 +1677,7 @@ public sealed class ValidationDirectTemplatePackageTests
                         {
                             return this;
                         }
-                        if (type == typeof(IHighRiskSummaryRowPageRepository))
+                        if (type == typeof(IHighRiskSummaryRowStreamRepository))
                         {
                             return null;
                         }
@@ -1703,19 +1707,19 @@ public sealed class ValidationDirectTemplatePackageTests
             }
 
             return new LegacyReportWriter(
-                (ICompletenessAccountPageRepository)this,
-                (ICompletenessDiffPageRepository)this,
-                (IUnbalancedVoucherPageRepository)this,
-                (IBlankRecordsPageRepository)this,
-                (IInfSamplePageRepository)this,
-                (IPrescreenPageRepository)this,
+                (ICompletenessAccountStreamRepository)this,
+                (ICompletenessDiffStreamRepository)this,
+                (IUnbalancedVoucherEntryStreamRepository)this,
+                (IBlankRecordEntryStreamRepository)this,
+                (IInfSampleStreamRepository)this,
+                (IPrescreenHitEntryStreamRepository)this,
                 (IRawGlExportRepository)this,
                 (IImportRepository)this,
                 (IMappingStateStore)this,
                 (IPreparerSummaryExportRepository)this,
                 (IAccountUsageExportRepository)this,
                 (IHighRiskSummaryScenariosRepository)this,
-                (ISourceQualityPageRepository)this,
+                (ISourceQualityFindingStreamRepository)this,
                 writerOptions,
                 progressRowInterval);
         }
@@ -1805,6 +1809,66 @@ public sealed class ValidationDirectTemplatePackageTests
             return Task.FromResult(new PageResult<BlankRecordRow>(
                 [new BlankRecordRow("DOC-1", "1101", "2025-03-01", "row", false, false, false, false, entryId)],
                 null));
+        }
+
+        // 報告一次讀完一類空值紀錄的分錄；這一次讀取和上面的分頁一樣計入 BlankPageCalls，交出同一組分錄，也一樣受禁止讀取明細的設定限制。
+        async IAsyncEnumerable<long> IBlankRecordEntryStreamRepository.StreamEntryIdsAsync(
+            string projectId,
+            BlankRecordCategory category,
+            string periodStart,
+            string periodEnd,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            BlankPageCalls++;
+            ThrowIfForbidden();
+            if (BlankRows is not null)
+            {
+                foreach (var row in BlankRows)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return row.EntryId;
+                }
+
+                yield break;
+            }
+
+            yield return 100 + (long)category;
+        }
+
+        // 抽樣清單一次讀完樣本，交出的樣本和分頁相同。
+        async IAsyncEnumerable<InfSampleRow> IInfSampleStreamRepository.StreamAsync(
+            string projectId,
+            string resultId,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            foreach (var row in InfRows ?? throw new NotSupportedException())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return row;
+            }
+        }
+
+        IAsyncEnumerable<long> IPrescreenHitEntryStreamRepository.StreamEntryIdsAsync(
+            string projectId,
+            string ruleKey,
+            FilterConditionContext context,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        // 報告一次讀完來源資料品質的明細；這一次讀取和分頁一樣計入 SourceQualityPageCalls，交出同一組明細。
+        async IAsyncEnumerable<SourceQualityFindingRow> ISourceQualityFindingStreamRepository.StreamAsync(
+            string projectId,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            SourceQualityPageCalls++;
+            foreach (var row in SourceQualityRows ?? [])
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return row;
+            }
         }
 
         public Task<IReadOnlyDictionary<long, string>> FetchJsonByEntryIdsAsync(

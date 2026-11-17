@@ -72,7 +72,8 @@
 | 項目 | 依據 | 判定 |
 |:---|:---|:---|
 | 1904 系統加 1,462 天 | Date systems in Excel | 符合 |
-| 用 OLE Automation 日期當序列值，1900 年 3 月 1 日以前差一天 | DATE function；Excel incorrectly assumes that the year 1900 is a leap year；DateTime.ToOADate Method | 不符合 |
+| 讀取時用 OLE Automation 日期當序列值，1900 年 3 月 1 日以前差一天 | DATE function；Excel incorrectly assumes that the year 1900 is a leap year；DateTime.ToOADate Method | 不符合 |
+| 寫出時 1900 年 3 月 1 日以前的日期寫成文字，不寫序列值 | DATE function；Excel incorrectly assumes that the year 1900 is a leap year；裁定 2026-11-17-19 | 約定 |
 | 內建 14 到 22、45 到 47 的分類 | numFmt 只列了 14、22、47 的 en-US 定義 | 未能查證 |
 | 內建 27 到 36、50 到 58 一律當日期 | 沒有讀到各地區定義 | 未能查證 |
 | 自訂格式碼找 y、m、d、h、s，h 之後的 m 是分鐘 | Number format codes | 符合 |
@@ -166,7 +167,8 @@ JET 與範本寫出的公式：沒有任何儲存格公式。只有資料驗證�
 | 項目 | 依據 | 判定 |
 |:---|:---|:---|
 | 65,536 列、256 欄，JET 只讀不寫 | Worksheet compatibility issues | 符合 |
-| 日期限 1900 到 2100 年，錯誤值轉成文字 | 沒有相關規定 | 約定 |
+| 日期要換得出 1900 年以後的日期，錯誤值轉成文字 | 沒有相關規定 | 約定 |
+| 日期最晚到 9999-12-31 | Excel specifications and limits | 符合 |
 | ExcelDataReader 對 1904 系統與 1900 年 2 月的處理 | 本次沒有讀到 | 未能查證 |
 
 ## JET 的 Excel 操作

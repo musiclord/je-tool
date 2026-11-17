@@ -1409,7 +1409,9 @@
         advancedFields +
         (row.isBuiltIn ? '<span class="category-row__badge" title="JET 內建的分類，可以改名，不能移除">內建</span>' : '') +
         '<div class="category-row__actions">' +
-        (row.isBuiltIn ? '' : '<button type="button" class="btn btn--ghost btn--tiny" data-category-remove="' + Ui.esc(row.rowId) + '">移除分類</button>') + '</div>' +
+        (row.isBuiltIn ? '' : '<button type="button" class="btn btn--ghost btn--tiny" data-category-remove="' + Ui.esc(row.rowId) + '"' +
+          // 報讀時念出是哪一個分類；還沒命名的新列只念「移除分類」。
+          (String(row.label || '').trim() ? ' aria-label="' + Ui.esc('移除分類 ' + String(row.label).trim()) + '"' : '') + '>移除分類</button>') + '</div>' +
         '</li>';
     }).join('');
 

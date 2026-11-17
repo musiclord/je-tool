@@ -101,7 +101,7 @@ public sealed class WorkingPaperDirectTemplateArchitectureTests
         var emitter = source[start..end];
 
         var preparedScope = emitter.IndexOf(
-            "await using (var prepared = await _step41PreparedSessions.PrepareAsync(",
+            "await using (var prepared = await step41PreparedSessions.PrepareAsync(",
             StringComparison.Ordinal);
         var sourceReplay = emitter.IndexOf(
             "if (sourceSpool is not null)",
@@ -130,7 +130,7 @@ public sealed class WorkingPaperDirectTemplateArchitectureTests
             "Export",
             "WorkingPaperWriter.Step2To41.cs"));
         var start = source.IndexOf(
-            "private async IAsyncEnumerable<TaggedVoucherRow> StreamFinalizedStep4VoucherRowsAsync(",
+            "private async IAsyncEnumerable<TaggedVoucherRow> StreamStep4VoucherRowsAsync(",
             StringComparison.Ordinal);
         Assert.True(start >= 0, "Finalized WorkingPaper Step4 stream adapter is missing.");
         // 終點是緊接在後的下一個宣告。
@@ -141,7 +141,7 @@ public sealed class WorkingPaperDirectTemplateArchitectureTests
         Assert.True(end > start, "Finalized WorkingPaper Step4 stream adapter boundary is missing.");
         var adapter = source[start..end];
 
-        Assert.Contains("_step4Vouchers.StreamAsync(", adapter, StringComparison.Ordinal);
+        Assert.Contains("step4Vouchers.StreamAsync(", adapter, StringComparison.Ordinal);
         Assert.DoesNotContain("GetPageAsync(", adapter, StringComparison.Ordinal);
     }
 

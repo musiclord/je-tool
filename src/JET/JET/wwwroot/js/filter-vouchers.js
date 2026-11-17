@@ -27,12 +27,49 @@
   // 統計列的數字用 18px；情境之間由整列標題與下凹的底槽分開，數字比標題大也看得出屬於哪個情境。分錄筆數的口徑寫在那一格的提示裡；和一般情形不同時，
   // 才在統計列下方說一次；常駐說明不再多寫，定義放在用到的地方。
   var WHOLE_VOUCHER_ROWS_NOTE = '只用「未預期借貸組合」一個條件時，分錄筆數包含整張傳票的分錄。';
+  // 資料庫條件式：後端把這個情境實際送進資料庫的條件寫成文字，跟著傳票清單的第一頁回來；畫面照原樣顯示，不自己組。
+  // 預設收合，放在統計數字上方；展開後保留換行與縮排，太長時在框內捲動。「複製」把同一段文字放進剪貼簿。
+  // 開合狀態記在這份預覽結果上，整段重繪後照原樣；後端沒有帶這段文字時不畫。
+  function conditionSqlHtml(preview) {
+    var sql = preview.voucherPage && preview.voucherPage.conditionSql;
+    if (!sql) { return ''; }
+    var open = !!preview.__conditionSqlOpen, panelId = motionId(preview) + '-condition-sql';
+    return '<div class="condition-sql" data-condition-sql>' +
+      '<button type="button" class="jet-view jet-view--expand" data-condition-sql-toggle' + Ui.disclosureAttributes(open, panelId) + '>資料庫條件式</button>' +
+      '<div class="condition-sql__panel" id="' + Ui.esc(panelId) + '" data-condition-sql-panel data-collapsible' + (open ? '' : ' hidden') + '>' +
+        '<pre class="condition-sql__text" tabindex="0">' + Ui.esc(sql) + '</pre>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-condition-sql-copy>複製</button>' +
+      '</div></div>';
+  }
+  function bindConditionSql(host, preview) {
+    var block = host.parentNode && host.parentNode.querySelector('[data-condition-sql]');
+    if (!block) { return; }
+    var toggle = block.querySelector('[data-condition-sql-toggle]');
+    var panel = block.querySelector('[data-condition-sql-panel]');
+    var copy = block.querySelector('[data-condition-sql-copy]');
+    var feedbackTimer = null;
+    toggle.onclick = function () {
+      preview.__conditionSqlOpen = !preview.__conditionSqlOpen;
+      toggle.setAttribute('aria-expanded', preview.__conditionSqlOpen ? 'true' : 'false');
+      panel.hidden = !preview.__conditionSqlOpen;
+    };
+    // 複製的結果寫在按鈕上，過一會兒改回「複製」。剪貼簿不能用時，文字仍可以在框內選取。
+    function feedback(text) {
+      global.clearTimeout(feedbackTimer);
+      copy.textContent = text;
+      feedbackTimer = global.setTimeout(function () { copy.textContent = '複製'; }, 2200);
+    }
+    copy.onclick = function () {
+      Ui.writeClipboardText(preview.voucherPage.conditionSql).then(function () { feedback('已複製'); }, function () { feedback('複製失敗'); });
+    };
+  }
   function summary(preview) {
     function stat(label, value, tip) {
       return '<div class="stat-card"' + (tip ? ' title="' + Ui.esc(tip) + '"' : '') + '><span class="stat-card__value">' + Ui.countText(value || 0) + '</span>' +
         '<span class="stat-card__label">' + label + '</span></div>';
     }
-    return '<div class="stats-bar stats-bar--flush stats-bar--compact">' + stat('符合條件的傳票數量', preview.voucherCount) +
+    return conditionSqlHtml(preview) +
+      '<div class="stats-bar stats-bar--flush stats-bar--compact">' + stat('符合條件的傳票數量', preview.voucherCount) +
       stat('符合條件的分錄筆數', preview.summaryRowCount,
         preview.countsWholeVoucherRows ? WHOLE_VOUCHER_ROWS_NOTE : '標示為參考的分錄不計入分錄筆數。') + '</div>' +
       (preview.countsWholeVoucherRows && Number(preview.voucherCount) > 0
@@ -56,7 +93,8 @@
     }
     view.generation = view.generation || 0;
     var id = motionId(preview);
-    if (host.setAttribute && !(host.getAttribute && host.getAttribute('data-motion-key'))) { host.setAttribute('data-motion-key', id); }
+    bindConditionSql(host, preview);
+    if (host.setAttribute &&!(host.getAttribute && host.getAttribute('data-motion-key'))) { host.setAttribute('data-motion-key', id); }
     // 展開與收合要一致：換頁、展開或收合分錄只重畫這一塊，交給 JetMotion.morph，
     // 分錄明細從表格下方長出來、收合時收回，換頁時高度沿彈簧改變。第一次掛上時跟著整段重繪比對，不另外播。
     function redraw() {

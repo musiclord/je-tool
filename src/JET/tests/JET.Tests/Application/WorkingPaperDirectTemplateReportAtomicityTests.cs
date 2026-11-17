@@ -375,7 +375,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
 
     private static WorkingPaperWriter CreateWriter(
         SqliteProjectDatabase database,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        IWorkingPaperStep41PreparedSessionFactory highRiskSummaryRows,
         int progressRowInterval = 10_000) =>
         new(
             new LocalCompletenessAccountPageRepository(database),

@@ -545,22 +545,30 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
            {ScenarioPredicate("fs.position")};
          """;
 
+    /// <summary>
+    /// 每筆分錄命中的情境位置，加總成一個標記值。整張傳票的位置先取出不重複的命中傳票與位置，
+    /// 再接回那張傳票的全部分錄；如果每一筆命中分錄各自展開整張傳票，一張傳票有 k 筆命中、m 筆分錄時
+    /// 會產生 k×m 列。
+    /// </summary>
     private string CreateTagSql()
     {
         var expandedRows = _hitVoucherScenarioScope.IsEmpty
             ? string.Empty
             : $"""
                UNION
-               SELECT expanded.entry_id, fs.position AS scenario_position
-               FROM {_schemaPrefix}filter_hit r
-               JOIN {_schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id
-               JOIN {_schemaPrefix}gl hit ON hit.entry_id = r.entry_id
+               SELECT expanded.entry_id, hit_voucher.scenario_position
+               FROM (
+                   SELECT DISTINCT hit.voucher_number, fs.position AS scenario_position
+                   FROM {_schemaPrefix}filter_hit r
+                   JOIN {_schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id
+                   JOIN {_schemaPrefix}gl hit ON hit.entry_id = r.entry_id
+                   WHERE hit.voucher_number IS NOT NULL
+                     AND {GlPopulationScopeSql.Predicate(_context, "hit")}
+                     {_hitVoucherScenarioScope.Predicate("fs.position")}
+               ) hit_voucher
                JOIN {_schemaPrefix}gl expanded
-                 ON expanded.voucher_number = hit.voucher_number
-               WHERE hit.voucher_number IS NOT NULL
-                 AND {GlPopulationScopeSql.Predicate(_context, "hit")}
-                 AND {GlPopulationScopeSql.Predicate(_context, "expanded")}
-                 {_hitVoucherScenarioScope.Predicate("fs.position")}
+                 ON expanded.voucher_number = hit_voucher.voucher_number
+               WHERE {GlPopulationScopeSql.Predicate(_context, "expanded")}
                """;
 
         return $"""

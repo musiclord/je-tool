@@ -1678,6 +1678,75 @@ test('mapping: fill-down ticks follow the mapped fields, go out only when chosen
   assert.ok(!offered().includes('accountNumber'));
 });
 
+/* ---- 確認配對後的日期提醒 ------------------------------------------------ */
+
+// 來源的日期有讀不成日期的值，或年份不尋常的日期時，確認配對照常完成，摘要裡多一塊日期提醒：
+// 每個欄位寫來源欄、筆數與 JET 怎麼處理；每個值把有問題的那一段標出來，旁邊是原因、筆數與列號。
+test('mapping: date notices mark the wrong part of each value and say how the rows were handled', async () => {
+  const f = journey({ draft: DUAL });
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ dateNotices: [
+    { field: 'glDate', label: '總帳日期', sourceColumn: 'Date', kind: 'unrecognized', handling: 'excluded', count: 14, omittedValueRowCount: 2,
+      values: [
+        { value: '2025-13-45', count: 1, markStart: 5, markLength: 2, problem: 'noSuchDate', rows: [{ source: null, row: 3 }] },
+        { value: '45292', count: 11, markStart: 0, markLength: 5, problem: 'number', rows: [{ source: null, row: 4 }, { source: null, row: 9 }] },
+      ] },
+    { field: 'approvalDate', label: '傳票核准日', sourceColumn: 'Approved', kind: 'unrecognized', handling: 'notUsed', count: 1, omittedValueRowCount: 0,
+      values: [{ value: '<b>N/A</b>', count: 1, markStart: 0, markLength: 10, problem: 'notDate', rows: [{ source: null, row: 7 }] }] },
+    { field: 'rde-1', label: '到期日', sourceColumn: 'Due', kind: 'unusualYear', handling: 'kept', count: 2, omittedValueRowCount: 0,
+      values: [{ value: '9999-12-31', count: 2, markStart: 0, markLength: 4, problem: null,
+        rows: [{ source: '甲.xlsx', row: 5 }, { source: '乙.xlsx', row: 5 }] }] },
+  ] }));
+  await settleAll();
+  f.timers.run();
+
+  const box = f.need('[data-bind="mapping-date-notices"]');
+  assert.equal(box.getAttribute('role'), 'status');
+  assert.match(box.querySelector('.date-notice__title').textContent, /日期提醒/);
+  const fields = box.querySelectorAll('.date-notice__field');
+  assert.equal(fields.length, 3);
+  const head = index => fields[index].querySelector('.date-notice__head').textContent;
+  assert.match(head(0), /總帳日期/); assert.match(head(0), /來源欄「Date」/);
+  assert.match(head(0), /14 筆無法辨識/); assert.match(head(0), /列入 GL\(未納入測試\)/);
+  assert.match(head(1), /傳票核准日/); assert.match(head(1), /1 筆無法辨識/); assert.match(head(1), /當成沒有日期/);
+  assert.match(head(2), /到期日/); assert.match(head(2), /2 筆年份不尋常/); assert.match(head(2), /照來源資料保留/);
+
+  // 值照原文顯示，標出來的只有後端指的那一段。
+  const specimens = box.querySelectorAll('.date-specimen');
+  assert.deepEqual(specimens.map(node => node.textContent), ['2025-13-45', '45292', '<b>N/A</b>', '9999-12-31']);
+  assert.deepEqual(specimens.map(node => node.querySelector('mark').textContent), ['13', '45292', '<b>N/A</b>', '9999']);
+  assert.equal(box.querySelector('b'), null, 'source text is never rendered as markup');
+
+  const values = fields[0].querySelectorAll('.date-notice__value');
+  assert.match(values[0].textContent, /日曆上沒有這一天/); assert.match(values[0].textContent, /第 3 列/);
+  assert.doesNotMatch(values[0].textContent, /1 筆/, 'a value seen once carries no count');
+  assert.match(values[1].textContent, /只有數字，看不出年月日/); assert.match(values[1].textContent, /11 筆/);
+  assert.match(values[1].textContent, /第 4、9 列等/, 'more rows than the ones listed');
+  assert.match(fields[0].querySelector('.date-notice__more').textContent, /另有 2 筆是其他的值/);
+  assert.equal(fields[1].querySelector('.date-notice__more'), null);
+  assert.match(fields[1].querySelector('.date-notice__value').textContent, /不是日期/);
+  const kept = fields[2].querySelector('.date-notice__value').textContent;
+  assert.match(kept, /年份不在 1900 到 2100 年之間/); assert.match(kept, /甲\.xlsx 第 5 列、乙\.xlsx 第 5 列/);
+  assert.doesNotMatch(kept, /列等/, 'every row of the value is listed');
+
+  // 列入 GL(未納入測試) 的那一則可以直接打開那份資料；其他兩則沒有這個入口。
+  assert.equal(box.querySelectorAll('[data-action="preview-date-excluded"]').length, 1);
+  assert.ok(fields[0].querySelector('[data-action="preview-date-excluded"].jet-view--preview') !== null);
+
+  // 訊息面板只留一則摘要，細節在配對區。
+  const messages = f.store.getState().messages.filter(message => /日期/.test(message.text));
+  assert.deepEqual(plain(messages.map(message => ({ text: message.text, level: message.level }))),
+    [{ text: 'GL 配對提醒：來源有 17 筆日期需要留意，明細在欄位配對的「日期提醒」。', level: 'warn' }]);
+
+  // 重新配對並再確認一次，這次沒有任何提醒：那一塊跟著消失。
+  f.press('[data-action="remap-gl"]');
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ dateNotices: [] }));
+  await settleAll();
+  f.timers.run();
+  assert.equal(f.$('[data-bind="mapping-date-notices"]'), null);
+});
+
 // 改選另一個來源欄時勾選保留，改填新的來源欄；重新匯入後新資料沒有那個來源欄時勾選跟著消失。
 test('mapping: a fill-down tick stays when the field moves to another source column and goes when a reimport drops the column', () => {
   const f = journey({ draft: DUAL });

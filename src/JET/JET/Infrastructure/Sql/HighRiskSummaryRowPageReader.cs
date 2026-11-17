@@ -46,8 +46,9 @@ internal static class HighRiskSummaryRowPageReader
     /// <summary>
     /// 分錄所屬的傳票是命中傳票：母體裡有分錄命中所選情境、傳票號碼不是空白的傳票。
     /// <paramref name="populationPredicate"/> 是命中分錄 g2 的母體條件。
+    /// 子查詢不引用外層的 g，整個查詢只算一次命中傳票的集合；分錄層與傳票層都用這一段。
     /// </summary>
-    private static string HitVoucherPredicate(
+    internal static string HitVoucherPredicate(
         string schemaPrefix,
         string scenarioPredicate,
         string populationPredicate) =>

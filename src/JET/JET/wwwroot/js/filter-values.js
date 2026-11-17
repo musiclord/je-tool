@@ -94,16 +94,22 @@
   function splitDelimited(raw) {
     return String(raw == null ? '' : raw).split(/[,，、\t\r\n]+/).map(function (value) { return value.trim(); }).filter(Boolean);
   }
-  function delimitedList(rule, state) {
-    return isDayOfMonth(rule.operator) || fieldType(rule, state) === 'text' &&
-      (/^(contains|notContains)$/.test(rule.operator) || isAffix(rule.operator) || !rule.fieldId && ['createdBy', 'approvedBy', 'accountNumber'].indexOf(rule.field) >= 0);
-  }
+  // 文字欄位的值清單不分比較方式，都可用換行、半形或全形逗號、頓號與 Tab 分隔，每月幾日也一樣；
+  // 日期與金額的清單一行一個，金額的千分位逗號不拆。
+  function delimitedList(rule, state) { return isDayOfMonth(rule.operator) || fieldType(rule, state) === 'text'; }
   // Mirrors the explicit formats in DateNormalizer. Unknown invariant-culture fallback formats
   // stay raw for the authoritative backend rather than being guessed by browser Date.parse.
   function normalizeDate(raw, state) {
     var text = String(raw).trim();
-    var match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(text) || /^(\d{4})(\d{2})(\d{2})$/.exec(text);
     var roc = !state || !state.project || state.project.rocDateEnabled !== false;
+    // 民國年補零成四位數（0114/06/11、0114-06-11、01140611）：開關打開時 0100 到 0199 當成民國年，排在西元的判定前面。
+    var padded = roc && (/^0(1\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(text) || /^0(1\d{2})(\d{2})(\d{2})$/.exec(text));
+    if (padded) {
+      var year = Number(padded[1]) + 1911;
+      var built = year + '-' + padded[2].padStart(2, '0') + '-' + padded[3].padStart(2, '0');
+      return iso(day(year, Number(padded[2]), Number(padded[3]))) === built ? built : text;
+    }
+    var match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(text) || /^(\d{4})(\d{2})(\d{2})$/.exec(text);
     if (!match && roc) {
       match = /^(1\d{2})[/.](\d{1,2})[/.](\d{1,2})$/.exec(text) || /^(1\d{2})(\d{2})(\d{2})$/.exec(text);
       if (match) { match[1] = String(Number(match[1]) + 1911); }
@@ -510,7 +516,6 @@
         isPerson ? '每行一個人員代號或姓名' : rule.field === 'accountNumber' ? '每行一個科目編號' : '每行一個值';
       var list = '<textarea rows="1" class="value-editor__list value-editor__values" data-value-key="values" data-values-for="' + Ui.esc(motionId(rule)) + '" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((Array.isArray(rule.values) ? rule.values : isAffix(rule.operator) && rule.value ? [rule.value] : []).join('\n')) + '</textarea>';
       if (delimitedList(rule, state)) { list += '<p class="rule-field__hint">' + delimiterHint + '</p>'; }
-      else if (type === 'text') { list += '<p class="rule-field__hint">文字值清單每行一個值；值內的逗號、頓號與 Tab 保留，不會拆開。</p>'; }
       if (isPerson) { list += '<p class="help-text">請填 GL 裡的姓名或員工代碼；姓名本身有逗號時，請改填員工代碼。</p>'; }
       if (type === 'date') {
         main += Ui.dateInputHtml({ 'data-date-input': true, 'data-focus-key': focusKey + '-date', 'aria-label': '加入日期' }) +

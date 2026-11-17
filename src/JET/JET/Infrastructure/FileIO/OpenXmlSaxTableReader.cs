@@ -34,7 +34,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     {
         using var handle = OpenDocument(request.FilePath);
         var (sheetName, part) = ResolveWorksheet(handle.Document, request);
-        var context = CellContext.Create(handle.Document);
+        var context = CellContext.Create(handle.Document, cancellationToken);
 
         var header = FindHeaderRow(
                 part, context, new SheetSource(request.FilePath, sheetName), onDimension: null, request.LeadingRowsToSkip)
@@ -56,7 +56,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
                 $"檔案「{Path.GetFileName(filePath)}」沒有任何工作表。");
         }
 
-        var context = CellContext.Create(handle.Document);
+        var context = CellContext.Create(handle.Document, cancellationToken);
         var worksheets = new List<WorksheetInspection>(sheets.Count);
 
         foreach (var (name, part) in sheets)
@@ -95,7 +95,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     {
         using var handle = OpenDocument(request.FilePath);
         var (sheetName, part) = ResolveWorksheet(handle.Document, request);
-        var context = CellContext.Create(handle.Document);
+        var context = CellContext.Create(handle.Document, cancellationToken);
 
         Dictionary<int, string>? headerByColumn = null;
         HashSet<string>? usedNames = null;
@@ -444,7 +444,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         ExcelNumberKind[] StyleKinds,
         bool Date1904)
     {
-        public static CellContext Create(SpreadsheetDocument document)
+        public static CellContext Create(SpreadsheetDocument document, CancellationToken cancellationToken)
         {
             var workbookPart = document.WorkbookPart;
             if (workbookPart is null)
@@ -453,12 +453,12 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             }
 
             var date1904 = workbookPart.Workbook?.WorkbookProperties?.Date1904?.Value ?? false;
-            return new CellContext(ReadSharedStrings(workbookPart), ReadStyleKinds(workbookPart), date1904);
+            return new CellContext(ReadSharedStrings(workbookPart, cancellationToken), ReadStyleKinds(workbookPart), date1904);
         }
     }
 
     /// <summary>把 sharedStrings.xml 從頭到尾讀一次，載入全部共用字串。筆數以實際讀到的為準，不看 count 屬性；注音標示不算內容。</summary>
-    private static List<string> ReadSharedStrings(WorkbookPart workbookPart)
+    private static List<string> ReadSharedStrings(WorkbookPart workbookPart, CancellationToken cancellationToken)
     {
         var strings = new List<string>();
         var part = workbookPart.SharedStringTablePart;
@@ -471,6 +471,8 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         using var reader = OpenXmlReader.Create(part);
         while (reader.Read())
         {
+            // 大檔的共用字串可以有上百萬筆；讀的途中使用者按取消要停得下來。
+            cancellationToken.ThrowIfCancellationRequested();
             if (reader.ElementType == typeof(SharedStringItem) && reader.IsStartElement
                 && reader.LoadCurrentElement() is SharedStringItem item)
             {
@@ -703,13 +705,14 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         var oaDate = date1904 ? serial + 1462 : serial;
 
         // 超出 DateTime.FromOADate 能接受的範圍時，例如負數，不轉成日期；呼叫端改交出序列值的文字，確認配對時再判斷。
+        // 上限是 9999-12-31 當天，也就是 Excel 日期的最後一天。
         if (!double.IsFinite(oaDate) || oaDate is < -657434 or >= 2958466)
         {
             return false;
         }
 
         var date = DateTime.FromOADate(oaDate);
-        if (!DateNormalizer.IsSupportedExcelDate(date)) return false;
+        if (!DateNormalizer.IsReadableExcelDate(date)) return false;
         isoDate = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return true;
     }

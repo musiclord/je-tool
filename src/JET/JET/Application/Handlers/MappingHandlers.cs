@@ -412,6 +412,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
                 fillDownCount = result.Projection.FillDownCellCount,
                 zerosThreshold,
                 warnings,
+                dateNotices = result.Projection.DateNotices,
                 invalidatedResults = unavailable.InvalidatedResults,
                 staleState = unavailable.StaleState,
                 reports = unavailable.Reports,
@@ -436,6 +437,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             fillDownCount = result.Projection.FillDownCellCount,
             zerosThreshold,
             warnings,
+            // 日期提醒：哪個欄位有讀不成日期的值或年份不尋常的日期，第三步據此畫出提醒。
+            dateNotices = result.Projection.DateNotices,
             authorizedPreparerState,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,

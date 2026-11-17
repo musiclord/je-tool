@@ -26,6 +26,20 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
 
     public IFilterHitRepository Repository { get; }
     public IFilterVoucherRepository? Vouchers { get; private init; }
+    private ILocalProjectDatabase? Database { get; init; }
+
+    /// <summary>直接對這個合成案件資料庫執行查詢，回傳第一欄的文字；連線和產品用的是同一種。</summary>
+    public async Task<string[]> QueryTextsAsync(string sql)
+    {
+        await using var connection = Database!.CreateConnection(ProjectId);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        var values = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) values.Add(reader.GetString(0));
+        return values.ToArray();
+    }
 
     public static async Task<FilterPredicateProviderFixture> CreateLocalAsync(
         string provider,
@@ -55,7 +69,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
             return new FilterPredicateProviderFixture(
                 projectId,
                 new LocalFilterHitRepository(database),
-                root: root) { Vouchers = new LocalFilterVoucherRepository(database) };
+                root: root) { Vouchers = new LocalFilterVoucherRepository(database), Database = database };
         }
         catch
         {

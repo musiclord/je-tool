@@ -598,9 +598,11 @@
         FilterStep.viewState.highRiskSummaryData = data.scenarios || [];
         fillSmoothly(body, function () { renderHighRiskSummaryContent(body, FilterStep.viewState.highRiskSummaryData); });
       }).catch(function (error) {
-        // 舊案件／舊 revision 的失敗安靜作廢；當前失敗保持未載入狀態，讓使用者可重新展開重試。
+        // 舊案件／舊 revision 的失敗安靜作廢；當前失敗保持未載入狀態，就地說明並附「重新載入」，收合後再展開也會重讀。
         if (!acceptResponse()) { return; }
-        scenariosBox.textContent = '載入失敗；請收合後再展開以重試。';
+        scenariosBox.innerHTML = Ui.loadFailureHtml('高風險條件彙總載入失敗。', { 'data-high-risk-summary-retry': true });
+        var retry = scenariosBox.querySelector('[data-high-risk-summary-retry]');
+        if (retry) { retry.addEventListener('click', function () { ensureHighRiskSummaryContent(container); }); }
         throw error;
       });
     });

@@ -10,7 +10,8 @@ namespace JET.Infrastructure;
 /// 沒有指定排序時依 voucher_number 升冪。LIMIT 的寫法取自 <see cref="ISqlDialect"/>。
 /// </summary>
 public sealed class LocalVoucherBalancePageRepository(ILocalProjectDatabase database)
-    : IVoucherBalancePageRepository
+    : IVoucherBalancePageRepository,
+      IUnbalancedVoucherDateRowStreamRepository
 {
     public async Task<PageResult<UnbalancedVoucher>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken)

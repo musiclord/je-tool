@@ -27,7 +27,8 @@ internal sealed class HandlerTestHost : IDisposable
         IJetEventPublisher? eventPublisher = null,
         string? projectsRootPath = null,
         string? userFullName = null,
-        OperationMonitorOptions? operationMonitorOptions = null)
+        OperationMonitorOptions? operationMonitorOptions = null,
+        ISqlStatementObserver? sqlStatementObserver = null)
     {
         _root = new TempProjectRoot();
         _projectsRoot = projectsRootPath ?? _root.Path;
@@ -48,7 +49,8 @@ internal sealed class HandlerTestHost : IDisposable
             userProfileDirectory: Path.Combine(_root.Path, "user-profile"),
             // 測試只用合成的使用者全名；沒有傳時建案者用帳號短名，不查這台電腦的 Windows 帳號。
             userFullName: userFullName,
-            operationMonitorOptions: MonitorOptions);
+            operationMonitorOptions: MonitorOptions,
+            additionalSqlStatementObserver: sqlStatementObserver);
         Dispatcher = _runtime.Dispatcher;
         SupportLogDirectory = Path.Combine(_root.Path, "user-profile", "logs");
     }

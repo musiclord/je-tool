@@ -647,6 +647,38 @@
       .replace(/'/g, '&#39;');
   }
 
+  // 把文字放進剪貼簿，訊息區的「複製紀錄」與資料庫條件式的「複製」共用。先用 navigator.clipboard；
+  // 沒有或被拒絕時，改放進畫面外的暫時輸入框，用 execCommand('copy') 複製。兩種都不行時回傳失敗的 Promise。
+  function writeClipboardText(value) {
+    function fallback() {
+      try {
+        var textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        try {
+          textarea.focus();
+          textarea.select();
+          return document.execCommand('copy')
+            ? Promise.resolve()
+            : Promise.reject(new Error('clipboard copy was rejected'));
+        } finally {
+          textarea.remove();
+        }
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+
+    if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
+      return global.navigator.clipboard.writeText(value).catch(fallback);
+    }
+    return fallback();
+  }
+
   // 畫面上金額的共用顯示格式：兩位小數加千分位，各畫面統一；報表與底稿不適用。
   // 唯一的例外是右側資料預覽，那裡的金額固定顯示四位，
   // 由 data-preview.js 的 previewMoney 照後端給的十進位字串補零，不經過這裡。
@@ -1395,7 +1427,11 @@
         }).catch(function (error) {
           if (!current()) { return; }
           if (previous) { state.sort = previous.sort; state.search = previous.search; applySortMarks(); applySearchBox(); }
-          state.retryRequest = requested; retry.hidden = false;
+          // 後端回 stale_result 是手上的接續位置不能再用，原因句也請審計員從第一頁重新載入：
+          // 「重新載入」改讀第一頁，排序與搜尋不變。其他原因照樣重送失敗的那一頁。
+          state.retryRequest = !reset && error && error.code === 'stale_result'
+            ? { reset: true, target: 0, label: label, previous: null, sort: requested.sort, search: requested.search } : requested;
+          retry.hidden = false;
           status.textContent = (error && error.code === 'operation_cancelled' ? '讀取已取消。' : '讀取失敗。') +
             '目前資料未變更，可重試。' + (errorText(error, '') ? ' ' + errorText(error, '') : '');
           state.statusText = status.textContent;
@@ -2823,6 +2859,7 @@
     $: $,
     setText: setText,
     esc: esc,
+    writeClipboardText: writeClipboardText,
     findLive: findLive,
     dateInputHtml: dateInputHtml,
     loadFailureHtml: loadFailureHtml,

@@ -539,10 +539,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 cell => Assert.True(cell.ValueKind is JsonValueKind.String or JsonValueKind.Null));
         });
 
-        // 日期不符分成三種原因，統計共四個計數。
+        // 日期不符分成四種原因，統計共五個計數。
         var stats = JsonShape.Obj(data, "stats");
-        JsonShape.HasExactKeys(stats, "blankGlDateCount", "beforePeriodCount", "afterPeriodCount", "postingStatusCount");
+        JsonShape.HasExactKeys(
+            stats, "blankGlDateCount", "unrecognizedGlDateCount", "beforePeriodCount", "afterPeriodCount", "postingStatusCount");
         JsonShape.Number(stats, "blankGlDateCount");
+        JsonShape.Number(stats, "unrecognizedGlDateCount");
         JsonShape.Number(stats, "beforePeriodCount");
         JsonShape.Number(stats, "afterPeriodCount");
         JsonShape.Number(stats, "postingStatusCount");

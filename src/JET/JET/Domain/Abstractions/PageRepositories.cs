@@ -84,13 +84,6 @@ public interface IVoucherBalancePageRepository
     /// <summary>periodStart/periodEnd 界定借貸不平母體的本期口徑（與 validate.run 計數端同口徑）。</summary>
     Task<PageResult<UnbalancedVoucher>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// 同一批不平傳票，依傳票號碼與總帳日期彙總後依序串流，供底稿 Step 1-1 明細表逐列寫出。
-    /// 判定哪些傳票不平仍只看傳票號碼，與 <see cref="GetPageAsync"/> 同口徑。
-    /// </summary>
-    IAsyncEnumerable<UnbalancedVoucherDateRow> StreamVoucherDateRowsAsync(
-        string projectId, CancellationToken cancellationToken);
 }
 
 /// <summary>

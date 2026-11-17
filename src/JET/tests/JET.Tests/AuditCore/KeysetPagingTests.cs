@@ -101,21 +101,22 @@ public sealed class KeysetPagingTests
         var sortedCursor = KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(null, 10, sorted), Catalog).NextCursor(5L, 1L);
         var plainCursor = PageCursor.Encode("1");
 
+        // 接續位置和這次的排序對不上時回 stale_result，畫面據此改從第一頁重新載入。
         var withoutSort = Assert.Throws<JetActionException>(() =>
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(sortedCursor, 10), Catalog));
-        Assert.Equal(JetErrorCodes.InvalidPayload, withoutSort.Code);
+        Assert.Equal(JetErrorCodes.StaleResult, withoutSort.Code);
 
         var withPlainCursor = Assert.Throws<JetActionException>(() =>
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(plainCursor, 10, sorted), Catalog));
-        Assert.Equal(JetErrorCodes.InvalidPayload, withPlainCursor.Code);
+        Assert.Equal(JetErrorCodes.StaleResult, withPlainCursor.Code);
 
         var otherKey = Assert.Throws<JetActionException>(() =>
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(sortedCursor, 10, new PageSort("approvedBy", PageSortDirection.Ascending)), Catalog));
-        Assert.Equal(JetErrorCodes.InvalidPayload, otherKey.Code);
+        Assert.Equal(JetErrorCodes.StaleResult, otherKey.Code);
 
         var otherDirection = Assert.Throws<JetActionException>(() =>
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(sortedCursor, 10, new PageSort("amount", PageSortDirection.Descending)), Catalog));
-        Assert.Equal(JetErrorCodes.InvalidPayload, otherDirection.Code);
+        Assert.Equal(JetErrorCodes.StaleResult, otherDirection.Code);
     }
 
     [Fact]

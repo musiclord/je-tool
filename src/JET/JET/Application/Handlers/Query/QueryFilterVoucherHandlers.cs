@@ -186,12 +186,17 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         var conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd,
             zerosThreshold: context.ZerosThreshold);
         var nextCursor = page.NextKey is null ? null : PageCursor.Encode(JsonSerializer.Serialize(new VoucherCursor(queryRevision, voucherNumber, page.NextKey)));
+        // 資料庫條件式只跟著傳票清單的第一頁回傳：值很多的清單會讓這段文字很長，換頁與展開分錄時不必重送。
+        var conditionSql = detail || cursor is not null
+            ? null
+            : FilterConditionSqlRenderer.Render(repository.BuildConditionSql(spec, context), mapping.Mapping,
+                context.RdeFields, categorySnapshot.Categories, project.MoneyScale);
         if (savedCounts is null)
         {
             return new
             {
                 rows, totalCount = page.TotalCount, queryRevision, scenarioRevision = savedRevision,
-                columns, conditionText, nextCursor
+                columns, conditionText, conditionSql, nextCursor
             };
         }
 
@@ -199,7 +204,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         return new
         {
             rows, totalCount = page.TotalCount, queryRevision, scenarioRevision = savedRevision,
-            columns, conditionText, nextCursor,
+            columns, conditionText, conditionSql, nextCursor,
             voucherCount = savedCounts.Value.VoucherCount,
             summaryRowCount = savedCounts.Value.SummaryRowCount,
             countsWholeVoucherRows = wholeVoucher

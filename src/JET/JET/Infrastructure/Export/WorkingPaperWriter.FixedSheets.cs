@@ -7,7 +7,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-public sealed partial class WorkingPaperWriter
+internal sealed partial class WorkingPaperWriter
 {
     // ================= 封面與固定文字的工作表：只寫固定文字，沒有資料列 =================
 

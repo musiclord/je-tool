@@ -58,7 +58,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
             committed);
 
         using var cancellation = new CancellationTokenSource();
-        var cancelingPages = new CancelAfterFirstPrescreenPageRepository(
+        var cancelingPages = new CancelAfterFirstPrescreenDetailRead(
             new LocalPrescreenPageRepository(database),
             cancellation);
         var replacementWriter = CreateWriter(database, cancelingPages);
@@ -82,7 +82,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             store.WriteAsync(projectId, replacement, cancellation.Token));
 
-        Assert.Equal(1, cancelingPages.PageCalls);
+        Assert.Equal(1, cancelingPages.DetailReads);
         await AssertCommittedSnapshotUnchangedAsync(
             store,
             projectId,
@@ -238,7 +238,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
 
     private static LegacyReportWriter CreateWriter(
         SqliteProjectDatabase database,
-        IPrescreenPageRepository prescreenPages,
+        IPrescreenHitEntryStreamRepository prescreenHitEntries,
         LegacyReportWriterOptions? options = null) =>
         new(
             new LocalCompletenessAccountPageRepository(database),
@@ -246,7 +246,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
             new LocalUnbalancedVoucherPageRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
-            prescreenPages,
+            prescreenHitEntries,
             new LocalRawGlExportRepository(database),
             new LocalImportRepository(database),
             new LocalMappingStateStore(database),
@@ -448,43 +448,34 @@ public sealed class PrescreenCriteriaReportCancellationTests
         byte[] ManifestBytes,
         string[] WorkbookPaths);
 
-    private sealed class CancelAfterFirstPrescreenPageRepository(
-        IPrescreenPageRepository inner,
-        CancellationTokenSource cancellation) : IPrescreenPageRepository
+    // 報告一個查詢讀完一條規則的明細；第一條規則的明細讀完後取消，之後不該再讀下一條規則。
+    private sealed class CancelAfterFirstPrescreenDetailRead(
+        IPrescreenHitEntryStreamRepository inner,
+        CancellationTokenSource cancellation) : IPrescreenHitEntryStreamRepository
     {
-        internal int PageCalls { get; private set; }
+        internal int DetailReads { get; private set; }
 
-        public async Task<PageResult<PrescreenHitRow>> GetPageAsync(
+        public async IAsyncEnumerable<long> StreamEntryIdsAsync(
             string projectId,
             string ruleKey,
             FilterConditionContext context,
-            PageRequest request,
-            CancellationToken cancellationToken)
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            PageCalls++;
-            var page = await inner.GetPageAsync(
-                projectId,
-                ruleKey,
-                context,
-                request,
-                cancellationToken);
-            if (PageCalls == 1)
+            DetailReads++;
+            var isFirstRead = DetailReads == 1;
+            await foreach (var entryId in inner.StreamEntryIdsAsync(
+                               projectId,
+                               ruleKey,
+                               context,
+                               cancellationToken))
+            {
+                yield return entryId;
+            }
+
+            if (isFirstRead)
             {
                 cancellation.Cancel();
             }
-
-            return page;
         }
-
-        public Task<PrescreenHitCounts> GetCountsAsync(
-            string projectId,
-            string ruleKey,
-            FilterConditionContext context,
-            CancellationToken cancellationToken) =>
-            inner.GetCountsAsync(
-                projectId,
-                ruleKey,
-                context,
-                cancellationToken);
     }
 }

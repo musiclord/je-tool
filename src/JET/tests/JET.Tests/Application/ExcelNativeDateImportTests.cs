@@ -19,9 +19,11 @@ public sealed class ExcelNativeDateImportTests
         foreach (var field in new[] { "glDate", "approvalDate", "rde" }) yield return [provider, format, field];
     }
 
+    // Excel 日期儲存格的年份在 2100 年之後時照樣讀成日期並保留，確認配對後的日期提醒說明年份不尋常。
+    // 文字檔沒有日期型儲存格，同一格的純數字是無法辨識的日期。三種日期角色都試。
     [Theory]
     [MemberData(nameof(Cases))]
-    public async Task NativeSerialOutsideYearRange_IsARowErrorInEveryDateRole(string provider, string format, string field)
+    public async Task NativeDateAfter2100_IsKeptAndReportedInEveryDateRole(string provider, string format, string field)
     {
         var path = WriteSource(format);
         try
@@ -34,6 +36,7 @@ public sealed class ExcelNativeDateImportTests
                 var rows = new List<StagingRow>();
                 await foreach (var row in reader.ReadRowsAsync(new TabularSourceRequest(path), CancellationToken.None)) rows.Add(row);
                 Assert.Equal(2, rows.Count);
+                Assert.Equal("2101-01-01", rows[0].Values["NativeDate"]);
                 Assert.Equal("2024-01-01", rows[1].Values["NativeDate"]);
             }
             using var host = new HandlerTestHost();
@@ -44,14 +47,39 @@ public sealed class ExcelNativeDateImportTests
             object[] rde = [];
             if (field == "rde") rde = [new { sourceColumn = "NativeDate", label = "Native date", valueType = "date" }];
             else mapping[field] = "NativeDate";
-            var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.gl",
+
+            var committed = JsonSerializer.SerializeToElement(await host.DispatchAsync("mapping.commit.gl",
                 JsonSerializer.Serialize(new { mapping, amountMode = "signed", rdeFields = rde })));
-            Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-            // 這句的用字已定案。
-            Assert.StartsWith("有 1 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
-            var detail = Assert.Single(error.Details!);
-            Assert.Equal("NativeDate", detail.SourceColumn);
-            Assert.Contains("第 2 列", detail.Message, StringComparison.Ordinal);
+
+            Assert.Equal(2, committed.GetProperty("projectedRowCount").GetInt32());
+            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            Assert.Equal("NativeDate", notice.GetProperty("sourceColumn").GetString());
+            Assert.Equal(1, notice.GetProperty("count").GetInt64());
+            var value = Assert.Single(notice.GetProperty("values").EnumerateArray());
+            Assert.Equal(2, Assert.Single(value.GetProperty("rows").EnumerateArray()).GetProperty("row").GetInt32());
+            if (format == "csv")
+            {
+                Assert.Equal("unrecognized", notice.GetProperty("kind").GetString());
+                Assert.Equal(field == "glDate" ? "excluded" : "notUsed", notice.GetProperty("handling").GetString());
+                Assert.Equal("240115", value.GetProperty("value").GetString());
+                Assert.Equal("number", value.GetProperty("problem").GetString());
+            }
+            else
+            {
+                // 標出來的是年份那四個字。
+                Assert.Equal("unusualYear", notice.GetProperty("kind").GetString());
+                Assert.Equal("kept", notice.GetProperty("handling").GetString());
+                Assert.Equal("2101-01-01", value.GetProperty("value").GetString());
+                Assert.Equal(JsonValueKind.Null, value.GetProperty("problem").ValueKind);
+                Assert.Equal(0, value.GetProperty("markStart").GetInt32());
+                Assert.Equal(4, value.GetProperty("markLength").GetInt32());
+            }
+
+            // 配成總帳日期時，那一列列入 GL(未納入測試)：文字檔的原因是總帳日期無法辨識，Excel 的是晚於查核期間。
+            var stats = JsonSerializer.SerializeToElement(await host.DispatchAsync("query.dataPreview",
+                JsonSerializer.Serialize(new { dataset = "glExcluded" }))).GetProperty("stats");
+            Assert.Equal(field == "glDate" && format == "csv" ? 1 : 0, stats.GetProperty("unrecognizedGlDateCount").GetInt64());
+            Assert.Equal(field == "glDate" && format != "csv" ? 1 : 0, stats.GetProperty("afterPeriodCount").GetInt64());
         }
         finally { File.Delete(path); }
     }
@@ -64,6 +92,8 @@ public sealed class ExcelNativeDateImportTests
         Assert.Equal(LegacyFieldKind.Date, native.Kind);
     }
 
+    // 七位數的序列值 1,140,611 是 5022-11-19。它照日期儲存格讀成那一天，不當成民國 114 年 6 月 11 日的文字：
+    // 讀成民國日期的話會落在查核期間內，不會有提醒，也不會列入 GL(未納入測試)。
     [Theory]
     [InlineData("sqlite", "xlsx")]
     [InlineData("sqlite", "xlsx1904")]
@@ -80,14 +110,20 @@ public sealed class ExcelNativeDateImportTests
             await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
             var mapping = MappingCaseTemplateFixture.Mapping();
             mapping["glDate"] = "NativeDate";
-            var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.gl",
+
+            var committed = JsonSerializer.SerializeToElement(await host.DispatchAsync("mapping.commit.gl",
                 JsonSerializer.Serialize(new { mapping, amountMode = "signed" })));
-            Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-            // 這句的用字已定案。
-            Assert.StartsWith("有 1 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
-            var detail = Assert.Single(error.Details!);
-            Assert.Equal("NativeDate", detail.SourceColumn);
-            Assert.Contains("第 2 列", detail.Message, StringComparison.Ordinal);
+
+            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            Assert.Equal("NativeDate", notice.GetProperty("sourceColumn").GetString());
+            Assert.Equal("unusualYear", notice.GetProperty("kind").GetString());
+            var value = Assert.Single(notice.GetProperty("values").EnumerateArray());
+            Assert.Equal("5022-11-19", value.GetProperty("value").GetString());
+            Assert.Equal(2, Assert.Single(value.GetProperty("rows").EnumerateArray()).GetProperty("row").GetInt32());
+
+            var stats = JsonSerializer.SerializeToElement(await host.DispatchAsync("query.dataPreview",
+                JsonSerializer.Serialize(new { dataset = "glExcluded" }))).GetProperty("stats");
+            Assert.Equal(1, stats.GetProperty("afterPeriodCount").GetInt64());
         }
         finally { File.Delete(path); }
     }
