@@ -523,14 +523,10 @@ public sealed partial class LegacyReportWriter
             return;
         }
 
-        var page = await completenessDiffs.GetPageAsync(
-            context.ProjectId,
-            context.MoneyScale,
-            context.PeriodStart,
-            context.PeriodEnd,
-            new PageRequest(null, PageRequest.DefaultPageSize),
-            cancellationToken).ConfigureAwait(false);
-        if (page.Rows.Count == 0)
+        // 差異科目用一個查詢依序讀完，各科目的彙總只算一次。先讀第一筆，確認目前的資料仍有差異科目。
+        await using var differences = StreamCompletenessDifferences(context, cancellationToken)
+            .GetAsyncEnumerator(cancellationToken);
+        if (!await differences.MoveNextAsync().ConfigureAwait(false))
         {
             // 保存的驗證結果說有差異科目，但目前的資料查不到任何一列，表示來源資料在驗證之後變了，不是範本損壞。
             // 錯誤碼和 MissingRawGlSource 一樣用 StaleResult；如果丟 InvalidDataException，
@@ -571,55 +567,42 @@ public sealed partial class LegacyReportWriter
             new(sheetName, templatePart, firstDynamicRow: 17, ensureProtection: true);
         try
         {
-            while (true)
+            do
             {
-                foreach (var item in page.Rows)
+                var item = differences.Current;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (rowIndex > _continuationRowLimit)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (rowIndex > _continuationRowLimit)
-                    {
-                        AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
-                        sheet.Dispose();
+                    AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
+                    sheet.Dispose();
 
-                        partNumber++;
-                        rowIndex = 17;
-                        sheetName = SeriesName(WorkingPaperSheetCatalog.Step13, partNumber);
-                        var continuationPart = editor.AppendWorksheetClone(
-                            templatePart,
-                            continuationPrototype,
-                            sheetName,
-                            cancellationToken);
-                        currentPart = continuationPart;
-                        sheet = new DirectTemplateStreamingSheetWriter(
-                            sheetName,
-                            continuationPart,
-                            firstDynamicRow: 17,
-                            ensureProtection: true);
-                    }
-
-                    var cells = CompletenessDiffCells(
-                        currentPart,
-                        rowIndex,
-                        item,
-                        context.MoneyScale,
-                        cellStyles);
-                    sheet.WriteDataRow(rowIndex, cells);
-                    rowIndex++;
-                    ReportIntermediateRows(stats, sheetName, (long)rowIndex - 17, progress);
+                    partNumber++;
+                    rowIndex = 17;
+                    sheetName = SeriesName(WorkingPaperSheetCatalog.Step13, partNumber);
+                    var continuationPart = editor.AppendWorksheetClone(
+                        templatePart,
+                        continuationPrototype,
+                        sheetName,
+                        cancellationToken);
+                    currentPart = continuationPart;
+                    sheet = new DirectTemplateStreamingSheetWriter(
+                        sheetName,
+                        continuationPart,
+                        firstDynamicRow: 17,
+                        ensureProtection: true);
                 }
 
-                if (page.NextCursor is null)
-                {
-                    break;
-                }
-                page = await completenessDiffs.GetPageAsync(
-                    context.ProjectId,
+                var cells = CompletenessDiffCells(
+                    currentPart,
+                    rowIndex,
+                    item,
                     context.MoneyScale,
-                    context.PeriodStart,
-                    context.PeriodEnd,
-                    new PageRequest(page.NextCursor, PageRequest.DefaultPageSize),
-                    cancellationToken).ConfigureAwait(false);
+                    cellStyles);
+                sheet.WriteDataRow(rowIndex, cells);
+                rowIndex++;
+                ReportIntermediateRows(stats, sheetName, (long)rowIndex - 17, progress);
             }
+            while (await differences.MoveNextAsync().ConfigureAwait(false));
 
             // 舊版 JET 鎖 B17:D 到「17 加差異科目數」那一列，比最後一筆多一列；這一列補上鎖定的空白格。
             // 最後一筆剛好寫在列數上限時沒有下一列，就不補。
@@ -923,19 +906,12 @@ public sealed partial class LegacyReportWriter
             "DIFF"
         ];
         using var spool = RawReportSpool.Create(headers);
-        string? cursor = null;
         // 逐科目比對無法執行時，調節表只留標題列，不把只有 GL 的科目當成差異列出。
-        if (accountComparisonApplicable) do
+        if (accountComparisonApplicable)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var page = await completenessAccounts.GetPageAsync(
-                context.ProjectId,
-                context.MoneyScale,
-                context.PeriodStart,
-                context.PeriodEnd,
-                new PageRequest(cursor, PageRequest.DefaultPageSize),
-                cancellationToken);
-            foreach (var item in page.Rows)
+            await foreach (var item in StreamCompletenessAccounts(context, cancellationToken)
+                               .WithCancellation(cancellationToken)
+                               .ConfigureAwait(false))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 spool.Append(
@@ -947,8 +923,7 @@ public sealed partial class LegacyReportWriter
                     FormatAmountForAutoFit(item.DiffScaled, context.MoneyScale)
                 ]);
             }
-            cursor = page.NextCursor;
-        } while (cursor is not null);
+        }
         spool.Complete();
 
         var part = 1;
@@ -1012,6 +987,27 @@ public sealed partial class LegacyReportWriter
         }
     }
 
+    /// <summary>
+    /// 全科目表用一個查詢依序讀完，各科目的 GL 與 TB 彙總只算一次；逐頁讀的每一頁都要重算全部科目，科目多時匯出很慢。
+    /// 讀出的科目與順序和逐頁讀完相同。
+    /// </summary>
+    private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessAccounts(
+        ReportDocumentContext context,
+        CancellationToken cancellationToken) =>
+        completenessAccounts is ICompletenessAccountStreamRepository rows
+            ? rows.StreamAsync(context.ProjectId, cancellationToken)
+            : throw new InvalidOperationException(
+                "Completeness account export requires the completeness account stream.");
+
+    /// <summary>差異表用一個查詢依序讀完，做法和 <see cref="StreamCompletenessAccounts"/> 相同。</summary>
+    private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessDifferences(
+        ReportDocumentContext context,
+        CancellationToken cancellationToken) =>
+        completenessDiffs is ICompletenessDiffStreamRepository rows
+            ? rows.StreamAsync(context.ProjectId, cancellationToken)
+            : throw new InvalidOperationException(
+                "Completeness difference export requires the completeness difference stream.");
+
     private static string FormatAmountForAutoFit(long scaled, int moneyScale) =>
         Display(scaled, moneyScale).ToString(
             "#,##0.0000;-#,##0.0000",
@@ -1072,14 +1068,20 @@ public sealed partial class LegacyReportWriter
     {
         // 舊版 JET 將不平傳票清單回接 #GL# 並 IncludeAllPFields；
         // 因此 V_Report 6 必須是所有命中傳票的完整原始 GL 分錄，而非每傳票一列 aggregate。
+        // 分頁查詢的每一頁都要重新彙總全部傳票的借貸；這裡用一個查詢讀完全部 entry_id，哪些傳票不平只算一次，
+        // 讀出的分錄與順序和逐頁讀完相同。
+        var entryIds = new BufferedEntryIds(ct =>
+            unbalancedGlEntries is IUnbalancedVoucherEntryStreamRepository entries
+                ? entries.StreamEntryIdsAsync(context.ProjectId, ct)
+                : throw new InvalidOperationException(
+                    "Unbalanced voucher export requires the unbalanced voucher entry stream."));
         await EmitRawPagedSheetsAsync(
             document,
             sheets,
             stats,
             context.ProjectId,
             "V_Report 6",
-            (page, ct) => unbalancedGlEntries.GetEntryIdsPageAsync(
-                context.ProjectId, context.PeriodStart, context.PeriodEnd, page, ct),
+            entryIds.ReadPageAsync,
             entryId => entryId,
             legacyStyles,
             RawSheetAutoFitMode.LegacyFirstTwenty,

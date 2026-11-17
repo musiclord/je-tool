@@ -9,7 +9,7 @@ namespace JET.Tests.Infrastructure;
 /// 只用「未預期借貸組合」一個條件時，Criteria Selection 摘要與工作底稿以整張命中傳票計算分錄筆數
 /// （<see cref="JetAuditProgram.UsesLegacyWholeVoucherRows"/>）。第五步分開顯示
 /// 「符合條件的傳票數量」與「符合條件的分錄筆數」，數字要和過往底稿相同。這裡核對預覽、傳票清單與已存情境摘要
-/// 三條查詢，和報告寫出整張傳票列的分頁查詢是同一個集合。預期值由下面的合成資料直接數出：
+/// 三條查詢，和報告寫出整張傳票列的查詢、畫面的分頁查詢是同一個集合。預期值由下面的合成資料直接數出：
 ///
 ///   PAIR：兩列收入貸方、三列營業成本借方，另有一列無效分錄 → 直接符合 2 列，整張有效分錄 5 列
 ///   NONE：一列營業成本借方、一列收入貸方 → 直接符合 1 列，整張 2 列
@@ -87,11 +87,26 @@ public sealed class WholeVoucherRowCountTests
         var wholeCounts = await counts.GetWholeVoucherRowCountsAsync(projectId, [1], CancellationToken.None);
         Assert.Equal(7, Assert.Single(wholeCounts, item => item.Key == 1).Value);
         Assert.Empty(await counts.GetWholeVoucherRowCountsAsync(projectId, [], CancellationToken.None));
-        Assert.Equal(7, await CountReportRowsAsync(new LocalHighRiskSummaryRowPageRepository(database), projectId));
+        var rows = new LocalHighRiskSummaryRowPageRepository(database);
+        Assert.Equal(7, await CountReportRowsAsync(rows, projectId));
+        Assert.Equal(7, await CountPagedRowsAsync(rows, projectId));
     }
 
-    // 與 Criteria Selection 報告寫出「#Criteria Select 1」相同的分頁讀法：只看第 1 個情境，逐頁讀到底。
-    private static async Task<long> CountReportRowsAsync(IHighRiskSummaryRowPageRepository rows, string projectId)
+    // 與 Criteria Selection 報告寫出「#Criteria Select 1」相同的讀法：只看第 1 個情境，一個查詢讀完。
+    private static async Task<long> CountReportRowsAsync(IHighRiskSummaryRowStreamRepository rows, string projectId)
+    {
+        var population = new GlPopulationContext(GlPopulationScope.AuditPeriod, Context.PeriodStart, Context.PeriodEnd);
+        long total = 0;
+        await foreach (var _ in rows.StreamAsync(projectId, population, 1, CancellationToken.None))
+        {
+            total++;
+        }
+
+        return total;
+    }
+
+    // 畫面的分頁查詢只指定第 1 個情境、逐頁讀到底，和報告讀到的是同一組分錄。
+    private static async Task<long> CountPagedRowsAsync(IHighRiskSummaryRowPageRepository rows, string projectId)
     {
         var population = new GlPopulationContext(GlPopulationScope.AuditPeriod, Context.PeriodStart, Context.PeriodEnd);
         long total = 0;

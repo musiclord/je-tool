@@ -12,8 +12,28 @@ public sealed partial class WorkingPaperWriter
     // ================= step1 家族 emitter =================
 
     /// <summary>
+    /// 全科目表用一個查詢依序讀完，各科目的 GL 與 TB 彙總只算一次；逐頁讀的每一頁都要重算全部科目，科目多時匯出很慢。
+    /// 讀出的科目與順序和逐頁讀完相同。
+    /// </summary>
+    private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessAccounts(
+        WorkingPaperContext context,
+        CancellationToken cancellationToken) =>
+        completenessAccounts is ICompletenessAccountStreamRepository rows
+            ? rows.StreamAsync(context.ProjectId, cancellationToken)
+            : throw new InvalidOperationException("WorkingPaper step1 完整性全科目串流未設定。");
+
+    /// <summary>差異表用一個查詢依序讀完，做法和 <see cref="StreamCompletenessAccounts"/> 相同。</summary>
+    private IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessDifferences(
+        WorkingPaperContext context,
+        CancellationToken cancellationToken) =>
+        completenessDiffs is ICompletenessDiffStreamRepository rows
+            ? rows.StreamAsync(context.ProjectId, cancellationToken)
+            : throw new InvalidOperationException("WorkingPaper step1-3 完整性差異串流未設定。");
+
+    /// <summary>
     /// 「step1 完整性測試」:A1-A4 共同表頭 + Step1 程序固定文字 + 結論 + 第 19 列欄標 +
-    /// completenessAccounts **全科目逐頁**(科目編號/名稱/TB 變動(A)/GL 彙總(C)/差異(B)-(A))。
+    /// completenessAccounts 的全科目清單(科目編號/名稱/TB 變動(A)/GL 彙總(C)/差異(B)-(A))。
+    /// 清單用一個查詢依序讀完，各科目的彙總只算一次。
     /// 差異欄用 repo 的 DiffScaled(= tb_s - gl_s),step1／step1-3 同一定義不漂移。
     /// </summary>
     private async Task EmitStep1Async(
@@ -51,15 +71,7 @@ public sealed partial class WorkingPaperWriter
         else await FillDisplaySpoolAsync(
             spool,
             ProjectRowsAsync(
-                StreamItemsAsync(
-                    (cursor, ct) => completenessAccounts.GetPageAsync(
-                        context.ProjectId,
-                        context.MoneyScale,
-                        context.PeriodStart,
-                        context.PeriodEnd,
-                        new PageRequest(cursor, PageRequest.DefaultPageSize),
-                        ct),
-                    cancellationToken),
+                StreamCompletenessAccounts(context, cancellationToken),
                 account => ProjectCompletenessRow(account, context.MoneyScale),
                 cancellationToken),
             cancellationToken);
@@ -334,6 +346,7 @@ public sealed partial class WorkingPaperWriter
     /// 「step1-3 完整性測試之差異說明」(**條件表:有 diff≠0 科目才 emit**):A1-A4 共同表頭 +
     /// Step1-3 程序固定文字 + 結論 + 第 16 列欄標 + completenessDiffs **WHERE diff≠0**
     /// (B 科目編號/C 名稱/D 差異金額自動;E 原因、F 調節、G 調節後差異留空)。
+    /// 差異科目用一個查詢依序讀完，各科目的彙總只算一次。
     /// guard 由共用續頁原語先探測第一列;空集合時不建立、不註冊工作表。
     /// </summary>
     private async Task EmitStep13Async(
@@ -361,15 +374,7 @@ public sealed partial class WorkingPaperWriter
         await FillDisplaySpoolAsync(
             spool,
             ProjectRowsAsync(
-                StreamItemsAsync(
-                    (cursor, ct) => completenessDiffs.GetPageAsync(
-                        context.ProjectId,
-                        context.MoneyScale,
-                        context.PeriodStart,
-                        context.PeriodEnd,
-                        new PageRequest(cursor, PageRequest.DefaultPageSize),
-                        ct),
-                    cancellationToken),
+                StreamCompletenessDifferences(context, cancellationToken),
                 account => ProjectDiffExplanationRow(account, context.MoneyScale),
                 cancellationToken),
             cancellationToken);

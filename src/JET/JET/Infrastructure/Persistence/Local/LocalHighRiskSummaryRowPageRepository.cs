@@ -12,9 +12,31 @@ namespace JET.Infrastructure;
 /// </summary>
 public sealed class LocalHighRiskSummaryRowPageRepository(ILocalProjectDatabase database)
     : IHighRiskSummaryRowPageRepository,
+      IHighRiskSummaryRowStreamRepository,
       IWorkingPaperStep41PageRepository,
       IWorkingPaperStep41PreparedSessionFactory
 {
+    async IAsyncEnumerable<(long EntryId, bool IsHit)> IHighRiskSummaryRowStreamRepository.StreamAsync(
+        string projectId,
+        GlPopulationContext context,
+        int scenarioPosition,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        await foreach (var row in HighRiskSummaryRowPageReader.StreamAsync(
+                           connection,
+                           database.Dialect,
+                           context,
+                           scenarioPosition,
+                           cancellationToken))
+        {
+            yield return row;
+        }
+    }
+
     public async Task<(PageResult<RowTagRow> Page, IReadOnlyList<long> EntryIds, IReadOnlyDictionary<long, IReadOnlyList<int>> PositionsByEntry)> GetPageAsync(
         string projectId, GlPopulationContext context, PageRequest request,
         IReadOnlyList<int>? scenarioPositions, CancellationToken cancellationToken)

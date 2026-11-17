@@ -459,8 +459,23 @@ internal static class WorkingPaperWriterTestSupport
         });
 
     internal sealed class FixedCompletenessDiffPageRepository(
-        IReadOnlyList<CompletenessDiffAccount> rows) : ICompletenessDiffPageRepository
+        IReadOnlyList<CompletenessDiffAccount> rows)
+        : ICompletenessDiffPageRepository,
+          ICompletenessDiffStreamRepository
     {
+        // 正式輸出一次讀完差異科目；和分頁逐頁讀完一樣，依科目編號交出全部科目。
+        public async IAsyncEnumerable<CompletenessDiffAccount> StreamAsync(
+            string projectId,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            foreach (var row in _orderedRows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return row;
+            }
+        }
+
         private readonly IReadOnlyList<CompletenessDiffAccount> _orderedRows = rows
             .OrderBy(row => row.AccountNumber, StringComparer.Ordinal)
             .ToArray();

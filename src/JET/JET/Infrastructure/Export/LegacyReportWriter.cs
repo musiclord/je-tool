@@ -9,7 +9,11 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 寫出資料驗證報告、資料可靠性抽樣清單、預篩選報告與條件篩選報告，資料列用 OpenXML 一列一列寫出。
-/// 大型明細用各項規則既有的分頁查詢一頁一頁讀，每一頁再用那一頁的 entry_id 取回原始欄位，不把整個母體載入記憶體。
+/// 大型明細一批一批讀，每一批再用那一批的 entry_id 取回原始欄位，不把整個母體載入記憶體。
+/// 每一頁都要重算整體範圍的明細不逐頁讀，改用一個查詢讀完再分批取回原始欄位：
+/// 條件篩選報告每個情境的命中傳票、預篩選報告 R3 的命中傳票與 V_Report 6 的不平傳票各只算一次，
+/// 全科目表與差異表的各科目彙總也只算一次。條件篩選報告讀到的 entry_id 先寫進暫存檔；
+/// 其他規則的明細每頁從上一頁最後一筆接著讀，不會重算，照舊用分頁查詢一頁一頁讀。
 /// </summary>
 public sealed partial class LegacyReportWriter(
     ICompletenessAccountPageRepository completenessAccounts,

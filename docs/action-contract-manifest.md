@@ -678,7 +678,7 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 `invalid_payload` 並列出允許的鍵。`query.filterHitsPage` 與 `query.infSamplePage` 的 `columns` 另帶
 `sortable`，標示固定欄可以排序，攸關資料元素欄位不能。
 `query.completenessDiffPage` 省略排序時，科目編號空白的列排在最前，試算表那一列在總帳那一列之前，其餘依科目編號；
-驗證報告與底稿逐頁讀全科目表時也是這個順序。
+驗證報告與底稿用一個查詢讀完全科目表，順序也相同。
 
 | 查詢 | 搜尋比對 | 可排序的 `key` |
 |:---|:---|:---|

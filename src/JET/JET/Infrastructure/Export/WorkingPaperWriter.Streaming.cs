@@ -84,25 +84,6 @@ public sealed partial class WorkingPaperWriter
         }
     }
 
-    private static async IAsyncEnumerable<T> StreamItemsAsync<T>(
-        Func<string?, CancellationToken, Task<PageResult<T>>> fetchPage,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        string? cursor = null;
-        do
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var page = await fetchPage(cursor, cancellationToken);
-            foreach (var item in page.Rows)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return item;
-            }
-
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-    }
-
     private static async IAsyncEnumerable<T> ToItems<T>(
         IReadOnlyList<T> items,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)

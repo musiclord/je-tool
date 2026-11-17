@@ -11,7 +11,7 @@ internal static class ResultPageSorting
     private static SortColumn Integer(string key, string sql) => new(key, sql, SortValueKind.Integer);
 
     /// <summary>
-    /// query.completenessDiffPage 與底稿、報告讀全科目表：完整性差異（diff CTE 的欄）。
+    /// query.completenessDiffPage 的完整性差異（diff CTE 的欄）；底稿與報告讀全科目表時一個查詢讀完，依同一個 page_row 排序。
     /// 科目編號可能空白，也可能有兩列空白科目，所以穩定鍵用固定順序的序號 page_row，
     /// 由 <c>CompletenessAccountPageQuery</c> 算出。
     /// </summary>

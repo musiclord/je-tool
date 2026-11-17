@@ -6,13 +6,50 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 分頁讀出預篩選規則命中的分錄（SQLite）。規則的 WHERE 條件和 filter.preview 用同一個 <see cref="GlFilterWhereBuilder"/> 組出。
 /// 第四步明細與預篩選報告的明細、摘要筆數都從這裡取，列出哪些分錄由 <see cref="HitRowsPredicate"/> 決定。
+/// 列出整張命中傳票的規則，分頁的每一頁都會重算全部命中傳票；報告讀完整份明細時改用
+/// <see cref="IPrescreenHitEntryStreamRepository"/> 一個查詢讀完，讀出的分錄與順序和逐頁讀完相同。
 /// </summary>
-public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database) : IPrescreenPageRepository
+public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
+    : IPrescreenPageRepository,
+      IPrescreenHitEntryStreamRepository
 {
     private readonly GlFilterWhereBuilder _whereBuilder =
         new(
             database.Dialect,
             new GlRulePredicates(database.Dialect, GlPopulationScopeSql.Predicate));
+
+    async IAsyncEnumerable<long> IPrescreenHitEntryStreamRepository.StreamEntryIdsAsync(
+        string projectId,
+        string ruleKey,
+        FilterConditionContext context,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+
+        var plan = _whereBuilder.BuildPlan(
+            PrescreenScenario(ruleKey),
+            context,
+            includePopulationParameters: false);
+        plan.BindParametersTo(command);
+        GlPopulationScopeSql.Plan(database.Dialect, context, "g").BindParametersTo(command);
+        command.CommandText =
+            "SELECT g.entry_id FROM gl g " +
+            $"WHERE {GlExcludedPopulation.SqlPredicate("g")} AND ({HitRowsPredicate(ruleKey, plan.Sql, string.Empty)}) " +
+            "ORDER BY g.entry_id;";
+        command.CommandTimeout = 0;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            System.Data.CommandBehavior.SequentialAccess | System.Data.CommandBehavior.SingleResult,
+            cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return reader.GetInt64(0);
+        }
+    }
 
     public async Task<PageResult<PrescreenHitRow>> GetPageAsync(
         string projectId,

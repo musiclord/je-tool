@@ -40,11 +40,11 @@ public enum BlankRecordCategory
 }
 
 /// <summary>
-/// 完整性全科目的 keyset 分頁，供資料驗證報告與底稿 step1 使用，包含差異為 0 的科目。
+/// 完整性全科目的 keyset 分頁，包含差異為 0 的科目；資料驗證報告與底稿 step1 讀完整份清單時改用一個查詢讀完。
 /// 與 <see cref="ICompletenessDiffPageRepository"/> 共用逐科目比對的 SQL 定義、排序與游標，
 /// 但不過濾差異，且科目名稱只取 TB；TB 名稱空白或 GL 有、TB 無時不以 GL 名稱補值。
 /// 差異頁及底稿 step1-3 仍可用 GL 名稱補值。
-/// 消費端以有界分頁逐科目輸出；母體大小由目前案件查詢結果決定，不預設案件識別或固定筆數。
+/// 每頁筆數有上限；母體大小由目前案件查詢結果決定，不預設案件識別或固定筆數。
 /// 回傳型別共用 <see cref="CompletenessDiffAccount"/>，欄位包含科目編號、名稱、TB 與 GL 金額、差異及是否 GL 有而 TB 無。
 /// </summary>
 public interface ICompletenessAccountPageRepository
@@ -95,8 +95,8 @@ public interface IVoucherBalancePageRepository
 
 /// <summary>
 /// 借貸不平傳票所屬的完整 GL 分錄 keyset 分頁。與 <see cref="IVoucherBalancePageRepository"/>
-/// 的傳票彙總不同，本介面回傳所有命中傳票的原始分錄 entry id，供正式 Validation
-/// V_Report 6 逐頁回取原始 GL 欄位。排序鍵固定 entry_id ASC；不可把彙總列冒充明細。
+/// 的傳票彙總不同，本介面逐頁回傳所有不平傳票的原始分錄 entry id；資料驗證報告的 V_Report 6
+/// 改用一個查詢讀完，這個分頁讀法留作對照。排序鍵固定 entry_id ASC；不可把彙總列冒充明細。
 /// </summary>
 public interface IUnbalancedVoucherPageRepository
 {

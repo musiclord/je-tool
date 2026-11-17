@@ -270,8 +270,21 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             accountMappingStateStore: new LocalAccountMappingRepository(database));
     }
 
-    private sealed class FixedCompletenessDiffPageRepository : ICompletenessDiffPageRepository
+    private sealed class FixedCompletenessDiffPageRepository
+        : ICompletenessDiffPageRepository,
+          JET.AuditCore.ICompletenessDiffStreamRepository
     {
+        private static readonly IReadOnlyList<CompletenessDiffAccount> Rows =
+        [
+            new(
+                AccountNumber: "1101",
+                AccountName: "現金",
+                TbAmountScaled: 19_000_000_000,
+                GlAmountScaled: 20_000_000_000,
+                DiffScaled: -1_000_000_000,
+                NotInTb: false)
+        ];
+
         public Task<PageResult<CompletenessDiffAccount>> GetPageAsync(
             string projectId,
             int moneyScale,
@@ -281,17 +294,20 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<CompletenessDiffAccount> rows =
-            [
-                new(
-                    AccountNumber: "1101",
-                    AccountName: "現金",
-                    TbAmountScaled: 19_000_000_000,
-                    GlAmountScaled: 20_000_000_000,
-                    DiffScaled: -1_000_000_000,
-                    NotInTb: false)
-            ];
-            return Task.FromResult(new PageResult<CompletenessDiffAccount>(rows, null));
+            return Task.FromResult(new PageResult<CompletenessDiffAccount>(Rows, null));
+        }
+
+        // 正式輸出一次讀完差異科目，交出的科目和上面的分頁相同。
+        public async IAsyncEnumerable<CompletenessDiffAccount> StreamAsync(
+            string projectId,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            foreach (var row in Rows)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return row;
+            }
         }
     }
 

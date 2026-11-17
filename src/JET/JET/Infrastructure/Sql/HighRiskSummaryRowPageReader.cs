@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
@@ -20,6 +21,9 @@ namespace JET.Infrastructure;
 /// 第二個查詢讀這一頁每筆分錄命中了哪些情境位置：從 filter_hit 找 entry_id 在這一頁裡的列，
 /// 所以每筆分錄的命中位置不多也不少。這一頁沒有分錄時不執行第二個查詢，回傳空的對照表與空的 EntryIds。
 /// 沒有命中的分錄不在對照表裡，由 handler 補成空陣列。
+///
+/// 每一頁的第一個查詢都會重算整個情境的命中傳票，適合畫面一次讀一頁。條件篩選報告要讀完整個情境，
+/// 改用 <see cref="StreamAsync"/> 一個查詢讀完，命中傳票只算一次，讀出的分錄與順序和逐頁讀完相同。
 /// </summary>
 internal static class HighRiskSummaryRowPageReader
 {
@@ -37,10 +41,20 @@ internal static class HighRiskSummaryRowPageReader
         "SELECT g.voucher_number, g.line_item, g.gl_date, g.approval_date, g.created_by, g.approved_by, " +
         "       g.account_number, g.account_name, g.amount_scaled, g.description, g.entry_id{suffix} " +
         $"FROM {schemaPrefix}gl g " +
-        $"WHERE {populationPredicate} AND g.voucher_number IN ( " +
+        $"WHERE {populationPredicate} AND {HitVoucherPredicate(schemaPrefix, scenarioPredicate, hitPopulationPredicate)}";
+
+    /// <summary>
+    /// 分錄所屬的傳票是命中傳票：母體裡有分錄命中所選情境、傳票號碼不是空白的傳票。
+    /// <paramref name="populationPredicate"/> 是命中分錄 g2 的母體條件。
+    /// </summary>
+    private static string HitVoucherPredicate(
+        string schemaPrefix,
+        string scenarioPredicate,
+        string populationPredicate) =>
+        "g.voucher_number IN ( " +
         $"    SELECT DISTINCT g2.voucher_number FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
         $"    JOIN {schemaPrefix}gl g2 ON g2.entry_id = r.entry_id " +
-        $"    WHERE g2.voucher_number IS NOT NULL AND {hitPopulationPredicate} " +
+        $"    WHERE g2.voucher_number IS NOT NULL AND {populationPredicate} " +
         scenarioPredicate +
         ") ";
 
@@ -156,6 +170,54 @@ internal static class HighRiskSummaryRowPageReader
             kv => (IReadOnlyList<int>)kv.Value);
 
         return (new PageResult<RowTagRow>(rows, next, totalCount), entryIds, positionsByEntry);
+    }
+
+    /// <summary>
+    /// 條件篩選報告讀一個情境的整張傳票分錄：一個查詢從頭讀到尾，命中傳票的子查詢只執行一次。
+    /// 讀出的分錄與順序，和 <see cref="ReadAsync"/> 只指定這個情境、沒有指定排序時逐頁讀完相同：
+    /// 母體條件與命中傳票的寫法共用同一段 SQL，依 entry_id 升冪。
+    /// 第二欄是這筆分錄本身有沒有命中這個情境，和逐頁讀的第二個查詢相同；列出的分錄都已在母體裡。
+    /// 結果由只能往前讀的 reader 逐列交出，不像逐頁讀那樣每一頁都重算整個情境的命中傳票。
+    ///
+    /// 查詢先從傳票號碼索引取出命中傳票的全部 entry_id 並排好，再依 entry_id 順序回 gl 檢查母體條件與命中。
+    /// 總帳依科目或其他欄位排序匯入時，同一張傳票的分錄散在整張表；直接依傳票號碼逐張讀會到處跳讀，
+    /// 先排好 entry_id 再讀就是依序讀，結果與順序不變。
+    /// </summary>
+    public static async IAsyncEnumerable<(long EntryId, bool IsHit)> StreamAsync(
+        DbConnection connection,
+        ISqlDialect dialect,
+        GlPopulationContext context,
+        int scenarioPosition,
+        [EnumeratorCancellation] CancellationToken cancellationToken,
+        string schemaPrefix = "")
+    {
+        var scenarioScope = HighRiskSummaryScenarioSqlScope.Create([scenarioPosition]);
+        await using var command = connection.CreateCommand();
+        GlPopulationScopeSql.Plan(dialect, context, "g").BindParametersTo(command);
+        scenarioScope.AddParameters(command);
+        command.CommandText =
+            "WITH hit_voucher_entry(entry_id) AS MATERIALIZED (" +
+            $"    SELECT g.entry_id FROM {schemaPrefix}gl g WHERE " +
+            HitVoucherPredicate(schemaPrefix, scenarioScope.Predicate(), GlPopulationScopeSql.Predicate(context, "g2")) +
+            "    ORDER BY g.entry_id) " +
+            "SELECT g.entry_id, EXISTS (" +
+            $"    SELECT 1 FROM {schemaPrefix}filter_hit h JOIN {schemaPrefix}filter_scenario hs ON hs.scenario_id = h.scenario_id " +
+            "    WHERE h.entry_id = g.entry_id " +
+            scenarioScope.Predicate("hs.position") +
+            ") AS is_hit " +
+            $"FROM hit_voucher_entry e CROSS JOIN {schemaPrefix}gl g ON g.entry_id = e.entry_id " +
+            $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} " +
+            "ORDER BY e.entry_id;";
+        command.CommandTimeout = 0;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess | CommandBehavior.SingleResult,
+            cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return (reader.GetInt64(0), reader.GetInt64(1) != 0);
+        }
     }
 
     /// <summary>

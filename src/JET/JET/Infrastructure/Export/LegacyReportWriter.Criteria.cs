@@ -2,6 +2,7 @@ using System.Globalization;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using JET.AuditCore;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -95,6 +96,7 @@ public sealed partial class LegacyReportWriter
         {
             cancellationToken.ThrowIfCancellationRequested();
             var firstScenarioStatIndex = stats.Count;
+            using var detailRows = new CriteriaVoucherRowSpool();
             await EmitRawPagedSheetsAsync(
                 editor.Document,
                 editor.Sheets,
@@ -104,6 +106,7 @@ public sealed partial class LegacyReportWriter
                 (page, ct) => ReadCriteriaVoucherRowsAsync(
                     context,
                     scenario.Position,
+                    detailRows,
                     page,
                     ct),
                 row => row.EntryId,
@@ -136,35 +139,41 @@ public sealed partial class LegacyReportWriter
         return stats;
     }
 
+    /// <summary>
+    /// 一批一批交出這個情境的整張傳票分錄。第一次取批時用一個查詢讀完整個情境，命中傳票只算一次，
+    /// 結果依 entry_id 升冪寫進暫存檔；之後每批從暫存檔接著讀，不再查資料庫。
+    /// </summary>
     private async Task<PageResult<CriteriaVoucherRow>> ReadCriteriaVoucherRowsAsync(
         CriteriaSelectionReportContext context,
         int scenarioPosition,
+        CriteriaVoucherRowSpool detailRows,
         PageRequest page,
         CancellationToken cancellationToken)
     {
-        if (highRiskSummaryRows is null)
+        if (!detailRows.IsFilled)
         {
-            throw new InvalidOperationException(
-                "Criteria Selection whole-voucher export requires the high-risk summary row port.");
+            if (highRiskSummaryRows is not IHighRiskSummaryRowStreamRepository rowStream)
+            {
+                throw new InvalidOperationException(
+                    "Criteria Selection whole-voucher export requires the high-risk summary row stream.");
+            }
+
+            var population = new GlPopulationContext(
+                context.PopulationScope,
+                context.Project.PeriodStart,
+                context.Project.PeriodEnd);
+            var wholeVoucher = context.WholeVoucherSummaryPositions?.Contains(scenarioPosition) == true;
+            await detailRows.FillAsync(
+                rowStream.StreamAsync(
+                    context.Project.ProjectId,
+                    population,
+                    scenarioPosition,
+                    cancellationToken),
+                wholeVoucher,
+                cancellationToken).ConfigureAwait(false);
         }
-        var population = new GlPopulationContext(
-            context.PopulationScope,
-            context.Project.PeriodStart,
-            context.Project.PeriodEnd);
-        var result = await highRiskSummaryRows.GetPageAsync(
-            context.Project.ProjectId,
-            population,
-            page,
-            [scenarioPosition],
-            cancellationToken).ConfigureAwait(false);
-        var wholeVoucher = context.WholeVoucherSummaryPositions?.Contains(scenarioPosition) == true;
-        return new PageResult<CriteriaVoucherRow>(
-            result.EntryIds
-                .Select(entryId => new CriteriaVoucherRow(
-                    entryId,
-                    wholeVoucher || result.PositionsByEntry.ContainsKey(entryId)))
-                .ToArray(),
-            result.Page.NextCursor);
+
+        return detailRows.ReadPage(page);
     }
 
     private static void EditCriteriaSummary(

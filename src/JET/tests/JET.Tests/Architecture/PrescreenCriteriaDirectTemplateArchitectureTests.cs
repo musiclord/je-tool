@@ -95,12 +95,16 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "private async Task<PageResult<CriteriaVoucherRow>> ReadCriteriaVoucherRowsAsync(",
             "private static void EditCriteriaSummary(");
 
+        // 明細只讀這一個情境的命中傳票，一個情境用一個查詢讀完；不回頭用畫面的分頁查詢逐頁重算命中傳票。
         AssertAppearsInOrder(
             detailPath,
             "var population = new GlPopulationContext(",
-            "highRiskSummaryRows.GetPageAsync(");
-        Assert.Contains(
-            "[scenarioPosition]",
+            "rowStream.StreamAsync(",
+            "context.Project.ProjectId,",
+            "population,",
+            "scenarioPosition,");
+        Assert.DoesNotContain(
+            "GetPageAsync(",
             detailPath,
             StringComparison.Ordinal);
 

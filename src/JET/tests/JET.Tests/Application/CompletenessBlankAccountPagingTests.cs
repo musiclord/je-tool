@@ -139,7 +139,7 @@ public sealed class CompletenessBlankAccountPagingTests
     }
 
     /// <summary>
-    /// 匯出端：V_Report 5 與底稿 Step 1 都逐頁讀全科目表，科目超過一頁時也要列出空白科目。
+    /// 匯出端：V_Report 5 與底稿 Step 1 一個查詢讀完全科目表，科目多到超過畫面的一頁時也要列出空白科目。
     /// 總帳 A001 到 A205 各借 100 元、空白科目借 50 元，全部由 Z999 貸方沖平；試算表 A 科目各 101 元，
     /// Z999 與總帳相同。所以全科目共 207 列，空白科目那一列是試算表 0、總帳 50、差異 -50。
     /// </summary>

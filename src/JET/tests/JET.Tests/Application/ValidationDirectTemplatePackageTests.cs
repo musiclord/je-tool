@@ -1590,8 +1590,11 @@ public sealed class ValidationDirectTemplatePackageTests
 
     private sealed class ValidationRepositoryFakes :
         ICompletenessAccountPageRepository,
+        ICompletenessAccountStreamRepository,
         ICompletenessDiffPageRepository,
+        ICompletenessDiffStreamRepository,
         IUnbalancedVoucherPageRepository,
+        IUnbalancedVoucherEntryStreamRepository,
         IBlankRecordsPageRepository,
         IInfSamplePageRepository,
         IPrescreenPageRepository,
@@ -1739,6 +1742,28 @@ public sealed class ValidationDirectTemplatePackageTests
                 CompletenessRows ?? [],
                 null));
 
+        // 正式輸出一次讀完科目清單；和上面的分頁一樣交出同一組科目。
+        IAsyncEnumerable<CompletenessDiffAccount> ICompletenessAccountStreamRepository.StreamAsync(
+            string projectId,
+            CancellationToken cancellationToken) =>
+            StreamCompletenessRowsAsync(cancellationToken);
+
+        IAsyncEnumerable<CompletenessDiffAccount> ICompletenessDiffStreamRepository.StreamAsync(
+            string projectId,
+            CancellationToken cancellationToken) =>
+            StreamCompletenessRowsAsync(cancellationToken);
+
+        private async IAsyncEnumerable<CompletenessDiffAccount> StreamCompletenessRowsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            foreach (var row in CompletenessRows ?? [])
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return row;
+            }
+        }
+
         public Task<PageResult<long>> GetEntryIdsPageAsync(
             string projectId,
             string periodStart,
@@ -1749,6 +1774,17 @@ public sealed class ValidationDirectTemplatePackageTests
             UnbalancedPageCalls++;
             ThrowIfForbidden();
             return Task.FromResult(new PageResult<long>([901], null));
+        }
+
+        // V_Report 6 一次讀完不平傳票的分錄；這一次讀取和上面的分頁一樣計入 UnbalancedPageCalls，也一樣受禁止讀取明細的設定限制。
+        async IAsyncEnumerable<long> IUnbalancedVoucherEntryStreamRepository.StreamEntryIdsAsync(
+            string projectId,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+            UnbalancedPageCalls++;
+            ThrowIfForbidden();
+            yield return 901;
         }
 
         public Task<PageResult<BlankRecordRow>> GetPageAsync(
