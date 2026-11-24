@@ -42,4 +42,28 @@ public interface IMappingValueProfileRepository
         string sourceColumn,
         IReadOnlyList<string> comparisonValues,
         CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>?>(null);
+
+    /// <summary>
+    /// 同時算出值概況與來源值核對，結果分別和 <see cref="GetAsync"/>、<see cref="FindMissingValuesAsync"/> 相同。
+    /// 預設依序呼叫這兩個方法；實作可以改成只掃一次來源。
+    /// </summary>
+    async Task<CheckedMappingValueProfile> GetWithSourceValueCheckAsync(
+        string projectId,
+        string batchId,
+        string sourceColumn,
+        int limit,
+        bool fillDown,
+        IReadOnlyList<string> comparisonValues,
+        CancellationToken cancellationToken)
+    {
+        var profile = await GetAsync(projectId, batchId, sourceColumn, limit, fillDown, cancellationToken);
+        var missing = await FindMissingValuesAsync(projectId, batchId, sourceColumn, comparisonValues, cancellationToken);
+        return new CheckedMappingValueProfile(profile, missing);
+    }
 }
+
+/// <summary>
+/// 值概況與來源值核對一起算出的結果。<c>MissingValues</c> 是要核對的值裡在來源找不到的，依請求的順序；
+/// null 代表資料庫實作沒有這項核對。
+/// </summary>
+public sealed record CheckedMappingValueProfile(MappingValueProfile Profile, IReadOnlyList<string>? MissingValues);

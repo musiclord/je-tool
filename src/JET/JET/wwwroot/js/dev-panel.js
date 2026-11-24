@@ -26,16 +26,13 @@
 
     body.querySelector('[data-action="dev-refresh"]').addEventListener('click', devRefresh);
     body.querySelector('[data-action="dev-query"]').addEventListener('click', function () {
-      dev.offset = 0;
-      devQuery();
+      devQuery(0);
     });
     body.querySelector('[data-action="dev-prev"]').addEventListener('click', function () {
-      dev.offset = Math.max(dev.offset - dev.limit, 0);
-      devQuery();
+      devQuery(Math.max(dev.offset - dev.limit, 0));
     });
     body.querySelector('[data-action="dev-next"]').addEventListener('click', function () {
-      dev.offset += dev.limit;
-      devQuery();
+      devQuery(dev.offset + dev.limit);
     });
   }
 
@@ -59,13 +56,16 @@
     });
   }
 
-  function devQuery() {
+  // 查詢真的開始時才記下這次查的資料表與起始列；另一項作業還在進行時，頁次停在畫面上那一頁。
+  function devQuery(offset) {
     var select = Ui.$('dev-table-select');
     if (!select || !select.value) { return; }
 
-    dev.selected = select.value;
+    var table = select.value;
 
     Ui.run('查詢資料表', function () {
+      dev.selected = table;
+      dev.offset = offset;
       return global.JetApi.devDbTableData({
         tableName: dev.selected,
         limit: dev.limit,

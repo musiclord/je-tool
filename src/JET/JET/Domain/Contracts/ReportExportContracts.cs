@@ -36,10 +36,12 @@ internal sealed record ValidationReportProjection(
     long SourceQualityFindingCount,
     string? CompletenessNaNote = null);
 
+/// <param name="SampleSeed">這次驗證抽樣實際使用的隨機種子，取自驗證結果，主表 A4 寫出這個值。</param>
 public sealed record InfReportContext(
     ReportDocumentContext Project,
     string ResultId,
-    DateTimeOffset GeneratedUtc);
+    DateTimeOffset GeneratedUtc,
+    long SampleSeed);
 
 /// <param name="PreparedDate">報告的編製日期，寫按下匯出那一天的本機日期，不寫執行預篩選的時間。</param>
 public sealed record PrescreenReportContext(

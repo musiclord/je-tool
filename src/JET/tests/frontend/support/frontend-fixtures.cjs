@@ -351,6 +351,15 @@ function treeDom(options = {}) {
   return { element, content, document };
 }
 
+// 正式後端 project.load 回應裡的抽樣筆數預設值與上限，以及摘要的預設關鍵字（舊版 R2 的 24 個詞）。
+// 不經 project.load、直接把案件放進 Store 的夾具也照開案時一樣放進這三個值。
+// C# 測試從本檔讀出這個區塊，核對每個值和後端常數相同。
+const LOADED_RULE_DEFAULTS = {
+  infSampling: { defaultSampleSize: 59, maximumSampleSize: 1048524 },
+  suspiciousKeywordDefaults: ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG', '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外',
+    '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外']
+};
+
 // 空白摘要卡存成的情境：卡片用代號，編輯來源存第 2 版，名稱與動機用自動寫法，來源代碼是 common。
 const savedBlankDescription = (name = '空白摘要') => ({ name, rationale: '空白摘要', source: 'common',
   // 空白摘要卡用欄位條件；舊情境的測試另用原始 JSON，不由這個夾具轉換。
@@ -380,6 +389,7 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   const store = window.JetStore, state = store.getState();
   store.setProject({ projectId: 'usage-synthetic', periodStart: '2025-01-01', periodEnd: '2025-11-30', prepStartDate: '2025-11-20' });
+  store.setRuleDefaults(LOADED_RULE_DEFAULTS);
   store.setResult('validate', { resultRef: { resultId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
   store.setSavedScenarios([savedBlankDescription('第一個'), savedBlankDescription('第二個'), savedBlankDescription('第三個')]);
   store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
@@ -416,6 +426,7 @@ function filterOperationFixture({ saved = [], features = {} } = {}) {
   window.JetApi = contractJetApi(Object.fromEntries(['filterCommit', 'filterScenarioSave', 'filterScenarioRemove', 'filterScenarioRecheck'].map(method =>
     [method, payload => new Promise((resolve, reject) => commits.push({ method, payload, resolve, reject }))])));
   store.setProject({ projectId: 'filter-operation-synthetic' });
+  store.setRuleDefaults(LOADED_RULE_DEFAULTS);
   store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
   store.setSavedScenarios(saved);
   let version = -1;
@@ -601,6 +612,7 @@ function stepScreensFixture() {
     '  window.exposedPreview = { displayCell, renderNote, setup: function (aside, body, note) { elAside = aside; elBody = body; elNote = note; } };\n  Ui.initDataPreview = initDataPreview;'), context);
   const store = window.JetStore, ui = window.JetUi;
   store.setProject({ projectId: 'screens-synthetic', clientName: 'Synthetic', operatorId: 'CREATOR', prepStartDate: '2025-12-31', periodStart: '2025-01-01', periodEnd: '2025-12-31' });
+  store.setRuleDefaults(LOADED_RULE_DEFAULTS);
   store.getState().view = 'workflow';
   const previewDom = lazyControlDom();
   window.exposedPreview.setup(previewDom.node('aside'), previewDom.node('body'), previewDom.node('note'));
@@ -1009,7 +1021,7 @@ module.exports = {
   // 假 DOM
   treeDom, parsedControlDom, lazyControlDom,
   // 合成資料
-  savedBlankDescription, validationFixture, validationResultData, validationReportList, remapPaper, remapPrescreen, profile,
+  LOADED_RULE_DEFAULTS, savedBlankDescription, validationFixture, validationResultData, validationReportList, remapPaper, remapPrescreen, profile,
   // 各步驟畫面與流程總覽的夾具
   usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, remapAppFixture, overviewDialogFixture, stepScreensFixture, mappingFixture,
   // 資料預覽、第三步重繪與訊息面板的夾具

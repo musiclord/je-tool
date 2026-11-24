@@ -54,7 +54,7 @@ internal static class HighRiskSummaryScenarioCounts
             "FROM (SELECT DISTINCT fs.position AS scenario_position, g2.voucher_number " +
             $"FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
             $"JOIN {schemaPrefix}gl g2 ON g2.entry_id = r.entry_id " +
-            $"WHERE g2.voucher_number IS NOT NULL AND {GlExcludedPopulation.SqlPredicate("g2")} " +
+            $"WHERE {HitVoucherRows.HasVoucherNumber("g2")} AND {GlExcludedPopulation.SqlPredicate("g2")} " +
             $"AND fs.position IN ({string.Join(", ", names)})) hit " +
             $"JOIN {schemaPrefix}gl g ON g.voucher_number = hit.voucher_number " +
             $"WHERE {GlExcludedPopulation.SqlPredicate("g")} " +
@@ -80,7 +80,7 @@ internal static class HighRiskSummaryScenarioCounts
             connection,
             $"SELECT fs.position, {countExpression} FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
             $"JOIN {schemaPrefix}gl g ON g.entry_id = r.entry_id " +
-            $"WHERE g.voucher_number IS NULL AND {GlExcludedPopulation.SqlPredicate("g")} " +
+            $"WHERE {HitVoucherRows.HasNoVoucherNumber("g")} AND {GlExcludedPopulation.SqlPredicate("g")} " +
             "GROUP BY fs.position;",
             cancellationToken);
 

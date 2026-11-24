@@ -157,7 +157,7 @@ function Get-JetContext {
                     $receipt = Read-JetContextText $RepositoryRoot $relative | ConvertFrom-Json -AsHashtable -Depth 30
                     $selection = ConvertTo-Json -InputObject @($receipt.command, $receipt.configuration, $receipt.filter, $receipt['contractScenario'], $receipt['guiScenario']) -Compress
                     if (-not $seenSelections.Add($selection)) { continue }
-                    # Only summary fields; never reproduce raw logs, exception messages or private-case inputs.
+                    # Only summary fields; never reproduce raw logs or exception messages.
                     $evidence.Add([ordered]@{
                         path = $relative
                         command = $receipt.command

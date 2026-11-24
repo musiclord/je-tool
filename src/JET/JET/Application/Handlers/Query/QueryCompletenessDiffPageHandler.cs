@@ -39,9 +39,9 @@ public sealed class QueryCompletenessDiffPageHandler(
             {
                 accountNumber = r.AccountNumber,
                 accountName = r.AccountName,
-                tbAmount = (decimal)r.TbAmountScaled / scale,
-                glAmount = (decimal)r.GlAmountScaled / scale,
-                diff = (decimal)r.DiffScaled / scale,
+                tbAmount = MoneyScaling.FromScaled(r.TbAmountScaled, scale),
+                glAmount = MoneyScaling.FromScaled(r.GlAmountScaled, scale),
+                diff = MoneyScaling.FromScaled(r.DiffScaled, scale),
                 notInTb = r.NotInTb
             }).ToArray(),
             totalCount = page.TotalCount,

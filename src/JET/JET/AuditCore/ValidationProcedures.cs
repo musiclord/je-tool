@@ -17,7 +17,8 @@ namespace JET.AuditCore;
 /// <para><see cref="CompletenessDiffCte"/> 是算出每個科目 GL 彙總與 TB 彙總差異的 CTE。GL 那一側只取有效分錄；
 /// TB 那一側取全部，因為 TB 本身就是本期變動。CTE 用 LEFT JOIN 加 UNION ALL 做出 FULL OUTER JOIN 的結果。
 /// 執行資料驗證的 repository、完整性差異與全科目兩個分頁查詢，以及科目配對匯出都共用它。
-/// 輸出欄：account_number、account_name、tb_s、gl_s、not_in_tb。</para>
+/// 輸出欄：account_number、account_name、tb_s、gl_s、not_in_tb。
+/// 一個科目有多列、各列名稱不同時取哪一個名稱，定義在 <see cref="AccountNamePerAccount"/>。</para>
 /// </summary>
 public static class ValidationProcedures
 {
@@ -114,26 +115,49 @@ public static class ValidationProcedures
         """;
     }
 
-    /// <summary>完整性差異 CTE：GL 側只取 GL，不含 GL(未納入測試)。</summary>
-    public static readonly string CompletenessDiffCte = CompletenessDiffCteFor("");
+    /// <summary>完整性差異 CTE：GL 側只取 GL，不含 GL(未納入測試)；科目名稱先取 TB，TB 沒有名稱時取 GL。</summary>
+    public static string CompletenessDiffCte(ISqlDialect dialect) => CompletenessDiffCteFor(dialect, "");
+
+    /// <summary>
+    /// 完整性測試裡一個科目在一份來源顯示哪一個科目名稱，只有這一個定義；GL 與 TB 各自依科目編號分組時都用它。
+    /// 同一個科目編號有多列時，先排除空白的名稱，也就是 NULL、空字串與只有空白字元的名稱，再取文字升冪排序的第一個；
+    /// 每一列的名稱都空白時結果是 NULL，表示這個科目在這份來源沒有名稱。
+    /// 升冪照文字的編碼逐位元組由小到大比較，不看語系、筆畫或注音，大小寫與全形半形都算不同的字；
+    /// 一個名稱是另一個名稱的開頭時，短的排在前面。取到的名稱照來源存的樣子回傳，不去頭尾空白。
+    /// </summary>
+    /// <param name="nameExpression">分組查詢裡科目名稱的欄位或運算式。</param>
+    internal static string AccountNamePerAccount(ISqlDialect dialect, string nameExpression)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nameExpression);
+        return $"MIN(CASE WHEN {SqlBlankText.IsNotBlank(dialect, nameExpression)} THEN {nameExpression} END COLLATE BINARY)";
+    }
 
     /// <summary>
     /// 完整性差異 CTE 的唯一定義。
     /// 中間結果另取 gl_by_account、tb_by_account 這兩個名字，不和資料表 gl、tb 同名，
     /// 否則 SQLite 會把 CTE 裡的 FROM gl 當成引用自己。
+    /// GL 與 TB 各自的科目名稱都由 <see cref="AccountNamePerAccount"/> 決定，沒有名稱時是 NULL。
     /// </summary>
+    /// <param name="dialect">空白名稱的判定照它的寫法。</param>
     /// <param name="schemaPrefix">資料表名稱前的限定詞；SQLite 使用空字串。</param>
-    /// <param name="useTbAccountNames">全科目報表只使用 TB 科目名稱；預設供差異頁沿用 GL 名稱補值。</param>
-    public static string CompletenessDiffCteFor(string schemaPrefix, bool useTbAccountNames = false) =>
-        $$"""
+    /// <param name="useTbAccountNames">
+    /// 全科目表、差異表與畫面上可配對的科目清單用預設值：先取 TB 的名稱，TB 沒有名稱或科目只在 GL 時取 GL 的名稱，
+    /// 兩邊都沒有時留白。
+    /// 科目配對範本與畫面分類時要存的名稱傳 true：科目名稱只取 TB，TB 沒有名稱或科目只在 GL 時是 NULL，
+    /// 範本在這種科目寫固定文字，不寫 GL 的名稱。
+    /// </param>
+    public static string CompletenessDiffCteFor(ISqlDialect dialect, string schemaPrefix, bool useTbAccountNames = false)
+    {
+        var accountName = AccountNamePerAccount(dialect, "account_name");
+        return $$"""
         WITH gl_by_account AS (
-            SELECT account_number, MAX(account_name) AS account_name, SUM(amount_scaled) AS s
+            SELECT account_number, {{accountName}} AS account_name, SUM(amount_scaled) AS s
             FROM {{schemaPrefix}}gl
             WHERE {{GlExcludedPopulation.SqlPredicate()}}
             GROUP BY account_number
         ),
         tb_by_account AS (
-            SELECT account_number, MAX(account_name) AS account_name, SUM(change_amount_scaled) AS s
+            SELECT account_number, {{accountName}} AS account_name, SUM(change_amount_scaled) AS s
             FROM {{schemaPrefix}}tb
             GROUP BY account_number
         ),
@@ -152,6 +176,23 @@ public static class ValidationProcedures
             WHERE t.account_number IS NULL
         )
         """;
+    }
+
+    /// <summary>
+    /// 完整性測試的差異條件，只有這一個定義：同一科目的 TB 年度變動金額合計與 GL 金額合計不相等就列為差異，不設容許誤差。
+    /// 接在完整性差異 CTE 的 diff 後面使用。
+    /// </summary>
+    public const string CompletenessDifferencePredicate = "tb_s <> gl_s";
+
+    /// <summary>完整性差異 CTE 的 diff 裡，GL 有分錄而 TB 沒有的科目。</summary>
+    public const string GlOnlyAccountPredicate = "not_in_tb = 1";
+
+    /// <summary>資料驗證報告顯示的借貸淨額：取絕對值，不超過 0.01 時顯示為 0。</summary>
+    internal static decimal DisplayedNetDifference(decimal net)
+    {
+        var difference = Math.Abs(net);
+        return difference > 0.01m ? difference : 0m;
+    }
 
     /// <summary>完整性測試的程序定義；slug 取自 <see cref="RuleCatalog"/>。</summary>
     public static ProcedureDefinition Definition => AccountComparisonProcedure.Definition;

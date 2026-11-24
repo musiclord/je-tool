@@ -50,6 +50,3 @@ docs/architecture/*/** -text -eol -whitespace
 
 # Preserve pinned upstream license files byte-for-byte.
 src/JET/JET/wwwroot/assets/fonts/**/OFL.txt -text -eol -whitespace
-
-# Appearance fixtures are canonical UTF-8 JSON artifacts; preserve serializer bytes exactly.
-src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-sample-appearance/*.json -text -eol -whitespace

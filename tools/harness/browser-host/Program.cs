@@ -374,6 +374,7 @@ internal sealed record HostPaths(string Run, string Projects, string Logs, strin
 
         if (Directory.Exists(projects))
         {
+            ReleaseProjectJsonReadOnly(projects);
             Directory.Delete(projects, recursive: true);
         }
 
@@ -382,6 +383,25 @@ internal sealed record HostPaths(string Run, string Projects, string Logs, strin
         if (Directory.Exists(report))
         {
             Directory.Delete(report, recursive: true);
+        }
+    }
+
+    /// <summary>JET 寫好案件設定檔就設成唯讀，Directory.Delete 刪不掉唯讀檔，所以重建案件前先取消唯讀；不進入連結指向的資料夾。</summary>
+    private static void ReleaseProjectJsonReadOnly(string projects)
+    {
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            IgnoreInaccessible = true,
+        };
+        foreach (var path in Directory.EnumerateFiles(projects, JET.Infrastructure.JetProjectFolder.ProjectJsonFileName, options))
+        {
+            var attributes = File.GetAttributes(path);
+            if (attributes.HasFlag(FileAttributes.ReadOnly))
+            {
+                File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+            }
         }
     }
 }

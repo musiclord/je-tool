@@ -55,7 +55,6 @@ internal sealed class ReportSheetWriter : IDisposable
     private readonly ReportSheetOptions? _options;
     private readonly Func<uint, uint> _mapStyle;
     private bool _protect;
-    private bool _closed;
     private bool _faulted;
     private bool _disposed;
     private long _dataRows;
@@ -72,7 +71,21 @@ internal sealed class ReportSheetWriter : IDisposable
         _options = options;
         _mapStyle = mapStyle ?? (static style => style);
         _content = FormalWorkbookArchive.OpenWorksheetContent(part);
-        _writer = OpenXmlWriter.Create(_content);
+        try
+        {
+            _writer = OpenXmlWriter.Create(_content);
+            WriteElementsBeforeRows(columns, options);
+        }
+        catch
+        {
+            // 建構失敗時呼叫端拿不到這個寫入器，已經開啟的項目要在這裡放掉。
+            ExportResources.ReleaseAll(_writer, _content);
+            throw;
+        }
+    }
+
+    private void WriteElementsBeforeRows(IReadOnlyList<ReportColumn>? columns, ReportSheetOptions? options)
+    {
         _writer.WriteStartDocument();
         _writer.WriteStartElement(new Worksheet());
 
@@ -180,10 +193,34 @@ internal sealed class ReportSheetWriter : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stat = new SheetStat(_name, _dataRows);
-        Dispose();
+        Close();
         return stat;
     }
 
+    /// <summary>
+    /// 寫完結尾並關閉這張工作表。寫結尾、把緩衝寫出去或關閉壓縮檔項目失敗時往外丟，因為這時失敗代表工作表不完整。
+    /// 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，所以那之後不補結尾。
+    /// </summary>
+    private void Close()
+    {
+        try
+        {
+            if (!_disposed && !_faulted)
+            {
+                CloseElements();
+                _writer.Dispose();
+                _content.Dispose();
+            }
+        }
+        finally
+        {
+            Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 只放掉資源，不補寫結尾，也不丟出例外。沒有先關閉就釋放，表示匯出已經失敗或取消，這張工作表的內容不要了。
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
@@ -191,15 +228,8 @@ internal sealed class ReportSheetWriter : IDisposable
             return;
         }
 
-        // 寫入器丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因。
-        if (!_faulted)
-        {
-            CloseElements();
-        }
-
-        _writer.Dispose();
-        _content.Dispose();
         _disposed = true;
+        ExportResources.ReleaseAll(_writer, _content);
     }
 
     public static string Reference(uint column, uint row)
@@ -275,12 +305,6 @@ internal sealed class ReportSheetWriter : IDisposable
 
     private void CloseElements()
     {
-        if (_closed)
-        {
-            return;
-        }
-
-        _closed = true;
         _writer.WriteEndElement();
 
         if (_protect)

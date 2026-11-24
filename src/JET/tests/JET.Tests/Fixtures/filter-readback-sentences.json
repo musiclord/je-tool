@@ -196,5 +196,47 @@
     "scenario": { "groups": [{ "conditions": [{ "type": "prescreen", "prescreenKey": "syntheticRetiredCheck" }] }] },
     "rdeFields": [],
     "expected": "預篩選：已停用的條件"
+  },
+  {
+    "id": "amount-never-blank-omits-the-blank-note",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "amount", "operator": "greaterThan", "value": "1000", "amountBasis": "absolute" }] }] },
+    "rdeFields": [],
+    "neverBlankGlFields": ["glDate", "amount"],
+    "expected": "金額絕對值 大於「1000」"
+  },
+  {
+    "id": "gl-date-never-blank-omits-the-blank-note",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "glDate", "operator": "isNonBusinessDay" }] }] },
+    "rdeFields": [],
+    "neverBlankGlFields": ["glDate", "amount"],
+    "expected": "總帳日期 在非營業日"
+  },
+  {
+    "id": "never-blank-field-ignores-a-saved-include-blank",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "amount", "operator": "notEndsWithZeros", "value": "3", "amountBasis": "absolute", "includeBlank": true }] }] },
+    "rdeFields": [],
+    "neverBlankGlFields": ["glDate", "amount"],
+    "expected": "金額 尾數沒有連續「3」個 0"
+  },
+  {
+    "id": "auto-numbered-line-item-omits-the-blank-note",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "lineItem", "operator": "notIn", "values": ["1"], "includeBlank": true }] }] },
+    "rdeFields": [],
+    "neverBlankGlFields": ["lineItem", "glDate", "amount"],
+    "expected": "傳票文件項次 不在清單中「1」"
+  },
+  {
+    "id": "line-item-from-a-source-column-keeps-the-blank-note",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "lineItem", "operator": "notIn", "values": ["1"], "includeBlank": true }] }] },
+    "rdeFields": [],
+    "neverBlankGlFields": ["glDate", "amount"],
+    "expected": "傳票文件項次 不在清單中「1」；空白也符合"
+  },
+  {
+    "id": "relevant-data-element-amount-keeps-the-blank-note",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "fieldId": "rde.b7000000000000000000000000000003", "operator": "greaterThan", "value": "1000", "amountBasis": "absolute" }] }] },
+    "rdeFields": [{ "fieldId": "rde.b7000000000000000000000000000003", "sourceColumn": "Synthetic", "label": "合成金額", "valueType": "amount" }],
+    "neverBlankGlFields": ["glDate", "amount"],
+    "expected": "合成金額絕對值 大於「1000」；空白不列入"
   }
 ]

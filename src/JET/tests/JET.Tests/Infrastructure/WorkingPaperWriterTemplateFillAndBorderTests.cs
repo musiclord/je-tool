@@ -14,7 +14,7 @@ using static JET.Tests.Infrastructure.WorkingPaperWriterTestSupport;
 
 namespace JET.Tests.Infrastructure;
 
-/// <summary>底稿寫出器：資料列保留範本底色與框線，並與兩份已追蹤的舊版快照一致。</summary>
+/// <summary>底稿寫出器：資料列保留範本的底色與框線。</summary>
 public sealed class WorkingPaperWriterTemplateFillAndBorderTests
 {
     [Fact]
@@ -130,69 +130,4 @@ public sealed class WorkingPaperWriterTemplateFillAndBorderTests
                 outputReference: $"{column}1001");
         }
     }
-
-    [Fact]
-    public async Task Step2To4_FillAndBorders_MatchBothTrackedLegacyGoldenSnapshots()
-    {
-        using var host = new HandlerTestHost();
-        var ctx = await DemoProjectPipeline.SetupAsync(host);
-        await host.DispatchAsync("validate.run");
-        await host.DispatchAsync("filter.commit", ConditionColumnScenarioPayload());
-        var outputBytes = await WriteToBytesAsync(host, ctx.ProjectId);
-        var outputPath = Path.Combine(
-            Path.GetTempPath(),
-            $"jet-working-paper-appearance-{Guid.NewGuid():N}.xlsx");
-        var targetLocations = new HashSet<string>(StringComparer.Ordinal)
-        {
-            $"{Step2Sheet}!A53",
-            $"{Step2Sheet}!F53",
-            $"{Step2Sheet}!M53",
-            $"{Step2Sheet}!T53",
-            $"{Step3Sheet}!B19",
-            $"{Step3Sheet}!C19",
-            $"{Step3Sheet}!D19",
-            $"{Step3Sheet}!E19",
-            $"{Step4Sheet}!A13",
-            $"{Step4Sheet}!E13",
-            $"{Step4Sheet}!F13",
-            $"{Step4Sheet}!O13"
-        };
-
-        try
-        {
-            await File.WriteAllBytesAsync(outputPath, outputBytes);
-            var actual = SpreadsheetAppearanceFingerprint.Capture(outputPath).Entries
-                .Where(entry => targetLocations.Contains(entry.Location)
-                    && (entry.Property.StartsWith("fill.", StringComparison.Ordinal)
-                        || entry.Property.StartsWith("border.", StringComparison.Ordinal)))
-                .ToArray();
-            var fixtureDirectory = Path.Combine(
-                TestRepositoryPaths.SolutionRoot,
-                SpreadsheetAppearanceSnapshotSchemaGuard.FixtureRelativeDirectory.Replace(
-                    '/',
-                    Path.DirectorySeparatorChar));
-            var workingPaperSnapshots = SpreadsheetAppearanceSnapshotSchemaGuard.ExpectedSnapshots
-                .Where(identity => identity.Report == LegacyReportKind.WorkingPaper)
-                .ToArray();
-            Assert.Equal(2, workingPaperSnapshots.Length);
-
-            foreach (var identity in workingPaperSnapshots)
-            {
-                var golden = SpreadsheetAppearanceSnapshotSchemaGuard.ReadEntries(
-                        await File.ReadAllBytesAsync(Path.Combine(fixtureDirectory, identity.FileName)),
-                        identity.Report)
-                    .Where(entry => targetLocations.Contains(entry.Location)
-                        && (entry.Property.StartsWith("fill.", StringComparison.Ordinal)
-                            || entry.Property.StartsWith("border.", StringComparison.Ordinal)))
-                    .ToArray();
-                Assert.NotEmpty(golden);
-                Assert.Equal(golden, actual);
-            }
-        }
-        finally
-        {
-            File.Delete(outputPath);
-        }
-    }
-
 }

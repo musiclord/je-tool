@@ -6,7 +6,7 @@
 //   情境 7　按「執行驗證」並回應合成結果；看 GL 分錄數、三項測試的說明、總帳日期空白的來源檔與列號並換頁；
 //           在右側資料預覽打開 GL(未納入測試) 看原因；展開資料可靠性測試的抽樣明細，看攸關資料元素的金額欄。
 //   情境 8　沒有驗證結果、舊驗證結果沒有判定、後端判定不可繼續、可繼續但沒有預篩選結果時，看預篩選卡、左側第五步與頁尾；
-//           按鈕狀態沒更新時硬按預篩選；執行預篩選並看結果的排列。
+//           按鈕狀態沒更新時硬按預篩選；執行預篩選並看結果的排列；展開兩項彙總與資料缺漏輔助檢視的明細後，重跑預篩選或驗證。
 //   情境 9　打開分類設定，新增與改名分類，名稱空白或重複，儲存失敗後重試成功；移除只被情境用到的分類；看內建分類；
 //           驗證時建立科目配對範本失敗，在「在 JET 配對」分頁看到原因並到 Excel 分頁重試；在 Excel 分頁按「預覽」。
 //
@@ -25,7 +25,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { root, settle, plain, treeDom, recordingJetApi, timerQueue, fakeMatchMedia, cssEscape, exposeAt, indexMarkup, readWwwroot,
-  remapPrescreen, noDunderKeys, FILTER_STEP_FILES } = require('./support/frontend-fixtures.cjs');
+  remapPrescreen, noDunderKeys, FILTER_STEP_FILES, bootFullApp, LOADED_RULE_DEFAULTS } = require('./support/frontend-fixtures.cjs');
 const { unchecked } = require('./support/action-contract.cjs');
 
 const VALIDATE_INDEX = 3;
@@ -58,6 +58,7 @@ function step4Fixture({ mapped = true, validation = null, accountCategory = null
   const middle = dom.content.querySelector('[data-bind="content"]');
   ui.initDataPreview();
   store.setProject({ projectId: 'step4-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20' });
+  store.setRuleDefaults(LOADED_RULE_DEFAULTS);
   store.setImportResult('gl', { batchId: 'gl-source', columns: ['Doc', 'Amount'], rowCount: 2 });
   store.setImportResult('tb', { batchId: 'tb-source', columns: ['Code', 'Amount'], rowCount: 2 });
   if (mapped) {
@@ -718,6 +719,38 @@ function openDetail(f, title) {
 function detailLead(panel) {
   return ['.rule-detail__title', '.rule-detail__about'].map(selector => panel.querySelector(selector)).filter(Boolean).map(node => node.textContent).join('');
 }
+
+// 預篩選卡片最上面的兩項彙總（依分錄編製者彙總、較少使用之科目）是預篩選算出來的；卡片下方「資料缺漏輔助檢視」的空白傳票號碼是驗證算出來的。
+// 審計員把三項都展開後重跑其中一種：重跑的那一種換了一份結果，它的明細收起；另一種的結果沒有變，明細照樣開著。
+test('rerunning the prescreen folds the opened aggregate details, and rerunning validation folds only the data-gap detail', async () => {
+  const validated = resultId => {
+    const data = validationResult({ resultId });
+    data.blankRecordsTest.blankVoucherNumberCount = 1;
+    data.blankRecordsTest.blankRows = [{ voucherNumber: '', accountNumber: '1001', description: '合成摘要', issues: ['voucherNumber'] }];
+    return data;
+  };
+  const prescreened = resultId => prescreenResult(resultId, {
+    preparerSummary: { preparers: [{ createdBy: '合成人員', entryCount: 3, debitTotal: 10, creditTotal: 10, manualCount: 1 }], totalPreparerCount: 1 },
+    rareAccounts: { distinctAccountCount: 1, accounts: [{ accountNumber: '1001', accountName: '合成科目', entryCount: 3, debitTotal: 10, creditTotal: 10 }] } });
+  const AGGREGATES = ['依分錄編製者彙總', '較少使用之科目'], DATA_GAP = '空白傳票號碼';
+  const expanded = title => ruleItem(f, title).querySelector('[data-action="toggle-detail"]').getAttribute('aria-expanded');
+  const f = await openStep4({ validation: validated('v-first') });
+  await runPrescreen(f, prescreened('p-first'));
+  for (const title of [...AGGREGATES, DATA_GAP]) openDetail(f, title);
+  assert.deepEqual([...AGGREGATES, DATA_GAP].map(expanded), ['true', 'true', 'true']);
+
+  await runPrescreen(f, prescreened('p-second'));
+  assert.equal(f.state().results.prescreen.resultRef.resultId, 'p-second');
+  assert.deepEqual(AGGREGATES.map(expanded), ['false', 'false'], 'the aggregates belong to the prescreen that was just replaced');
+  assert.equal(expanded(DATA_GAP), 'true', 'the data-gap detail belongs to the validation, which did not change');
+
+  for (const title of AGGREGATES) openDetail(f, title);
+  await runValidation(f, validated('v-second'));
+  assert.equal(f.state().results.validate.resultRef.resultId, 'v-second');
+  assert.equal(f.state().results.prescreen.resultRef.resultId, 'p-second', 'the prescreen result is still the same one');
+  assert.deepEqual(AGGREGATES.map(expanded), ['true', 'true'], 'the aggregates stay open when only the validation is replaced');
+  assert.equal(expanded(DATA_GAP), 'false', 'the data-gap detail belongs to the validation that was just replaced');
+});
 
 test('a prescreen rule that cannot run shows only the backend sentence, on its badge and in its opened detail', async () => {
   const f = await openStep4({ validation: validationResult() });
@@ -1454,4 +1487,69 @@ test('reliability sample count defaults to 59 and sends a chosen count', async (
   f.type('#inf-sample-size', '120');
   f.click('[data-action="run-validate"]');
   assert.deepEqual(plain(f.request('validateRun').payload), { sampleSize: 120 });
+});
+
+// 抽樣的預設筆數與上限、摘要的預設字詞都照開案時後端送來的值。這裡用和正式值不同的合成值，確認畫面沒有自己的一份。
+test('the sample count default and limit and the default description keywords come from project.load', async () => {
+  const CASE = { projectId: '合成案件', databaseProvider: 'sqlite' };
+  const f = await bootFullApp([CASE]);
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 3 },
+    infSampling: { defaultSampleSize: 30, maximumSampleSize: 500 }, suspiciousKeywordDefaults: ['合成甲', '合成乙'] }); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  f.store.setImportResult('gl', { batchId: 'gl-source', columns: ['Doc', 'Amount'], rowCount: 2 });
+  f.store.setImportResult('tb', { batchId: 'tb-source', columns: ['Code', 'Amount'], rowCount: 2 });
+  f.store.setMappingCommitted('gl', { mode: 'signed', mapping: { voucherNumber: 'Doc', amount: 'Amount', description: 'Doc' } });
+  f.store.setMappingCommitted('tb', { mode: 'direct', mapping: { accountNumber: 'Code', changeAmount: 'Amount' } });
+  f.store.setStepIndex(VALIDATE_INDEX); await flush();
+
+  const input = f.$('#inf-sample-size');
+  assert.equal(input.value, '30');
+  assert.equal(input.getAttribute('max'), '500');
+  assert.equal(input.disabled, false);
+  assert.match(f.$('.validation-sample-size .form__hint').textContent, /預設 30 筆/);
+  input.value = '501'; input.dispatch('input');
+  f.click('[data-action="run-validate"]');
+  assert.equal(f.sent('validate.run').length, 0);
+  assert.ok(f.messages().some(m => m.text === '抽樣筆數請填入 1 到 500 的整數。'));
+
+  assert.match(f.ui.prescreenConditionDescription('suspiciousKeywords'), /預設的 2 個/);
+  assert.ok(f.dom.content.querySelectorAll('.rule-item__title').some(node => /預設的 2 個/.test(node.getAttribute('title') || '')));
+  const card = f.ui.FILTER_COMMON_PRESETS.find(preset => preset.key === 'specificKeywords');
+  assert.deepEqual(plain(card.overrides.values), ['合成甲', '合成乙']);
+  const check = f.ui.FIELD_SHORTCUT_GROUPS.find(group => group.key === 'description').checks.find(item => item.key === 'descriptionKeywords');
+  assert.deepEqual(plain(check.conditions[0].values), ['合成甲', '合成乙']);
+});
+
+// 開案回應沒有抽樣的預設筆數與上限時，畫面不自己補一個數字：輸入框空白、沒有上限、不能填，「執行驗證」也不能按。
+test('without the sampling defaults from project.load the sample count stays empty and validation cannot run', async () => {
+  const CASE = { projectId: '合成案件', databaseProvider: 'sqlite' };
+  const f = await bootFullApp([CASE]);
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', unchecked('正式後端一定送 infSampling 與 suspiciousKeywordDefaults；這裡刻意拿掉，確認畫面不自己補值',
+    { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 3 } })); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  f.store.setImportResult('gl', { batchId: 'gl-source', columns: ['Doc', 'Amount'], rowCount: 2 });
+  f.store.setImportResult('tb', { batchId: 'tb-source', columns: ['Code', 'Amount'], rowCount: 2 });
+  f.store.setMappingCommitted('gl', { mode: 'signed', mapping: { voucherNumber: 'Doc', amount: 'Amount' } });
+  f.store.setMappingCommitted('tb', { mode: 'direct', mapping: { accountNumber: 'Code', changeAmount: 'Amount' } });
+  f.store.setStepIndex(VALIDATE_INDEX); await flush();
+  assert.equal(f.store.getState().ruleDefaults.infSampling, null);
+
+  const input = f.$('#inf-sample-size');
+  assert.ok(input !== null, 'the sample count input is rendered');
+  assert.equal(input.value, '');
+  assert.equal(input.hasAttribute('max'), false);
+  assert.equal(input.disabled, true);
+  const run = f.$('[data-action="run-validate"]');
+  assert.ok(run !== null, 'the run button is rendered');
+  assert.equal(run.disabled, true);
+  const hint = f.$('.validation-sample-size .form__hint').textContent;
+  assert.doesNotMatch(hint, /預設/);
+  assert.equal(hint, '分錄不足時全部抽出。');
+  // 就算輸入框有值、按鈕收到點擊，也不送出驗證。
+  input.value = '30'; input.dispatch('input');
+  run.dispatch('click');
+  await flush();
+  assert.equal(f.sent('validate.run').length, 0);
 });

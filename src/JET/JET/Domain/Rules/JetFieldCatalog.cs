@@ -60,6 +60,11 @@ internal sealed record JetFieldDefinition(
 
     /// <summary>沒有來源欄時，系統是否另外產生值；有的話這個欄位在條件與規則裡算已配對。</summary>
     internal JetFieldDerivedSource DerivedSource { get; init; }
+
+    /// <summary>
+    /// 這個欄位空白或讀不成值的列不納入 GL，所以 GL 中每一筆都有值。儲存欄仍允許空值，因為沒有納入的列也存在同一張表。
+    /// </summary>
+    internal bool BlankRowsLeftOutOfGl { get; init; }
 }
 
 /// <summary>
@@ -116,7 +121,10 @@ internal static class JetFieldCatalog
         Field(
             DatasetKind.Gl, GlDate, JetFieldValueKind.Date, 2, storageNullable: true, "gl_date",
             "總帳日期_JE", isGenericFilterField: true,
-            Slot(GlDate, "總帳日期", 2, always: true, fieldInfo: true)),
+            Slot(GlDate, "總帳日期", 2, always: true, fieldInfo: true)) with
+        {
+            BlankRowsLeftOutOfGl = true
+        },
         Field(
             DatasetKind.Gl, GlApprovalDate, JetFieldValueKind.Date, 3, storageNullable: true, "approval_date",
             "傳票核准日_JE", isGenericFilterField: true,
@@ -309,6 +317,32 @@ internal static class JetFieldCatalog
                 JetFieldDerivedSource.SameAsGlDate => approvalDateMode == ApprovalDateModeNames.SameAsGlDate,
                 _ => false
             })
+            .Select(static field => field.SemanticIdentity)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// 已確認的 GL 配對下，GL 中每一筆分錄都有值的可篩選欄位，依目錄順序。第五步不替這些欄位提供「空白」的比較方式，
+    /// 條件讀回也不寫空白怎麼處理；畫面、條件檢查與讀回都讀這一份，不各自判斷。
+    /// 有三種情形：儲存欄不允許空值，例如金額，來源空白時存成 0；欄位空白的列不納入 GL，例如總帳日期；
+    /// 沒有來源欄、值由系統產生，也就是自動編號的傳票文件項次，以及沿用總帳日期的傳票核准日。
+    /// 攸關資料元素欄位空白時不存值，不在這份清單裡。
+    /// </summary>
+    internal static IReadOnlyList<string> NeverBlankGlFields(
+        IReadOnlyDictionary<string, string> mapping,
+        GlMappingOptions? options)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        var approvalDateMode = (options ?? GlMappingOptions.NormalizeLegacy(mapping)).ApprovalDateMode;
+        return GlFields
+            .Where(field => field.IsGenericFilterField
+                && (!field.StorageNullable || field.BlankRowsLeftOutOfGl || field.DerivedSource switch
+                {
+                    JetFieldDerivedSource.AutoNumber => !HasMappedGlSemanticField(mapping, field.SemanticIdentity),
+                    JetFieldDerivedSource.SameAsGlDate => approvalDateMode == ApprovalDateModeNames.SameAsGlDate
+                        && GlFieldsBySemanticIdentity[GlDate].BlankRowsLeftOutOfGl,
+                    _ => false
+                }))
             .Select(static field => field.SemanticIdentity)
             .ToArray();
     }

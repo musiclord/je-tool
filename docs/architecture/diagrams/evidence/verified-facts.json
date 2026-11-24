@@ -27,22 +27,34 @@
           "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
         },
         {
-          "path": "AGENTS.md",
-          "line": 1,
-          "endLine": 6,
-          "sha256": "8506cbcde9c15fa2425c4d946221fdc744e9634151559b0727640adb8214de5b"
+          "path": "docs/jet-guide.md",
+          "line": 921,
+          "endLine": 930,
+          "sha256": "9fabf4a366c804f65deaf1df9dbe77c1e4fad52b6353e6c39d1895583659b445"
+        },
+        {
+          "path": "docs/jet-guide.md",
+          "line": 977,
+          "endLine": 980,
+          "sha256": "9fabf4a366c804f65deaf1df9dbe77c1e4fad52b6353e6c39d1895583659b445"
         }
       ]
     },
     {
       "id": "environment",
       "title": "正式環境限制",
-      "claim": "正式環境不能假設使用者有系統管理員權限，也不能存取外部 AI 服務；使用者不能另外安裝程式，本機資料庫要內嵌在 JET 裡使用，不依賴另外安裝的驅動程式或資料庫。短期上線的版本只支援 SQLite，DuckDB 與 SQL Server 暫時移除。匯入 Access 一般資料表時使用公司電腦現有的 x64 ACE 16，目前只在本機 x64 ACE 環境驗證過。",
+      "claim": "正式環境不能假設使用者有系統管理員權限，本機案件處理要能在沒有企業中心服務時工作；使用者不能另外安裝程式，本機資料庫要內嵌在 JET 裡使用，不依賴另外安裝的驅動程式或資料庫。短期上線的版本只支援 SQLite，DuckDB 與 SQL Server 暫時移除。匯入 Access 一般資料表時使用公司電腦現有的 x64 ACE 16，目前只在本機 x64 ACE 環境驗證過。",
       "status": "source-and-user-requirement",
       "sources": [
         {
           "path": "docs/project-context.md",
           "line": 64,
+          "endLine": 71,
+          "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
+        },
+        {
+          "path": "docs/project-context.md",
+          "line": 73,
           "endLine": 87,
           "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
         }
@@ -589,6 +601,12 @@
         {
           "path": "docs/project-context.md",
           "line": 64,
+          "endLine": 71,
+          "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
+        },
+        {
+          "path": "docs/project-context.md",
+          "line": 73,
           "endLine": 90,
           "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
         },

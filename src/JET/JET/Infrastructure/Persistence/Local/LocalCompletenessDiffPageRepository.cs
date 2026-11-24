@@ -13,6 +13,8 @@ public sealed class LocalCompletenessDiffPageRepository(ILocalProjectDatabase da
     : ICompletenessDiffPageRepository,
       ICompletenessDiffStreamRepository
 {
+    private readonly string _diffCte = ValidationProcedures.CompletenessDiffCte(database.Dialect);
+
     public async Task<PageResult<CompletenessDiffAccount>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken)
     {
@@ -24,8 +26,8 @@ public sealed class LocalCompletenessDiffPageRepository(ILocalProjectDatabase da
         var paging = CompletenessAccountPageQuery.Plan(database.Dialect, request);
         CompletenessAccountPageQuery.Bind(command, paging, request);
         command.CommandText = CompletenessAccountPageQuery.Sql(
-            ValidationProcedures.CompletenessDiffCte, differencesOnly: true, paging, database.Dialect);
-        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken, database.Dialect, ValidationProcedures.CompletenessDiffCte);
+            _diffCte, differencesOnly: true, paging, database.Dialect);
+        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken, database.Dialect, _diffCte);
     }
 
     async IAsyncEnumerable<CompletenessDiffAccount> ICompletenessDiffStreamRepository.StreamAsync(
@@ -38,7 +40,7 @@ public sealed class LocalCompletenessDiffPageRepository(ILocalProjectDatabase da
 
         await using var command = connection.CreateCommand();
         command.CommandText = CompletenessAccountPageQuery.StreamSql(
-            ValidationProcedures.CompletenessDiffCte, differencesOnly: true);
+            _diffCte, differencesOnly: true);
         await foreach (var account in CompletenessAccountPageQuery.StreamAsync(command, cancellationToken))
         {
             yield return account;

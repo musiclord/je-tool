@@ -7,13 +7,14 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 條件篩選報告一個情境用一個查詢讀完整張傳票分錄，讀出的分錄、順序與命中標記，
-/// 要和畫面用的分頁查詢只指定這個情境、逐頁讀完相同。合成資料的 entry_id 順序和傳票號碼順序不同，
+/// 要和畫面用的分頁查詢只指定這個情境、依傳票號碼升冪逐頁讀完相同。明細依傳票號碼排列，
+/// 同一張傳票照原本的列順序。合成資料的 entry_id 順序和傳票號碼順序不同，
 /// 另有傳票號碼空白的命中、不在母體裡的命中與分錄，以及情境編號和畫面位置不同的情境。預期值由下面的資料直接數出：
 ///
 ///   位置 1（情境編號 11）：命中 entry 2（傳票 B）、entry 8（傳票號碼空白）、entry 6（傳票 C，但不在母體裡）
-///     → 只有傳票 B 是命中傳票，它的分錄是 entry 1、2、11，命中的是 entry 2
+///     → 只有傳票 B 是命中傳票，它的分錄依序是 entry 1、2、11，命中的是 entry 2
 ///   位置 2（情境編號 12）：命中 entry 3（傳票 A）、entry 7（傳票 C）
-///     → 傳票 A 的 entry 3、4、9 與傳票 C 的 entry 5、7（entry 6 不在母體裡），命中的是 entry 3 與 7
+///     → 先列傳票 A 的 entry 3、4、9，再列傳票 C 的 entry 5、7（entry 6 不在母體裡），命中的是 entry 3 與 7
 ///   位置 3（情境編號 13）：沒有命中 → 沒有分錄
 /// </summary>
 public sealed class HighRiskSummaryRowStreamTests
@@ -48,9 +49,9 @@ public sealed class HighRiskSummaryRowStreamTests
 
     [Theory]
     [InlineData(1, new long[] { 1, 2, 11 }, new long[] { 2 })]
-    [InlineData(2, new long[] { 3, 4, 5, 7, 9 }, new long[] { 3, 7 })]
+    [InlineData(2, new long[] { 3, 4, 9, 5, 7 }, new long[] { 3, 7 })]
     [InlineData(3, new long[0], new long[0])]
-    public async Task Stream_ReadsTheHitVoucherRowsInEntryOrder_SameAsWalkingEveryPage(
+    public async Task Stream_ReadsTheHitVoucherRowsByVoucherNumber_SameAsWalkingPagesSortedByVoucher(
         int scenarioPosition,
         long[] expectedEntryIds,
         long[] expectedHits)
@@ -79,7 +80,10 @@ public sealed class HighRiskSummaryRowStreamTests
         Assert.Equal(await WalkEveryPageAsync(repository, projectId, scenarioPosition), streamed);
     }
 
-    /// <summary>畫面的分頁查詢只指定一個情境，每頁 2 筆逐頁讀到底；命中標記是這筆分錄有沒有這個情境的命中位置。</summary>
+    /// <summary>
+    /// 畫面的分頁查詢只指定一個情境、依傳票號碼升冪，每頁 2 筆逐頁讀到底；同一張傳票的分錄依 entry_id 升冪。
+    /// 命中標記是這筆分錄有沒有這個情境的命中位置。
+    /// </summary>
     private static async Task<List<(long EntryId, bool IsHit)>> WalkEveryPageAsync(
         IHighRiskSummaryRowPageRepository rows,
         string projectId,
@@ -92,7 +96,7 @@ public sealed class HighRiskSummaryRowStreamTests
             var page = await rows.GetPageAsync(
                 projectId,
                 Population,
-                new PageRequest(cursor, 2),
+                new PageRequest(cursor, 2, new PageSort("voucherNumber", PageSortDirection.Ascending)),
                 [scenarioPosition],
                 CancellationToken.None);
             walked.AddRange(page.EntryIds.Select(entryId => (entryId, page.PositionsByEntry.ContainsKey(entryId))));

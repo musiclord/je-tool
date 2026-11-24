@@ -279,8 +279,7 @@ internal sealed partial class LegacyReportWriter
                     ? "N/A"
                     : Path.GetFileName(glBatch.SourceFileName));
                 // E10 照舊版寫借貸淨額的絕對值，差額不到 0.01 時寫 0。
-                var netDifference = Math.Abs(projection.Net);
-                cells.SetNumber("E10", netDifference > 0.01m ? netDifference : 0m);
+                cells.SetNumber("E10", ValidationProcedures.DisplayedNetDifference(projection.Net));
                 cells.SetNumber("E11", projection.TotalDebit);
                 cells.SetNumber("E12", projection.TotalCredit);
                 cells.SetNumber("E13", projection.GlRowCount);

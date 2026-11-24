@@ -14,7 +14,7 @@ namespace JET.Tests.Application;
 public sealed class DocumentFieldNameJourneyTests
 {
     private const string ExpectedConditionText =
-        "傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000 且 總帳日期 每月幾日屬於「5、31」；空白不列入";
+        "傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000 且 總帳日期 每月幾日屬於「5、31」";
 
     private const string VoucherColumn = "傳票 號碼";
     private const string GlDateColumn = "傳票日期";

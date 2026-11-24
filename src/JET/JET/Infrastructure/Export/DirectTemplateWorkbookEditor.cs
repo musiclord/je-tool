@@ -764,14 +764,24 @@ internal static class DirectTemplateWorksheetRewriter
         using var writer = XmlWriter.Create(target, writerSettings);
         try
         {
-            RewriteXml(part, reader, writer, plan, cancellationToken);
+            try
+            {
+                RewriteXml(part, reader, writer, plan, cancellationToken);
+            }
+            catch (Exception error) when (ExcelText.MarkWriteFailure(error, part, Array.Empty<XElement>()))
+            {
+                throw;
+            }
+            writer.Flush();
+            target.Flush();
         }
-        catch (Exception error) when (ExcelText.MarkWriteFailure(error, part, Array.Empty<XElement>()))
+        catch
         {
+            // XML 寫入器與壓縮檔項目關閉時還會把緩衝寫出去。改寫已經失敗或取消，先在這裡安靜地放掉，
+            // 離開時的釋放就不會再丟出新的例外，蓋掉原本的原因。
+            ExportResources.ReleaseAll(writer, target);
             throw;
         }
-        writer.Flush();
-        target.Flush();
     }
 
     private static void RewriteXml(

@@ -1,6 +1,9 @@
+using System.Data.Common;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
@@ -55,12 +58,13 @@ public sealed class CaseDatabaseAccessErrorTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    public async Task ReadOnlyCaseFolder_OpeningTheCaseExplainsTheReason_AndTheFilesStayUnchanged(string provider)
+    public async Task ReadOnlyCaseFolder_TheFirstWriteExplainsTheReason_AndTheCaseDataStayUnchanged(string provider)
     {
         using var workspace = new TempProjectRoot();
         var projects = Projects(workspace);
         var name = $"read-only-folder-{provider}";
         var gl = WriteGl(workspace.Path, "gl.csv", 3);
+        var next = WriteGl(workspace.Path, "next.csv", 8);
 
         using var host = new HandlerTestHost(projectsRootPath: projects);
         await host.DispatchAsync("project.create", CreatePayload(name, provider));
@@ -70,10 +74,14 @@ public sealed class CaseDatabaseAccessErrorTests
         // 從唯讀的位置複製回來的案件資料夾，裡面每個檔案都是唯讀。
         var caseDirectory = Path.Combine(projects, name);
         var files = Directory.GetFiles(caseDirectory, "*", SearchOption.AllDirectories);
-        // 支援紀錄是 JET 自己的操作紀錄，開案失敗時照常追加一筆，不列入比對。
+        // 支援紀錄是 JET 自己的操作紀錄，照常追加，不列入比對。案件設定檔平常就由 JET 設成唯讀，開案時照常寫回最近開啟時間，
+        // 所以另外比對最近開啟時間以外的內容。
+        var projectJson = Path.Combine(caseDirectory, JetProjectFolder.ProjectJsonFileName);
         var before = files
-            .Where(path => !IsSupportLog(caseDirectory, path))
+            .Where(path => !IsSupportLog(caseDirectory, path)
+                && !string.Equals(path, projectJson, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(path => path, ReadShared, StringComparer.OrdinalIgnoreCase);
+        var settingsBefore = SettingsOtherThanLastOpened(projectJson);
         foreach (var file in files)
         {
             File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
@@ -81,16 +89,18 @@ public sealed class CaseDatabaseAccessErrorTests
 
         try
         {
-            var rejected = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", LoadPayload(name)));
-            // SQLite 遇到唯讀的資料庫檔仍然可以讀，開案到寫入案件設定時才失敗。
-            Assert.Equal(
-                JetErrorCodes.FileReadError,
-                rejected.Code);
+            // SQLite 遇到唯讀的資料庫檔仍然可以讀，所以照樣開得了案；第一次寫入資料庫時才擋下並說明原因。
+            await host.DispatchAsync("project.load", LoadPayload(name));
+            var rejected = await Assert.ThrowsAsync<JetActionException>(() => ImportAsync(host, next));
+            Assert.Equal(JetErrorCodes.DatabaseReadOnly, rejected.Code);
             Assert.Contains("唯讀", rejected.Message, StringComparison.Ordinal);
             foreach (var (path, bytes) in before)
             {
                 Assert.True(bytes.AsSpan().SequenceEqual(ReadShared(path)), $"{Path.GetFileName(path)} 不應被改動");
             }
+
+            Assert.Equal(settingsBefore, SettingsOtherThanLastOpened(projectJson));
+            await host.DispatchAsync("project.releaseLock");
         }
         finally
         {
@@ -143,20 +153,14 @@ public sealed class CaseDatabaseAccessErrorTests
         var small = WriteGl(workspace.Path, "small.csv", 3);
         var large = WriteGl(workspace.Path, "large.csv", 30_000);
 
-        using var host = new HandlerTestHost(projectsRootPath: projects);
+        var pageLimit = new PageLimitObserver(headroomPages: 16);
+        using var host = new HandlerTestHost(projectsRootPath: projects, sqlStatementObserver: pageLimit);
         await host.DispatchAsync("project.create", CreatePayload(name, ProjectDocument.DefaultDatabaseProvider));
         await ImportAsync(host, small);
         var databasePath = DatabasePath(projects, name, ProjectDocument.DefaultDatabaseProvider);
 
-        // 磁碟已滿用 SQLite 的頁數上限重現：上限只作用在設定它的連線上，所以先把 JET 的連線池換成設好上限的連線，
-        // 匯入就在真正的寫入途中遇到空間不足。連線字串必須和 SqliteProjectDatabase 的讀寫連線相同，才會進到同一個連線池。
-        var pooled = new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Private,
-        }.ToString();
-        SeedPoolWithPageLimit(pooled, headroomPages: 16);
+        // 磁碟已滿用 SQLite 的頁數上限重現，匯入就在真正的寫入途中遇到空間不足。
+        pageLimit.Enabled = true;
 
         var rejected = await Assert.ThrowsAsync<JetActionException>(() => ImportAsync(host, large));
         Assert.Equal(JetErrorCodes.DatabaseStorageFull, rejected.Code);
@@ -164,8 +168,15 @@ public sealed class CaseDatabaseAccessErrorTests
         Assert.Equal(3, await CountAsync(databasePath, "pbc_gl"));
         Assert.Equal("ok", await IntegrityAsync(databasePath));
 
-        // 空間釋出後重試會成功：換回沒有上限的連線。
-        using (var connection = new SqliteConnection(pooled))
+        // 空間釋出後重試會成功：不再設上限，並關掉連線池裡設過上限的連線。
+        // 連線字串必須和 SqliteProjectDatabase 的讀寫連線相同，清的才是同一個連線池。
+        pageLimit.Enabled = false;
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Private,
+        }.ToString()))
         {
             SqliteConnection.ClearPool(connection);
         }
@@ -174,35 +185,38 @@ public sealed class CaseDatabaseAccessErrorTests
         Assert.Equal(30_000, await CountAsync(databasePath, "pbc_gl"));
     }
 
-    /// <summary>同時開幾條連線，各自設好頁數上限再放回連線池，之後 JET 取到的都是有上限的連線。</summary>
-    private static void SeedPoolWithPageLimit(string connectionString, int headroomPages)
+    /// <summary>
+    /// <see cref="Enabled"/> 為 true 時，在 JET 的每條連線執行語句前設好頁數上限：目前的頁數再加 headroomPages 頁。
+    /// 頁數上限只作用在設定它的連線上，匯入用的連線又不進連線池，所以在連線第一次執行語句時設定。
+    /// 直接呼叫 SQLite 執行，不經過 JET 的命令，也就不會再通知這個監看物件。
+    /// </summary>
+    private sealed class PageLimitObserver(int headroomPages) : ISqlStatementObserver
     {
-        using (var connection = new SqliteConnection(connectionString))
+        private readonly ConditionalWeakTable<SqliteConnection, object> _limited = new();
+
+        public volatile bool Enabled;
+
+        public SqlStatementWatch? Begin(DbCommand command)
         {
-            SqliteConnection.ClearPool(connection);
+            if (!Enabled || command.Connection is not SqliteConnection { Handle: { } handle } connection
+                || _limited.TryGetValue(connection, out _))
+            {
+                return null;
+            }
+
+            _limited.Add(connection, new object());
+            var pages = Pragma(handle, "PRAGMA page_count;");
+            Pragma(handle, $"PRAGMA max_page_count = {pages + headroomPages};");
+            return null;
         }
 
-        var connections = new List<SqliteConnection>();
-        try
+        private static long Pragma(SQLitePCL.sqlite3 handle, string sql)
         {
-            for (var index = 0; index < 8; index++)
+            Assert.Equal(SQLitePCL.raw.SQLITE_OK, SQLitePCL.raw.sqlite3_prepare_v2(handle, sql, out var statement));
+            using (statement)
             {
-                var connection = new SqliteConnection(connectionString);
-                connection.Open();
-                connections.Add(connection);
-                using var count = connection.CreateCommand();
-                count.CommandText = "PRAGMA page_count;";
-                var pages = Convert.ToInt64(count.ExecuteScalar(), CultureInfo.InvariantCulture);
-                using var limit = connection.CreateCommand();
-                limit.CommandText = $"PRAGMA max_page_count = {pages + headroomPages};";
-                limit.ExecuteNonQuery();
-            }
-        }
-        finally
-        {
-            foreach (var connection in connections)
-            {
-                connection.Dispose();
+                Assert.Equal(SQLitePCL.raw.SQLITE_ROW, SQLitePCL.raw.sqlite3_step(statement));
+                return SQLitePCL.raw.sqlite3_column_int64(statement, 0);
             }
         }
     }
@@ -210,6 +224,14 @@ public sealed class CaseDatabaseAccessErrorTests
     private static bool IsSupportLog(string caseDirectory, string path) =>
         Path.GetRelativePath(caseDirectory, path)
             .StartsWith(SupportCaseHistoryStore.DirectoryName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>案件設定檔裡最近開啟時間以外的內容，包括抽樣種子；開案時寫回最近開啟時間是正常的。</summary>
+    private static string SettingsOtherThanLastOpened(string projectJson)
+    {
+        var settings = JsonNode.Parse(Encoding.UTF8.GetString(ReadShared(projectJson)).TrimStart('\uFEFF'))!.AsObject();
+        settings.Remove("lastOpenedUtc");
+        return settings.ToJsonString();
+    }
 
     /// <summary>JET 可能還開著這個檔案，讀取時允許其他程式同時讀寫。</summary>
     private static byte[] ReadShared(string path)

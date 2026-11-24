@@ -73,7 +73,36 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本，版本較舊就拒絕。
             // 開案不建立新的資料庫：本機案件的資料庫不見或沒有內容時，比照無法開啟的案件回報。
             SupportOperationStage.Enter("database_open");
-            await repositories.DatabaseInitializer.EnsureExistingAsync(document.ProjectId, cancellationToken);
+            // 上一次建案在資料庫建好之前中斷時，審計員沒有拿到這個案件，這裡照建案的做法把資料庫建完：
+            // 種子重新產生，建案者取目前的 Windows 身分，金額存放倍率與民國年選項用建案的預設值。
+            // 設定檔裡的這些值不採用，以免用記事本做出中斷的建案，就能指定種子或冒用建案者。
+            // 查核期間與期末財報準備日是建案時審計員填的，照設定檔；每週休息日照建案時的沒有設定。
+            var settingsCreatedHere = false;
+            var openingDocument = document;
+            await repositories.DatabaseInitializer.EnsureExistingAsync(
+                document.ProjectId,
+                async token =>
+                {
+                    settingsCreatedHere = true;
+                    return new ProtectedProjectSettings(
+                        openingDocument.PeriodStart,
+                        openingDocument.PeriodEnd,
+                        ProjectDocument.DefaultMoneyScale,
+                        RocDateEnabled: true,
+                        ProjectCreateHandler.NewSampleSeed(),
+                        JetAuditProgram.CurrentInfSamplingAlgorithmVersion,
+                        await principal.ResolveCreatorNameAsync(token),
+                        openingDocument.LastAccountingPeriodDate,
+                        NonWorkingDays: null);
+                },
+                cancellationToken);
+
+            // 查核期間、隨機種子這些設定以案件資料庫為準。設定檔在 JET 以外被改過時，之後整個開案都用資料庫的值，
+            // 記下上次開啟時間的那一次存檔也一併把設定檔改回；回應列出改回的項目，畫面提醒審計員。
+            // 剛補完建案時，資料庫的設定是這裡產生的，不算設定檔被改過，不提醒。
+            var recordedSettings = await repositories.ProjectSettings.ReadAsync(document.ProjectId, cancellationToken);
+            IReadOnlyList<string> settingsRestored = settingsCreatedHere ? [] : recordedSettings.DifferingItems(document);
+            document = recordedSettings.ApplyTo(document);
 
             SupportOperationStage.Enter("state_read");
             var glBatch = await repositories.Imports.GetLatestBatchAsync(document.ProjectId, DatasetKind.Gl, cancellationToken);
@@ -193,6 +222,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         zerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale),
                         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
                         availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glOptions),
+                        // GL 中每一筆都有值的欄位；第五步不替它們提供「空白」的比較方式，和條件檢查讀同一份欄位目錄的答案。
+                        neverBlankGlFields = JetFieldCatalog.NeverBlankGlFields(glMapping.Mapping, glOptions),
                         sourceBatchId = glMapping.SourceBatchId,
                         committedUtc = glMapping.CommittedUtc
                     },
@@ -284,7 +315,15 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         messages = problem.Messages
                     }).ToArray()
                 },
-                reports = reports.Select(ReportExportSupport.ReportWire).ToArray()
+                reports = reports.Select(ReportExportSupport.ReportWire).ToArray(),
+                settingsRestored,
+                // 第四步抽樣筆數的預設值與上限，以及第五步預填的摘要關鍵字；畫面照這裡顯示，不另存一份。
+                infSampling = new
+                {
+                    defaultSampleSize = InfSampling.DefaultSampleSize,
+                    maximumSampleSize = InfSampling.MaximumSampleSize
+                },
+                suspiciousKeywordDefaults = SuspiciousKeywordDefaults.Defaults
             };
 
             // 回應物件完全建好之後，才做兩件外面看得到的事：存下上次開啟時間，以及進入 session。

@@ -17,8 +17,6 @@ namespace JET.Infrastructure;
 public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, ILogger<LocalPrescreenRunRepository>? logger = null)
     : IPrescreenFactsPort
 {
-    private const int SummaryRowLimit = 50;
-
     private readonly string _provider = database.Dialect.ProviderName;
 
     private readonly GlRulePredicates Predicates =
@@ -190,7 +188,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         await using var command = connection.CreateCommand();
         // 編製者彙總與預篩選規則共用有效分錄母體。人員依去空白、不分大小寫的識別值分組，
         // 顯示值固定取同一組裡碼位最小的去空白寫法（例如 U1 與 u1 顯示 U1），所以結果不受資料列順序影響。
-        var person = PersonKey(database.Dialect);
+        var person = PersonIdentity.PreparerDisplay(database.Dialect);
         command.CommandText =
             $"""
             SELECT MIN({person}),
@@ -200,9 +198,9 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
                    COALESCE(SUM(CASE WHEN is_manual = 1 THEN 1 ELSE 0 END), 0)
             FROM gl
             WHERE {GlExcludedPopulation.SqlPredicate()}
-            GROUP BY {database.Dialect.Upper(person)}
-            ORDER BY COUNT(*) DESC, MIN({person})
-            LIMIT {SummaryRowLimit};
+            GROUP BY {PersonIdentity.GroupKey(database.Dialect, person)}
+            ORDER BY {ConcentrationLimits.MostEntriesFirst}, MIN({person})
+            LIMIT {ConcentrationLimits.CandidateRows};
             """;
         var rows = new List<PreparerSummaryRow>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
@@ -219,9 +217,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         return rows;
     }
 
-    /// <summary>編製者的分組鍵：空白視為 ''，去掉和 .NET 相同的空白字元；呼叫端再套方言的 Upper 做不分大小寫分組。</summary>
-    internal static string PersonKey(ISqlDialect dialect) => dialect.Trim("COALESCE(created_by, '')");
-
     /// <summary>
     /// 編製者集中度的兩個分母，一次掃描取得：期間分錄總筆數與相異編製人員總數。
     /// 分組鍵與編製者彙總同為去空白、不分大小寫的識別值，故各人筆數合計恆等於總筆數。
@@ -234,7 +229,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         command.CommandText =
             $"""
             SELECT COUNT(*),
-                   COUNT(DISTINCT {database.Dialect.Upper(PersonKey(database.Dialect))})
+                   COUNT(DISTINCT {PersonIdentity.GroupKey(database.Dialect, PersonIdentity.PreparerDisplay(database.Dialect))})
             FROM gl
             WHERE {GlExcludedPopulation.SqlPredicate()};
             """;
@@ -271,8 +266,8 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
             FROM gl
             WHERE {GlExcludedPopulation.SqlPredicate()}
             GROUP BY account_number
-            ORDER BY COUNT(*) ASC, account_number
-            LIMIT {SummaryRowLimit};
+            ORDER BY {ConcentrationLimits.FewestEntriesFirst}, account_number
+            LIMIT {ConcentrationLimits.CandidateRows};
             """;
         var rows = new List<AccountUsageRow>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);

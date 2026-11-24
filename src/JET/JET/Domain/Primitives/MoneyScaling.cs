@@ -6,6 +6,7 @@ namespace JET.Domain;
 /// 金額解析與 scaled integer 轉換：金額以固定精度整數表示。
 /// 來源金額一律以 decimal 解析驗證，再乘以 project MoneyScale
 /// 以 AwayFromZero 取整為 64-bit scaled integer。
+/// 文字轉金額、金額放大成整數、整數還原成十進位，都只寫在這個類別；其他地方呼叫這裡的方法。
 /// </summary>
 public static class MoneyScaling
 {
@@ -72,4 +73,17 @@ public static class MoneyScaling
         scaled = (long)rounded;
         return true;
     }
+
+    /// <summary>
+    /// 把文字直接轉成放大後的整數：先照 <see cref="TryParseAmount"/> 解析，再照 <see cref="TryToScaled"/> 放大取整。
+    /// 文字不是有效金額，或放大後超出 64 位元整數範圍時回傳 false。
+    /// </summary>
+    public static bool TryParseScaled(string? text, int moneyScale, out long scaled)
+    {
+        scaled = 0;
+        return TryParseAmount(text, out var amount) && TryToScaled(amount, moneyScale, out scaled);
+    }
+
+    /// <summary>把放大後的整數還原成十進位金額，用在畫面、報告與底稿的顯示；除法不取整，放大時保留的位數都留著。</summary>
+    public static decimal FromScaled(long scaled, int moneyScale) => (decimal)scaled / moneyScale;
 }

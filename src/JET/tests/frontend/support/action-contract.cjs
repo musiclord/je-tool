@@ -42,7 +42,7 @@ function toMethodName(action) {
 }
 const actionsByMethod = new Map(Object.keys(contract.actions).map(action => [toMethodName(action), action]));
 // jet-api.js 裡不是 action 的成員，假後端照常提供，不核對。
-const NOT_ACTIONS = new Set(['on', 'off', 'isReady', 'invoke', 'onRequestStarted', 'then']);
+const NOT_ACTIONS = new Set(['on', 'off', 'isReady', 'invoke', 'onRequestStarted', 'onRequestFinished', 'then']);
 
 function kindOf(value) {
   if (value === null) return 'null';

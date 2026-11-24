@@ -137,6 +137,15 @@ internal static class ConcentrationLimits
     internal const int TopPreparerRows = 10;
     internal const int ShareLeaderRows = 5;
     internal const int RareAccountRows = 20;
+
+    /// <summary>資料庫先取回的候選列數；編製者與科目各取這麼多列，再裁成上面的呈現上限。</summary>
+    internal const int CandidateRows = 50;
+
+    /// <summary>編製者彙總的排序：分錄筆數由多到少。接在 ORDER BY 後面，同筆數時的次序由查詢端補上。</summary>
+    internal const string MostEntriesFirst = "COUNT(*) DESC";
+
+    /// <summary>較少使用之科目的排序：使用筆數由少到多。接在 ORDER BY 後面，同筆數時的次序由查詢端補上。</summary>
+    internal const string FewestEntriesFirst = "COUNT(*) ASC";
 }
 
 /// <summary>

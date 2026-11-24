@@ -8,7 +8,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-/// <summary>WorkingPaperExportHandler 各測試類別共用的輔助方法與事件發布器。</summary>
+/// <summary>工作底稿匯出的各測試類別共用的輔助方法與事件發布器。</summary>
 internal static class WorkingPaperExportTestSupport
 {
     internal static IEnumerable<string> FindWorkingPapers(string folder) => Directory.EnumerateFiles(folder, "*WorkingPaper*.xlsx", SearchOption.AllDirectories);

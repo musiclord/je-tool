@@ -73,14 +73,19 @@ internal sealed partial class GlRulePredicates(
 
     private string CategoryListParams(FilterSqlParameterPlanBuilder command)
     {
-        return string.Join(", ",
-            new[]
-            {
-                AccountCategoryBuiltIns.ReceivablesRole,
-                AccountCategoryBuiltIns.CashRole,
-                AccountCategoryBuiltIns.ReceiptInAdvanceRole
-            }.Select(role => NextParam(command, role)));
+        return string.Join(", ", RevenueCounterpartRoles.Select(role => NextParam(command, role)));
     }
+
+    /// <summary>
+    /// 收入的一般對方科目分類：應收款項、現金與預收款項，只有這一個定義。
+    /// 未預期借貸組合用它判斷同一張傳票有沒有一般的對方科目；科目配對也用它判斷案件有沒有設定對方科目。
+    /// </summary>
+    internal static IReadOnlyList<string> RevenueCounterpartRoles { get; } =
+    [
+        AccountCategoryBuiltIns.ReceivablesRole,
+        AccountCategoryBuiltIns.CashRole,
+        AccountCategoryBuiltIns.ReceiptInAdvanceRole
+    ];
 
     /// <summary>
     /// 科目配對分析（account_pair）的三種模式。借方或貸方的判定都一樣：`amount_scaled >= 0` 算借方，`&lt; 0` 算貸方。
@@ -470,7 +475,7 @@ internal sealed partial class GlRulePredicates(
     public string NonAuthorizedPreparer(string schemaPrefix = "") =>
         $"(EXISTS (SELECT 1 FROM {schemaPrefix}authorized_preparer) " +
         $"AND {SqlBlankText.IsNotBlank(dialect, "g.created_by")} " +
-        $"AND {dialect.Upper(dialect.Trim("g.created_by"))} NOT IN (SELECT {dialect.Upper(dialect.Trim("name"))} FROM {schemaPrefix}authorized_preparer))";
+        $"AND {PersonIdentity.Key(dialect, "g.created_by")} NOT IN (SELECT {PersonIdentity.Key(dialect, "name")} FROM {schemaPrefix}authorized_preparer))";
 
     /// <summary>
     /// 篩選的文字條件：多個關鍵字用 OR 連接。NotContains 與 NotExact 是在整個結果前面加 NOT；
@@ -725,7 +730,7 @@ internal sealed partial class GlRulePredicates(
     public string PreparerEqualsApprover() =>
         $"({SqlBlankText.IsNotBlank(dialect, "g.created_by")} " +
         "AND g.approved_by IS NOT NULL " +
-        $"AND {dialect.Upper(dialect.Trim("g.created_by"))} = {dialect.Upper(dialect.Trim("g.approved_by"))})";
+        $"AND {PersonIdentity.Key(dialect, "g.created_by")} = {PersonIdentity.Key(dialect, "g.approved_by")})";
 
     /// <summary>
     /// 文字欄位包含任一關鍵字：逐字比對、不分大小寫、關鍵字去頭尾空白，NULL 視為空字串。摘要特定描述、第五步「包含任一文字」
@@ -739,7 +744,7 @@ internal sealed partial class GlRulePredicates(
         var clauses = keywords
             .Where(k => !string.IsNullOrWhiteSpace(k))
             .Select(k => dialect.ContainsIgnoreCase(
-                columnExpr, NextParam(command, k.Trim().ToUpperInvariant())))
+                columnExpr, NextParam(command, SourceText.ComparisonKey(k))))
             .ToList();
 
         return clauses.Count == 0 ? "1 = 0" : $"({string.Join(" OR ", clauses)})";
@@ -752,7 +757,7 @@ internal sealed partial class GlRulePredicates(
     {
         var clauses = keywords
             .Where(k => !string.IsNullOrWhiteSpace(k))
-            .Select(k => $"{dialect.Upper(dialect.Trim($"COALESCE({columnExpr}, '')"))} = {NextParam(command, k.Trim().ToUpperInvariant())}");
+            .Select(k => $"{dialect.Upper(dialect.Trim($"COALESCE({columnExpr}, '')"))} = {NextParam(command, SourceText.ComparisonKey(k))}");
 
         return $"({string.Join(" OR ", clauses)})";
     }

@@ -1,6 +1,6 @@
 # JET action 介面契約
 
-更新日期：2026-11-17
+更新日期：2026-11-24
 
 這份文件是前端、WebView2 Bridge 與 C# 處理器之間的 action 登錄表。它適合用來搜尋 action 名稱，
 不需要逐段閱讀。
@@ -109,6 +109,8 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 
 `accountMapping.save` 接收 1 至 500 筆 `changes`，每筆含 `accountNumber` 與 `categoryId`。
 只更新指定科目，其他頁及 Excel 已匯入的分類保留。科目或分類不存在、重複科目及取消均不得留下部分變更。
+科目名稱不由前端送：已儲存的名稱有內容時保留，否則和科目配對範本一樣只存試算表的名稱，試算表沒有名稱或科目只在總帳時不存名稱，
+清單顯示的總帳名稱不存進去（裁定 2026-11-23-18）。
 每次變更保留獨立批次及來源列，原匯入列不改寫。儲存及預篩選、篩選結果失效在同一交易完成，資料驗證結果保留。
 回應保留科目配對的既有狀態欄位；直接編輯後的 `rowCount` 為目前已保存的科目數。
 回應另有 `warnings` 字串陣列，平常是空陣列。分類已存好、卻讀不回科目配對狀態時，回應仍成功，但不帶 `batchId`、`rowCount`
@@ -184,12 +186,24 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 回應也帶心跳間隔 `heartbeatSeconds`，都隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
 本機沒有這個案件資料夾時回 `project_not_found`；資料庫種類以 `project.json` 為準，不是 SQLite 時在取得案件鎖之前回 `unsupported_provider`。
 本機案件的資料庫檔不見、是 0 位元組或沒有任何資料表時，`project.load` 回 `file_read_error`，不建立新的資料庫（裁定 2026-11-05-72）。
+案件資料夾裡的檔案全都是唯讀時，`project.load` 照樣成功，之後第一個寫入資料庫的動作回 `database_read_only`（裁定 2026-11-18-02）。
+`project.load` 回應另含 `settingsRestored` 字串陣列，列出設定檔和案件資料庫記錄的不同、已照資料庫改回的項目，名稱用 action 欄位：`periodStart`、`periodEnd`、`prepStartDate`、`nonWorkingDays`、`operatorId`、`sampleSeed`、`moneyScale`、`rocDateEnabled`，順序固定，種子或抽樣演算法版本不同都寫 `sampleSeed`；沒有不同時是空陣列。開啟中的案件，其他 action 讀到的這些設定一律是案件資料庫的值（裁定 2026-11-19-01）。
+
+`project.load` 回應另含 `infSampling: { defaultSampleSize, maximumSampleSize }` 與 `suspiciousKeywordDefaults` 字串陣列，取自後端的 `InfSampling.DefaultSampleSize`、`InfSampling.MaximumSampleSize` 與 `SuspiciousKeywordDefaults.Defaults`，目前是 59、1048524 與 24 個預設關鍵字。
+第四步的抽樣筆數輸入框、提示句與超出範圍的提醒，以及第五步「特定摘要」卡片、傳票摘要的「含特定字詞」與第四步「分錄摘要出現特定描述」說明裡的字詞個數，都用這三個值，畫面程式不另存一份。
 
 `project.load` 回應的 `mapping.gl` 另含 `availableGlFields`，是已確認的 GL 配對裡有來源的 GL 語意欄位，例如 `voucherNumber`、`createdBy`。
 清單由 `JetFieldCatalog.AvailableGlFields` 算出：欄位有來源欄，或欄位目錄標示它有衍生來源，就列入。傳票文件項次 `lineItem`
 一律列入，因為沒有來源時由系統自動編號；傳票核准日 `approvalDate` 在 `approvalDateMode` 為 `sameAsGlDate` 時也列入。
 `mapping.commit.gl` 的成功回應在最上層帶同一份清單。前端把它存在已確認的 GL 配對上，第五步凡是用到清單外欄位的入口，一律停用；
 清單只供畫面呈現，第五步的驗證與預篩選在後端用同一個方法重新算，不讀前端送的資料。
+
+`mapping.gl` 與 `mapping.commit.gl` 的成功回應另含 `neverBlankGlFields`，是 GL 中每一筆分錄都有值的可篩選欄位，由 `JetFieldCatalog.NeverBlankGlFields` 算出（裁定 2026-11-20-10）：
+`amount` 與 `glDate` 一律列入；`lineItem` 沒有來源欄、由系統自動編號時列入；`approvalDate` 在 `approvalDateMode` 為 `sameAsGlDate` 時列入。
+前端照它收起這些欄位的「空白」篩選方式與「空白也列入」勾選框，條件讀回不寫空白怎麼處理。
+預覽或儲存的條件對這些欄位用 `isBlank` 時回 `invalid_scenario` 與條件列 `details`，原因寫出改法，例如
+「第 N 組第 M 條：GL 中的金額不會空白，來源空白的金額已當成 0；要找 0 元的分錄，請改用「指定金額」填 0」；`isNotBlank` 與 `includeBlank` 不改變結果，不擋。
+攸關資料元素欄位用 `fieldId` 指定，空白時不存值，不受這條限制。
 
 `project.load` 回應另含 `filterScenarioCheck: { status, recalculatedCount, problems }`，說明開案時用目前篩選規則
 檢查已儲存情境的結果。已是目前規則版本的情境也逐一檢查（裁定 2026-10-13-25）。`status` 為 `current`（沒有情境，或都已是目前規則而且檢查合格）、`recalculated`（整批已改用目前規則，
@@ -299,8 +313,9 @@ GL 與 TB 的匯入或配對確認都回傳五個 true，使用同一條失效�
 `import.accountMapping.fromFile` 另可帶 `sheetName`，指定 .xlsx 裡要讀的工作表，例如工作底稿的「自動化工具-科目配對資訊」
 （裁定 2026-11-05-07）。沒有帶時照舊讀第一個工作表；文字檔帶 `sheetName` 以 `sheet_name_not_applicable` 拒絕。
 畫面選了 .xlsx 會先送 `import.inspectFile` 讀工作表清單，有欄名的工作表超過一個時請審計員選，選定後才送匯入。
-工作底稿在 GL 有、TB 沒有的科目，科目名稱一格寫「Not in TB」；匯入時這一格當成沒有科目名稱。
-JET 產生的科目配對範本也照舊版在這些科目的名稱欄寫「Not in TB」，和底稿一致；試算表也有的科目照舊寫試算表名稱。
+工作底稿的科目名稱一格寫已儲存的名稱，已儲存的科目配對沒有名稱時寫「Not in TB」；匯入時這一格當成沒有科目名稱。
+JET 產生的科目配對範本照舊版只看試算表的名稱：試算表有名稱就寫，試算表沒有名稱或科目只在總帳時寫「Not in TB」，
+不寫總帳的名稱（裁定 2026-11-23-15）。
 範本匯回時同樣把「Not in TB」當成沒有科目名稱（裁定 2026-11-05-40、2026-11-05-10）。
 
 科目配對先辨識確切欄名，去頭尾空白且不分大小寫：科目編號為 `GL_Number`（含 `GL_NUMBER`），
@@ -309,7 +324,7 @@ JET 產生的科目配對範本也照舊版在這些科目的名稱欄寫「Not 
 只要有欄位依順序判斷，匯入回應的 `columnMappingWarning` 就會說明來源欄與用途，畫面顯示提醒但不阻擋匯入；否則回 null。
 回應另有 `warnings` 字串陣列：科目配對範本是文字檔且有用引號包住、內含換行的欄位時，加一則和 GL、TB 匯入同一句的提醒，
 支援日誌也記同一種 `import.multiline_fields` 事件；沒有時是空陣列。
-匯入與舊案遷移共用此規則。資料預覽一律讀已儲存的科目配對，不重新判讀欄名。
+匯入與舊案遷移共用此規則。資料預覽一律讀已儲存的科目配對，不重新判讀欄名；沒有存名稱的科目，名稱照全科目表的取法顯示。
 Excel 的 autoFilter 與隱藏列不限制匯入範圍，資料列仍全部讀入。
 `.xlsx` 科目配對範本的第一個標頭不足三欄時，沿原有做法改讀第三列標頭；略過前兩個實際列號，空白列也算在內，
 不會略過第三列標頭或第一筆資料。
@@ -441,8 +456,10 @@ GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與�
 GL、TB、RDE 金額與篩選運算值共用相同解析。
 純數字不當成日期（裁定 2026-10-22-11）：沒套日期格式的數字儲存格與文字檔裡的 `2025`、`2025.12`、`45292` 這類值，
 都視為無法辨識的日期，確認配對時寫出列號。日期型儲存格由讀取器依儲存格格式換成 ISO，
-換得出 1900 年以後的日期就交出 yyyy-MM-dd，最晚到 9999-12-31，1904 日期制同樣處理；換算不出日期的儲存格，例如序列值是負數，
-交出序列值的文字，視為無法辨識的日期（裁定 2026-11-17-22）。明確西元或民國文字日期的原範圍不變，
+照 Excel 顯示的年月日交出 yyyy-MM-dd，最晚到 9999-12-31；1904 日期制的序列值 0 是 1904-01-01。1900 日期制的序列值 0 與 60
+在 Excel 顯示成日曆上沒有的 1900 年 1 月 0 日與 1900-02-29，交出 1900-01-00 與 1900-02-29，視為無法辨識的日期（裁定 2026-11-20-02）。
+.xls 由 ExcelDataReader 換算，序列值 60 交出 1900-02-28，當成一般的日期；1904 日期制的序列值 -1461 以上、-1460 未滿也交出 1900-01-00。
+換算不出日期的儲存格，例如序列值是負數，交出序列值的文字，視為無法辨識的日期（裁定 2026-11-17-22）。明確西元或民國文字日期的原範圍不變，
 Access 原生日期照原樣。無法辨識的日期不擋確認配對，怎麼處理見下面 `dateNotices` 的說明。帶逗號的數字不當成日期，也不交給寬鬆解析；不論逗號是否三位一組（例如 `1,234`、`12,31`），
 都視為無法辨識的日期，確認配對時寫出列號。第五步貼上的日期清單同樣保留原文，由後端寫出格式錯誤（裁定 2026-10-19-09）。
 前後端的日期規則共用 `src/JET/tests/JET.Tests/Fixtures/date-normalization.json` 的固定答案，一邊改了規則，另一邊的測試就會失敗。
@@ -515,7 +532,9 @@ GL 的成功回應另有 `dateNotices`，沒有需要提醒的日期時是空陣
   要標出來的那一段在原文裡的位置 `markStart` 與長度 `markLength`；最多 10 個 `rows`。`rows` 每一項的 `row` 是來源檔的列號，
   一個批次有多個來源檔時 `source` 是來源名稱，只有一個來源時是 null。
 - 讀不成日期的值另有 `problem`：`number` 是純數字，`noSuchDate` 是日曆上沒有這一天，`ambiguousOrder` 是分不出年月日的順序，
-  `notDate` 是其他情形。年份不尋常的值 `problem` 是 null，標出來的是年份。
+  `yearTooLong` 是年份寫成五位數以上、後面用 -、/ 或 . 寫月日，可以再接時間，例如 99999/02/01，標出來的是年份那一段；
+  `notDate` 是其他情形，例如 99999年2月1日，或用全形數字寫的 ２０２５/０６/１１。
+  年份不尋常的值 `problem` 是 null，標出來的是年份。
 - 沒有列在 `values` 的其他值共有幾筆，寫在 `omittedValueRowCount`。
 
 沒有任何一列納入 GL，而且有總帳日期讀不成日期時，照舊回 `projection_failed`，明細列出那些值與列號。
@@ -530,7 +549,7 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 
 可傳入 `sampleSize` 整數，省略時為 59，允許 1 到 1048524；超出範圍或型別錯誤回傳 `invalid_payload`，欄位為 `sampleSize`。
 `infSamplingTest.requestedSampleSize` 保存指定筆數，`sampleSize` 是實際抽出筆數。可用分錄不足時全部抽出。
-舊摘要缺少 `requestedSampleSize` 時仍可讀取，畫面以 59 作為下一次執行的預設值。
+舊摘要缺少 `requestedSampleSize` 時仍可讀取，畫面以 `project.load` 的 `infSampling.defaultSampleSize` 作為下一次執行的預設值。
 
 驗證摘要另含 `voucherNumberAcrossGlDates: { voucherNumberCount, entryCount }`，計算 GL 中，同一非空白傳票號碼出現在兩個以上總帳日期的號碼數及分錄筆數。
 同月不同日也計入，空白號碼與 GL(未納入測試) 不計入；不改傳票比對鍵或既有驗證判定。兩個數字隨驗證摘要保存，重開案件不另掃母體。
@@ -998,7 +1017,11 @@ Payload 的 `resultId` 是選填，畫面會附上目前驗證結果的編號，
 是 JET 認得的代碼才照記，前端送來的未知值只記型別。欄位配對底下的值、檔名、路徑、名稱與條件值也只記型別，
 案件代號連欄位名稱都不記。同一案件同一動作上一次失敗或取消時，下一次 `action.start` 的
 `retry_of` 會記下那次操作的 correlation。成功的 `action.end` 以 `result_refs` 記下批次、執行、報告與條件的版本代號、筆數和狀態，
-不含檔名、路徑或金額。取消改記 `action.cancelled`，不算失敗；`cancellation_requested` 為 true 表示使用者或關窗要求取消，
+不含檔名、路徑或金額。筆數是回應裡名稱以 `Count` 結尾的整數，以及 `count`、`bytes`、`hitLines`、`hitVouchers`、`population`、
+`sampleSize` 與 `requestedSampleSize`，每個流程的輸出筆數因此都記得到（裁定 2026-11-19-10）。回應裡的清單一般只記有幾項；
+`scenarios`、`sources` 與 `rules` 三種清單逐項記筆數，每一項用自己的 `position`、`sourceNo` 或 `key` 標示，
+例如 `scenarios[2].voucherHitCount=150`，代號不是整數或程式代號的項目略過。整段最多 4096 字，超過時先截掉後面的筆數與狀態。
+取消改記 `action.cancelled`，不算失敗；`cancellation_requested` 為 true 表示使用者或關窗要求取消，
 false 表示程式內部丟出取消例外。
 
 分步驟的操作失敗或取消時帶 `failure_stage`，寫出停在哪個處理步驟，例如案件載入的 `metadata_read`、報告的 `report_publish`；
@@ -1035,13 +1058,60 @@ false 表示程式內部丟出取消例外。
 - `sql.cancelled` 與 `sql.failed`：語句被取消或出錯時各記一筆，帶 `sql_step`、`sql_ms`、`rows_read` 與 `elapsed_ms`；
   `sql.failed` 另帶 `error_type`，資料庫回報的錯誤再帶 `sqlite_error_code`。
 - `export.progress`：匯出報表的進度。換階段、換工作表或完成一張工作表時記一筆，其餘最多每 10 秒一筆。
-  帶 `report_kind`、`phase`、`sheets_completed`、`rows_written` 與 `elapsed_ms`。
+  帶 `report_kind`、`phase`、`sheets_completed`、`rows_written` 與 `elapsed_ms`；`rows_written` 是這份報告到目前為止的累計列數。
+  完成一張工作表的那一筆一定記，另帶那張工作表的資料列數 `sheet_rows`。最後一欄是符合標記的明細表，
+  例如條件篩選報告的 `#Criteria Select n`，再帶標了「Y」的列數 `marked_rows`（裁定 2026-11-19-10）。
+  支援日誌不帶工作表名稱，用 `sheets_completed` 對照是這份報告第幾張寫完的工作表。畫面收到的 `export.progress` 內容不變。
 
 支援日誌的這些事件只有時間、筆數與程式寫死的代號，不含 SQL、參數值、工作表名稱或資料。
 診斷日誌另外記 SQL 文字與參數值，匯出進度另帶正在寫的工作表名稱 `sheet_name`。
 診斷日誌也在每進入一個步驟時記一筆 `action.stage_entered`，摘要多一欄 `top_sql`，列出合計最花時間的五種語句。
 慢查詢另記一筆 `sql.plan`，內容是另開一條唯讀連線執行 `EXPLAIN QUERY PLAN` 得到的執行計畫，不實際執行查詢；
 只處理單一的 SELECT 或 WITH 查詢，同一段 SQL 只做一次，做不出來時改寫 `plan_error`。
+
+處理紀錄是給審計員追蹤 GL 與 TB 處理經過的文字檔，和上面給維護者除錯用的支援日誌、診斷日誌分開（裁定 2026-11-19-11）。
+每個案件 GL、TB 各一份，放在案件資料夾，檔名「案件名稱_GL處理紀錄.txt」「案件名稱_TB處理紀錄.txt」，UTF-8 加 BOM、Windows 換行。
+下表的操作成功後，處理紀錄模組依操作的輸入與回應寫一筆；失敗、取消的操作，以及查詢、開案與刪除案件都不寫。
+每一筆的標題列寫步驟名稱、完成的本機時間 `yyyy-MM-dd HH:mm:ss` 與執行人員，下面寫用到的條件與處理後的筆數。
+執行人員和建案者用同一個方法取得：Windows 帳號的使用者全名，取不到時用帳號短名。
+
+| 操作 | 步驟名稱 | 寫進 |
+|:---|:---|:---|
+| `project.create` | 建立案件 | GL、TB |
+| `project.update` | 修改案件資料 | GL、TB |
+| `import.gl.fromFile` | 匯入 GL | GL |
+| `import.tb.fromFile` | 匯入 TB | TB |
+| `import.accountMapping.fromFile` | 匯入科目配對 | GL |
+| `accountMapping.save` | 儲存科目配對 | GL |
+| `accountCategory.save` | 儲存科目分類 | GL |
+| `import.authorizedPreparer.fromFile` | 匯入授權編製人員清單 | GL |
+| `import.authorizedPreparer.clear` | 清除授權編製人員清單 | GL |
+| `import.holiday`、`import.holiday.fromFile` | 匯入國定假日 | GL |
+| `import.makeupDay`、`import.makeupDay.fromFile` | 匯入補班日 | GL |
+| `calendar.setNonWorkingDays` | 設定每週休息日 | GL |
+| `mapping.commit.gl` | 確認 GL 欄位配對 | GL |
+| `mapping.commit.tb` | 確認 TB 欄位配對 | TB |
+| `validate.run` | 資料驗證 | GL 寫全部的檢查；TB 寫查核期間與 GL 與 TB 逐科目比對 |
+| `prescreen.run` | 預篩選 | GL |
+| `filter.scenario.save` | 儲存篩選情境 | GL |
+| `filter.commit` | 儲存全部篩選情境 | GL |
+| `filter.scenario.recheck` | 重新檢查篩選情境 | GL |
+| `filter.scenario.remove` | 移除篩選情境 | GL |
+| `export.validationReports` | 匯出資料驗證報告 | GL、TB |
+| `export.prescreenReport` | 匯出預篩選報告 | GL |
+| `export.criteriaSelectionReport` | 匯出條件篩選報告 | GL |
+| `export.workingPaperStream` | 匯出工作底稿 | GL |
+| `export.accountMappingTemplate` | 產生科目配對範本 | GL |
+
+欄位配對那一筆照第三步的欄位順序寫「JET 欄位 ← 來源欄名」，金額、核准日與過帳狀態的算法沿用底稿「自動化工具-檔案欄位資訊」的說明句。
+儲存、整批儲存或重新檢查情境之後，模組照畫面打開已存情境的方式送一次 `query.filterVoucherPage`，`pageSize` 為 1，
+把回應的 `conditionText`、`conditionSql`、`voucherCount` 與 `summaryRowCount` 寫進紀錄，所以條件與筆數和第五步畫面一字不差；
+這次的結果沒有算好時不送，只寫哪些情境需要修改。匯出那一筆寫檔案的完整路徑，並讀 `export.progress` 裡只給日誌讀的工作表列數，
+列出有資料列的工作表與條件篩選報告的明細表，明細表另寫標了「Y」的列數；底稿沒有這些進度時改讀回應的 `sheetStats`。
+紀錄只往後加，不改寫已寫下的內容；檔案還不存在時先寫開頭，寫明紀錄從什麼時候開始。
+寫不進檔案時操作照常完成，這幾筆留在記憶體，下一次寫同一份紀錄時依原順序補上，最多留 200 筆。
+這時支援日誌記一筆 `processing_log.write_failed`，帶 `log_target`（`gl` 或 `tb`）、`error_type` 與還沒寫進去的筆數 `pending_entries`；
+讀情境的條件失敗時 `log_target` 是 `scenario`，其他錯誤是 `none`。這個事件不帶內容或路徑。
 
 例外列出整條例外鏈。每層寫型別、系統錯誤碼與可取得的位置代碼，例如 JSON 的行與位元組位置、資料庫錯誤碼；
 再列丟出處的前三層方法與所有 JET 方法的名稱和 IL 位移，其餘框架方法只寫省略幾層。不輸出例外訊息、檔案路徑或原始碼行號。

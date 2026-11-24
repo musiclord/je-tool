@@ -381,6 +381,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var warnings = CommittedOperationLog.WithWarning(result.Projection.Warnings, operationLogWarning);
         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
         var availableGlFields = JetFieldCatalog.AvailableGlFields(result.Spec.Mapping, result.Spec.Options);
+        // GL 中每一筆都有值的欄位；第五步不替它們提供「空白」的比較方式。
+        var neverBlankGlFields = JetFieldCatalog.NeverBlankGlFields(result.Spec.Mapping, result.Spec.Options);
         // 用這次確認配對轉入 GL 時算出的控制總數，決定尾數 0 的個數；畫面不用重開案件就能更新第四步卡片與第五步的預設。
         int? zerosThreshold = result.Projection.GlTotals is { } glTotals
             ? TrailingZeroThreshold.FromGlTotals(glTotals, document.MoneyScale)
@@ -407,6 +409,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
                 rdeFields = result.Spec.Options.RdeFields,
                 fillDownFields = result.Spec.Options.FillDownFields,
                 availableGlFields,
+                neverBlankGlFields,
                 batchId = batch.BatchId,
                 projectedRowCount = result.Projection.ProjectedRowCount,
                 fillDownCount = result.Projection.FillDownCellCount,
@@ -432,6 +435,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             // 往下填補的欄位照欄位目錄順序回傳；fillDownCount 是這次確認配對時，把空白補成上一列值的格數。
             fillDownFields = result.Spec.Options.FillDownFields,
             availableGlFields,
+            neverBlankGlFields,
             batchId = batch.BatchId,
             projectedRowCount = result.Projection.ProjectedRowCount,
             fillDownCount = result.Projection.FillDownCellCount,

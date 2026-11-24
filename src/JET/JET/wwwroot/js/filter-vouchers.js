@@ -84,14 +84,16 @@
     if (!motionIds.has(preview)) { motionSerial += 1; motionIds.set(preview, 'vouchers-' + motionSerial); }
     return motionIds.get(preview);
   }
-  function mount(host, preview) {
+  // stillCurrent 由呼叫端給：這份預覽結果還是不是畫面上用的那一份。換了案件、已存清單、版本或條件之後就不是，
+  // 那時才回來的換頁與分錄讀取一律丟掉。同一份結果重畫時不必再給，沿用第一次掛上時給的。
+  function mount(host, preview, stillCurrent) {
     if (!host || !preview || !preview.voucherPage) { return; }
     var view = preview.__voucherView || { page: preview.voucherPage, cursor: null, history: [], open: null, opening: null, detail: null, detailCursor: null, detailHistory: [], sort: null, search: '' };
     preview.__voucherView = view;
     if (!Object.prototype.hasOwnProperty.call(view, 'appliedSort')) {
       view.appliedSort = view.sort; view.appliedSearch = view.search;
     }
-    view.generation = view.generation || 0;
+    if (stillCurrent) { view.stillCurrent = stillCurrent; }
     var id = motionId(preview);
     bindConditionSql(host, preview);
     if (host.setAttribute &&!(host.getAttribute && host.getAttribute('data-motion-key'))) { host.setAttribute('data-motion-key', id); }
@@ -112,17 +114,24 @@
         });
       }
     }
+    // 同一份結果同時只有一個讀取在途（讀取中再按會直接返回），所以回應不必比對先後，只要確認這份結果還在用。
+    // 已經不在用時，成功或失敗都不寫進清單、不留訊息；讀取中的記號與還沒套用的排序、搜尋改回送出前的樣子。
+    function dropped() {
+      if (!view.stillCurrent || view.stillCurrent()) { return false; }
+      view.loading = false; view.opening = null;
+      view.sort = view.appliedSort; view.search = view.appliedSearch;
+      return true;
+    }
     function read(method, payload, accept) {
       if (view.loading) { return; }
-      var token = ++view.generation;
       view.loading = true; view.error = ''; view.refresh();
       Ui.runBackground('讀取篩選傳票', function () {
         return method(payload).then(function (page) {
-          if (token !== view.generation) { return; }
+          if (dropped()) { return; }
           view.loading = false;
           accept(page); view.appliedSort = view.sort; view.appliedSearch = view.search; view.retry = null; view.refresh();
         }).catch(function (error) {
-          if (token !== view.generation) { return; }
+          if (dropped()) { return; }
           view.loading = false; view.opening = null;
           view.sort = view.appliedSort; view.search = view.appliedSearch;
           view.error = Ui.errorText(error, '讀取失敗，請重試。');

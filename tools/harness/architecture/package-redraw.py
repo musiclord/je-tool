@@ -27,6 +27,11 @@ KIND_NOTES = {
     "return": "對應同一張圖裡方向相反的呼叫。",
 }
 LOCAL_PATH = re.compile(r"(?i)\b[a-z](?::|%3a)[\\/]{1,2}users[\\/]")
+# Paths of development-workflow documents and development-tool files; they stay out of the packaged source list.
+DEVELOPMENT_ONLY = re.compile(r"(?i)agent|claude|codex|copilot|(?<![a-z])ai(?![a-z])")
+# Appearance snapshots taken from real legacy cases. Program snapshots taken before their removal from the test project still
+# hold them, so they also stay out of the packaged source list.
+REMOVED_FIXTURES = "src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-sample-appearance/"
 
 
 def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -383,8 +388,29 @@ def main():
              for group in portal for v in group.get("likec4", [])]
     copy(archify_root / "LICENSE", out / "licenses/archify-LICENSE.txt")
     copy(lab / "tools/node/node_modules/likec4/LICENSE", out / "licenses/likec4-LICENSE.txt")
-    for name in ("class-signatures.json", "sqlite-schema.json", "source-manifest.json"):
+    for name in ("class-signatures.json", "sqlite-schema.json"):
         copy(baseline / name, out / "evidence" / name)
+    # The package is handed to reviewers with the SAT documents, so the packaged source list leaves out the development-workflow
+    # documents and development-tool files of the snapshot, and the appearance snapshots removed from the test project.
+    # Evidence that cites one of them fails the excerpt check in Documentation.
+    development = [f for f in source_manifest["files"] if DEVELOPMENT_ONLY.search(f["path"])]
+    fixtures = [f for f in source_manifest["files"]
+                if f["path"].startswith(REMOVED_FIXTURES) and not DEVELOPMENT_ONLY.search(f["path"])]
+    listed = [f for f in source_manifest["files"]
+              if not DEVELOPMENT_ONLY.search(f["path"]) and not f["path"].startswith(REMOVED_FIXTURES)]
+    packaged_manifest = dict(source_manifest, files=listed)
+    packaged_manifest["selection"] = dict(source_manifest.get("selection", {}))
+    packaged_manifest["selection"]["roots"] = [r for r in packaged_manifest["selection"].get("roots", []) if not DEVELOPMENT_ONLY.search(r)]
+    kinds = "development-workflow documents, development-tool settings and test-harness projects"
+    if fixtures:
+        omitted = (f"{len(development) + len(fixtures)} entries are left out of this packaged list: {len(development)} for {kinds}, "
+                   f"and {len(fixtures)} test fixture files that were later removed from the test project. "
+                   "No packaged evidence cites them. The snapshot itself is unchanged.")
+    else:
+        omitted = (f"{len(development)} entries for {kinds} are left out of this packaged list; "
+                   "no packaged evidence cites them. The snapshot itself is unchanged.")
+    packaged_manifest["omittedFromPackagedList"] = omitted
+    save(out / "evidence/source-manifest.json", packaged_manifest)
     copy(comparison_path, out / "evidence/normalized-relations.json")
     comparison = read(comparison_path)
     save(out / "evidence/verified-facts.json", dict(identity=frozen_facts.get("identity"), verifiedOn=frozen_facts.get("verifiedOn"), facts=facts))
@@ -802,9 +828,9 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
         "資料表圖的線代表 SQL 使用的關聯欄位。這批 SQLite 定義沒有宣告外鍵，不會由資料庫強制保護這些關聯。"
         "PK 是主鍵，UK 是唯一約束或索引。未畫線不代表資料表互不相關；完整欄位在[資料表欄位](schema.html)。\n\n"
         "</details>\n\n"
-        "## 修改圖表\n\n"
+        "## 圖表來源\n\n"
         "LikeC4 來源是 [jet.c4](likec4/jet.c4)。Archify 來源是各圖資料夾的 candidate.json，"
-        "例如[篩選情境圖](archify/filter-save/candidate.json)。修改來源後，依 `tools/harness/architecture/README.md` 重新產生與封裝。\n\n"
+        "例如[篩選情境圖](archify/filter-save/candidate.json)。\n\n"
         "第三方授權：[Archify](licenses/archify-LICENSE.txt)、[LikeC4](licenses/likec4-LICENSE.txt)。\n",
         encoding="utf-8")
 

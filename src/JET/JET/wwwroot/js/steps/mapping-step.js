@@ -653,7 +653,7 @@
         // 另一項作業還在進行與取消不是這個檔案的問題，照共用的處理只記在訊息面板。
         inlineError: true,
         onError: function (_, error) {
-          if (error && (error.code === 'operation_in_progress' || error.code === 'operation_cancelled')) { return; }
+          if (Ui.isCancelledOrInProgress(error)) { return; }
           // 失敗原因前面寫這次選的檔名，和下方上一次帶入的結果分得開；原因本身已寫檔名時不重複。
           var message = Ui.errorText(error);
           reportImportFailure = {
@@ -1061,8 +1061,11 @@
   }
 
   function selectCreationDateRde(column) {
+    var promptShown = !!currentCreationDateRequest();
     pendingCreationDate = null;
-    if (Store.availableGlRdeColumns().indexOf(column) < 0) { return; }
+    // 選回空白，或選到已經是傳票建立日的來源欄：欄位設定不變，沒有別的東西會重畫，所以畫面上還留著確認提示時在這裡收起。
+    function closePrompt() { if (promptShown) { Store.touch(); } }
+    if (Store.availableGlRdeColumns().indexOf(column) < 0) { closePrompt(); return; }
     var fields = glOptions().rdeFields || [];
     var occupied = fields.find(function (field) { return field.sourceColumn === column; });
     if (occupied && (occupied.label !== '傳票建立日' || occupied.valueType !== 'date')) {
@@ -1071,7 +1074,7 @@
       Store.touch();
       return;
     }
-    if (occupied) { return; }
+    if (occupied) { closePrompt(); return; }
     var existing = fields.find(function (field) { return field.label === '傳票建立日'; });
     var replacement = Object.assign({}, existing || {}, { sourceColumn: column, label: '傳票建立日', valueType: 'date' });
     var next = fields.map(function (field) { return field === existing ? replacement : field; });
@@ -1312,6 +1315,7 @@
     number: '只有數字，看不出年月日',
     noSuchDate: '日曆上沒有這一天',
     ambiguousOrder: '分不出年月日的順序',
+    yearTooLong: '年份超過四位數',
     notDate: '不是日期'
   };
   var DATE_UNUSUAL_YEAR_TEXT = '年份不在 1900 到 2100 年之間';
@@ -2448,7 +2452,7 @@
     }
 
     function commitMapping() {
-      mappingCommitErrors[kind] = null;
+      var earlierCommitError = mappingCommitErrors[kind];
       var current = Store.getState().mapping[kind];
       var project = Store.getState().project;
       var importInfo = Store.getState().importState[kind];
@@ -2465,6 +2469,8 @@
       }
 
       Ui.run('確認 ' + label + ' 欄位配對', function () {
+        // 真的開始確認時才拿掉上一次確認留下的問題；另一項作業還在進行時它照樣留著。
+        mappingCommitErrors[kind] = null;
         var promise = kind === 'gl'
           ? global.JetApi.mappingCommitGl(glCommitPayload(mapping, mode))
           : global.JetApi.mappingCommitTb({ mapping: mapping, changeMode: mode });
@@ -2489,6 +2495,8 @@
           if (kind === 'gl') {
             // 第五步依後端算好的可用欄位停用入口，原樣存下。
             committed.availableGlFields = data.availableGlFields || null;
+            // GL 中每一筆都有值的欄位，第五步照它收起「空白」的選項，原樣存下。
+            committed.neverBlankGlFields = data.neverBlankGlFields || null;
             // 這次投影往下填補了幾格，摘要列出來；審計員據此記在 CAATs 文件。
             committed.fillDownCount = data.fillDownCount || 0;
             // 這次投影由 GL 借方平均算出的尾數 0 的個數，第四步卡片與第五步預設跟著更新。
@@ -2528,6 +2536,12 @@
         // 原因寫在配對區的錯誤框，不另外在步驟上方顯示。
         inlineError: true,
         onError: function (_, error) {
+          // 取消與另一項作業還在進行不是這次確認的問題：不寫「配對未完成」，上一次確認留下的問題照原樣放回來。
+          if (Ui.isCancelledOrInProgress(error)) {
+            mappingCommitErrors[kind] = earlierCommitError;
+            Store.touch();
+            return;
+          }
           mappingCommitErrors[kind] = {
             project: project,
             importInfo: importInfo,

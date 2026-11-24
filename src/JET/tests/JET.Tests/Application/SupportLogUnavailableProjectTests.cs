@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using JET.Domain;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
@@ -28,14 +29,18 @@ public sealed class SupportLogUnavailableProjectTests
         await host.DispatchAsync("project.releaseLock");
         var folder = Path.Combine(host.ProjectsRoot, id);
         var metadata = Path.Combine(folder, "project.json");
-        if (damage == "invalid-json") await File.WriteAllTextAsync(metadata, "{synthetic-invalid-json");
+        if (damage == "invalid-json") await ProjectJsonEdits.WriteAllTextAsync(metadata, "{synthetic-invalid-json");
         else if (damage == "invalid-metadata")
         {
             var document = JsonNode.Parse(await File.ReadAllTextAsync(metadata))!;
             document["periodStart"] = "synthetic-invalid-period";
-            await File.WriteAllTextAsync(metadata, document.ToJsonString());
+            await ProjectJsonEdits.WriteAllTextAsync(metadata, document.ToJsonString());
         }
-        else File.Delete(metadata);
+        else
+        {
+            ProjectJsonEdits.ReleaseReadOnly(metadata);
+            File.Delete(metadata);
+        }
         var metadataBefore = File.Exists(metadata) ? await File.ReadAllBytesAsync(metadata) : null;
 
         const string selectedCorrelation = "selected-load-error";

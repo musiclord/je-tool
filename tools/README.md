@@ -17,10 +17,6 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Public
 pwsh -NoProfile -File tools/verify.ps1 -Command Package -Configuration Release
 pwsh -NoProfile -File tools/verify.ps1 -Command Gui -Configuration AgentGuiTest
 pwsh -NoProfile -File tools/verify.ps1 -Command Excel -Configuration Release
-$env:JET_PRIVATE_CASE_ROOT = '<完整授權根目錄>'
-$env:JET_PRIVATE_CASE_MANIFEST = '.harness/private-case.json'
-$env:JET_PRIVATE_CASE_PROVIDER = 'sqlite'
-pwsh -NoProfile -File tools/verify.ps1 -Command PrivateCase -Configuration Release
 pwsh -NoProfile -File tools/verify.ps1 -Command ReleaseCandidate -Configuration Release
 ```
 
@@ -43,7 +39,7 @@ Context 自己的行為由 `Contract -ContractScenario Context` 驗證。
 公開測試，至少要找到 3,000 個案例。`public-skip-policy.json` 目前沒有允許略過的群組，任何跳過都會讓公開測試失敗。
 
 `Focused`、`Public` 與 `Package` 讓不同測試類別平行執行，同時執行的類別數等於 CPU 執行緒數；同一類別裡的測試依序執行。
-檢查實際經過時間上限的測試放在 `TimingSensitive` 集合，等其他測試結束後單獨執行。`PrivateCase` 與 `Excel`
+檢查實際經過時間上限的測試放在 `TimingSensitive` 集合，等其他測試結束後單獨執行。`Excel`
 仍逐一執行。xUnit 依 UniqueID 排定類別先後，同一個 clone 路徑每次順序相同；`src/JET/tests/JET.Tests/LongRunningFirstCollectionOrderer.cs`
 把耗時最長的 `ActionShapeContractTests` 排第一，避免它最後獨自拖長整段測試。
 
@@ -124,7 +120,7 @@ WebView 的安全、當機與快捷鍵設定，以及前後端支援的 action �
 不代表已實測各家輸入法。兩個篩選情境先用 1024 × 640 邏輯像素與 125% 放大核對網頁寬度 760 至 840px，再把本次視窗調成
 1560 × 1100，核對 1200 至 1260px。診斷時可加 `-GuiScenario <名稱>` 單跑，收據標記 `partial`，不算 `Gui` 通過。
 驅動程式在 `tools/harness/gui-driver/`，外部只能選固定情境，不能傳入 JavaScript、selector 或任意動作，也不用 Selenium、
-EdgeDriver 或網路下載。這些結果不代表原生檔案對話框或私人案件已驗收。
+EdgeDriver 或網路下載。這些結果不代表原生檔案對話框已驗收，也不涵蓋真實案件。
 
 ### Excel
 
@@ -137,22 +133,14 @@ EdgeDriver 或網路下載。這些結果不代表原生檔案對話框或私人
 
 原生 Excel 部分只驗證開啟、重算和另存副本，沒有操作範本原檔填寫，也沒有測試 Excel 佔用中的再次匯出。
 驅動程式只能選設定檔中的六種合成工作簿，可在使用者已開啟 Excel 時執行，但只管理本次建立、已確認 PID 的 Excel 行程；
-Excel 不可用、工作簿無法開啟或無法證明行程歸屬時，結果是 `blocked`。這條路線不讀 `data/test-case/`，不能代替私人案件驗收。
-
-### PrivateCase
-
-`PrivateCase` 是唯一可讀取私人案件的命令，每次都要提供完整根目錄、根目錄內的私人案件清單相對路徑與資料庫實作，
-缺一就在建置和資料存取前回報 `blocked`；資料庫實作目前只接受 `sqlite`。它建立安全副本，用 JET 走完匯入、驗證、篩選、五份報告與科目配對範本輸出，
-六份工作簿和舊版輸出比較內容與版面，命中的傳票集合與分錄筆數也要相符；INF 樣本檢查抽樣規則、實際母體與樣本有效性，不要求重現舊 IDEA 的隨機列。
-第一次比對之後，在同一個案件接著重新開啟、照原本的配對重新確認 GL 配對，以及重新匯入同一份 GL，每一段都重新匯出六份工作簿，照同樣的規則再比一次，全部通過才算通過。
-私人副本與輸出在收尾時一律清除，收據只保存去識別化的狀態、數量與差異類型。私人案件清單照舊寫法也能讀，讀取時換成現行名稱。
+Excel 不可用、工作簿無法開啟或無法證明行程歸屬時，結果是 `blocked`。這條路線不讀 `data/test-case/`。
 
 ### ReleaseCandidate
 
 `ReleaseCandidate` 固定使用 Release。候選內容直接取自 Git：已有提交時是全部已追蹤的檔案，
 而且工作樹必須乾淨；候選裡出現私人資料目錄的路徑就直接失敗。框架把檔案複製到本次專屬的快照
 `artifacts/harness/rc/<短代碼>/s`，建立前後比較來源儲存庫的 Git index entries，再在快照內依序執行 Contract、Documentation、
-Public、Package、Gui 與 Excel，任何一步不通過就停止；收尾時快照一律清除。`PrivateCase` 不在這條路線內。
+Public、Package、Gui 與 Excel，任何一步不通過就停止；收尾時快照一律清除。
 
 ### 共享鎖、記憶體上限與 Contract
 
@@ -180,7 +168,6 @@ Excel 讀寫規範與它的核對表 30 KiB；其他現行文件與 Agent 文件
 
 目前只支援 SQLite 案件。DuckDB 與 SQL Server 的程式、測試、套件和 `Provider` 路線都暫時移除（裁定 2026-11-06-08），
 還原點是提交 `7e88b7b`，正式上線後要恢復時從那裡取回。日常依修改範圍選擇 `Focused` 或 `Public`。
-`PrivateCase` 讀取本機私人案件的授權是常設的，不必每次再問。
 
 `tools/verify.ps1` 不會管理 Windows 服務，JET 目前也不連 SQL Server。恢復 SQL Server 開發後，或因其他原因在這台電腦
 啟動本機 SQL Server 時，啟停由執行開發工作的 Agent 或開發者負責，結束時依下列方式收尾：
@@ -258,7 +245,7 @@ try {
   使用 `Jet` 開頭的 PascalCase；C# 專案、原始碼檔、型別、namespace 和組件名稱依 .NET 慣例使用 PascalCase。
 - 驗證框架的主模組 `tools/harness/JetHarness.psm1` 只留主函式 `Invoke-JetHarness`，其餘函式依職責分在同目錄的
   `JetHarness.Foundation.ps1`、`JetHarness.Artifacts.ps1`、`JetHarness.Results.ps1`、`JetHarness.Steps.ps1`、
-  `JetHarness.Preflight.ps1`、`JetHarness.Lanes.ps1` 與 `JetHarness.ReleaseCandidate.ps1`，由主模組點號載入。新增或改名這類檔案時，
+  `JetHarness.Lanes.ps1` 與 `JetHarness.ReleaseCandidate.ps1`，由主模組點號載入。新增或改名這類檔案時，
   同步改主模組的載入清單與 `Get-JetRunnerIdentity` 的檔案清單，收據才會記到它的雜湊；`tools/tests/verify-contract.tests.ps1` 會檢查。
 - `bin/`、`obj/`、`artifacts/` 和 `TestResults/` 都是本機產物，不進 Git。
 
@@ -276,16 +263,14 @@ Restore 因 `NU1301` 無法讀取 NuGet 來源時回報 `blocked`，因為還沒
 
 標準輸出只有一行 JSON 摘要，失敗時其中的 `firstRed` 帶出第一個失敗步驟的名稱、原因碼與 `detail`；測試步驟的 `detail`
 是失敗數加上第一個失敗測試的名稱與一行訊息，不必再開 TRX。完整執行紀錄與限制大小的子程序輸出放在 `artifacts/harness/` 下的
-獨立資料夾，受 `.gitignore` 排除。保存前，框架把儲存庫根目錄與使用者目錄換成 `[repository]` 和 `[user-profile]`；
-PrivateCase 另把私人根目錄、私人案件清單路徑與本次的暫存目錄換成 `[sensitive]`，讀取 TRX 前也做相同處理。
+獨立資料夾，受 `.gitignore` 排除。保存前，框架把儲存庫根目錄與使用者目錄換成 `[repository]` 和 `[user-profile]`。
 
 依裁定 2026-10-14-14，每次命令寫好收據後，框架整理 `artifacts/harness/runs/` 的舊執行：同一種檢查只完整保留最新 10 次，
 只跑單一情境或篩選的執行另外計算；更舊的只留 `receipt.json`、各步驟的 `*.receipt.json` 與擁有者標記，所以文件或測試註解
 引用的舊收據仍讀得到結論與第一個失敗。還沒寫好收據的執行不會被碰到，整理失敗也不影響這次的結果。
 變異測試的保留期限寫在「需要時執行的變異測試」一節。
 
-除了明示執行的 `PrivateCase`，其他命令都不得讀取舊專案、舊執行輸出或私人案件資料夾，執行紀錄必須顯示
-`privateData.pathInspected=false`。`PrivateCase` 只記錄是否確實讀取，不保存私人路徑，並固定記錄 `outputsRetained=false`。
+所有命令都不得讀取舊專案、舊執行輸出或私人案件資料夾，執行紀錄必須顯示 `privateData.pathInspected=false`。
 測試程序在這台 Windows 主機用本機主控台碼頁輸出，框架先正確解碼再以 UTF-8 保存，避免中文失敗原因變成亂碼。
 
 ## 驗證框架自身測試

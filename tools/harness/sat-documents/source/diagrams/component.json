@@ -1,8 +1,7 @@
 {
-  "title": "JE Tool 元件圖",
+  "title": "元件圖",
   "header": [
-    "JE Tool 1.0.0.0 元件圖。範圍：執行時的元件、元件之間的介面與主要相依關係；外部元件僅列執行時載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。",
-    "表示法：UML 元件圖。圓形為介面，實線接到提供介面的元件，虛線箭頭由使用端指向介面或被相依的元件；介面名稱第二行是定義該介面的模組。"
+    "範圍：執行時的元件、元件之間的介面與主要相依關係；外部元件僅列執行時載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。"
   ],
   "sourceRoot": "src/JET/JET",
   "pathPrefix": "JET/",
@@ -141,7 +140,7 @@
       "paths": [
         "AuditCore"
       ],
-      "role": "查核邏輯：程序可否執行、SQL 片段與結果判定",
+      "role": "查核邏輯的判定與計算",
       "evidence": [
         {
           "file": "AuditCore/JetAuditProgram.cs",
@@ -208,7 +207,7 @@
       "paths": [
         "Infrastructure/FileIO"
       ],
-      "role": "讀取 Excel、文字檔與 Access 來源檔；儲存報告檔",
+      "role": "讀取 Excel、文字檔與 Access 資料表；寫入輸出檔",
       "evidence": [
         {
           "file": "Infrastructure/FileIO/OpenXmlSaxTableReader.cs",
@@ -252,19 +251,28 @@
     },
     {
       "id": "diagnostics",
-      "name": "支援日誌",
+      "name": "支援日誌、操作監看與處理紀錄",
       "paths": [
-        "Infrastructure/Diagnostics"
+        "Infrastructure/Diagnostics",
+        "Infrastructure/ProcessingLog"
       ],
-      "role": "記錄支援日誌，並寫入案件資料夾",
+      "role": "寫入支援日誌與 GL、TB 處理紀錄",
       "evidence": [
         {
           "file": "Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs",
           "text": "public sealed class SupportRingBufferLoggerProvider"
         },
         {
+          "file": "Infrastructure/Diagnostics/Monitoring/OperationMonitor.cs",
+          "text": "public sealed class OperationMonitor : IOperationMonitor, ISqlStatementObserver, IDisposable"
+        },
+        {
           "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
           "text": "class SupportCaseHistoryStore : ISupportCaseHistory"
+        },
+        {
+          "file": "Infrastructure/ProcessingLog/ProcessingLogRecorder.cs",
+          "text": "public sealed partial class ProcessingLogRecorder : IProcessingLog"
         }
       ]
     },
@@ -275,7 +283,7 @@
       "paths": [
         "Templates"
       ],
-      "role": "共 8 份，隨 JET 發布",
+      "role": "8 份 Excel 檔",
       "fileCount": {
         "directory": "Templates",
         "extension": ".xlsx",
@@ -336,7 +344,7 @@
   "interfaces": [
     {
       "id": "WebMessageChannel",
-      "name": "Web 訊息通道",
+      "name": "Web message",
       "declaration": {
         "file": "Bridge/JetWebMessageBridge.cs",
         "text": "internal sealed record JetRequestEnvelope("
@@ -483,7 +491,7 @@
       "usedBy": [
         {
           "component": "application",
-          "label": "讀取來源檔、儲存報告檔",
+          "label": "讀取來源檔、寫入輸出檔",
           "file": "Application/Handlers/Import/ImportAccountMappingFromFileHandler.cs",
           "text": "ITabularFileReader reader,",
           "more": [
@@ -540,6 +548,50 @@
       ]
     },
     {
+      "id": "OperationLogInterfaces",
+      "name": "IOperationMonitor、IProcessingLog",
+      "definedIn": "Domain",
+      "declaration": {
+        "file": "Domain/Abstractions/IOperationMonitor.cs",
+        "text": "public interface IOperationMonitor"
+      },
+      "moreDeclarations": [
+        {
+          "file": "Domain/Abstractions/IProcessingLog.cs",
+          "text": "public interface IProcessingLog"
+        }
+      ],
+      "providedBy": {
+        "component": "diagnostics",
+        "file": "Infrastructure/Diagnostics/Monitoring/OperationMonitor.cs",
+        "text": "public sealed class OperationMonitor : IOperationMonitor, ISqlStatementObserver, IDisposable"
+      },
+      "moreProviders": [
+        {
+          "file": "Infrastructure/ProcessingLog/ProcessingLogRecorder.cs",
+          "text": "public sealed partial class ProcessingLogRecorder : IProcessingLog"
+        }
+      ],
+      "usedBy": [
+        {
+          "component": "bridge",
+          "label": "作業的開始、結束與結果",
+          "file": "Bridge/ActionDispatcher.cs",
+          "text": "_operationMonitor?.BeginOperation(action, cancellationToken)",
+          "more": [
+            {
+              "file": "Bridge/ActionDispatcher.cs",
+              "text": "_processingLog?.BeginAction(action)"
+            },
+            {
+              "file": "Bridge/ActionDispatcher.cs",
+              "text": "_processingLog.RecordAsync(action, payload, result, _session.CurrentProjectId)"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "ISqlDialect",
       "name": "ISqlDialect",
       "definedIn": "AuditCore",
@@ -586,7 +638,7 @@
     {
       "from": "bridge",
       "to": "webview2",
-      "label": "收發訊息",
+      "label": "收發 JSON 訊息",
       "file": "Bridge/JetWebMessageBridge.cs",
       "text": "webView.PostWebMessageAsJson"
     },
@@ -627,14 +679,14 @@
     {
       "from": "persistence",
       "to": "auditcore",
-      "label": "使用 SQL 片段",
+      "label": "使用 SQL 條件",
       "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
       "text": "ValidationProcedures.UnbalancedCore()"
     },
     {
       "from": "export",
       "to": "auditcore",
-      "label": "工作底稿計畫與報告計畫",
+      "label": "WorkingPaperPlan 等",
       "file": "Infrastructure/Export/WorkingPaperWriter.cs",
       "text": "WorkingPaperPlan plan,",
       "more": [
@@ -739,61 +791,12 @@
       "of": "domain",
       "side": "left",
       "lines": [
-        "Bridge 與 Infrastructure Layer 各元件",
-        "也引用 Domain 的 data contract；",
-        "Infrastructure Layer 各元件之間也互相引用。"
-      ],
-      "covers": [
-        { "from": "bridge", "to": "domain" },
-        { "from": "persistence", "to": "domain" },
-        { "from": "fileio", "to": "domain" },
-        { "from": "export", "to": "domain" },
-        { "from": "diagnostics", "to": "domain" },
-        { "from": "persistence", "to": "fileio" },
-        { "from": "persistence", "to": "export" },
-        { "from": "persistence", "to": "diagnostics" },
-        { "from": "fileio", "to": "persistence" },
-        { "from": "fileio", "to": "export" },
-        { "from": "export", "to": "persistence" },
-        { "from": "diagnostics", "to": "persistence" },
-        { "from": "diagnostics", "to": "fileio" }
+        "data contract 指各層之間傳遞資料的型別。"
       ],
       "evidence": [
         {
-          "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
-          "text": "DiagnosticDb.BeginTransaction("
-        },
-        {
-          "file": "Infrastructure/FileIO/OpenXmlSaxTableReader.cs",
-          "text": "ExcelText.Decode("
-        },
-        {
-          "file": "Infrastructure/Export/LegacyReportWriter.cs",
-          "text": "LocalEngineErrors.ParseStoredObject"
-        },
-        {
-          "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
-          "text": "JetProjectFolder"
-        },
-        {
-          "file": "Bridge/ActionDispatcher.cs",
-          "text": "using JET.Domain;"
-        },
-        {
-          "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
-          "text": "using JET.Domain;"
-        },
-        {
-          "file": "Infrastructure/FileIO/CompositeTabularFileReader.cs",
-          "text": "using JET.Domain;"
-        },
-        {
-          "file": "Infrastructure/Export/WorkingPaperWriter.cs",
-          "text": "using JET.Domain;"
-        },
-        {
-          "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
-          "text": "using JET.Domain;"
+          "file": "Domain/Contracts/ResultContracts.cs",
+          "text": "public sealed record ResultRecord("
         }
       ]
     }
@@ -813,6 +816,76 @@
       "from": "export",
       "to": "application",
       "reason": "DemoWorkbookWriter 實作 Application 定義的 IDemoFileWriter，輸出示範資料檔。"
+    },
+    {
+      "from": "bridge",
+      "to": "domain",
+      "reason": "Bridge 引用 Domain 定義的介面與型別；其中操作監看與處理紀錄的介面已畫成 Bridge 使用的介面。"
+    },
+    {
+      "from": "persistence",
+      "to": "domain",
+      "reason": "實作 Domain 定義的資料存取介面並使用其型別；介面已畫成這個元件提供的介面。"
+    },
+    {
+      "from": "fileio",
+      "to": "domain",
+      "reason": "實作 Domain 定義的檔案存取介面並使用其型別；介面已畫成這個元件提供的介面。"
+    },
+    {
+      "from": "export",
+      "to": "domain",
+      "reason": "使用 Domain 定義的型別與介面輸出報告；圖上只畫 Application 與 AuditCore 對 Domain 的引用。"
+    },
+    {
+      "from": "diagnostics",
+      "to": "domain",
+      "reason": "實作 Domain 定義的日誌、操作監看與處理紀錄介面；介面已畫成這個元件提供的介面。"
+    },
+    {
+      "from": "persistence",
+      "to": "fileio",
+      "reason": "Infrastructure 的元件同屬 JET.Infrastructure 命名空間，共用輔助型別，不經介面。"
+    },
+    {
+      "from": "persistence",
+      "to": "export",
+      "reason": "Infrastructure 的元件同屬 JET.Infrastructure 命名空間，共用輔助型別，不經介面。"
+    },
+    {
+      "from": "persistence",
+      "to": "diagnostics",
+      "reason": "案件資料存取以 DiagnosticDb 記錄交易與 SQL 的執行，屬 Infrastructure 內部的共用輔助型別。"
+    },
+    {
+      "from": "fileio",
+      "to": "persistence",
+      "reason": "Infrastructure 的元件同屬 JET.Infrastructure 命名空間，共用輔助型別，不經介面。"
+    },
+    {
+      "from": "fileio",
+      "to": "export",
+      "reason": "檔案存取使用 ExcelText 解讀 Excel 文字，屬 Infrastructure 內部的共用輔助型別。"
+    },
+    {
+      "from": "export",
+      "to": "persistence",
+      "reason": "報告輸出使用 LocalEngineErrors 等輔助型別，屬 Infrastructure 內部的共用輔助型別。"
+    },
+    {
+      "from": "export",
+      "to": "fileio",
+      "reason": "報告輸出使用 ExportFileWriteErrors 轉換檔案寫入錯誤，屬 Infrastructure 內部的共用輔助型別。"
+    },
+    {
+      "from": "diagnostics",
+      "to": "persistence",
+      "reason": "支援日誌以 JetProjectFolder 取得案件資料夾的位置，屬 Infrastructure 內部的共用輔助型別。"
+    },
+    {
+      "from": "diagnostics",
+      "to": "fileio",
+      "reason": "Infrastructure 的元件同屬 JET.Infrastructure 命名空間，共用輔助型別，不經介面。"
     }
   ],
   "layout": {
@@ -829,7 +902,7 @@
       "auditcore": [631, 640],
       "templates": [64, 853, "r"],
       "export": [320, 853],
-      "diagnostics": [952, 853],
+      "diagnostics": [920, 853],
       "fileio": [320, 965, "t"],
       "persistence": [952, 965, "t"],
       "ace": [320, 1179],
@@ -842,10 +915,11 @@
       "IApplicationActionHandler": {"side": "top", "at": 0.75, "name": "right"},
       "IHostShell": {"side": "left", "at": 0.5, "name": "above", "align": "end"},
       "IJetEventPublisher": {"side": "bottom", "at": 0.25, "name": "left"},
-      "CaseDataInterfaces": {"side": "top", "at": 0.8, "name": "left"},
+      "CaseDataInterfaces": {"side": "top", "at": 0.2, "name": "right"},
       "FileAccessInterfaces": {"side": "top", "at": 0.2, "name": "right"},
       "ReportOutputInterfaces": {"side": "top", "at": 0.3, "name": "right"},
       "ISupportDiagnosticLogStore": {"side": "top", "at": 0.7, "name": "left"},
+      "OperationLogInterfaces": {"side": "top", "at": 0.92, "name": "right"},
       "ISqlDialect": {"side": "left", "at": 0.3, "name": "below", "align": "end"}
     },
     "lines": {
@@ -853,18 +927,19 @@
       "use_frontend_WebMessageChannel": {"fromSides": ["right"], "toSides": ["left"]},
       "use_bridge_IApplicationActionHandler": {"fromSides": ["bottom"], "toSides": ["top"]},
       "use_application_IJetEventPublisher": {"fromSides": ["top"], "toSides": ["bottom"]},
-      "dep_host_webview2": {"via": [[-270, -30], [1160, -30]], "labelAt": 0.3},
+      "dep_host_webview2": {"via": [[-270, -30], [1310, -30]], "labelAt": 0.3},
       "dep_host_adsi": {"via": [[-330, -54], [1440, -54]], "labelAt": 0.3},
-      "dep_bridge_webview2": {"via": [[1130, 100]], "labelAt": 0.2},
+      "dep_bridge_webview2": {"via": [[1280, 100]], "labelAt": 0.2},
+      "use_bridge_OperationLogInterfaces": {"via": [[1016, 132]], "labelAt": 0.2},
       "use_application_IHostShell": {"via": [[-416, 368]], "labelAt": 0.82, "text": ["選取檔案、", "開啟資料夾、", "結束程式"]},
       "use_application_FileAccessInterfaces": {"via": [[-165, 400], [-165, 932]], "labelAt": 0.2},
       "use_application_ReportOutputInterfaces": {"via": [[-130, 432], [-130, 784]]},
-      "use_application_CaseDataInterfaces": {"via": [[1076, 384], [1076, 932]], "labelAt": 0.3},
-      "use_application_ISupportDiagnosticLogStore": {"via": [[992, 416]]},
+      "use_application_CaseDataInterfaces": {"via": [[772, 416], [772, 932]], "labelAt": 0.3},
+      "use_application_ISupportDiagnosticLogStore": {"via": [[968, 384]]},
       "dep_application_domain": {"via": [[528, 500], [300, 500]]},
       "dep_application_auditcore": {"via": [[576, 520]], "text": ["JetAuditProgram.", "Plan、Finalize"]},
       "dep_auditcore_domain": {"fromSides": ["left"], "toSides": ["right"]},
-      "dep_export_auditcore": {"via": [[592, 853]], "text": ["工作底稿計畫", "與報告計畫"]},
+      "dep_export_auditcore": {"via": [[592, 853]]},
       "dep_fileio_auditcore": {"via": [[622, 1013]]},
       "dep_persistence_auditcore": {"via": [[652, 1065]], "labelAt": 0.15},
       "use_auditcore_ISqlDialect": {"via": [[682, 1000]]},

@@ -4,6 +4,7 @@ require('./support/resource-guard.cjs');
 //
 // 情境 5「第三步配對內容與確認」：審計員在簡易清單指派過帳狀態欄、讀來源值、沒選值時想確認、選值後確認；
 // 設定人工與自動代碼（只指定一側的代碼、兩側都指定）；勾新的攸關資料元素欄、確認、拿到後端發的識別碼、改名再確認；
+// 「傳票建立日」下拉選到已經是別的欄位的來源欄，出現確認提示後又選回空白；
 // 取消指派過帳狀態欄後再確認；在簡易清單與對照表格比較能不能確認；切換金額格式。
 // 另外核對兩段：傳票核准日只有一個來源選擇（清掉來源欄、舊草稿互相矛盾、取消變更），
 // 以及確認失敗後在文字框打字要標成「設定已修改」。
@@ -486,6 +487,23 @@ test('mapping: a new relevant data element field is sent without an id and the i
   assert.ok(!candidates().includes('Dept'));
 });
 
+// 「傳票建立日」下拉選到已經勾成別的攸關資料元素的來源欄時，下方出現確認提示。
+// 審計員沒有按提示上的兩顆按鈕，直接把下拉選回空白，或改選已經是傳票建立日的來源欄：提示跟著收起，欄位設定不變。
+test('mapping: the creation-date prompt goes away when the menu goes back to blank or to a column that is already the creation date', () => {
+  const dept = { sourceColumn: 'Dept', label: '部門', valueType: 'text' };
+  const created = { sourceColumn: 'Region', label: '傳票建立日', valueType: 'date' };
+  for (const [next, fields] of [['', [dept]], ['Region', [dept, created]]]) {
+    const f = journey({ draft: DUAL, options: { rdeFields: fields } });
+    const prompt = () => f.$('[data-action="confirm-created-date"]');
+    f.choose('[data-rde-created-date]', 'Dept');
+    assert.ok(prompt() !== null, 'choosing a column that is another field asks first');
+    f.choose('[data-rde-created-date]', next);
+    assert.ok(prompt() === null, 'the prompt is gone after choosing ' + (next || 'the blank option'));
+    assert.ok(f.$('[data-action="cancel-created-date"]') === null, 'both buttons go with it');
+    assert.deepEqual(f.optionsNow().rdeFields, fields, 'the fields are left as they were');
+  }
+});
+
 test('mapping: a debit or credit code is a typed value, not a source column, and does not hide that column from the extra fields', () => {
   // 借方代碼與貸方代碼都不佔用同名來源欄。
   const f = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } });
@@ -658,6 +676,27 @@ test('mapping: the confirmed GL mapping keeps the available fields the backend s
   f.last('mappingCommitGl').resolve(commitReply({ availableGlFields: onConfirm }));
   await settleAll();
   assert.deepEqual(plain(f.store.getState().mapping.gl.committed).availableGlFields, onConfirm);
+});
+
+// GL 中每一筆都有值的欄位也由後端算好，開案與確認配對的回應都帶 neverBlankGlFields。
+// 畫面原樣存進已確認的配對，第五步照它收起「空白」的選項；清單照後端在對應情況下會送的內容寫死。
+test('mapping: the confirmed GL mapping keeps the never-blank fields the backend sends when the case opens and when the mapping is confirmed', async () => {
+  const f = journey();
+  const onOpen = ['lineItem', 'glDate', 'amount'];
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'never-blank', currentStep: 2 },
+    importState: { gl: { batchId: 'gl-a', columns: GL_COLUMNS, rowCount: 3 } },
+    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', committedUtc: '2025-12-31T00:00:00Z', neverBlankGlFields: onOpen } } },
+  { stayOnCurrentStep: true });
+  assert.deepEqual(plain(f.store.getState().mapping.gl.committed).neverBlankGlFields, onOpen);
+  assert.equal(f.window.JetUi.neverBlankGlField(f.store.getState(), 'amount'), true);
+  assert.equal(f.window.JetUi.neverBlankGlField(f.store.getState(), 'approvalDate'), false);
+  const onConfirm = ['lineItem', 'glDate', 'approvalDate', 'amount'];
+  f.press('[data-action="remap-gl"]');
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ neverBlankGlFields: onConfirm }));
+  await settleAll();
+  assert.deepEqual(plain(f.store.getState().mapping.gl.committed).neverBlankGlFields, onConfirm);
+  assert.equal(f.window.JetUi.neverBlankGlField(f.store.getState(), 'approvalDate'), true);
 });
 
 test('mapping: cancelling changes restores a separate copy of the confirmed settings', () => {
@@ -1745,6 +1784,26 @@ test('mapping: date notices mark the wrong part of each value and say how the ro
   await settleAll();
   f.timers.run();
   assert.equal(f.$('[data-bind="mapping-date-notices"]'), null);
+});
+
+// 年份多打成五位數以上的日期，只標出年份那一段，原因寫年份超過四位數，不再只說不是日期。
+test('mapping: a date whose year has more than four digits says so and marks only the year', async () => {
+  const f = journey({ draft: DUAL });
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ dateNotices: [
+    { field: 'approvalDate', label: '傳票核准日', sourceColumn: 'Approved', kind: 'unrecognized', handling: 'notUsed', count: 1, omittedValueRowCount: 0,
+      values: [{ value: '99999/02/01', count: 1, markStart: 0, markLength: 5, problem: 'yearTooLong', rows: [{ source: null, row: 2 }] }] },
+  ] }));
+  await settleAll();
+  f.timers.run();
+
+  const box = f.need('[data-bind="mapping-date-notices"]');
+  const specimen = box.querySelector('.date-specimen');
+  assert.equal(specimen.textContent, '99999/02/01');
+  assert.equal(specimen.querySelector('mark').textContent, '99999');
+  const value = box.querySelector('.date-notice__value').textContent;
+  assert.match(value, /年份超過四位數/);
+  assert.doesNotMatch(value, /不是日期/);
 });
 
 // 改選另一個來源欄時勾選保留，改填新的來源欄；重新匯入後新資料沒有那個來源欄時勾選跟著消失。

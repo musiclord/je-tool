@@ -86,9 +86,13 @@
   }
   function field(rule, state) { return fields(state).find(function (item) { return item.id === (rule.fieldId || rule.field); }); }
   function fieldType(rule, state) { var selected = field(rule, state); return selected ? selected.type : (rule.__valueType || 'date'); }
+  // GL 中每一筆都有值的核心欄位（金額、總帳日期、沿用總帳日期的核准日、自動編號的項次）沒有空白可篩：
+  // 不列「空白」的篩選方式、不放「空白也列入」，讀回也不寫空白怎麼處理。清單由後端算好（Ui.neverBlankGlField），
+  // 攸關資料元素欄位空白時不存值，不在清單裡。
+  function neverBlank(rule, state) { return !rule.fieldId && Ui.neverBlankGlField(state, rule.field); }
   // 欄位空白的分錄預設不列入，勾選「空白也符合」才列入；與後端 GlRulePredicates.FieldValue 一致。
-  // 文字欄位的否定比較預設勾選（見 blankIncludedByDefault），勾選結果照樣明確送出。
-  function blankMatches(rule) { return rule.includeBlank === true; }
+  // 文字欄位的否定比較預設勾選（見 blankIncludedByDefault），勾選結果照樣明確送出。一定有值的欄位一律送不列入。
+  function blankMatches(rule, state) { return rule.includeBlank === true && !neverBlank(rule, state); }
   function day(year, month, date) { var value = new Date(0); value.setUTCHours(0, 0, 0, 0); value.setUTCFullYear(year, month - 1, date); return value; }
   function iso(value) { return String(value.getUTCFullYear()).padStart(4, '0') + '-' + String(value.getUTCMonth() + 1).padStart(2, '0') + '-' + String(value.getUTCDate()).padStart(2, '0'); }
   function splitDelimited(raw) {
@@ -136,7 +140,7 @@
   }
   function wire(rule, state) {
     var selected = field(rule, state);
-    var result = { type: 'fieldValue', join: rule.join || 'AND', operator: rule.operator, includeBlank: blankMatches(rule) };
+    var result = { type: 'fieldValue', join: rule.join || 'AND', operator: rule.operator, includeBlank: blankMatches(rule, state) };
     if (rule.drCr) { result.drCr = rule.drCr; }
     if (rule.fieldId) { result.fieldId = rule.fieldId; } else { result.field = rule.field; }
     var mode = carrier(rule.operator, fieldType(rule, state));
@@ -163,7 +167,8 @@
     if (isZeroRun(rule.operator)) { text += '個 0'; }
     if (mode === 'range') { text += '「' + value.from + '」至「' + value.to + '」'; }
     if (mode === 'set') { text += '「' + value.values.join('、') + '」'; }
-    if ((mode !== 'none' || isCalendar(rule.operator)) && (!compact || blankMatches(rule))) { text += blankMatches(rule) ? '；空白也符合' : '；空白不列入'; }
+    // 一定有值的欄位不寫空白怎麼處理；後端 FilterConditionRenderer.FieldValueAtom 的寫法相同。
+    if ((mode !== 'none' || isCalendar(rule.operator)) && !neverBlank(rule, state) && (!compact || blankMatches(rule, state))) { text += blankMatches(rule, state) ? '；空白也符合' : '；空白不列入'; }
     return text;
   }
   // 條件標題的欄位名稱；欄位已不存在時寫畫面名稱，不印程式代號。
@@ -304,6 +309,7 @@
     function readPage(payload, selection) {
       if (!active()) { return; }
       var sequence = ++tree.sequence;
+      var asked = currentState(), askedView = asked.view, askedStep = asked.currentStepIndex;
       tree.categoryId = payload.categoryId; tree.search = payload.search || ''; tree.cursor = payload.cursor; tree.open = true;
       tree.pending = true; tree.error = ''; tree.rows = []; tree.nextCursor = null; tree.loaded = false;
       tree.lastRequest = { payload: payload, selection: selection };
@@ -311,8 +317,18 @@
       try { request = global.JetApi.queryAccountMappingPage(payload); }
       catch (error) { request = Promise.reject(error); }
       redraw();
+      // 回應回來時要不要用。之後又送了別的讀取時，這一筆只是過期，科目樹由後面那一筆負責。
+      // 這一筆仍是最後一筆，但條件已經沒有科目樹、換了案件或資料，或審計員已經離開送出時的那一步：不用這個回應，
+      // 不改條件也不重畫，只把讀取中的記號收起；科目樹回到還沒讀取的樣子，不會一直寫「正在載入科目…」。
+      function accepted() {
+        if (tree.sequence !== sequence) { return false; }
+        var current = currentState();
+        if (active() && current.view === askedView && current.currentStepIndex === askedStep) { return true; }
+        tree.pending = false;
+        return false;
+      }
       Promise.resolve(request).then(function (page) {
-        if (!active() || tree.sequence !== sequence) { return; }
+        if (!accepted()) { return; }
         tree.pending = false; tree.rows = page.rows || []; tree.nextCursor = page.nextCursor || null; tree.loaded = true;
         if (selection !== null) {
           if (tree.nextCursor) { tree.error = limitMessage(); }
@@ -323,7 +339,7 @@
         }
         redraw();
       }).catch(function (error) {
-        if (!active() || tree.sequence !== sequence) { return; }
+        if (!accepted()) { return; }
         tree.pending = false; tree.error = Ui.errorText(error, '科目清單讀取失敗。') + ' 可按「重新載入」重試。';
         redraw();
       });
@@ -421,9 +437,21 @@
   function blankIncludedByDefault(type, operator) {
     return type === 'text' && ['notEquals', 'notContains', 'notStartsWith', 'notEndsWith', 'notIn'].indexOf(operator) >= 0;
   }
+  // 單一值那一格在各比較方式下裝的東西：每月天數、0 的個數、逗號分隔的數字串，其餘是日期、金額或文字本身；
+  // 用不到單一值的比較方式回空字串。
+  function valueContent(operator, type) {
+    if (isMonthWindow(operator)) { return 'monthDays'; }
+    if (isZeroRun(operator)) { return 'zeroCount'; }
+    if (isDigitList(operator)) { return 'digits'; }
+    return carrier(operator, type) === 'value' ? 'plain' : '';
+  }
+  // 換比較方式時，已填的值只在新方式下意思相同才留著：金額不當成尾數或 0 的個數，每月天數不當成日期，
+  // 指定的日期不當成每月幾日。新方式用不到單一值時也清空，之後再換到別種內容才不會把舊值帶出來。
+  // 起點與終點只有區間使用，不會被讀成別的意思，換方式時不動。
   function changeOperator(rule, state, operator) {
     var type = fieldType(rule, state);
-    if (carrier(operator, type) !== carrier(rule.operator, type)) { rule.values = []; }
+    if (valueContent(operator, type) !== valueContent(rule.operator, type)) { rule.value = ''; }
+    if (carrier(operator, type) !== carrier(rule.operator, type) || isDayOfMonth(operator) !== isDayOfMonth(rule.operator)) { rule.values = []; }
     // 換到預設不同的比較方式時，「空白也列入」回到新比較方式的預設；畫面一律把勾選結果送給後端。
     if (blankIncludedByDefault(type, operator) !== blankIncludedByDefault(type, rule.operator)) { rule.includeBlank = blankIncludedByDefault(type, operator); }
     rule.operator = operator;
@@ -473,6 +501,8 @@
           //已選的條件照樣顯示。
           var listKey = !item ? null : item.key === 'holiday' ? 'holidayCalendar' : item.key === 'makeup' ? 'makeupCalendar' : null;
           var blocked = !!listKey && choice !== item && !Ui.rulePrerequisiteMet(state, listKey);
+          // 一定有值的欄位不列「空白」這一項；已存的條件選了它時照樣顯示，審計員看得到要改的是哪一條。
+          if (item && item.key === 'blank' && choice !== item && neverBlank(rule, state)) { return ''; }
           return item ? '<option value="' + item.key + '"' + (choice === item && !view.periodEnd ? ' selected' : '') + (blocked ? ' disabled' : '') + '>' +
             item.label + (blocked ? '（' + Ui.esc(Ui.rulePrerequisiteReason(state, listKey)) + '）' : '') + '</option>' : '';
         }).join('');
@@ -485,7 +515,7 @@
       return '<input type="text" data-value-key="' + key + '" aria-label="' + label + '" placeholder="' + label + '" value="' + Ui.esc(rule[key] || '') + '">';
     }
     var extra = [];
-    var canIncludeBlank = (mode !== 'none' || isCalendar(rule.operator)) && !(rule.field === 'glDate' && !rule.fieldId);
+    var canIncludeBlank = (mode !== 'none' || isCalendar(rule.operator)) && !neverBlank(rule, state);
     if (isCalendar(rule.operator)) {
       main += '<p class="rule-explanation">' + Ui.esc(calendarExplanation(rule.operator, state)) + '</p>';
     }
@@ -537,7 +567,7 @@
     // 展開與收合要一致：提醒原地收放，標 data-collapsible；收起時保留原來的字（見 bind）。
     main += '<p class="form-notice form-notice--warning" data-value-warning data-collapsible role="status"' + (warning(rule, state) ? '' : ' hidden') + '>' + Ui.esc(warning(rule, state)) + '</p>';
     if (canIncludeBlank) {
-      extra.push('<label class="value-blank"><input type="checkbox" data-value-key="includeBlank"' + (blankMatches(rule) ? ' checked' : '') + '>' +
+      extra.push('<label class="value-blank"><input type="checkbox" data-value-key="includeBlank"' + (blankMatches(rule, state) ? ' checked' : '') + '>' +
         (type === 'date' ? '沒有日期的分錄也列入結果' : '此欄位空白的分錄也列入結果') + '</label>');
     }
     if (hasAccountTree(rule)) { main += accountTreeHtml(rule, state, focusKey); }
@@ -545,10 +575,10 @@
       main += '<p class="rule-field__hint">要從科目樹選取，請將篩選方式改為「完整內容相同」。</p>';
     }
     var activeNotes = [];
-    if (canIncludeBlank && blankMatches(rule)) { activeNotes.push('含空白'); }
+    if (canIncludeBlank && blankMatches(rule, state)) { activeNotes.push('含空白'); }
     if (type === 'amount' && rule.amountBasis === 'signed' && !ignoresSign(rule.operator)) { activeNotes.push('含正負號'); }
     return '<div class="value-editor" data-focus-prefix="' + focusKey + '"><div class="value-editor__main">' + main + '</div>' +
-      (extra.length ? '<details class="value-editor__options" data-value-options' + (view.optionsOpen ? ' open' : '') + '><summary>' + (type === 'amount' ? '金額與空白值處理' : type === 'date' && mode === 'set' && !isDayOfMonth(rule.operator) ? (canIncludeBlank ? '貼上日期與空白值處理' : '貼上日期清單') : '空白值處理') +
+      (extra.length ? '<details class="value-editor__options" data-value-options' + (view.optionsOpen ? ' open' : '') + '><summary>' + (type === 'date' && mode === 'set' && !isDayOfMonth(rule.operator) ? (canIncludeBlank ? '貼上日期與空白值處理' : '貼上日期清單') : !canIncludeBlank ? '值清單說明' : type === 'amount' ? '金額與空白值處理' : '空白值處理') +
         (activeNotes.length ? '（' + activeNotes.join('、') + '）' : '') + '</summary><div class="value-editor__aux">' + extra.join('') + '</div></details>' : '') + '</div>';
   }
   function bind(root, rule, state, changed) {
@@ -700,6 +730,12 @@
     if (!selected) { return '重新選擇欄位，或回到第三步確認配對'; }
     var value = wire(rule, state), mode = carrier(rule.operator, selected.type);
     if (operators[selected.type].indexOf(rule.operator) < 0) { return selected.label + '需選擇比較方式'; }
+    // 一定有值的欄位選「空白」一定是 0 筆：寫出原因與改法，和後端 FieldValueConditions.NeverBlankReason 同一句。
+    // 「非空白」不改變結果，不擋。
+    if (rule.operator === 'isBlank' && neverBlank(rule, state)) {
+      return rule.field === 'amount' ? 'GL 中的金額不會空白，來源空白的金額已當成 0；要找 0 元的分錄，請改用「指定金額」填 0'
+        : 'GL 中的' + selected.label + '不會空白，請移除這條條件';
+    }
     // 分錄方向無效只會出現在存檔內容損毀時，沿用損毀條件的儲存句。
     if (rule.drCr && ['debit', 'credit'].indexOf(rule.drCr) < 0) { return '此條件內容有誤，無法儲存。請刪除此條件後重新設定。'; }
     if (isMonthWindow(rule.operator)) {

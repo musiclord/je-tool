@@ -118,6 +118,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
         IReadOnlyDictionary<string, string>? conditionFieldLabels = null;
         IReadOnlyList<AccountCategory>? conditionCategories = null;
         int? conditionZerosThreshold = null;
+        IReadOnlyList<string>? conditionNeverBlankGlFields = null;
         SupportOperationStage.Enter("condition_render");
         foreach (var scenario in selectedScenarios)
         {
@@ -133,9 +134,10 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
                 var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
                 conditionFieldLabels = (mapping?.GlOptions?.RdeFields ?? []).ToDictionary(field => field.FieldId, field => field.Label);
                 conditionZerosThreshold = TrailingZeroThreshold.FromCommittedGl(mapping, document.MoneyScale);
+                conditionNeverBlankGlFields = FilterConditionRenderer.NeverBlankGlFields(mapping);
             }
             var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels, conditionCategories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true,
-                zerosThreshold: conditionZerosThreshold);
+                zerosThreshold: conditionZerosThreshold, neverBlankGlFields: conditionNeverBlankGlFields);
             scenarioSelections.Add(new WorkingPaperScenarioSelection(
                 scenario.Position,
                 scenario.Name,
@@ -152,6 +154,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
             PrepStartDate: document.LastAccountingPeriodDate,
             MoneyScale: document.MoneyScale,
             ValidationResultId: validationResult.ResultId,
+            SampleSeed: ValidationReportProjectionParser.ParseSampleSeed(validationResult.SummaryJson),
             ScenarioRevision: scenarioRevision,
             ScenarioPositions: selectedPositions,
             PopulationScope: filterRevision.PopulationScope,

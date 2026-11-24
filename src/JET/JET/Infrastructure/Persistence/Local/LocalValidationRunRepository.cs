@@ -20,7 +20,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
 
     // 完整性的 CTE 只定義在 ValidationProcedures.CompletenessDiffCte，分頁讀差異科目的 repository 也用同一份。
     // GL 那一側只取已經寫進 gl、而且納入測試的分錄。
-    private static readonly string CompletenessDiffCte = ValidationProcedures.CompletenessDiffCte;
+    private readonly string _completenessDiffCte = ValidationProcedures.CompletenessDiffCte(database.Dialect);
 
     Task<ResultRecord> IValidationFactsPort.ExecuteAsync(
         ValidationPlan plan,
@@ -162,12 +162,12 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
             SELECT COUNT(*),
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0),
-                   COALESCE(SUM(CASE WHEN is_excluded = 0 THEN 1 ELSE 0 END), 0),
-                   COUNT(DISTINCT CASE WHEN is_excluded = 0 THEN voucher_number END),
-                   COALESCE(SUM(CASE WHEN is_excluded = 0 THEN debit_amount_scaled ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN is_excluded = 0 THEN credit_amount_scaled ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN is_excluded = 0 THEN amount_scaled ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN is_excluded = 1 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN {GlExcludedPopulation.SqlPredicate()} THEN 1 ELSE 0 END), 0),
+                   COUNT(DISTINCT CASE WHEN {GlExcludedPopulation.SqlPredicate()} THEN voucher_number END),
+                   COALESCE(SUM(CASE WHEN {GlExcludedPopulation.SqlPredicate()} THEN debit_amount_scaled ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN {GlExcludedPopulation.SqlPredicate()} THEN credit_amount_scaled ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN {GlExcludedPopulation.SqlPredicate()} THEN amount_scaled ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN {GlExcludedPopulation.ExcludedSqlPredicate()} THEN 1 ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN {GlExcludedPopulation.ExcludedByPeriodSqlPredicate()} THEN 1 ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 ELSE 0 END), 0)
             FROM gl;
@@ -237,19 +237,19 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
     {
         var count = await ScalarAsync(
             connection, transaction, input, cancellationToken,
-            CompletenessDiffCte + "\nSELECT COUNT(*) FROM diff WHERE tb_s <> gl_s;");
+            _completenessDiffCte + "\nSELECT COUNT(*) FROM diff WHERE " + ValidationProcedures.CompletenessDifferencePredicate + ";");
 
         var diffs = new List<CompletenessDiffAccount>();
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
-            CompletenessDiffCte +
+            _completenessDiffCte +
             $"""
 
             SELECT account_number, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb
             FROM diff
-            WHERE tb_s <> gl_s
+            WHERE {ValidationProcedures.CompletenessDifferencePredicate}
             ORDER BY ABS(tb_s - gl_s) DESC, account_number
             LIMIT {ResultPreviewLimits.SummaryRows};
             """;

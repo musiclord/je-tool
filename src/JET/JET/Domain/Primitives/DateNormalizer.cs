@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace JET.Domain;
 
 /// <summary>
-/// 日期解析選項。RocYearEnabled 對應 project.json 的 rocDateEnabled（預設啟用）。
+/// 日期解析選項。RocYearEnabled 對應案件設定的 rocDateEnabled（預設啟用），作業用案件資料庫記的值。
 /// </summary>
 public sealed record DateParseOptions(bool RocYearEnabled)
 {
@@ -23,6 +23,9 @@ public enum DateProblemKind
     /// <summary>年份只有兩位數或寫在最後，分不出年月日的順序。</summary>
     AmbiguousOrder,
 
+    /// <summary>年份寫成五位數以上，例如 99999/02/01，多半是年份多打了幾位數。</summary>
+    YearTooLong,
+
     /// <summary>其他讀不成日期的內容。</summary>
     NotDate
 }
@@ -40,35 +43,37 @@ public readonly record struct DateProblem(DateProblemKind Kind, int MarkStart, i
 /// </summary>
 public static partial class DateNormalizer
 {
-    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}$")]
+    // 樣式裡的數字一律寫成 [0-9]。.NET 的 \d 也認全形數字與其他文字的數字，後面換成整數時卻只收半形，
+    // 全形的值會在判斷途中出錯。全形數字不是常見的日期寫法，照無法辨識的日期處理，和前端的日期清單相同。
+    [GeneratedRegex(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")]
     private static partial Regex IsoPattern();
 
-    [GeneratedRegex(@"^(\d{4})[/.](\d{1,2})[/.](\d{1,2})$")]
+    [GeneratedRegex(@"^([0-9]{4})[/.]([0-9]{1,2})[/.]([0-9]{1,2})$")]
     private static partial Regex ExplicitWesternPattern();
 
-    [GeneratedRegex(@"^(1\d{2})[/.](\d{1,2})[/.](\d{1,2})$")]
+    [GeneratedRegex(@"^(1[0-9]{2})[/.]([0-9]{1,2})[/.]([0-9]{1,2})$")]
     private static partial Regex RocSeparatedPattern();
 
-    [GeneratedRegex(@"^(1\d{2})(\d{2})(\d{2})$")]
+    [GeneratedRegex(@"^(1[0-9]{2})([0-9]{2})([0-9]{2})$")]
     private static partial Regex RocCompactPattern();
 
     // 民國年前面補一個 0 寫成四位數：0114/06/11、0114-06-11、01140611。
-    [GeneratedRegex(@"^0(1\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$")]
+    [GeneratedRegex(@"^0(1[0-9]{2})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})$")]
     private static partial Regex RocPaddedSeparatedPattern();
 
-    [GeneratedRegex(@"^0(1\d{2})(\d{2})(\d{2})$")]
+    [GeneratedRegex(@"^0(1[0-9]{2})([0-9]{2})([0-9]{2})$")]
     private static partial Regex RocPaddedCompactPattern();
 
-    [GeneratedRegex(@"^\d{1,3}[/.]\d{1,2}[/.]\d{1,2}$")]
+    [GeneratedRegex(@"^[0-9]{1,3}[/.][0-9]{1,2}[/.][0-9]{1,2}$")]
     private static partial Regex AmbiguousShortYearPattern();
 
     // 日期旁邊即使帶時間或星期文字，也不能交給 fallback 猜月日順序。
     // 數字邊界避免從 2025/01/02 的年份中間開始配對。
-    [GeneratedRegex(@"(?<!\d)\d{1,2}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,4}(?!\d)")]
+    [GeneratedRegex(@"(?<![0-9])[0-9]{1,2}\s*[-/.]\s*[0-9]{1,2}\s*[-/.]\s*[0-9]{1,4}(?![0-9])")]
     private static partial Regex NumericYearLastPattern();
 
     // 原文裡寫出來的數字；和冒號相鄰的是時間，不算日期的一部分。
-    [GeneratedRegex(@"(?<![\d:])\d+(?![\d:])")]
+    [GeneratedRegex(@"(?<![0-9:])[0-9]+(?![0-9:])")]
     private static partial Regex DatePartNumberPattern();
 
     // 寬鬆解析認得的英文月份全名與縮寫。
@@ -226,7 +231,8 @@ public static partial class DateNormalizer
             number.Length <= 2 && int.Parse(number, CultureInfo.InvariantCulture) == value;
     }
 
-    // Excel 的日期型儲存格換得出 1900 年以後的日期就交出 yyyy-MM-dd，最晚到 9999-12-31，和文字寫法、Access 的日期一致。
+    // 只給 .xls 讀取器檢查 ExcelDataReader 換好的日期：1900 年以後的日期直接交出 yyyy-MM-dd，最晚到 9999-12-31。
+    // 更早的日期由呼叫端處理，1899-12-31 存成 Excel 顯示的 1900-01-00，其他交出序列值的文字。
     internal static bool IsReadableExcelDate(DateTime date) => date.Year >= 1900;
 
     // 讀取器對換算不出日期的日期型儲存格交給投影的文字，例如負的序列值。小數點保留數值身分，避免七位數的序列值被讀成民國年月日文字；
@@ -237,19 +243,30 @@ public static partial class DateNormalizer
     internal static bool HasUnusualYear(string isoDate) =>
         string.CompareOrdinal(isoDate, "1900-01-01") < 0 || string.CompareOrdinal(isoDate, "2100-12-31") > 0;
 
-    [GeneratedRegex(@"^(\d{3,4})[-/.](\d{1,2})[-/.](\d{1,2})$")]
+    [GeneratedRegex(@"^([0-9]{3,4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})$")]
     private static partial Regex YearFirstPattern();
 
-    [GeneratedRegex(@"^(\d{3,4})(\d{2})(\d{2})$")]
+    [GeneratedRegex(@"^([0-9]{3,4})([0-9]{2})([0-9]{2})$")]
     private static partial Regex YearFirstCompactPattern();
+
+    // 年份寫成五位數以上，後面接著用 -、/ 或 . 寫月日，可以再接時間，例如 99999/02/01、99999-02-01T08:30:00。
+    [GeneratedRegex(@"^([0-9]{5,})[-/.][0-9]{1,2}[-/.][0-9]{1,2}(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?)?$")]
+    private static partial Regex LongYearFirstPattern();
 
     /// <summary>
     /// 無法辨識的日期哪裡有問題，給畫面標示用：問題的種類，以及要標出的那一段在去掉頭尾空白的原文裡的位置。
-    /// 只在 <see cref="TryNormalize"/> 回 false 之後呼叫。年份寫在前面、月或日不存在時標出月或日；其他情形標出整個值。
+    /// 只在 <see cref="TryNormalize"/> 回 false 之後呼叫。年份寫成五位數以上、後面用 -、/ 或 . 寫月日時標出年份，不猜是哪一年；
+    /// 年份寫在前面、月或日不存在時標出月或日；其他情形標出整個值。
     /// </summary>
     internal static DateProblem DescribeUnrecognized(string raw)
     {
         var text = raw.Trim();
+        var longYear = LongYearFirstPattern().Match(text);
+        if (longYear.Success)
+        {
+            return new DateProblem(DateProblemKind.YearTooLong, longYear.Groups[1].Index, longYear.Groups[1].Length);
+        }
+
         var separated = YearFirstPattern().Match(text);
         var parts = separated.Success ? separated : YearFirstCompactPattern().Match(text);
         if (parts.Success)

@@ -23,8 +23,8 @@ $module = Import-Module $modulePath -Force -PassThru
             param($RepositoryRoot, $RunDirectory, $Name, $FileName, $Arguments, $DisplayCommand,
                 $MaximumCapturedBytes, $TimeoutSeconds, [switch]$OwnProcessTree, $EnvironmentVariablesToRemove,
                 [long]$MaximumProcessTreeMemoryMegabytes = 0)
-            if (-not $OwnProcessTree -or $EnvironmentVariablesToRemove -notcontains 'JET_PRIVATE_CASE_ROOT') {
-                throw 'Public frontend tests must own and clean their child tree and remove private inputs.'
+            if (-not $OwnProcessTree -or $EnvironmentVariablesToRemove -notcontains 'JET_PROJECTS_ROOT') {
+                throw 'Public frontend tests must own and clean their child tree and remove the sanitized environment variables.'
             }
             if ($MaximumProcessTreeMemoryMegabytes -ne 6144) {
                 throw 'Public frontend tests must cap the memory of their child tree with the registry limit.'
@@ -33,7 +33,7 @@ $module = Import-Module $modulePath -Force -PassThru
                 script = [IO.Path]::GetFileName($Arguments[2]) }
         }
         $registry = [pscustomobject]@{ limits = @{ maximumCapturedBytesPerStream = 262144; maximumProcessTreeMemoryMegabytes = 6144 };
-            testSettings = @{ environmentVariablesToRemove = @('JET_PRIVATE_CASE_ROOT') } }
+            testSettings = @{ environmentVariablesToRemove = @('JET_PROJECTS_ROOT') } }
         $script:failFrontend = $false
         $steps = @(Invoke-JetPublicFrontendSteps -RepositoryRoot $root -RunDirectory $root -Registry $registry -TimeoutSeconds 120)
         if ($steps.Count -ne 2 -or $steps[0].name -cne 'public-frontend-mapping' -or

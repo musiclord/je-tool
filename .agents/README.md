@@ -6,7 +6,7 @@
 
 | 位置 | 內容 |
 |:---|:---|
-| `harness/harness.md` | 驗證框架負責什麼、怎麼判定通過、私人案件怎麼處理。命令與參數看 `tools/README.md` |
+| `harness/harness.md` | 驗證框架負責什麼、怎麼判定通過、私人資料怎麼保護。命令與參數看 `tools/README.md` |
 | `harness/development-workflow.md` | 需要跨多個步驟或 session 的開發怎麼立案、續接與關閉 |
 | `harness/agent-compatibility.md` | 各平台讀哪些檔、權限攔截與 hook 怎麼註冊、怎麼確認已載入 |
 | `harness/frontend-design-mode.md` | 用內建瀏覽器或 Preview 調整前端時的工作方式與正式整合順序 |

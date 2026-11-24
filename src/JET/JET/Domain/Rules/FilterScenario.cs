@@ -300,6 +300,12 @@ public sealed record FilterValidationContext(
     /// </summary>
     public IReadOnlyList<string>? AvailableGlFields { get; init; }
 
+    /// <summary>
+    /// GL 中每一筆分錄都有值的欄位；正式查詢由 <see cref="JetFieldCatalog.NeverBlankGlFields"/> 依已確認的配對算出。
+    /// 對這些欄位選「空白」一定是 0 筆，檢查時擋下並寫出改法。null 的用法和 <see cref="AvailableGlFields"/> 相同，不檢查。
+    /// </summary>
+    public IReadOnlyList<string>? NeverBlankGlFields { get; init; }
+
     /// <summary>原因裡的分類名稱；沒有帶分類設定的呼叫端用內建名稱。</summary>
     public AccountCategoryLabels CategoryLabels { get; init; } = AccountCategoryLabels.BuiltIn;
 

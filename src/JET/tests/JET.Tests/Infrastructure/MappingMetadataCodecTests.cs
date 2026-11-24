@@ -203,7 +203,7 @@ public sealed class MappingMetadataCodecTests
     [Fact]
     public void Decode_ReportWithoutFillDownFields_ReadsAnEmptyList()
     {
-        // 改版前寫出的報告沒有 fillDownFields，讀回來視為沒有勾選任何欄位。
+        // 較早寫出的報告沒有 fillDownFields 這一項，照樣讀得回來，視為沒有勾選任何欄位。
         var json = MappingMetadataCodec.Encode(
             Committed(DatasetKind.Gl, AllGlMappings(), GlAmountModeNames.Flag),
             Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct));

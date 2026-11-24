@@ -188,13 +188,12 @@ internal static partial class GuiScenarios
             // 含不含門檻直接寫在篩選方式的選項上，沒有勾選框：改選「大於或等於」，已填的門檻保留。
             await Choose(".rule-row [data-value-kind]", "greaterThanOrEqual");
             await Check("draft.groups[0].conditions[0].operator==='greaterThanOrEqual'");
-            await Click(".rule-row [data-value-options] > summary");
             // 2026-10-14 篩選條件改成每條只表達一件事後，內建「金額」的「含正負號」已停用（2026-10-30 起連停用說明一起拿掉，裁定 2026-10-30-25），
             // 畫面不再提供金額比較基準，原本選「含正負號」的那一步找不到控制項而逾時
-            // （這是第一次失敗）。改成核對畫面不再提供這個選項、條件維持絕對值，
-            // 其餘照舊：勾選空白也列入後，選項區仍開著。
-            await Click(".rule-row [data-value-key=\"includeBlank\"]");
-            await Check("draft.groups[0].conditions[0].amountBasis==='absolute' && !document.querySelector('.rule-row [data-value-key=amountBasis]') && draft.groups[0].conditions[0].includeBlank && draft.groups[0].conditions[0].operator==='greaterThanOrEqual' && document.querySelector('[data-value-options]').open");
+            // （這是第一次失敗）。改成核對畫面不再提供這個選項、條件維持絕對值。
+            // 金額在 GL 中一定有值，來源空白時存成 0；第五步不替這類欄位提供「空白也列入」，金額條件沒有選項區，
+            // 這裡核對選項區與「空白也列入」都不出現，條件也沒有記成空白也列入。
+            await Check("draft.groups[0].conditions[0].amountBasis==='absolute' && !document.querySelector('.rule-row [data-value-key=amountBasis]') && !document.querySelector('.rule-row [data-value-options]') && !document.querySelector('.rule-row [data-value-key=includeBlank]') && draft.groups[0].conditions[0].includeBlank!==true && draft.groups[0].conditions[0].operator==='greaterThanOrEqual'");
             await Click(".rule-row [data-action=\"remove-rule\"]");
             await AddField("field:description");
             await Fill(".rule-row [data-value-key=\"values\"]", "SYNTHETIC");

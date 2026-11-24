@@ -294,7 +294,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             JsonShape.Number(rule, "approvalCount", nullable: true);
         }
 
-        // S2b 降級形狀：13 條規則的「規則 × 全查核期間」分布。
+        // 預篩選規則全期命中分布：每一條逐筆規則在整個查核期間的命中分錄數、命中傳票數與符合比例。
         // N/A 由 naReason 與 nullable 數值表達，不另增會與既有 status='na' 混淆的欄位。
         var rulePeriod = JsonShape.Obj(data, "rulePeriod");
         JsonShape.HasExactKeys(rulePeriod, RulePeriodWireKeys.Block);
@@ -593,8 +593,19 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.HasExactKeys(data,
             "project", "mapping", "previousMapping", "accountCategory", "staleState",
             "importState", "validationResult", "prescreenResult", "filterScenarios",
-            "filterResultRef", "filterScenarioCheck", "reports");
+            "filterResultRef", "filterScenarioCheck", "reports", "settingsRestored",
+            "infSampling", "suspiciousKeywordDefaults");
         JsonShape.Obj(data, "project");
+        // 設定檔沒有在 JET 以外被改過，沒有要改回的項目。
+        Assert.Empty(JsonShape.Arr(data, "settingsRestored").EnumerateArray());
+        // 第四步的抽樣筆數與第五步預填的摘要關鍵字由後端提供，畫面不另存一份。
+        var infSampling = JsonShape.Obj(data, "infSampling");
+        JsonShape.HasExactKeys(infSampling, "defaultSampleSize", "maximumSampleSize");
+        Assert.Equal(59, infSampling.GetProperty("defaultSampleSize").GetInt32());
+        Assert.Equal(1048524, infSampling.GetProperty("maximumSampleSize").GetInt32());
+        Assert.Equal(
+            SuspiciousKeywordDefaults.Defaults,
+            JsonShape.Arr(data, "suspiciousKeywordDefaults").EnumerateArray().Select(static word => word.GetString()!).ToArray());
         // 兩側都有有效配對時不帶上次的配對。
         var previousMapping = JsonShape.Obj(data, "previousMapping");
         JsonShape.HasExactKeys(previousMapping, "gl", "tb");
@@ -610,6 +621,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             glMapping,
             "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
             "manualAutoPolicy", "rdeFields", "fillDownFields", "fillDownCount", "sourceBatchId", "committedUtc", "availableGlFields",
+            // 第五步依後端算好的清單，不替 GL 中一定有值的欄位提供「空白」的比較方式，GL 配對多帶 neverBlankGlFields。
+            "neverBlankGlFields",
             // 尾數 0 的個數照 IDEA 版由 GL 算出，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡，GL 配對多帶 zerosThreshold。
             "zerosThreshold");
         JsonShape.Element(JsonShape.Arr(glMapping, "fillDownFields"), field =>
@@ -618,6 +631,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(JsonValueKind.Number, glMapping.GetProperty("zerosThreshold").ValueKind);
         JsonShape.Element(JsonShape.Arr(glMapping, "availableGlFields"), field =>
             Assert.Equal(JsonValueKind.String, field.ValueKind));
+        Assert.Contains("amount", JsonShape.Arr(glMapping, "neverBlankGlFields").EnumerateArray().Select(static field => field.GetString()));
+        Assert.Contains("glDate", JsonShape.Arr(glMapping, "neverBlankGlFields").EnumerateArray().Select(static field => field.GetString()));
         var tbMapping = JsonShape.Obj(mapping, "tb");
         JsonShape.HasExactKeys(
             tbMapping, "mapping", "changeMode", "sourceBatchId", "committedUtc");

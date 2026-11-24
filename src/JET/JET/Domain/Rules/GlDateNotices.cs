@@ -39,7 +39,7 @@ public sealed record GlDateNotice(
 
 /// <summary>
 /// 提醒裡的一個值。<paramref name="MarkStart"/> 與 <paramref name="MarkLength"/> 是要標出的那一段在 <paramref name="Value"/> 裡的位置；
-/// <paramref name="Problem"/> 只有無法辨識的日期才有，是 <c>number</c>、<c>noSuchDate</c>、<c>ambiguousOrder</c> 或 <c>notDate</c>。
+/// <paramref name="Problem"/> 只有無法辨識的日期才有，是 <c>number</c>、<c>noSuchDate</c>、<c>ambiguousOrder</c>、<c>yearTooLong</c> 或 <c>notDate</c>。
 /// </summary>
 public sealed record GlDateNoticeValue(
     string Value,
@@ -158,6 +158,7 @@ internal sealed class GlDateNoticeCollector
                     DateProblemKind.Number => "number",
                     DateProblemKind.NoSuchDate => "noSuchDate",
                     DateProblemKind.AmbiguousOrder => "ambiguousOrder",
+                    DateProblemKind.YearTooLong => "yearTooLong",
                     _ => "notDate"
                 };
             }

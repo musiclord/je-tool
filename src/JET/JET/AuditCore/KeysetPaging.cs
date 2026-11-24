@@ -101,7 +101,7 @@ internal static class KeysetPaging
             var searchColumns = new[] { catalog.SearchSql }.Concat(catalog.AdditionalSearchSql);
             predicates.Add(string.Join(" OR ", searchColumns.Select(column =>
                 dialect.ContainsIgnoreCase(column, SearchParameter))));
-            parameters.Add(new(SearchParameter, search.ToUpperInvariant()));
+            parameters.Add(new(SearchParameter, SourceText.ComparisonKey(search)));
         }
 
         var searchPredicate = predicates.Count == 0 ? string.Empty

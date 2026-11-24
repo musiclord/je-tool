@@ -79,6 +79,7 @@ internal sealed partial class WorkingPaperWriter
             _templateColumnStyles = new(StringComparer.Ordinal);
         private readonly List<string> _desiredNames = [];
         private readonly HashSet<string> _openedNames = new(StringComparer.Ordinal);
+        private SheetWriter? _lastOpenedSheet;
         private bool _topologyChanged;
 
         internal WorkingPaperWriteSession(
@@ -97,6 +98,9 @@ internal sealed partial class WorkingPaperWriter
                 ?? throw new InvalidDataException("WorkingPaper 範本缺少 workbook part。");
         }
 
+        /// <summary>
+        /// 開啟一張工作表來寫，並記下它。工作表一張寫完才開下一張，所以只要記最後開的那一張。
+        /// </summary>
         /// <param name="lockedArea">受保護工作表裡程式寫入的資料區；其他格子保持可填。</param>
         /// <param name="keptTemplateCells">這次不寫、照範本原字保留的固定格。</param>
         internal SheetWriter OpenSheet(
@@ -104,6 +108,23 @@ internal sealed partial class WorkingPaperWriter
             WorkingPaperAppearanceProfile? appearance = null,
             WorkingPaperLockedArea? lockedArea = null,
             IReadOnlySet<(uint Row, uint Column)>? keptTemplateCells = null)
+        {
+            var sheet = CreateSheetWriter(name, appearance, lockedArea, keptTemplateCells);
+            _lastOpenedSheet = sheet;
+            return sheet;
+        }
+
+        /// <summary>
+        /// 放掉最後開啟的工作表。正常寫完的工作表已經關閉，這裡不會再做事；
+        /// 開啟之後、交到負責釋放它的程式手上之前就失敗的工作表，例如寫表頭的固定列時失敗，只有這裡放得掉。
+        /// </summary>
+        internal void ReleaseLastOpenedSheet() => _lastOpenedSheet?.Dispose();
+
+        private SheetWriter CreateSheetWriter(
+            string name,
+            WorkingPaperAppearanceProfile? appearance,
+            WorkingPaperLockedArea? lockedArea,
+            IReadOnlySet<(uint Row, uint Column)>? keptTemplateCells)
         {
             _cancellationToken.ThrowIfCancellationRequested();
             var normalizedName = ExcelWorksheetConstraints.ContinuationSheetName(name, 1);
@@ -684,7 +705,7 @@ internal sealed partial class WorkingPaperWriter
                     row == 49 && column >= 21
                     || row == 51 && column >= 21
                     || row >= 53 && column >= 1,
-                [(1U, 1U), (2U, 1U), (51U, 12U)],
+                [(1U, 1U), (2U, 1U), (4U, 1U), (51U, 12U)],
                 WorkingPaperSourceProtectionAndValidation),
             // 條件或原因換行的列由 EmitStep3 依行數加高；其他列沿用範本的列高。
             WorkingPaperSheetCatalog.Step3 => RowsAndCells(

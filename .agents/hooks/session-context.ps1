@@ -64,9 +64,10 @@ try {
         # 由新到舊掃，直到每個命令都找到一份完整收據，最多掃 2000 個執行目錄。
         $latest = [ordered]@{}
         $diagnostics = [ordered]@{}
-        # 原本也列 Provider，隨 DuckDB 與 SQL Server 移除（裁定 2026-11-06-08）；不在清單裡的舊收據不再列出。
+        # 原本也列 Provider，隨 DuckDB 與 SQL Server 移除（裁定 2026-11-06-08）；PrivateCase 也在使用者 2026-11-24
+        # 要求下移除。不在清單裡的舊收據不再列出。
         $expectedCommands = @('Build', 'Contract', 'Documentation', 'Excel', 'Focused', 'Gui', 'Mutation', 'Package',
-            'PrivateCase', 'Public', 'ReleaseCandidate', 'Restore')
+            'Public', 'ReleaseCandidate', 'Restore')
         $recent = Get-ChildItem -LiteralPath $runsRoot -Directory -ErrorAction SilentlyContinue |
                   Sort-Object Name -Descending |
                   Select-Object -First 2000

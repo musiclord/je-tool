@@ -1,93 +1,140 @@
 ---
-title: 設計原則
-english: Design Principle
+title: Design Principle
+body: 內文2
+toc: true
 ---
 ## 1. UX
 
-- 開啟案件、匯入、欄位配對、資料驗證、預篩選、篩選與匯出執行時，顯示處理中的提示與「取消作業」按鈕。總帳（GL）與試算表（TB）的匯入、欄位配對與匯出另回報進度。
-- 除選取檔案、開啟資料夾、結束程式與取消外，前端送出的請求（action）均於背景執行緒執行，不阻塞 UI。
-- 變更案件資料、開啟案件與匯出的作業同一時間僅執行一項，「訊息」區紀錄的寫入（log.append）除外；期間收到的同類請求立即以錯誤碼 operation_in_progress 回覆。
-- 錯誤訊息使用繁體中文並說明原因；使用者可自行排除時另寫處理方式。
+JE Tool（以下簡稱 JET）的 UX 依下列原則設計：
+
+- 操作流程
+  - JET 依分錄測試（JE Test）的作業順序分為六個步驟：建立案件、匯入資料、欄位配對、資料驗證與測試、進階條件篩選、匯出底稿。程序的名稱、報告與工作底稿的欄位沿用舊版 JET（IDEA 版）。
+  - 使用者於畫面選取欄位與條件完成篩選，無須撰寫查詢或操作資料庫。
+  - 每個步驟能否進入，依案件資料判定。前一步未完成時，畫面列出須先完成的事項。
+- 查詢效能
+  - 資料驗證與篩選的結果先顯示筆數與摘要；明細於使用者查看時才分頁讀取。
+  - 明細的排序與搜尋涵蓋完整的查詢結果，不限於目前的頁面。
+- 操作回饋
+  - 作業執行時顯示處理中的提示與經過時間，匯入、欄位配對與匯出另顯示處理進度；耗時的作業可由使用者取消。
+  - 作業完成、失敗或取消後，結果記錄於「訊息」區。錯誤訊息使用繁體中文並說明原因；使用者可自行排除時，另寫處理方式。
+  - 變更會清除後續步驟的設定時，畫面先提示；刪除案件或放棄尚未儲存的內容前，由使用者確認。
+- 操作支援
+  - 操作所需的說明顯示於畫面上對應的欄位與條件旁。
+  - 「訊息」區保存每個案件的作業紀錄，使用者可複製紀錄或輸出支援日誌，附於問題回報。
+  - 案件資料夾內的總帳（GL）與試算表（TB）處理紀錄，作業成功後記錄步驟、時間、執行人員、條件與筆數。
 
 ## 2. UI
 
-顏色與字級定義於 JET/wwwroot/css/app.css 的 :root 變數；其他樣式規則不另寫十六進位色碼或 px 字級。圖表的顏色與字級另寫於 JET/wwwroot/js/overview-bi.js，值須與變數相同。
+### 2.1 版面與導覽
 
-| 項目 | 規則 |
-|---|---|
-| 字型 | 英文與數字用 Instrument Sans，中文用 Noto Sans TC。 |
-| 字級 | 12、13、14、18、22、28 px 六階。內文、輸入框與下拉選單 14 px，按鈕 13 px，緊湊控制項 12 或 13 px。 |
-| 顏色 | 頁面底色 #f5f3ed，重點色 #1f6c9f，錯誤色 #a3302b，通過色 #3b7a47，警告色 #855700。 |
-| 對比 | 一般文字至少 4.5:1，停用文字至少 3:1。 |
-| 控制項 | 按鈕、輸入框與下拉選單高度 32 px，表格、工具列與條件列內 28 px。 |
-| 金額 | 顯示至小數第 2 位，並加千分位符號；資料預覽顯示至小數第 4 位。 |
-| 必填欄位 | 建立案件的表單以錯誤色的星號標示；欄位配對以標籤標示，未選取時為警告色。 |
+- 各步驟依作業順序排列，畫面標示目前的步驟與各步驟的狀態。
+- 同一項資料在各步驟的畫面與訊息使用相同的名稱。
+- 金額、筆數與日期在各步驟使用相同的顯示格式。
 
-index.html 與 app.css 不得引用外部網址的資源。字型、圖示與 ECharts 連同授權檔置於 JET/wwwroot 的 assets 與 vendor。
+### 2.2 按鈕與控制項
+
+- 相同功能的按鈕在各步驟使用相同名稱。
+- 每個工作區有一個明確的主要操作，其餘操作以次要按鈕呈現。
+- 頁籤、展開區塊、選單與未儲存提示共用同一套元件。
+
+### 2.3 對話框與表單
+
+- 各對話框的按鈕排列方式一致。
+- 輸入有誤或操作失敗時，錯誤顯示於發生的位置。
+
+### 2.4 色彩與字型
+
+- 顏色與字級定義於樣式表的變數，其他樣式規則引用變數。
+- 錯誤、通過與警告等狀態的用色，在各畫面代表相同的意義。
+- 畫面以繁體中文為主；GL、TB、Excel 等通用的英文名稱維持英文。
 
 ## 3. 專案與模組
 
-應用程式專案編譯為單一 assembly。JET 資料夾下的 Domain、AuditCore、Application、Bridge 與 Infrastructure 各為一個模組，命名空間為 JET 加上資料夾名稱；子資料夾不另增命名空間。各模組的職責見 Technical Document.docx 第 6 節。
+JET 編譯為單一 assembly，以資料夾與命名空間劃分模組。JET 資料夾下的 Bridge、Application、AuditCore、Domain 與 Infrastructure 各為一個模組，命名空間為 JET 加上資料夾名稱。
 
-| 模組 | 不得相依的對象 |
-|---|---|
-| Domain | Application、AuditCore、Infrastructure、Bridge |
-| AuditCore | Application、Infrastructure、Bridge、Microsoft.Web.WebView2 |
-| Application | Infrastructure |
-| Bridge | Infrastructure |
-| Infrastructure | Application（DemoWorkbookWriter 除外） |
+| 模組 | 職責 | 不得相依的對象 |
+|---|---|---|
+| Domain | data contract（各模組之間傳遞資料使用的型別）、來源值的整理規則、欄位與篩選規則的定義、資料存取介面與錯誤碼 | Application、AuditCore、Infrastructure、Bridge |
+| AuditCore | 資料驗證、預篩選、進階條件篩選與報告輸出的查核邏輯，以及執行這些程序的 SQL 條件 | Application、Infrastructure、Bridge、Microsoft.Web.WebView2 |
+| Application | 各請求（action）的 handler：檢查輸入、呼叫 AuditCore 的查核邏輯、寫入結果並回覆 | Infrastructure |
+| Bridge | 接收前端的 JSON 訊息、分派請求，並將事件送回前端 | Infrastructure |
+| Infrastructure | 案件資料庫與檔案的存取、報告與工作底稿的輸出、日誌與處理紀錄 | Application（輸出示範資料的 DemoWorkbookWriter 除外） |
 
-- 上表由 tests/JET.Tests/Architecture 的 LayerDependencyTests 檢查。
-- AuditCore 僅公開 10 個型別，對外入口為 JetAuditProgram。
-- dev.* 與 demo.* 的請求、project.loadDemo，以及 WebView2 的開發人員工具，僅於 Debug 組態啟用。
+- 查核邏輯只定義於 AuditCore 與 Domain，畫面、報告與工作底稿採用同一份判定。其他模組的查詢需要這些邏輯時，引用 AuditCore 產生的條件，不另行撰寫。
+- Domain 與 AuditCore 不相依畫面、資料庫與檔案的實作。
+- Application 經 Domain 與 Application 定義的介面使用資料庫與檔案的功能，實作置於 Infrastructure。各模組的物件由 JET 資料夾最上層的 AppCompositionRoot 建立並組裝。
+- AuditCore 的入口為 JetAuditProgram；公開的型別固定，不任意增加。
 
-## 4. 函式與命名
+## 4. 程式撰寫
+
+### 4.1 命名慣例
 
 | 對象 | 規則 | 範例 |
 |---|---|---|
 | 後端型別與方法 | PascalCase；介面以 I 開頭 | IApplicationActionHandler、HandleAsync |
 | action 名稱 | camelCase，以句點分段，第一段為功能領域 | validate.run、mapping.commit.gl |
-| Handler | 每種請求一個類別；類別名稱為請求的各段首字改為大寫後相連，再加上 Handler | ValidateRunHandler |
+| Handler | 每種請求一個類別；類別名稱為請求名稱各段首字大寫後相連，再加上 Handler | ValidateRunHandler |
 | 錯誤碼 | 小寫英文與底線，集中定義於 JetErrorCodes | invalid_payload |
 | 前端檔案 | 小寫與連字號；各步驟的主要程式置於 js/steps | validate-step.js |
-| CSS 類別 | 區塊__元素；變體與狀態以 -- 修飾，另有 is- 與 has- 開頭的狀態類別 | toc-item--current、is-missing、busy-overlay__label |
+| CSS 類別 | 區塊__元素；變體與狀態以 -- 修飾，另有 is- 與 has- 開頭的狀態類別 | toc-item--current、is-missing |
 
-- 新增請求時，須實作 IApplicationActionHandler、於 AppCompositionRoot 註冊、於 ActionExecutionPolicy 歸類（是否須單獨執行），並列入 jet-api.js 的 SUPPORTED_ACTIONS。前後端清單不一致或未歸類時，測試失敗。
-- 前端不計算金額，也不執行查核邏輯。
+### 4.2 撰寫原則
+
 - 註解說明程式的行為與原因。XML 文件註解的格式錯誤與無效參照視為建置錯誤。
+- 前端負責操作與呈現，不計算金額，也不執行查核邏輯；金額與查核結果取自後端。
+- 來源值的整理集中於 Domain/Primitives：文字只去除前後空白，比對時不分英文大小寫；金額、日期與空白字元的判定各由一個類別定義，其他模組呼叫同一份規則。
+- 新增請求時，須實作 IApplicationActionHandler、於 AppCompositionRoot 註冊、於 ActionExecutionPolicy 歸類是否須單獨執行，並列入前端 jet-api.js 的 SUPPORTED_ACTIONS。
 
-## 5. 資料與效能
+### 4.3 資料處理與效能
 
-- 金額以 decimal 解析，乘以 10,000 後四捨五入為 64 位元整數；篩選與彙總以該整數計算。
-- 篩選、彙總與比對於 SQLite 以 SQL 執行。前端狀態不得保存 GL 或 TB 的完整資料列。
-- 明細查詢採游標分頁，資料預覽以 limit 與 offset 分頁；總筆數僅於第一頁計算。
-- GL 與 TB 的匯入以串流逐列讀取來源檔，經 IBulkRowWriter 寫入；匯出的資料列以串流寫入工作表。
-- 匯入、欄位配對、資料驗證與篩選的寫入於交易內執行。取消時中斷執行中的 SQL statement 並 rollback 交易。
-- 匯入資料、欄位配對，或行事曆、科目配對等設定變更後，資料驗證、預篩選與篩選結果何者過期，僅由 AuditDependencyPolicy 決定。
+- 金額以 decimal 解析，乘以 10,000 後四捨五入，以 Int64 儲存；篩選與彙總以該整數計算。
+- 大量資料留在 SQLite，以 SQL 對整張資料表篩選、彙總與比對；前端只接收摘要與分頁的明細，不保存完整的 GL 或 TB。
+- 明細查詢採游標分頁，每頁最多 200 筆；總筆數僅於第一頁計算。
+- GL 與 TB 的匯入以串流逐列讀取來源檔；報告與工作底稿的明細以單一查詢依序讀取，逐列寫入工作表。
+- 匯入、欄位配對、資料驗證與篩選的寫入於交易內執行；取消時中斷執行中的 SQL statement 並 rollback 交易，該次寫入不保留。
+- 資料驗證完成後接續輸出報告，或匯出底稿依序輸出多份檔案時，若使用者取消，已完成的結果與已輸出的檔案仍保留。
+- 匯入資料、欄位配對，或行事曆、科目配對等設定變更後，哪些結果過期只由 AuditDependencyPolicy 決定。
+- 變更案件資料、開啟案件與匯出的作業同一時間只執行一項；期間收到的同類請求立即以錯誤碼 operation_in_progress 回覆，不排隊。「訊息」區紀錄的寫入與支援日誌的輸出除外。
 
-## 6. 錯誤與安全
+### 4.4 安全
 
-- 可預期的錯誤以 JetActionException 回報，可附欄位名稱與逐條明細。
-- 作業取消時回覆錯誤碼 operation_cancelled；可辨識的資料庫錯誤轉為 database_ 開頭的錯誤碼。其餘例外回覆錯誤碼 bridge_error 與固定的錯誤訊息，例外內容不傳至前端。
-- 支援日誌僅記錄 allowlist 內的事件，不含 SQL、參數值、檔名、路徑、例外訊息與案件名稱。
-- 輸入的字串值以參數傳入 SQL，不得組入 SQL 文字；欄位名稱與排序鍵僅能取自程式內的 allowlist。
-- 報告與工作底稿輸出至案件資料夾，檔名不得含路徑；先寫入同資料夾的暫存檔，完成後更名。
-- 工作底稿的檔名附匯出時間（yyyyMMdd-HHmmss），同名時加流水號；其餘報告覆寫同名檔。
+- 輸入的值一律以參數傳入 SQL，不組入 SQL 文字。LIKE 條件的萬用字元一律跳脫。欄位名稱與排序鍵只取自 allowlist，即程式內預先列出的允許值。
+- 報告與工作底稿輸出至案件資料夾，檔名不得含路徑；先寫入同資料夾的暫存檔，完成後更名，匯出取消或失敗時不留下不完整的檔案。
+- 工作底稿為正式輸出，每次匯出另存新檔，檔名附匯出時間，不覆寫已匯出的版本；其餘報告可由案件資料重新產生，匯出時覆寫同名檔。
+- 密碼、金鑰與 token 不寫入原始碼。
+- 前端不引用外部網址的資源；字型、圖示與 ECharts 存放於 JET/wwwroot。
+- 開發用的功能只於 Debug 組態啟用：dev.* 與 demo.* 的請求、project.loadDemo、診斷日誌（開發時使用的詳細日誌），以及 WebView2 的開發人員工具、瀏覽器快速鍵與右鍵選單；Release 組態不註冊這些請求。
 
-## 7. 測試與複核
+### 4.5 錯誤處理
 
-- 驗收用的自動化測試使用合成測試資料，執行範圍見 Technical Document.docx 第 14 節。預期結果依需求與查核邏輯訂定。
-- 驗收依據、人工複核的範圍與複核流程見 Technical Document.docx 第 13 節。
+- 可預期的錯誤以 JetActionException 回報錯誤碼與中文的錯誤訊息，可附欄位名稱與逐條明細。
+- 作業取消時回覆錯誤碼 operation_cancelled；可辨識的資料庫錯誤轉為 database_ 開頭的錯誤碼，錯誤訊息寫明原因與處理方式。
+- 其餘例外回覆錯誤碼 bridge_error 與固定的錯誤訊息，例外內容不傳至前端。
 
-## 8. 版本與修訂紀錄
+## 5. 日誌與處理紀錄
 
+- 操作監看記錄執行時間較長的作業與 SQL statement、被取消或失敗的 SQL statement，以及匯出的進度，寫入支援日誌。
+- 支援日誌只記錄 allowlist 內的事件與欄位。
+- 處理紀錄於作業成功後寫入，只附加新的紀錄，不改寫已寫入的內容；查詢、開啟案件與失敗的作業不記錄。
+- 操作監看與處理紀錄的程式置於 Infrastructure 的 Diagnostics 與 ProcessingLog 資料夾，只接在請求的分派、SQL 的執行與事件的發布等共用的位置。各 handler 與查核邏輯不呼叫這些程式。
+- 記錄發生錯誤時，作業繼續執行。
+
+## 6. 測試與複核
+
+- 自動化測試使用程式產生的合成測試資料，預期結果依需求與查核邏輯訂定。
+- 變更以自動化測試結果為主要驗收依據；直接影響查核結果的邏輯另由人工複核，範圍依風險決定。
+- 複核的流程、結論與核准條件依 Code Review/Code review rule.docx 的規定。
+
+## 7. 版本控制與文件
+
+- 原始碼以 Git 管理。commit message 以繁體中文撰寫，標題以一行說明變更內容，內文說明主要變更與原因。
 - 初版的版本號為 1.0.0.0。修正錯誤時增加第三碼，例如 1.0.1.0；新增相容的功能時增加第二碼，例如 1.1.0.0；不相容的大改版增加第一碼，例如 2.0.0.0。最後一碼固定為 0。
-- 支援日誌記錄 assembly 版本、建置組態與編譯時寫入 assembly 的識別碼（module_version_id）。
-- commit message 的規則、程式修訂紀錄與版本更新紀錄見 Technical Document.docx 第 8、17、18 節。
-- 案件資料庫與案件設定檔的 schema 變更時遞增 schema 版本；版本不符時的處理見 Technical Document.docx 第 10 節。
+- 程式修訂紀錄記錄每次 commit 的變更；版本更新紀錄以使用者的角度記錄各版本的日期、說明與版本號。
+- 支援日誌記錄 JET 的版本與建置組態。
 
-## 9. 部署與維護
+## 8. 部署與維護
 
-- 發布設定以 JET/Properties/PublishProfiles/FolderProfile.pubxml 為準，發布內容見 Technical Document.docx 第 15 節。
-- NuGet 套件於 JET/JET.csproj 指定固定版本。
-- 新增 Excel 範本時，須列入 JET/JET.csproj 的 Content 項目。
+- JET 以發布設定檔 JET/Properties/PublishProfiles/FolderProfile.pubxml 發布為 Release 組態、win-x64 的 self-contained single-file，部署時複製發布資料夾。
+- NuGet 套件於 JET/JET.csproj 指定固定版本；更新套件後重新查詢弱點，並更新元件清冊。
+- 新增 Excel 範本時，列入 JET/JET.csproj 的 Content 項目；建置與發布依此項目將範本複製至輸出的資料夾。
+- 問題依使用者回報的錯誤訊息、「訊息」區的紀錄與支援日誌診斷。修正後先以合成測試資料確認，再依第 7 節的版本規則發布新版本。

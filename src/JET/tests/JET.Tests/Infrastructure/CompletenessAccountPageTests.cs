@@ -7,8 +7,8 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 完整性「全科目」keyset 分頁(<see cref="ICompletenessAccountPageRepository"/>,匯出底稿 step1 資料源)。
-/// 與既有 <see cref="ICompletenessDiffPageRepository"/> 共用科目集合；全科目表不過濾差異，名稱只取 TB。
-/// 差異表仍可由 GL 補上 TB 缺少的名稱。
+/// 與既有 <see cref="ICompletenessDiffPageRepository"/> 共用科目集合；全科目表不過濾差異。
+/// 全科目表與差異表的名稱都先取 TB，TB 沒有名稱時取 GL。
 ///
 /// oracle:獨立 SQL recount(<see cref="DemoProjectPipeline.QueryScalarAsync"/>),
 /// 全科目數 = TB 科目 ∪ (GL 有 TB 無) 的基數;以小 pageSize 走訪驗「聯集==全集、無缺漏無重複、序穩」。
@@ -26,7 +26,7 @@ public sealed class CompletenessAccountPageTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
-        // V5 與底稿 step1 的名稱來自 TB；差異頁仍可由 GL 補上缺少的名稱。
+        // V5、底稿 step1 與差異頁的名稱先取 TB，TB 沒有名稱或科目只在 GL 時取 GL。
         // 全部為合成資料，另外加入足夠的零差異科目，讓既有 50 筆分頁確實跨頁。
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         await using (var connection = database.CreateConnection(context.ProjectId))
@@ -90,16 +90,16 @@ public sealed class CompletenessAccountPageTests
         Assert.Equal(string.Empty, all[0]);
         Assert.Equal("TB blank code", allRows[0].AccountName);
         Assert.Equal("TB filled name", allRows.Single(r => r.AccountNumber == "NAME-TB-FILLED").AccountName);
-        Assert.Null(allRows.Single(r => r.AccountNumber == "NAME-TB-NULL").AccountName);
-        Assert.Equal(string.Empty, allRows.Single(r => r.AccountNumber == "NAME-TB-EMPTY").AccountName);
+        Assert.Equal("GL null fallback", allRows.Single(r => r.AccountNumber == "NAME-TB-NULL").AccountName);
+        Assert.Equal("GL empty fallback", allRows.Single(r => r.AccountNumber == "NAME-TB-EMPTY").AccountName);
         var glOnly = allRows.Single(r => r.AccountNumber == "NAME-GL-ONLY");
         Assert.True(glOnly.NotInTb);
-        Assert.Null(glOnly.AccountName);
+        Assert.Equal("GL only name", glOnly.AccountName);
 
         var differences = await DrainDiffAsync(new LocalCompletenessDiffPageRepository(database), context.ProjectId);
         Assert.Equal("TB filled name", differences.Single(r => r.AccountNumber == "NAME-TB-FILLED").AccountName);
         Assert.Equal("GL null fallback", differences.Single(r => r.AccountNumber == "NAME-TB-NULL").AccountName);
-        Assert.Equal(string.Empty, differences.Single(r => r.AccountNumber == "NAME-TB-EMPTY").AccountName);
+        Assert.Equal("GL empty fallback", differences.Single(r => r.AccountNumber == "NAME-TB-EMPTY").AccountName);
         Assert.Equal("GL only name", differences.Single(r => r.AccountNumber == "NAME-GL-ONLY").AccountName);
     }
 

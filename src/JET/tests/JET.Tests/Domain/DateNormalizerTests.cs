@@ -226,6 +226,54 @@ public sealed class DateNormalizerTests
         Assert.Equal(new DateProblem(kind, start, length), DateNormalizer.DescribeUnrecognized(raw));
     }
 
+    // 年份多打成五位數以上時，JET 不猜它是哪一年，仍是無法辨識的日期；只標出年份那一段，問題種類是年份超過四位數。
+    // 月日寫錯也一樣先標年份。位置都是手算的，照去掉頭尾空白後的原文算。
+    [Theory]
+    [InlineData("99999/02/01", 0, 5)]
+    [InlineData("20255-1-1", 0, 5)]
+    [InlineData("202501.02.03", 0, 6)]
+    [InlineData("00114/06/11", 0, 5)]
+    [InlineData("99999/13/45", 0, 5)]
+    [InlineData("  99999/02/01 ", 0, 5)]
+    // 四位數年份的日期後面接時間也讀得成，年份多打一位時同樣只標年份。
+    [InlineData("99999/02/01 00:00:00", 0, 5)]
+    [InlineData("99999-02-01T08:30:00", 0, 5)]
+    [InlineData("20255/6/11 08:30", 0, 5)]
+    public void DescribeUnrecognized_YearLongerThanFourDigits_MarksTheYear(string raw, int start, int length)
+    {
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out _));
+
+        Assert.Equal(new DateProblem(DateProblemKind.YearTooLong, start, length), DateNormalizer.DescribeUnrecognized(raw));
+    }
+
+    // 全形數字不是常見的日期寫法，半形與全形混用也一樣：兩種民國年設定都讀不成日期，
+    // 日期提醒照「不是日期」標出整個值，判斷時不能出錯。
+    [Theory]
+    [InlineData("２０２５/０６/１１")]
+    [InlineData("２０２５-０６-１１")]
+    [InlineData("２０２５０６１１")]
+    [InlineData("１１４/０６/１１")]
+    [InlineData("１１４０６１１")]
+    [InlineData("2025/０６/11")]
+    public void FullWidthDigitDates_AreUnrecognizedAndMarkedAsNotDate(string raw)
+    {
+        var readWithRoc = true;
+        var readWithoutRoc = true;
+        DateProblem problem = default;
+        var error = Record.Exception(() =>
+        {
+            readWithRoc = DateNormalizer.TryNormalize(raw, RocOn, out _);
+            readWithoutRoc = DateNormalizer.TryNormalize(raw, RocOff, out _);
+            problem = DateNormalizer.DescribeUnrecognized(raw);
+        });
+
+        Assert.Null(error);
+        Assert.False(readWithRoc);
+        Assert.False(readWithoutRoc);
+        Assert.Equal(new DateProblem(DateProblemKind.NotDate, 0, raw.Length), problem);
+    }
+
     [Theory]
     [InlineData("1899-12-31", true)]
     [InlineData("1900-01-01", false)]

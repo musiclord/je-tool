@@ -193,6 +193,48 @@ public sealed class FormalReportRdeProjectionTests
         Assert.Equal(rdeDate, step41Cell.GetString());
     }
 
+    // 1900-03-01 是換出的序列值和 Excel 一致的第一天，序列值 61。底稿寫成日期儲存格，Excel 顯示的就是 1900-03-01。
+    [Fact]
+    public async Task WorkingPaper_FirstExcelFaithfulDate_IsWrittenAsDateCell()
+    {
+        using var host = new HandlerTestHost();
+        var setup = await SetupAsync(host, "1900-03-01");
+        Assert.Empty(setup.DateNotices);
+
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var committed = await host.DispatchAsync("filter.commit", ScenarioPayload(setup));
+        var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()!;
+        var workingPaperResponse = await host.DispatchAsync(
+            "export.workingPaperStream",
+            JsonSerializer.Serialize(new
+            {
+                validationResultId = setup.ValidationResultId,
+                prescreenResultId,
+                scenarioRevision = revision,
+                scenarioPositions = new[] { 1 }
+            }));
+        var workingPaperPath = Path.Combine(
+            host.ProjectsRoot,
+            setup.ProjectId,
+            workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
+        using var workingPaper = new XLWorkbook(workingPaperPath);
+
+        var step2 = workingPaper.Worksheet("step2 可靠性測試");
+        var step2Row = FindRow(step2, FindHeaderColumn(step2, 51, "傳票號碼\n(分錄編號)"), "RDE-001", 53);
+        var step2Cell = step2.Cell(step2Row, FindHeaderColumn(step2, 51, DateHeader));
+        Assert.Equal(XLDataType.DateTime, step2Cell.DataType);
+        Assert.Equal(new DateTime(1900, 3, 1), step2Cell.GetDateTime());
+
+        var step41 = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
+        var step41DateColumn = FindHeaderColumn(step41, 5, DateHeader);
+        var step41Cell = Assert.Single(Enumerable.Range(6, (step41.LastRowUsed()?.RowNumber() ?? 5) - 5)
+            .Select(row => step41.Cell(row, step41DateColumn))
+            .Where(cell => !cell.IsEmpty()));
+        Assert.Equal(XLDataType.DateTime, step41Cell.DataType);
+        Assert.Equal(new DateTime(1900, 3, 1), step41Cell.GetDateTime());
+    }
+
     [Fact]
     public async Task MappingCommit_DatesWithinTheUsualYears_GiveNoDateNotice()
     {

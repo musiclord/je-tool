@@ -9,10 +9,33 @@ namespace JET.Infrastructure;
 /// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停（實測 54.7 秒）。
 /// 這條連線建立的命令改用 <see cref="CancellableSqliteCommand"/>；設定與基底的 <c>CreateCommand</c> 相同。
 /// 有傳入監看模組時，命令在執行前後通知它，監看模組只記錄，不改變語句的執行與結果。
+/// 有傳入 <paramref name="openSettings"/> 時，每次開啟都先執行這段設定。
 /// </summary>
-internal sealed class CancellableSqliteConnection(string connectionString, ISqlStatementObserver? statementObserver = null)
+internal sealed class CancellableSqliteConnection(
+    string connectionString,
+    ISqlStatementObserver? statementObserver = null,
+    string? openSettings = null)
     : SqliteConnection(connectionString)
 {
+    /// <summary>
+    /// 連線池給回的連線保留上一次用過的設定，所以每次開啟都重新執行 <c>openSettings</c>，
+    /// 不論這條連線先前被誰改過，開好時的設定都一樣。非同步開啟也經過這裡。
+    /// 這段設定不是哪一個作業的語句，所以用基底的命令執行，不通知監看模組。
+    /// </summary>
+    public override void Open()
+    {
+        var wasOpen = State == ConnectionState.Open;
+        base.Open();
+        if (wasOpen || openSettings is null)
+        {
+            return;
+        }
+
+        using var settings = base.CreateCommand();
+        settings.CommandText = openSettings;
+        settings.ExecuteNonQuery();
+    }
+
     public override SqliteCommand CreateCommand() => new CancellableSqliteCommand(statementObserver)
     {
         Connection = this,

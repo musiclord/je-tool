@@ -22,6 +22,7 @@ public sealed class ActionDispatcher
     private readonly ActionExecutionGate _executionGate;
     private readonly IProjectDatabaseCheckpoint? _databaseCheckpoint;
     private readonly IOperationMonitor? _operationMonitor;
+    private readonly IProcessingLog? _processingLog;
     // 同一案件同一動作上一次失敗或取消的操作識別碼，下一次開始時記成 retry_of；成功後清除。
     private readonly ConcurrentDictionary<string, string> _lastUnsuccessful = new(StringComparer.Ordinal);
 
@@ -37,7 +38,9 @@ public sealed class ActionDispatcher
         // 變更型作業結束後把當前案件資料庫的記錄檔併回；null 時不併回，自行組裝 dispatcher 的測試不受影響。
         IProjectDatabaseCheckpoint? databaseCheckpoint = null,
         // 操作監看模組：只記錄步驟、SQL 與花掉的時間，不改變執行與結果；null 時不監看。
-        IOperationMonitor? operationMonitor = null)
+        IOperationMonitor? operationMonitor = null,
+        // 處理紀錄模組：操作成功後把處理經過寫給審計員看，不改變執行與結果；null 時不寫。
+        IProcessingLog? processingLog = null)
     {
         var map = new Dictionary<string, IApplicationActionHandler>(StringComparer.Ordinal);
 
@@ -57,6 +60,7 @@ public sealed class ActionDispatcher
         _executionGate = executionGate ?? new ActionExecutionGate();
         _databaseCheckpoint = databaseCheckpoint;
         _operationMonitor = operationMonitor;
+        _processingLog = processingLog;
     }
 
     public IReadOnlyCollection<string> RegisteredActions => _handlers.Keys.ToArray();
@@ -112,6 +116,7 @@ public sealed class ActionDispatcher
 
         // 監看從這裡到方法返回為止，含記錄檔併回；結束時的摘要寫在 action.end、action.error 或 action.cancelled 之後。
         using var operationWatch = _operationMonitor?.BeginOperation(action, cancellationToken);
+        using var processingScope = BeginProcessing(action);
         var exclusive = ActionExecutionPolicy.IsExclusive(action);
         IDisposable? executionLease = null;
 
@@ -137,6 +142,8 @@ public sealed class ActionDispatcher
                 ? await Task.Run(() => HandleWithCheckpointAsync(handler, payload, cancellationToken), cancellationToken).ConfigureAwait(false)
                 : await HandleWithCheckpointAsync(handler, payload, cancellationToken).ConfigureAwait(false);
             _lastUnsuccessful.TryRemove(retryKey, out _);
+            // 處理紀錄在放閘之前寫：寫的時候別的變更型作業還不能改案件，讀到的條件與筆數就是這次的結果。
+            await RecordProcessingAsync(action, payload, result).ConfigureAwait(false);
             var resultRefs = SupportResultRefs.Describe(result);
             using (resultRefs is null ? null : _logger.BeginScope(new Dictionary<string, object?> { ["result_refs"] = resultRefs }))
             {
@@ -230,6 +237,37 @@ public sealed class ActionDispatcher
                 await ProjectDatabaseCheckpointSteps.TryCheckpointAsync(
                     _databaseCheckpoint!, checkpointProjectId, _logger).ConfigureAwait(false);
             }
+        }
+    }
+
+    private IDisposable? BeginProcessing(string action)
+    {
+        try
+        {
+            return _processingLog?.BeginAction(action);
+        }
+        catch (Exception)
+        {
+            // 處理紀錄只做記錄，開始不了也不影響這次操作。
+            return null;
+        }
+    }
+
+    /// <summary>處理紀錄只做記錄：寫不進去或自己出錯時，這次操作照樣回報成功，回應也不變。</summary>
+    private async Task RecordProcessingAsync(string action, JsonElement payload, object? result)
+    {
+        if (_processingLog is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _processingLog.RecordAsync(action, payload, result, _session.CurrentProjectId).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // 處理紀錄自己會把寫不進去的原因記進支援日誌；這裡只確保操作的結果不受影響。
         }
     }
 

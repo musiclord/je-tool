@@ -66,7 +66,7 @@ public sealed class QueryPrescreenPageHandler(
                 accountNumber = row.AccountNumber,
                 accountName = row.AccountName,
                 description = row.Description,
-                amount = (decimal)row.AmountScaled / scale,
+                amount = MoneyScaling.FromScaled(row.AmountScaled, scale),
                 drCr = row.DrCr
             }).ToArray(),
             totalCount = page.TotalCount,

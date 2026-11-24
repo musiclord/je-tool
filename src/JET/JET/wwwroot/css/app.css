@@ -4290,7 +4290,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   border: 1px dashed var(--color-border-rule);
 }
 
-/* 步驟四預篩選重定位：兩條 Aggregate 是主要母體判讀面；RowTag 與資料缺漏
+/* 第四步的預篩選卡片：兩條 Aggregate 是主要母體判讀面；RowTag 與資料缺漏
    放進次要 disclosure。維持平面、hairline 與既有狀態色，不加入裝飾性陰影。 */
 .rule-card--prescreen {
   background: var(--color-surface);

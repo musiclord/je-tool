@@ -22,4 +22,7 @@ public static class SupportEventNames
     public const string SqlFailed = "sql.failed";
     public const string SqlPlan = "sql.plan";
     public const string ExportProgress = "export.progress";
+
+    // 處理紀錄模組寫不進案件資料夾的處理紀錄時記一筆；只有操作代號、哪一份紀錄、錯誤類型與還沒寫進去的筆數。
+    public const string ProcessingLogWriteFailed = "processing_log.write_failed";
 }

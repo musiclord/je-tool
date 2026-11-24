@@ -7,8 +7,8 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 記住本程序內哪些本機資料庫檔已完成建表與版本檢查。repository 每次讀寫前呼叫
 /// <see cref="ILocalProjectDatabase.EnsureReadyAsync"/>，只有第一次會真的開連線檢查，之後只確認檔案仍在。
-/// 建案時呼叫的 <see cref="IProjectDatabaseInitializer.EnsureCreatedAsync"/> 與開案時呼叫的
-/// <see cref="IProjectDatabaseInitializer.EnsureExistingAsync"/> 一律重新檢查，
+/// 建案時呼叫的 <see cref="IProjectDatabaseInitializer.EnsureCreatedAsync(string, ProtectedProjectSettings, CancellationToken)"/> 與開案時呼叫的
+/// <see cref="IProjectDatabaseInitializer.EnsureExistingAsync(string, Func{CancellationToken, Task{ProtectedProjectSettings}}, CancellationToken)"/> 一律重新檢查，
 /// 刪除案件時清掉紀錄，所以程式開著時用舊的備份檔覆蓋已關閉的案件，下次載入會重新檢查版本，版本較舊就拒絕。
 /// 只有建案會建立新的資料庫；開案與讀寫遇到資料庫不見或沒有內容時回報，不默默建出空的資料庫。
 /// 同一個檔案的檢查一次只跑一個，避免兩個作業同時建表。
@@ -91,7 +91,7 @@ internal sealed class LocalSchemaReadiness
     }
 
     /// <summary>SQLite 案件資料庫的現行結構版本；建表程式直接寫這一版。</summary>
-    internal const int CurrentSchemaVersion = 20;
+    internal const int CurrentSchemaVersion = 21;
 
     /// <summary>
     /// 已經建過表的資料庫只接受現行版本：案件資料庫只留現行結構，版本不符時請審計員刪除後重建。

@@ -30,12 +30,14 @@ public sealed class FilterAcceptanceJourneyTests
             mapping = source!.BuildFlagModeMapping(), amountMode = "flag", approvalDateMode = "sameAsGlDate"
         }));
         await host.DispatchAsync("validate.run");
-        foreach (var item in new[] { (Operator: "isBlank", Count: 0), (Operator: "isNotBlank", Count: 2) })
-        {
-            var scenario = Scenario($$"""{"type":"fieldValue","field":"approvalDate","operator":"{{item.Operator}}"}""");
-            var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
-            Assert.Equal(item.Count, preview.GetProperty("scenario").GetProperty("count").GetInt64());
-        }
+        // 沿用總帳日期的傳票核准日每一筆都有值：「非空白」選到全部兩筆，選「空白」一定是 0 筆，所以直接請審計員移除。
+        var notBlank = Scenario("""{"type":"fieldValue","field":"approvalDate","operator":"isNotBlank"}""");
+        var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = notBlank }));
+        Assert.Equal(2, preview.GetProperty("scenario").GetProperty("count").GetInt64());
+        var blank = Scenario("""{"type":"fieldValue","field":"approvalDate","operator":"isBlank"}""");
+        var rejected = await Assert.ThrowsAsync<JetActionException>(() =>
+            host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = blank })));
+        Assert.Equal("第 1 組第 1 條：GL 中的傳票核准日不會空白，請移除這條條件", rejected.Message);
     }
 
     private static async Task<string> SetupAsync(HandlerTestHost host, string provider)

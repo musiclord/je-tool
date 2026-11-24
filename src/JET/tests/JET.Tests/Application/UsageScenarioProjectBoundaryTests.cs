@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using JET.Domain;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
@@ -45,7 +46,7 @@ public sealed class UsageScenarioProjectBoundaryTests
         var projectPath = Path.Combine(host.ProjectsRoot, id, "project.json");
         var document = JsonNode.Parse(await File.ReadAllTextAsync(projectPath))!;
         document["periodStart"] = "synthetic-invalid-date";
-        await File.WriteAllTextAsync(projectPath, document.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(projectPath, document.ToJsonString());
         const string correlationId = "synthetic-picker-load-failure";
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load",
             JsonSerializer.Serialize(new { projectId = id }), correlationId: correlationId));

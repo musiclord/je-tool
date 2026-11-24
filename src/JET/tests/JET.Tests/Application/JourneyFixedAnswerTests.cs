@@ -41,24 +41,23 @@ public sealed class JourneyFixedAnswerTests
         long seed,
         int pageSize)
     {
-        var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
-        PinSampleSeed(host.ProjectsRoot, context.ProjectId, seed);
+        // 兩個案件各自從頭建立，建好時的種子不同，固定種子之後才抽得出同一份樣本。
+        var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider, fromScratch: true);
+        await PinSampleSeedAsync(host.ProjectsRoot, context.ProjectId, seed);
         await host.DispatchAsync("validate.run");
         return await WalkInfSamplePagesAsync(host, pageSize);
     }
 
     /// <summary>
-    /// 把案件 project.json 的 sampleSeed 與抽樣演算法版本一起固定，
+    /// 把案件的隨機種子與抽樣演算法版本一起固定，設定檔與案件資料庫都改，
     /// 讓兩個案件用同一版演算法、抽出同一組樣本。
     /// </summary>
-    private static void PinSampleSeed(string projectsRoot, string projectId, long seed)
-    {
-        var path = Path.Combine(projectsRoot, projectId, "project.json");
-        var node = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
-        node["sampleSeed"] = seed;
-        node["sampleSeedVersion"] = JetAuditProgram.CurrentInfSamplingAlgorithmVersion;
-        File.WriteAllText(path, node.ToJsonString());
-    }
+    private static Task PinSampleSeedAsync(string projectsRoot, string projectId, long seed) =>
+        ProtectedSettingEdits.ApplyAsync(projectsRoot, projectId, document => document with
+        {
+            SampleSeed = seed,
+            SampleSeedVersion = JetAuditProgram.CurrentInfSamplingAlgorithmVersion
+        });
 
     /// <summary>
     /// 逐頁帶 nextCursor 走訪 query.infSamplePage 到底，回傳完整 wire row 序列；

@@ -24,6 +24,8 @@ internal sealed record ProjectRepositories
     public required ILockService LockService { get; init; }
     public required IProjectDeletionLockService DeletionLockService { get; init; }
     public required IProjectCreateFactsPort ProjectCreateFacts { get; init; }
+    /// <summary>案件資料庫記的案件設定；開案時用它和設定檔比對。</summary>
+    public required IProjectSettingStore ProjectSettings { get; init; }
 
     // 匯入、欄位配對與參考資料
     public required IImportRepository Imports { get; init; }

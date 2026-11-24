@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using JET.Application;
+using JET.AuditCore;
 using JET.Domain;
 using Xunit;
 
@@ -8,28 +9,147 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 前端為了就近提示，持有幾份後端規則的副本。這裡逐份比對副本與後端權威值，任何一邊改了另一邊沒跟上就失敗。
-/// 後端仍是權威；本檔只讀前端原始碼並用正則擷取，不執行 JavaScript。所有資料都是合成值。
+/// 後端仍是權威；本檔只讀前端原始碼與前端測試夾具並用正則擷取，不執行 JavaScript。所有資料都是合成值。
 /// </summary>
 public sealed class FilterBackendRuleMirrorFrontendTests
 {
+    // 刻意保留、和預設清單無關的單一字詞：卡片名稱舉的例子、範例條件預填的一個字詞，以及訊息紀錄等級的名稱。
+    // 每一項必須在該檔剛好出現一次，掃描前先拿掉；其他地方出現預設字詞就是畫面自己留了一份清單。
+    private static readonly (string File, string Text)[] KeywordExampleAllowList =
+    [
+        ("js/ui-core.js", "label: '特定摘要(如迴轉、調整等)'"),
+        ("js/ui-core.js", "operator: 'contains', values: ['迴轉'], includeBlank: false"),
+        ("js/app.js", "error: '錯誤'")
+    ];
+
+    // 摘要的預設關鍵字只有後端一份，畫面照 project.load 的 suspiciousKeywordDefaults 預填，不在畫面程式另寫字詞。
     [Fact]
-    public void SuspiciousKeywordDefaults_MatchBackendWordForWordAndInOrder()
+    public void SuspiciousKeywordDefaults_AreReadFromProjectLoad_NotListedInFrontend()
     {
         var core = ReadFrontend("js", "ui-core.js");
-        var match = Regex.Match(
-            core,
-            @"var\s+SUSPICIOUS_KEYWORD_DEFAULTS\s*=\s*\[(?<body>[^\]]*)\];",
+        Assert.DoesNotContain("SUSPICIOUS_KEYWORD_DEFAULTS", core, StringComparison.Ordinal);
+        Assert.Contains("data.suspiciousKeywordDefaults", core, StringComparison.Ordinal);
+
+        // 英文字詞前後不能接英數字，免得 PREV 這類名稱被當成 REV；中文字詞直接比對。
+        var keyword = "(?:" + string.Join("|", SuspiciousKeywordDefaults.Defaults
+            .OrderByDescending(static word => word.Length)
+            .Select(static word => Regex.IsMatch(word, "^[A-Za-z]+$")
+                ? @"(?<![A-Za-z0-9_])" + Regex.Escape(word) + @"(?![A-Za-z0-9_])"
+                : Regex.Escape(word))) + ")";
+        var adjacent = new Regex(
+            "[\"'`]?" + keyword + "[\"'`]?" + @"\s*[,、，;；|/]\s*" + "[\"'`]?" + keyword,
             RegexOptions.CultureInvariant);
-        Assert.True(match.Success, "ui-core.js 內找不到 SUSPICIOUS_KEYWORD_DEFAULTS。");
 
-        var frontend = Regex.Matches(match.Groups["body"].Value, @"'(?<word>[^']*)'")
-            .Select(item => item.Groups["word"].Value)
-            .ToArray();
+        foreach (var (file, original) in FrontendSources())
+        {
+            var source = original;
+            foreach (var (_, text) in KeywordExampleAllowList.Where(entry => entry.File == file))
+            {
+                Assert.True(
+                    CountOccurrences(source, text) == 1,
+                    $"{file} 的允許清單項目「{text}」應剛好出現一次。");
+                source = source.Replace(text, string.Empty, StringComparison.Ordinal);
+            }
 
-        // 連順序一起比：「特定摘要」卡片照這份清單的順序帶入字詞（ui-core.js 的 SUSPICIOUS_KEYWORD_DEFAULTS.slice()），
-        // 審計員在畫面上看到的就是這個順序。
-        Assert.Equal(SuspiciousKeywordDefaults.Defaults, frontend);
-        Assert.Contains("values: SUSPICIOUS_KEYWORD_DEFAULTS.slice()", core, StringComparison.Ordinal);
+            foreach (var word in SuspiciousKeywordDefaults.Defaults)
+            {
+                foreach (var quote in new[] { "'", "\"", "`" })
+                {
+                    Assert.False(
+                        source.Contains(quote + word + quote, StringComparison.Ordinal),
+                        $"{file} 自己寫了預設關鍵字 {quote}{word}{quote}。");
+                }
+            }
+
+            var listed = adjacent.Match(source);
+            Assert.False(listed.Success, $"{file} 把預設關鍵字寫成清單：{listed.Value}");
+        }
+
+        foreach (var (file, _) in KeywordExampleAllowList)
+        {
+            Assert.Contains(file, FrontendSources().Select(static entry => entry.File));
+        }
+    }
+
+    // 第四步的抽樣預設筆數與上限只有後端一份，畫面照 project.load 的 infSampling 顯示。
+    [Fact]
+    public void InfSampleSizeDefaults_AreReadFromProjectLoad_NotWrittenInFrontend()
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var defaultSize = InfSampling.DefaultSampleSize.ToString(invariant);
+        var validate = ReadFrontend("js", "steps", "validate-step.js");
+        Assert.DoesNotMatch(new Regex(@"(?<![\d.,])" + defaultSize + @"(?![\d.])", RegexOptions.CultureInvariant), validate);
+
+        // 「預設 59 筆」「59 筆」這類句子：數字和「筆」之間、「預設」和數字之間可以有空白；數字前後不能接數字、小數點、逗號或底線。
+        var defaultSentence = new Regex(
+            @"(?<![\d.,_])" + defaultSize + @"\s*筆|預設\s*" + defaultSize + @"(?![\d.,_])",
+            RegexOptions.CultureInvariant);
+        var maximumForms = new[]
+        {
+            InfSampling.MaximumSampleSize.ToString(invariant),
+            InfSampling.MaximumSampleSize.ToString("N0", invariant),
+            InfSampling.MaximumSampleSize.ToString("N0", invariant).Replace(",", "_", StringComparison.Ordinal)
+        };
+        foreach (var (file, source) in FrontendSources())
+        {
+            var sentence = defaultSentence.Match(source);
+            Assert.False(sentence.Success, $"{file} 自己寫了抽樣預設筆數：{sentence.Value}");
+            foreach (var maximum in maximumForms)
+            {
+                Assert.False(
+                    source.Contains(maximum, StringComparison.Ordinal),
+                    $"{file} 自己寫了抽樣筆數上限 {maximum}。");
+            }
+        }
+
+        Assert.Contains("data.infSampling", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
+    }
+
+    // 前端測試夾具 LOADED_RULE_DEFAULTS 代替 project.load 把三個值放進畫面，值要和後端常數相同。
+    [Fact]
+    public void LoadedRuleDefaultsFixture_MatchesBackendDefaults()
+    {
+        var path = Path.Combine(SolutionRoot(), "tests", "frontend", "support", "frontend-fixtures.cjs");
+        Assert.True(File.Exists(path), $"找不到前端測試夾具：{path}");
+        var block = Regex.Match(
+            File.ReadAllText(path),
+            @"^const LOADED_RULE_DEFAULTS = \{(?<body>.*?)\n\};",
+            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        Assert.True(block.Success, "frontend-fixtures.cjs 內找不到 LOADED_RULE_DEFAULTS。");
+        var body = block.Groups["body"].Value;
+
+        Assert.Equal(
+            ["infSampling", "suspiciousKeywordDefaults"],
+            Regex.Matches(body, @"^  (?<key>\w+):", RegexOptions.Multiline | RegexOptions.CultureInvariant)
+                .Select(static match => match.Groups["key"].Value));
+
+        var sampling = Regex.Match(
+            body,
+            @"infSampling:\s*\{\s*defaultSampleSize:\s*(?<default>\d+),\s*maximumSampleSize:\s*(?<maximum>\d+)\s*\}",
+            RegexOptions.CultureInvariant);
+        Assert.True(sampling.Success, "LOADED_RULE_DEFAULTS 的 infSampling 不是預期的寫法。");
+        Assert.Equal(InfSampling.DefaultSampleSize, int.Parse(sampling.Groups["default"].Value, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(InfSampling.MaximumSampleSize, int.Parse(sampling.Groups["maximum"].Value, System.Globalization.CultureInfo.InvariantCulture));
+
+        var keywords = Regex.Match(body, @"suspiciousKeywordDefaults:\s*\[(?<items>[^\]]*)\]", RegexOptions.CultureInvariant);
+        Assert.True(keywords.Success, "LOADED_RULE_DEFAULTS 的 suspiciousKeywordDefaults 不是預期的寫法。");
+        var items = keywords.Groups["items"].Value;
+        Assert.Matches(new Regex(@"^(\s*'[^']*'\s*,)*\s*'[^']*'\s*$", RegexOptions.CultureInvariant), items);
+        Assert.Equal(
+            SuspiciousKeywordDefaults.Defaults,
+            Regex.Matches(items, @"'(?<value>[^']*)'").Select(static match => match.Groups["value"].Value));
+    }
+
+    private static int CountOccurrences(string source, string text)
+    {
+        var count = 0;
+        for (var index = source.IndexOf(text, StringComparison.Ordinal); index >= 0;
+             index = source.IndexOf(text, index + text.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
     }
 
     [Fact]
@@ -616,6 +736,15 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     private static string ReadFrontend(params string[] segments) => ReadSource(["wwwroot", .. segments]);
+
+    // 全部前端 js 與 index.html；檔名是 wwwroot 底下的相對路徑，用斜線分隔。
+    private static IEnumerable<(string File, string Source)> FrontendSources()
+    {
+        var root = Path.Combine(SolutionRoot(), "JET", "wwwroot");
+        return Directory.EnumerateFiles(Path.Combine(root, "js"), "*.js", SearchOption.AllDirectories)
+            .Append(Path.Combine(root, "index.html"))
+            .Select(path => (Path.GetRelativePath(root, path).Replace('\\', '/'), File.ReadAllText(path)));
+    }
 
     private static string ReadSource(params string[] segments)
     {

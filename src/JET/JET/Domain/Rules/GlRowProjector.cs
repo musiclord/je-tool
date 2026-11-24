@@ -268,29 +268,8 @@ public static class GlRowProjector
         GlMappingSpec spec,
         string key,
         out decimal value,
-        out RowProjectionError? error)
-    {
-        value = 0m;
-        error = null;
-
-        var raw = GetMappedValue(row, spec, key);
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return true;
-        }
-
-        if (MoneyScaling.TryParseAmount(raw, out value))
-        {
-            return true;
-        }
-
-        error = new RowProjectionError(
-            row.SourceRowNumber,
-            MappedColumnOrKey(spec, key),
-            raw,
-            ProjectionErrorReasons.AmountInvalid);
-        return false;
-    }
+        out RowProjectionError? error) =>
+        MappedAmountCell.TryParse(row, spec.Mapping, key, out value, out error);
 
     // 空白是沒有日期。有內容卻讀不成日期時也回 null，並記下原文；讀得成但年份不在 1900 到 2100 年之間的照樣回日期，也記下來。
     private static string? ProjectDate(
@@ -477,8 +456,7 @@ public static class GlRowProjector
                         null));
                     break;
                 case RdeFieldValueTypeNames.Amount:
-                    if (!MoneyScaling.TryParseAmount(raw, out var amount)
-                        || !MoneyScaling.TryToScaled(amount, moneyScale, out var scaled))
+                    if (!MoneyScaling.TryParseScaled(raw, moneyScale, out var scaled))
                     {
                         values = [];
                         error = new RowProjectionError(

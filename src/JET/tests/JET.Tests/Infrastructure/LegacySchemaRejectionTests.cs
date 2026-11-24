@@ -202,8 +202,8 @@ public sealed class LegacySchemaRejectionTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        // 新資料庫直接建成現行結構，不經過升版；現行版本是第 20 版，版本比它小的案件都擋下。
-        Assert.Equal("20", await command.ExecuteScalarAsync() as string);
-        Assert.Equal("20", LocalSchemaReadiness.CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // 新資料庫直接建成現行結構，不經過升版；現行版本是第 21 版，版本比它小的案件都擋下。
+        Assert.Equal("21", await command.ExecuteScalarAsync() as string);
+        Assert.Equal("21", LocalSchemaReadiness.CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }

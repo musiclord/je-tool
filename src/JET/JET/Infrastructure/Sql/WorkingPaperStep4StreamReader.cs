@@ -35,7 +35,7 @@ internal static class WorkingPaperStep4StreamReader
         command.CommandText =
             "WITH hit_position AS (" +
             "    SELECT DISTINCT hit.voucher_number, fs.position AS scenario_position, " +
-            "           CASE WHEN hit.voucher_number IS NULL THEN hit.entry_id ELSE 0 END AS blank_entry_id " +
+            $"           CASE WHEN {HitVoucherRows.HasNoVoucherNumber("hit")} THEN hit.entry_id ELSE 0 END AS blank_entry_id " +
             $"    FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
             $"    JOIN {schemaPrefix}gl hit ON hit.entry_id = r.entry_id " +
             $"    WHERE {GlPopulationScopeSql.Predicate(context, "hit")} " +
@@ -57,7 +57,7 @@ internal static class WorkingPaperStep4StreamReader
             "UNION ALL SELECT g.voucher_number, g.gl_date, g.created_by, " +
             "       g.debit_amount_scaled, h.tag_mask, h.blank_entry_id " +
             $"FROM {schemaPrefix}gl g JOIN hit_voucher h ON h.blank_entry_id = g.entry_id " +
-            $"WHERE h.voucher_number IS NULL AND g.voucher_number IS NULL AND {GlPopulationScopeSql.Predicate(context, "g")}" +
+            $"WHERE {HitVoucherRows.HasNoVoucherNumber("h")} AND {HitVoucherRows.HasNoVoucherNumber("g")} AND {GlPopulationScopeSql.Predicate(context, "g")}" +
             ") SELECT voucher_number, gl_date, created_by, debit_s, tag_mask FROM voucher_rows " +
             "ORDER BY COALESCE(voucher_number, ''), blank_entry_id;";
         command.CommandTimeout = 0;

@@ -9,7 +9,29 @@
   var Ui = global.JetUi;
   var metadataDraft = null;
 
-  Ui.registerWorkflowReset(function () { metadataDraft = null; });
+  // 建立案件表單填到一半的內容與表單上的錯誤：{ values, error, createdProjectId }。中央面板重畫時表單整個換新，
+  // 照這裡把已填的值與錯誤畫回去。createdProjectId 是這張表單已經建立、還沒開啟的案件，還沒建立時是 null。
+  // 回首頁或開了案件就清掉，下一次「新增案件」是空白表單。
+  var createDraft = null;
+  var CREATE_FIELDS = ['projectName', 'projectCode', 'clientName', 'periodStart', 'periodEnd', 'prepStartDate'];
+
+  // 兩張表單現在畫在畫面上的那一個元素。後端的回應回來時，錯誤標在這裡記的表單上，不標在送出當時的那一個：
+  // 等待回應的期間中央面板可能已經重畫，原本那一個不在畫面上了。
+  var shownForms = { create: null, update: null };
+
+  Ui.registerWorkflowReset(function () { metadataDraft = null; createDraft = null; });
+
+  function freshCreateDraft() {
+    var values = {};
+    CREATE_FIELDS.forEach(function (name) { values[name] = ''; });
+    return { values: values, error: null, createdProjectId: null };
+  }
+
+  function readCreateValues(form) {
+    var values = {};
+    CREATE_FIELDS.forEach(function (name) { values[name] = form.elements[name].value; });
+    return values;
+  }
 
   function formRow(name, label, type, required, value) {
     return (
@@ -51,6 +73,7 @@
   };
 
   function clearCreateError(form, updating) {
+    if (!form) { return; }
     var summary = form.querySelector('[data-bind="' + (updating ? 'project-update-error' : 'create-error') + '"]');
     // 只收起不清空：錯誤訊息要帶著原文字收合；下次顯示時 showCreateError 會先寫入新訊息。
     if (summary) { summary.hidden = true; }
@@ -61,9 +84,11 @@
     });
   }
 
-  function showCreateError(form, error, updating) {
-    var summary = form.querySelector('[data-bind="' + (updating ? 'project-update-error' : 'create-error') + '"]');
-    if (!summary) { return; }
+  // 把錯誤畫到表單上：原因寫進錯誤框，後端指明的欄位標成有誤。回傳該拿焦點的元素（那一欄，沒有指明欄位時是錯誤框）。
+  // 重畫之後照記下的錯誤再畫一次時只呼叫這一個，不移動焦點。
+  function markCreateError(form, error, updating) {
+    var summary = form ? form.querySelector('[data-bind="' + (updating ? 'project-update-error' : 'create-error') + '"]') : null;
+    if (!summary) { return null; }
     var message = Ui.errorText(error, updating ? '無法儲存案件資料。' : '無法建立案件。');
     summary.textContent = message;
     summary.hidden = false;
@@ -76,6 +101,13 @@
       target.setAttribute('aria-invalid', 'true');
       target.setAttribute('aria-describedby', updating ? 'project-update-error' : 'create-form-error');
     }
+    return target;
+  }
+
+  // 錯誤剛發生時：畫到表單上，並把焦點移到有誤的欄位或錯誤框。
+  function showCreateError(form, error, updating) {
+    var target = markCreateError(form, error, updating);
+    if (!target) { return; }
 
     if (global.JetFocus) {
       global.JetFocus.defer(target);
@@ -177,6 +209,7 @@
       focusMetadata('[data-action="edit-project-metadata"]');
     }); }
     var form = container.querySelector('[data-bind="project-update-form"]');
+    shownForms.update = form;
     if (!form) { return; }
     var draft = metadataDraft;
     function isCurrent() { return Store.getState().project === project && metadataDraft === draft; }
@@ -194,11 +227,13 @@
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       if (!isCurrent()) { return; }
-      draft.values = readValues(); draft.error = null;
-      clearCreateError(form, true);
+      draft.values = readValues();
       var payload = { clientName: draft.values.clientName.trim(), projectCode: draft.values.projectCode.trim(),
         prepStartDate: draft.values.prepStartDate || null };
       Ui.run('儲存案件資料', function () {
+        // 真的開始儲存時才收起上一次的錯誤；另一項作業還在進行時它照樣留著。
+        draft.error = null;
+        clearCreateError(shownForms.update, true);
         return global.JetApi.projectUpdate(payload).then(function (data) {
           if (!isCurrent()) { return; }
           metadataDraft = null;
@@ -210,9 +245,9 @@
           if (isCurrent()) { throw error; }
         });
       }, { inlineError: true, onError: function (_, error) {
-        if (!isCurrent()) { return; }
+        if (!isCurrent() || Ui.isCancelledOrInProgress(error)) { return; }
         draft.error = error;
-        showCreateError(form, error, true);
+        showCreateError(shownForms.update, error, true);
       } });
     });
   }
@@ -240,6 +275,9 @@
   function render(container, state) {
     if (metadataDraft && metadataDraft.project !== state.project) { metadataDraft = null; }
     if (state.project) {
+      // 已經開了案件：建立表單不在畫面上，填到一半的內容不再需要。
+      createDraft = null;
+      shownForms.create = null;
       container.innerHTML =
         '<div class="panel" data-motion-key="create-summary-panel">' +
           '<h2 class="panel__title">建立案件</h2>' +
@@ -262,17 +300,22 @@
       return;
     }
 
+    shownForms.update = null;
+    if (!createDraft) { createDraft = freshCreateDraft(); }
+    var draft = createDraft;
+    // 還沒填的欄位不寫 value 屬性，和空白表單畫出來的一樣。
+    function filled(name) { return draft.values[name] || null; }
     container.innerHTML =
       '<div class="panel" data-motion-key="create-form-panel">' +
         '<h2 class="panel__title">建立案件</h2>' +
         '<form class="form" data-bind="create-form">' +
-          formRow('projectName', '案件名稱', 'text', true) +
-          formRow('projectCode', '案件編號', 'text', false) +
-          formRow('clientName', '客戶名稱', 'text', false) +
+          formRow('projectName', '案件名稱', 'text', true, filled('projectName')) +
+          formRow('projectCode', '案件編號', 'text', false, filled('projectCode')) +
+          formRow('clientName', '客戶名稱', 'text', false, filled('clientName')) +
           operatorNoticeHtml(state) +
-          formRow('periodStart', '查核起始日', 'date', true) +
-          formRow('periodEnd', '查核截止日', 'date', true) +
-          formRow('prepStartDate', '期末財報準備日', 'date', false) +
+          formRow('periodStart', '查核起始日', 'date', true, filled('periodStart')) +
+          formRow('periodEnd', '查核截止日', 'date', true, filled('periodEnd')) +
+          formRow('prepStartDate', '期末財報準備日', 'date', false, filled('prepStartDate')) +
           preparationWarningHtml() +
           '<p class="rule-card__sub">查核期間決定本次分析的總帳範圍；期末財報準備日供「財報準備日起核准」條件使用，不會延長查核期間。</p>' +
           '<div id="create-form-error" class="form-notice create-form__error" data-bind="create-error" data-collapsible role="alert" tabindex="-1" hidden></div>' +
@@ -285,53 +328,81 @@
 
     Ui.bindStepFooter(container);
 
-    container.querySelector('[data-bind="create-form"]').addEventListener('submit', function (event) {
+    var form = container.querySelector('[data-bind="create-form"]');
+    shownForms.create = form;
+    // 重畫之後照記下的內容畫回去：準備日的提醒依已填的日期重算，錯誤照原樣標上，不移動焦點。
+    updatePreparationWarning(form, null);
+    if (draft.error) { markCreateError(form, draft.error); }
+
+    form.addEventListener('submit', function (event) {
       event.preventDefault();
 
-      var form = event.target;
-      clearCreateError(form);
+      // 這張表單的案件已經建立、只是沒有開啟，而且當時也放不掉它，畫面才會還在這裡：再按一次只開啟它，不再建立一次。
+      if (draft.createdProjectId) {
+        Ui.openCreatedProject(draft.createdProjectId);
+        return;
+      }
+
+      draft.values = readCreateValues(form);
       var payload = {
-        projectName: form.projectName.value.trim(),
-        projectCode: form.projectCode.value.trim(),
-        clientName: form.clientName.value.trim(),
-        periodStart: form.periodStart.value,
-        periodEnd: form.periodEnd.value,
-        prepStartDate: form.prepStartDate.value || null
+        projectName: draft.values.projectName.trim(),
+        projectCode: draft.values.projectCode.trim(),
+        clientName: draft.values.clientName.trim(),
+        periodStart: draft.values.periodStart,
+        periodEnd: draft.values.periodEnd,
+        prepStartDate: draft.values.prepStartDate || null
       };
+      // 送出前就看得出的問題：換掉表單上原本的錯誤，不送出。
+      function showProblem(problem) {
+        draft.error = problem;
+        clearCreateError(form);
+        showCreateError(form, problem);
+      }
       if (!payload.projectName) {
-        showCreateError(form, { field: 'projectName', message: '案件名稱不可為空白，請輸入可辨識這個案件的名稱。' });
+        showProblem({ field: 'projectName', message: '案件名稱不可為空白，請輸入可辨識這個案件的名稱。' });
         return;
       }
       // 年份先看：年份多於四位數的日期做字串比較會排錯順序，不能落到下面的起訖比較。
       var yearProblemField = periodYearProblemField(payload);
       if (yearProblemField) {
-        showCreateError(form, { field: yearProblemField, message: periodYearMessages[yearProblemField] });
+        showProblem({ field: yearProblemField, message: periodYearMessages[yearProblemField] });
         return;
       }
       if (payload.periodStart && payload.periodEnd && payload.periodStart > payload.periodEnd) {
-        showCreateError(form, { field: 'periodStart', message: '查核起始日不能晚於查核截止日，請調整日期後再建立案件。' });
+        showProblem({ field: 'periodStart', message: '查核起始日不能晚於查核截止日，請調整日期後再建立案件。' });
         return;
       }
 
       Ui.run('建立案件', function () {
+        // 真的開始建立時才收起上一次的錯誤；另一項作業還在進行時它照樣留著。
+        draft.error = null;
+        clearCreateError(shownForms.create);
         return global.JetApi.projectCreate(payload).then(function (data) {
+          draft.createdProjectId = data.projectId;
           Store.addMessage('案件「' + data.projectId + '」已建立。', 'info');
           (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
-          return global.JetApi.projectLoad({ projectId: data.projectId });
-        }).then(function (loaded) {
-          Ui.applyLoadedProject(loaded);
         });
       }, {
         // 原因寫在表單上方的錯誤框，不另外在步驟上方顯示。
         inlineError: true,
-        onError: function (_, error) { showCreateError(form, error); }
+        onError: function (_, error) {
+          if (Ui.isCancelledOrInProgress(error)) { return; }
+          draft.error = error;
+          showCreateError(shownForms.create, error);
+        }
+      }).then(function () {
+        // 建立與開啟是兩項作業：建立成功才開啟。開啟沒有成功時案件已經存在，由開啟那一邊帶回案件清單，不寫成建立失敗。
+        if (draft.createdProjectId) { return Ui.openCreatedProject(draft.createdProjectId); }
       });
     });
 
-    container.querySelector('[data-bind="create-form"]').addEventListener('input', function (event) {
+    form.addEventListener('input', function (event) {
       if (event.target && event.target.matches('input, select')) {
-        clearCreateError(event.currentTarget);
-        updatePreparationWarning(event.currentTarget, null);
+        // 每次輸入都記下整張表單的值；重新輸入後上一次的錯誤不再適用。
+        draft.values = readCreateValues(form);
+        draft.error = null;
+        clearCreateError(form);
+        updatePreparationWarning(form, null);
       }
     });
   }

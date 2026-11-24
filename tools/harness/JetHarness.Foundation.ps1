@@ -123,7 +123,8 @@ function Read-JetRegistry {
         }
     }
     # 9.0：拿掉 Provider 命令與路線（裁定 2026-11-06-08）。
-    if ([string]$registry.runnerContractVersion -cne '9.0') {
+    # 10.0：拿掉 PrivateCase 命令與路線（使用者 2026-11-24 要求移除）。
+    if ([string]$registry.runnerContractVersion -cne '10.0') {
         throw [InvalidDataException]::new('Unsupported runner contract version.')
     }
     # 2026-10-13：建置、.NET 測試與前端測試的自有程序樹記憶體上限，至少 1024 MB。
@@ -137,7 +138,7 @@ function Read-JetRegistry {
             Where-Object { [bool]$registry.lanes[$_].enabled } |
             Sort-Object
     )
-    if (($enabledLaneNames -join ',') -cne 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Public,ReleaseCandidate') {
+    if (($enabledLaneNames -join ',') -cne 'Excel,Focused,Foundation,Gui,Mutation,Package,Public,ReleaseCandidate') {
         throw [InvalidDataException]::new(
             'The enabled lane set does not match the currently implemented Harness boundary.')
     }
@@ -150,16 +151,14 @@ function Read-JetRegistry {
         if ([bool]$command.enabled -and -not [bool]$registry.lanes[[string]$command.lane].enabled) {
             throw [InvalidDataException]::new("Enabled command '$commandName' references a disabled lane.")
         }
-        if ([bool]$command.enabled -and [bool]$command.privateDataAccess -and $commandName -cne 'PrivateCase') {
-            throw [InvalidDataException]::new('Only the PrivateCase command may access private data.')
+        if ([bool]$command.privateDataAccess) {
+            throw [InvalidDataException]::new('No command may access private data.')
         }
     }
-    if (-not $registry.commands.ContainsKey('PrivateCase') -or
-        -not [bool]$registry.commands.PrivateCase.enabled -or
-        [string]$registry.commands.PrivateCase.lane -cne 'PrivateCase' -or
-        -not [bool]$registry.commands.PrivateCase.requiresExclusiveLock -or
-        -not [bool]$registry.commands.PrivateCase.privateDataAccess) {
-        throw [InvalidDataException]::new('The PrivateCase command boundary is invalid.')
+    foreach ($laneName in $registry.lanes.Keys) {
+        if ([bool]$registry.lanes[$laneName].privateDataAccess) {
+            throw [InvalidDataException]::new('No lane may access private data.')
+        }
     }
     if (-not $registry.commands.ContainsKey('ReleaseCandidate') -or
         -not [bool]$registry.commands.ReleaseCandidate.enabled -or
@@ -185,10 +184,6 @@ function Read-JetRegistry {
             'seed',
             'publicMinimumExpectedTests',
             'publicSkipPolicy',
-            'privateCaseMinimumExpectedTests',
-            'privateCaseRootEnvironmentVariable',
-            'privateCaseManifestEnvironmentVariable',
-            'privateCaseProviderEnvironmentVariable',
             'packageMinimumExpectedTests',
             'packageMethodPatterns',
             'guiFixtureMinimumExpectedTests',
@@ -218,7 +213,6 @@ function Read-JetRegistry {
     }
     foreach ($minimumName in @(
             'publicMinimumExpectedTests',
-            'privateCaseMinimumExpectedTests',
             'packageMinimumExpectedTests',
             'guiFixtureMinimumExpectedTests')) {
         if ([int]$testSettings[$minimumName] -lt 1) {
@@ -268,21 +262,6 @@ function Read-JetRegistry {
             throw [InvalidDataException]::new('Sanitized environment-variable names contain an invalid name.')
         }
     }
-    $privateEnvironmentNames = @(
-        [string]$testSettings.privateCaseRootEnvironmentVariable,
-        [string]$testSettings.privateCaseManifestEnvironmentVariable,
-        [string]$testSettings.privateCaseProviderEnvironmentVariable)
-    if (($privateEnvironmentNames -join ',') -cne
-            'JET_PRIVATE_CASE_ROOT,JET_PRIVATE_CASE_MANIFEST,JET_PRIVATE_CASE_PROVIDER' -or
-        @($privateEnvironmentNames | Sort-Object -Unique).Count -ne 3) {
-        throw [InvalidDataException]::new('PrivateCase environment-variable names are invalid.')
-    }
-    foreach ($name in $privateEnvironmentNames) {
-        if ($environmentNames -cnotcontains $name) {
-            throw [InvalidDataException]::new(
-                'General commands must remove every PrivateCase environment variable.')
-        }
-    }
     if ([string]$testSettings.publicSkipPolicy -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]+\.json$') {
         throw [InvalidDataException]::new('Skip-policy file name is invalid.')
     }
@@ -299,15 +278,14 @@ function Read-JetRegistry {
     }
 
     $releaseCandidateSettings = $registry.releaseCandidateSettings
-    foreach ($required in @('snapshotWorkspaceRoot', 'privateCaseIncluded', 'steps')) {
+    foreach ($required in @('snapshotWorkspaceRoot', 'steps')) {
         if (-not $releaseCandidateSettings.ContainsKey($required)) {
             throw [InvalidDataException]::new("ReleaseCandidate settings are missing '$required'.")
         }
     }
-    if ([string]$releaseCandidateSettings.snapshotWorkspaceRoot -cne 'artifacts/harness/rc' -or
-        [bool]$releaseCandidateSettings.privateCaseIncluded) {
+    if ([string]$releaseCandidateSettings.snapshotWorkspaceRoot -cne 'artifacts/harness/rc') {
         throw [InvalidDataException]::new(
-            'ReleaseCandidate must use the short owned workspace without PrivateCase.')
+            'ReleaseCandidate must use the short owned workspace.')
     }
     $expectedReleaseCandidateSteps = @(
         [ordered]@{ name = 'contract'; command = 'Contract'; configuration = 'Release'; noRestore = $false },
@@ -538,7 +516,6 @@ function Get-JetRunnerIdentity {
         'tools/harness/JetHarness.Artifacts.ps1',
         'tools/harness/JetHarness.Results.ps1',
         'tools/harness/JetHarness.Steps.ps1',
-        'tools/harness/JetHarness.Preflight.ps1',
         'tools/harness/JetHarness.Lanes.ps1',
         'tools/harness/JetHarness.ReleaseCandidate.ps1',
         'tools/harness/JetContext.ps1',

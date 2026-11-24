@@ -41,7 +41,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 || sampleSize < 1 || sampleSize > InfSampling.MaximumSampleSize)
             {
                 throw new JetActionException("invalid_payload",
-                    "抽樣筆數請填入 1 到 1048524 的整數。", "sampleSize");
+                    $"抽樣筆數請填入 1 到 {InfSampling.MaximumSampleSize} 的整數。", "sampleSize");
             }
         }
 
@@ -294,7 +294,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         manifest.Procedures.Single(verdict =>
             string.Equals(verdict.Definition.Slug, slug, StringComparison.Ordinal));
 
-    private static decimal ToDisplay(long scaled, int moneyScale) => (decimal)scaled / moneyScale;
+    private static decimal ToDisplay(long scaled, int moneyScale) => MoneyScaling.FromScaled(scaled, moneyScale);
 
     private static string[] BlankRowIssues(BlankRecordRow r)
     {

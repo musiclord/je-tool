@@ -312,8 +312,8 @@ public sealed class ProjectReportStoreTests
 
     [Theory]
     [InlineData(ReportKind.ValidationReport, "ValidationReport")]
-    [InlineData(ReportKind.InfReport, "INFReport")]
-    [InlineData(ReportKind.PrescreenReport, "PrescreeningReport")]
+    [InlineData(ReportKind.InfReport, "INF_Report")]
+    [InlineData(ReportKind.PrescreenReport, "Pre-screeningReport")]
     [InlineData(ReportKind.CriteriaSelectionReport, "CriteriaSelectionReport")]
     public async Task WriteAsync_OtherReportKinds_OverwriteSameFileNameAndKeepOneEntryPerKind(
         ReportKind kind, string fileSuffix)
@@ -332,6 +332,63 @@ public sealed class ProjectReportStoreTests
         var listed = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
         Assert.Equal(second.ReportId, listed.ReportId);
         Assert.Equal(2, listed.Bytes);
+    }
+
+    // 清單裡記的檔名結尾和現在的不同時（較早匯出的報告）：
+    // 清單照紀錄的檔名列出，檔案沒被動過就不標成在 JET 之外改過，也照樣能標成過期。
+    // 再匯出一次寫的是現在的檔名，清單只留新的那一筆；較早的檔案留在案件資料夾，JET 不改名也不刪除。
+    [Theory]
+    [InlineData(ReportKind.InfReport, "INFReport", "INF_Report")]
+    [InlineData(ReportKind.PrescreenReport, "PrescreeningReport", "Pre-screeningReport")]
+    public async Task ReportExportedUnderTheEarlierFileName_StaysListedAndIsLeftInPlaceWhenExportedAgain(
+        ReportKind kind, string earlierSuffix, string fileSuffix)
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        var prefix = ProjectFileNames.SafePrefix(ProjectId);
+        var earlierName = $"{prefix}_20250101-20251231_{earlierSuffix}.xlsx";
+        var earlierPath = Path.Combine(directory, earlierName);
+        await File.WriteAllBytesAsync(earlierPath, new byte[] { 9, 9, 9 });
+        var earlierWriteUtc = new DateTimeOffset(File.GetLastWriteTimeUtc(earlierPath), TimeSpan.Zero);
+        await File.WriteAllTextAsync(
+            Path.Combine(directory, ProjectReportStore.ManifestFileName),
+            $$"""
+            [
+              {
+                "reportId": "0123456789abcdef0123456789abcdef",
+                "kind": "{{ReportKindValues.ToValue(kind)}}",
+                "relativeFileName": "{{earlierName}}",
+                "sourceRef": { "validationResultId": "run-1" },
+                "generatedUtc": "2026-11-01T00:00:00+00:00",
+                "bytes": 3,
+                "lastWriteUtc": "{{earlierWriteUtc:O}}",
+                "stale": false
+              }
+            ]
+            """);
+
+        var listed = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
+        Assert.Equal(earlierName, listed.RelativeFileName);
+        Assert.Equal(ReportFileState.AsPublished, listed.FileState);
+        Assert.Equal(earlierPath, listed.FullPath);
+        Assert.Equal(earlierPath, await store.ResolvePathAsync(ProjectId, listed.ReportId, CancellationToken.None));
+        Assert.Equal(1, await store.MarkStaleAsync(ProjectId, kind, CancellationToken.None));
+        Assert.True(Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).Stale);
+
+        var written = await store.WriteAsync(
+            ProjectId,
+            Request(kind, Bytes(1, 2)) with { PeriodStart = "2025-01-01", PeriodEnd = "2025-12-31" },
+            CancellationToken.None);
+
+        Assert.Equal($"{prefix}_20250101-20251231_{fileSuffix}.xlsx", written.RelativeFileName);
+        Assert.Equal(new byte[] { 9, 9, 9 }, await File.ReadAllBytesAsync(earlierPath));
+        Assert.Equal(earlierWriteUtc.UtcDateTime, File.GetLastWriteTimeUtc(earlierPath));
+        Assert.Equal(new byte[] { 1, 2 }, await File.ReadAllBytesAsync(Path.Combine(directory, written.RelativeFileName)));
+        var current = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
+        Assert.Equal(written.ReportId, current.ReportId);
+        Assert.False(current.Stale);
+        Assert.Equal(ReportFileState.AsPublished, current.FileState);
+        Assert.Equal(2, Directory.GetFiles(directory, "*.xlsx").Length);
     }
 
     [Fact]

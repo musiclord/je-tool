@@ -241,7 +241,7 @@ internal sealed class AccountMappingProjection
 
         row.Values.TryGetValue(nameColumn, out var rawName);
         var name = string.IsNullOrWhiteSpace(rawName) ? null : rawName.Trim();
-        // 工作底稿的科目配對工作表在 GL 有、TB 沒有的科目寫「Not in TB」，不是科目名稱，當成沒有名稱。
+        // 科目配對範本與工作底稿的科目配對工作表在沒有名稱可寫的科目寫「Not in TB」，不是科目名稱，當成沒有名稱。
         if (string.Equals(name, AccountMappingExportRow.NotInTbName, StringComparison.Ordinal))
         {
             name = null;
@@ -500,14 +500,22 @@ internal sealed record CalendarFileRequest(
     CalendarDayType DayType,
     string FilePath,
     bool FileExists,
-    string Extension);
+    string Extension)
+{
+    /// <summary>案件的日期讀法，決定民國年的寫法算不算日期；沒有帶時用預設。</summary>
+    public DateParseOptions DateOptions { get; init; } = DateParseOptions.Default;
+}
 
 internal sealed record CalendarPlan(
     string ActionName,
     string ProjectId,
     CalendarDayType DayType,
     IReadOnlyList<string>? Dates,
-    AuditMutationEffects Effects);
+    AuditMutationEffects Effects)
+{
+    /// <summary>讀清單檔的日期欄時用的日期讀法，和這個案件讀 GL 日期時相同。</summary>
+    public DateParseOptions DateOptions { get; init; } = DateParseOptions.Default;
+}
 
 internal sealed record CalendarFacts(int Count);
 
@@ -555,8 +563,13 @@ internal interface IReferenceDataFactsPort
         IReadOnlyList<CalendarDayEntry> entries,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 清除依休息日算出的結果並記下新的休息日，提交前先執行 <paramref name="saveSettings"/>（寫入設定檔）；
+    /// 它失敗時整筆回復。
+    /// </summary>
     Task ExecuteAsync(
         NonWorkingDaysPlan plan,
+        Func<CancellationToken, Task> saveSettings,
         CancellationToken cancellationToken);
 }
 
@@ -947,7 +960,10 @@ public static partial class JetAuditProgram
             request.ActionName,
             request.ProjectId,
             request.DayType,
-            dates: null);
+            dates: null) with
+        {
+            DateOptions = request.DateOptions
+        };
     }
 
     internal static NonWorkingDaysPlan Plan(NonWorkingDaysRequest request)
@@ -1006,12 +1022,9 @@ public static partial class JetAuditProgram
                 continue;
             }
 
-            if (!DateTime.TryParseExact(
-                    date,
-                    "yyyy-MM-dd",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out _))
+            // 清單的日期和 GL 的日期用同一種讀法，審計員不必為這兩份清單另外記一套寫法；
+            // Excel 的日期儲存格在讀檔時已經換成年月日的文字。讀不成日期的值照樣整份不儲存。
+            if (!DateNormalizer.TryNormalize(date, plan.DateOptions, out var isoDate) || isoDate is null)
             {
                 errors.Add(
                     $"第 {row.SourceRowNumber} 列：日期「{date}」不是 2026-12-31 這種格式");
@@ -1045,9 +1058,9 @@ public static partial class JetAuditProgram
                 continue;
             }
 
-            if (seen.Add(date))
+            if (seen.Add(isoDate))
             {
-                collected.Add(new CalendarDayEntry(date, name));
+                collected.Add(new CalendarDayEntry(isoDate, name));
             }
         }
 
@@ -1187,13 +1200,18 @@ public static partial class JetAuditProgram
 
     private static string ExtensionOf(string filePath) => Path.GetExtension(filePath);
 
+    /// <summary>
+    /// 在清單檔的欄名裡找指定的欄：欄名包含關鍵字就算，不分大小寫，也不計較欄名裡的空白、底線與連字號，
+    /// 所以 Date_of_Holiday、date of holiday 與 DateOfHoliday 都認得。
+    /// </summary>
     private static string? FindColumn(
         IReadOnlyList<string> columns,
         string keyword)
     {
+        var wanted = WithoutSeparators(keyword);
         foreach (var column in columns)
         {
-            if (column.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            if (WithoutSeparators(column).Contains(wanted, StringComparison.OrdinalIgnoreCase))
             {
                 return column;
             }
@@ -1201,4 +1219,8 @@ public static partial class JetAuditProgram
 
         return null;
     }
+
+    private static string WithoutSeparators(string columnName) =>
+        string.Concat(columnName.Where(static character =>
+            !char.IsWhiteSpace(character) && character is not ('_' or '-')));
 }

@@ -517,8 +517,7 @@ public static class FilterScenarioPayloadParser
             return null;
         }
 
-        if (!MoneyScaling.TryParseAmount(text, out var value)
-            || !MoneyScaling.TryToScaled(value, moneyScale, out var scaled))
+        if (!MoneyScaling.TryParseScaled(text, moneyScale, out var scaled))
         {
             throw Positioned(label, FilterScenarioValidator.AmountFormatReason(text));
         }

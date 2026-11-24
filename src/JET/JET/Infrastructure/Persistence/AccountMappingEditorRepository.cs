@@ -22,7 +22,9 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         dialect = database.Dialect;
     }
 
-    private static string AccountsCte(string p, ISqlDialect dialect) => AccountMappingPopulationQuery.Cte(p, dialect) + $"""
+    /// <param name="useTbAccountNames">名稱的取法照 <see cref="AccountMappingPopulationQuery.Cte"/> 的同名參數。</param>
+    private static string AccountsCte(string p, ISqlDialect dialect, bool useTbAccountNames = false) =>
+        AccountMappingPopulationQuery.Cte(p, dialect, useTbAccountNames) + $"""
         , accounts AS (
             SELECT account_number, account_name FROM population
             UNION ALL
@@ -31,6 +33,17 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         )
         """;
 
+    /// <summary>
+    /// 已儲存的科目配對有名稱時用這個名稱，沒有名稱（NULL、空字串或只有空白字元）時用科目母體的名稱。
+    /// 審計員上傳的檔案寫了名稱，就一直照那個名稱；檔案沒有名稱或科目還沒存過時，才看試算表與總帳。
+    /// </summary>
+    private static string SavedNameOrPopulationName(ISqlDialect dialect, string savedName, string populationName) =>
+        $"CASE WHEN {SqlBlankText.IsNotBlank(dialect, savedName)} THEN {savedName} ELSE {populationName} END";
+
+    /// <summary>
+    /// 資料預覽的已儲存科目配對，一次只讀一頁，分類照存好的值。
+    /// 名稱欄先顯示已儲存的名稱；沒有存名稱時照全科目表的取法，先取 TB 的名稱，TB 沒有名稱時取 GL 的名稱，兩邊都沒有才留白。
+    /// </summary>
     internal static async Task<DataPreviewResult> PreviewSavedAsync(DbConnection connection, ISqlDialect dialect,
         string prefix, int limit, CancellationToken cancellationToken, int offset = 0)
     {
@@ -42,9 +55,12 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
             count = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
         }
         await using var select = connection.CreateCommand();
-        select.CommandText = $"""
-            SELECT m.account_number, m.account_name, COALESCE(t.label, m.standardized_category)
+        select.CommandText = AccountMappingPopulationQuery.Cte(prefix, dialect) + $"""
+
+            SELECT m.account_number, {SavedNameOrPopulationName(dialect, "m.account_name", "p.account_name")},
+                   COALESCE(t.label, m.standardized_category)
             FROM {prefix}account_mapping m
+            LEFT JOIN population p ON p.account_number = m.account_number
             LEFT JOIN {prefix}account_category t ON t.category_id = m.category_id
             ORDER BY m.account_number
             """ + " LIMIT @limit OFFSET @offset;";
@@ -76,7 +92,7 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
             + source + (hasCursor ? " AND a.account_number > @cursor" : "")
             + " ORDER BY a.account_number " + dialect.LimitClause("@limit") + ";";
         if (hasCursor) command.AddWithValue("@cursor", key);
-        if (!string.IsNullOrEmpty(search)) command.AddWithValue("@search", search.ToUpperInvariant());
+        if (!string.IsNullOrEmpty(search)) command.AddWithValue("@search", SourceText.ComparisonKey(search));
         if (!string.IsNullOrEmpty(categoryId)) command.AddWithValue("@categoryId", categoryId);
         command.AddWithValue("@limit", request.ClampedPageSize + 1);
         var totalCount = await PageTotalCount.ReadAsync(command, request,
@@ -106,6 +122,9 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         var accounts = new Dictionary<string, string?>(StringComparer.Ordinal);
         var roles = new Dictionary<string, string>(StringComparer.Ordinal);
         // 這次要改的科目最多 500 個，全部當成參數用一句查詢查完；不可以每個科目各查一次，那樣每次都要重新彙總整份 GL 與 TB。
+        // 存下的名稱和科目配對範本匯回時相同：範本只寫 TB 的名稱，所以這裡也只取 TB 的名稱，TB 沒有名稱或科目只在 GL 時不存名稱，
+        // 底稿對這種科目和範本一樣寫「Not in TB」。畫面清單顯示的 GL 名稱不存進來。已儲存的名稱有內容時保留，
+        // 審計員在上傳的檔案寫的名稱不因為在畫面改分類而消失。
         await using (var lookup = connection.CreateCommand())
         {
             lookup.Transaction = tx;
@@ -115,8 +134,10 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
                 lookup.AddWithValue(parameter, change.AccountNumber);
                 return parameter;
             }).ToArray();
-            lookup.CommandText = AccountsCte(p, dialect) + " SELECT account_number, account_name FROM accounts WHERE account_number IN ("
-                + string.Join(",", parameters) + ");";
+            lookup.CommandText = AccountsCte(p, dialect, useTbAccountNames: true)
+                + " SELECT a.account_number, " + SavedNameOrPopulationName(dialect, "m.account_name", "a.account_name")
+                + $" FROM accounts a LEFT JOIN {p}account_mapping m ON m.account_number = a.account_number"
+                + " WHERE a.account_number IN (" + string.Join(",", parameters) + ");";
             await using var reader = await lookup.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
                 accounts.Add(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1));

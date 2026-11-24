@@ -15,7 +15,7 @@ internal static class RulePeriodWireKeys
 }
 
 /// <summary>
-/// S2b 降級版「規則 × 全期」前端邊界守衛。所有命中數、去重傳票數與比率都由
+/// 預篩選規則全期命中分布的前端邊界守衛。所有命中數、去重傳票數與比率都由
 /// prescreen.run 的 rulePeriod 提供；前端只套用中文 mirror、格式化與 ECharts option。
 /// 這裡只核對前端鏡射了每個 wire key 與中文標籤；不適用、真的零與極小比率怎麼顯示、圖表設定與在總覽裡的位置，
 /// 由前端的行為測試核對。

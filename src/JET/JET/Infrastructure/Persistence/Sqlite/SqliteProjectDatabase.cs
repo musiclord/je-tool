@@ -1,6 +1,7 @@
 using System.Data.Common;
 using JET.Domain;
 using Microsoft.Data.Sqlite;
+using SQLitePCL;
 
 namespace JET.Infrastructure;
 
@@ -13,7 +14,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     : ILocalProjectDatabase
 {
     /// <summary>
-    /// 案件資料庫的現行結構，建成後標成第 20 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
+    /// 案件資料庫的現行結構，建成後標成第 21 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
     /// 不是現行版本就請審計員刪除案件後重建（案件資料庫只留現行結構）。
     /// 匯入暫存表的 row_number 是同一個批次裡只增不減的排序鍵，INF 抽樣以它為準；
     /// source_row_number 是來源檔裡實際的列號，錯誤訊息用它指出是哪一列；source_no 對應 import_batch_source。
@@ -365,9 +366,35 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
             SELECT RAISE(ABORT, 'project audit log is append-only');
         END;
 
+        -- 以案件資料庫為準的案件設定，只有一列，建案時和資料表在同一個交易裡寫入。
+        -- 建案後不能改的欄位由觸發器擋下修改，整列也不能刪除；準備日與每週休息日只在 JET 修改時更新。
+        CREATE TABLE IF NOT EXISTS project_setting (
+            singleton                   INTEGER PRIMARY KEY CHECK (singleton = 1),
+            period_start                TEXT NOT NULL,
+            period_end                  TEXT NOT NULL,
+            money_scale                 INTEGER NOT NULL,
+            roc_date_enabled            INTEGER NOT NULL CHECK (roc_date_enabled IN (0,1)),
+            sample_seed                 INTEGER NOT NULL,
+            sample_seed_version         INTEGER NOT NULL,
+            operator_id                 TEXT NOT NULL,
+            last_accounting_period_date TEXT,
+            non_working_days            TEXT
+        );
+        CREATE TRIGGER IF NOT EXISTS trg_project_setting_fixed
+        BEFORE UPDATE OF singleton, period_start, period_end, money_scale, roc_date_enabled,
+            sample_seed, sample_seed_version, operator_id ON project_setting
+        BEGIN
+            SELECT RAISE(ABORT, 'project settings fixed at creation cannot change');
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_project_setting_no_delete
+        BEFORE DELETE ON project_setting
+        BEGIN
+            SELECT RAISE(ABORT, 'project settings cannot be deleted');
+        END;
+
         INSERT INTO schema_info (key, value) VALUES ('filter_data_revision', '0')
         ON CONFLICT(key) DO NOTHING;
-        INSERT INTO schema_info (key, value) VALUES ('schema_version', '20')
+        INSERT INTO schema_info (key, value) VALUES ('schema_version', '21')
         ON CONFLICT(key) DO NOTHING;
         """;
 
@@ -376,7 +403,41 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     /// <inheritdoc />
     public IProviderSqlDialect Dialect => SqliteDialect.Instance;
 
-    public DbConnection CreateConnection(string projectId)
+    public DbConnection CreateConnection(string projectId) =>
+        CreateConfiguredConnection(PooledConnectionString(PrepareDatabasePath(projectId)), CaseConnectionSettings);
+
+    /// <summary>
+    /// 一般案件連線每次開啟時的設定：頁面快取 256 MiB。驗證、預篩選、報告與底稿會反覆讀 gl 與它的索引，
+    /// SQLite 給新連線的快取約 2 MiB，GL 大時裝不下常用的頁面，同一批頁面要一再從資料庫檔讀回來。
+    /// 快取讀到資料才配置，小案件用不到這麼多。快取跟著連線走，連線池裡每條連線各有一份，
+    /// 同時開著幾條時，合計由 <see cref="SqliteMemoryLimitBytes"/> 限制。
+    /// 匯入與確認 GL 配對的專用連線不進連線池，各用自己的設定。
+    /// </summary>
+    private const string CaseConnectionSettings = "PRAGMA cache_size=-262144;";
+
+    /// <summary>
+    /// 整個程序裡 SQLite 記憶體的合計上限：1 GiB。這個上限是程序共用的一個值，不分連線；
+    /// 用量接近時 SQLite 先釋放各連線快取裡的頁面，盡量不超過，但寧可略為超過，也不讓配置失敗，
+    /// 所以操作不會因為這個上限出錯。會讓配置直接失敗的硬上限不設。
+    /// </summary>
+    private const long SqliteMemoryLimitBytes = 1L << 30;
+
+    private static int memoryLimitApplied;
+
+    /// <summary>
+    /// 所有案件連線建立時都經過 <see cref="CreateConfiguredConnection"/>，第一次建立時設一次上限，之後的連線共用同一個值。
+    /// 建立連線物件時 Microsoft.Data.Sqlite 已經載入 SQLite，這時才能呼叫。
+    /// </summary>
+    private static void ApplySqliteMemoryLimitOnce()
+    {
+        if (Interlocked.Exchange(ref memoryLimitApplied, 1) == 0)
+        {
+            raw.sqlite3_soft_heap_limit64(SqliteMemoryLimitBytes);
+        }
+    }
+
+    /// <summary>這個案件的資料庫檔路徑；案件資料夾不存在時先建立，開啟讀寫連線時才能建檔。</summary>
+    private string PrepareDatabasePath(string projectId)
     {
         var databasePath = folder.GetDatabasePath(projectId);
 
@@ -386,7 +447,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
             Directory.CreateDirectory(directory);
         }
 
-        return CreateConfiguredConnection(PooledConnectionString(databasePath));
+        return databasePath;
     }
 
     /// <summary>
@@ -421,27 +482,69 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
         return CreateConfiguredConnection(builder.ToString());
     }
 
-    private SqliteConnection CreateConfiguredConnection(string connectionString)
+    private SqliteConnection CreateConfiguredConnection(string connectionString, string? openSettings = null)
     {
         // 取消會中斷執行中的語句，見 CancellableSqliteConnection。
-        var connection = new CancellableSqliteConnection(connectionString, statementObserver);
+        var connection = new CancellableSqliteConnection(connectionString, statementObserver, openSettings);
+        ApplySqliteMemoryLimitOnce();
         // SQLite 內建的 UPPER 只轉 ASCII 字母。篩選條件與預篩選規則的比對值是用 .NET 的 ToUpperInvariant() 轉大寫，
-        // 這裡把 upper 換成同一個方法，兩邊才一致。連線池裡的連線與唯讀連線都經過這裡。
+        // 這裡把 upper 換成同一個方法，兩邊才一致。連線池裡的連線、唯讀連線與匯入、投影的專用連線都經過這裡。
         connection.CreateFunction<string?, string?>("upper", static value => value?.ToUpperInvariant(), isDeterministic: true);
         return connection;
     }
 
     /// <summary>
-    /// 只給匯入用的連線設定。資料庫用 WAL 時，synchronous=NORMAL 仍然保證一致性；
-    /// temp_store 與 cache_size 減少大量寫入時的磁碟讀寫。匯入的 repository 在連線開啟之後、
-    /// 交易開始之前呼叫。這類跟著資料庫種類走的設定只放在 Infrastructure。
+    /// 匯入用的連線。資料庫用 WAL 時，synchronous=NORMAL 仍然保證一致性；
+    /// temp_store 與 cache_size 減少大量寫入時的磁碟讀寫。這類跟著資料庫種類走的設定只放在 Infrastructure。
     /// </summary>
-    public async Task ApplyImportSessionSettingsAsync(DbConnection connection, CancellationToken cancellationToken)
+    public Task<DbConnection> OpenImportConnectionAsync(string projectId, CancellationToken cancellationToken) =>
+        OpenDedicatedConnectionAsync(
+            projectId,
+            "PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536;",
+            cancellationToken);
+
+    /// <summary>
+    /// 確認 GL 配對時投影用的連線：暫存寫進暫存檔，頁面快取 16 MiB。
+    /// 投影在同一個交易裡逐列寫入、建索引，再用一句 UPDATE 補分錄序號；SQLite 為了能單獨撤銷這句 UPDATE，
+    /// 會記下它改過的頁面。暫存放在記憶體時，這份紀錄與建索引的排序都整份留在記憶體，GL 越大用得越多；
+    /// 寫進暫存檔時，超過一定大小的部分寫到磁碟。16 MiB 的快取讓逐列寫入與建索引少讀幾次磁碟。
+    /// </summary>
+    public Task<DbConnection> OpenGlProjectionConnectionAsync(string projectId, CancellationToken cancellationToken) =>
+        OpenDedicatedConnectionAsync(projectId, "PRAGMA temp_store=FILE; PRAGMA cache_size=-16384;", cancellationToken);
+
+    /// <summary>
+    /// 開一條不進連線池的讀寫連線，開啟後立刻套用 <paramref name="settings"/>。
+    /// SQLite 的這類設定跟著連線走，連線池放回連線時不會重設；這條連線用完就關，
+    /// 設定不會留給之後剛好拿到同一條連線的動作。一般案件連線開啟時的快取設定不套用在這裡，
+    /// 其餘和 <see cref="CreateConnection"/> 相同，SQL 函式照樣註冊。
+    /// </summary>
+    private async Task<DbConnection> OpenDedicatedConnectionAsync(
+        string projectId, string settings, CancellationToken cancellationToken)
     {
-        await using var pragma = connection.CreateCommand();
-        pragma.CommandText = "PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536;";
-        await pragma.ExecuteNonQueryAsync(cancellationToken);
+        var connection = CreateConfiguredConnection(
+            new SqliteConnectionStringBuilder(PooledConnectionString(PrepareDatabasePath(projectId)))
+            {
+                Pooling = false
+            }.ToString());
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+            await using var pragma = connection.CreateCommand();
+            pragma.CommandText = settings;
+            await pragma.ExecuteNonQueryAsync(cancellationToken);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
+
+    /// <summary>SQLite 依資料庫結構表記下的定義刪掉與建回索引，見 <see cref="SqliteDeferredIndexes"/>。</summary>
+    public async Task<IDeferredIndexes> DeferIndexesAsync(
+        DbConnection connection, DbTransaction transaction, string table, CancellationToken cancellationToken) =>
+        await SqliteDeferredIndexes.DropAsync(connection, transaction, table, cancellationToken);
 
     /// <summary>SQLite 的批量寫入是把一句參數化 INSERT 包起來重複執行，見 <see cref="SqliteBulkRowWriter"/>。</summary>
     public IBulkRowWriter CreateBulkRowWriter(
@@ -450,29 +553,60 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
 
     private readonly LocalSchemaReadiness readiness = new();
 
-    /// <summary>建案時呼叫：一律重新檢查版本，新資料庫在這裡建表。只有建案會建立新的資料庫。</summary>
+    /// <summary>一律重新檢查版本，新資料庫在這裡建表，不寫入案件設定。只有建案與直接讀寫資料表的程式會建立新的資料庫。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
-            ct => EnsureCreatedCoreAsync(projectId, allowCreate: true, ct),
+            ct => EnsureCreatedCoreAsync(projectId, allowCreate: true, settings: null, ct),
             cancellationToken);
+
+    /// <summary>建案時呼叫：一律重新檢查版本，新資料庫在這裡建表，同一個交易裡寫入案件設定。</summary>
+    public Task EnsureCreatedAsync(
+        string projectId, ProtectedProjectSettings settings, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return readiness.EnsureCreatedAsync(
+            GetDatabasePath(projectId),
+            ct => EnsureCreatedCoreAsync(projectId, allowCreate: true, _ => Task.FromResult(settings), ct),
+            cancellationToken);
+    }
 
     /// <summary>開案時呼叫：一律重新檢查版本，不建立新的資料庫；建案中斷留下的案件在這裡把初始化做完。</summary>
     public Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureExistingAsync(
             GetDatabasePath(projectId),
             folder.GetCreationMarkerPath(projectId),
-            (allowCreate, ct) => EnsureCreatedCoreAsync(projectId, allowCreate, ct),
+            (allowCreate, ct) => EnsureCreatedCoreAsync(projectId, allowCreate, settings: null, ct),
             cancellationToken);
+
+    /// <summary>
+    /// 開案時呼叫，和不傳設定的多載相同；建案中斷留下的案件在這裡把初始化做完時，才向呼叫端取得案件設定並寫入。
+    /// </summary>
+    public Task EnsureExistingAsync(
+        string projectId,
+        Func<CancellationToken, Task<ProtectedProjectSettings>> settingsIfCreating,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(settingsIfCreating);
+        return readiness.EnsureExistingAsync(
+            GetDatabasePath(projectId),
+            folder.GetCreationMarkerPath(projectId),
+            (allowCreate, ct) => EnsureCreatedCoreAsync(projectId, allowCreate, settingsIfCreating, ct),
+            cancellationToken);
+    }
 
     /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次，不建立新的資料庫。</summary>
     public Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureReadyAsync(
             GetDatabasePath(projectId),
-            ct => EnsureCreatedCoreAsync(projectId, allowCreate: false, ct),
+            ct => EnsureCreatedCoreAsync(projectId, allowCreate: false, settings: null, ct),
             cancellationToken);
 
-    private async Task EnsureCreatedCoreAsync(string projectId, bool allowCreate, CancellationToken cancellationToken)
+    private async Task EnsureCreatedCoreAsync(
+        string projectId,
+        bool allowCreate,
+        Func<CancellationToken, Task<ProtectedProjectSettings>>? settings,
+        CancellationToken cancellationToken)
     {
         var databasePath = GetDatabasePath(projectId);
         if (!allowCreate)
@@ -515,6 +649,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
             return;
         }
 
+        // 案件設定在開交易之前取得，取得時可能要等使用者全名查好。
+        var recordedSettings = settings is null ? null : await settings(cancellationToken);
+
         // 新資料庫在同一個交易裡建好全部的表，中途失敗時不留下只建一半的資料庫。
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var command = connection.CreateCommand())
@@ -522,6 +659,11 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
             command.Transaction = transaction;
             command.CommandText = SchemaSql;
             await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (recordedSettings is not null)
+        {
+            await LocalProjectSettingSql.InsertAsync(connection, transaction, recordedSettings, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);

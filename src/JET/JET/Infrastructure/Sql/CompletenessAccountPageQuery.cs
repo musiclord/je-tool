@@ -95,7 +95,7 @@ internal static class CompletenessAccountPageQuery
         }
     }
 
-    private static string DifferenceFilter(bool differencesOnly) => differencesOnly ? "tb_s <> gl_s" : "1 = 1";
+    private static string DifferenceFilter(bool differencesOnly) => differencesOnly ? ValidationProcedures.CompletenessDifferencePredicate : "1 = 1";
 
     // 前六欄依序是科目編號、名稱、TB 彙總、GL 彙總、差異，以及是否 GL 有而 TB 無；分頁與整份讀完共用。
     private static CompletenessDiffAccount ReadAccount(DbDataReader reader) =>

@@ -284,7 +284,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task FilterCommit_NonAuthorizedPreparerWithoutAuthorizedList_ThrowsInvalidScenario()
     {
-        // commit 端同樣閘控（與 preview 共用 FilterCommitShared.EnsureValid）。
+        // commit 端同樣閘控（和 preview 一樣由 FilterScenarioValidator.Validate 擋下）。
         // 自建 host 並關閉授權清單匯入以維持「未匯入」原意(共用 fixture 預設已匯入)。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, importAuthorizedPreparer: false);

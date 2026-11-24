@@ -106,10 +106,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         var prepStartDate = PayloadReader.GetOptionalDate(payload, "prepStartDate");
         ProjectMetadataRules.RequireValidPeriod(periodStart, periodEnd);
         var createdUtc = DateTimeOffset.UtcNow;
-        // 每個案件的 INF 抽樣種子只在建案時由這裡用亂數產生一次；Domain 不產生亂數，只規定種子的範圍。
-        var sampleSeed = Random.Shared.NextInt64(
-            1,
-            ProjectDocument.SampleSeedExclusiveUpperBound);
+        var sampleSeed = NewSampleSeed();
         var document = ProjectDocument.CreateNew(
             projectId,
             projectCode,
@@ -188,4 +185,11 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             throw;
         }
     }
+
+    /// <summary>
+    /// 新案件的 INF 抽樣種子，只在建案時用亂數產生一次；開案補完中斷的建案時也用這裡。
+    /// Domain 不產生亂數，只規定種子的範圍。
+    /// </summary>
+    internal static long NewSampleSeed() =>
+        Random.Shared.NextInt64(1, ProjectDocument.SampleSeedExclusiveUpperBound);
 }

@@ -36,6 +36,8 @@ public static class FilterConditionRenderer
     /// <paramref name="zerosThreshold"/> 是「分錄金額中有連續 0 的尾數」由 GL 算出的 0 的個數，條件寫成「金額尾數連續 N 個 0」；
     /// 省略時寫規則名稱。上游修改會清掉已存情境，所以已存情境讀回時用目前的個數就是儲存時的個數。
     /// <paramref name="forDocument"/> 為真時是底稿與報告用的寫法：統計條件的欄位名稱不用「」包住，前後各留一個半形空白。
+    /// <paramref name="neverBlankGlFields"/> 是 GL 中每一筆都有值的欄位；這些欄位的欄位值條件不寫空白怎麼處理。
+    /// 省略時不知道案件的配對，每一條都照條件裡存的設定寫。
     /// </summary>
     public static string Render(
         JsonElement scenario,
@@ -43,7 +45,7 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? rdeFieldLabels = null,
         IReadOnlyList<AccountCategory>? accountCategories = null,
         string? preparationDate = null, string? periodStart = null, string? periodEnd = null, bool compact = false,
-        bool forDocument = false, int? zerosThreshold = null)
+        bool forDocument = false, int? zerosThreshold = null, IReadOnlyCollection<string>? neverBlankGlFields = null)
     {
         var editable = ArrayItems(scenario, "groups");
 
@@ -53,14 +55,14 @@ public static class FilterConditionRenderer
         var expr = string.Empty;
         if (ne.Count == 1)
         {
-            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold).Text;
+            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields).Text;
         }
         else if (ne.Count >= 2)
         {
             var sop = ScenarioJoin(ne); // 空的條件組不會送出，所以不算一個運算元，也不帶連接詞。
             var parts = ne.Select(g =>
             {
-                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold);
+                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields);
                 return rendered.AtomCount > 1 && !rendered.IsExactLeftFold
                     ? "（" + rendered.Text + "）"
                     : rendered.Text; // 組內同時有「且」和「或」時，文字已經逐條加好括號；只有一種連接詞而且不只一條時，外面加一層括號
@@ -77,6 +79,10 @@ public static class FilterConditionRenderer
         return expr;
     }
 
+    /// <summary>已確認的 GL 配對下，GL 中每一筆都有值的欄位；還沒有配對時是 null，讀回照條件裡存的設定寫。</summary>
+    internal static IReadOnlyList<string>? NeverBlankGlFields(CommittedMapping? glMapping) =>
+        glMapping is null ? null : JetFieldCatalog.NeverBlankGlFields(glMapping.Mapping, glMapping.GlOptions);
+
     /// <summary>
     /// 單一條件的讀回文字，等同前端 <c>ruleSummaryLabel(rule, 0, compact)</c>。自動名稱逐條取條件說明時用，只有畫面寫法。
     /// </summary>
@@ -85,9 +91,10 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountCategory>? accountCategories,
-        string? preparationDate, string? periodStart, string? periodEnd, bool compact, int? zerosThreshold = null) =>
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact, int? zerosThreshold = null,
+        IReadOnlyCollection<string>? neverBlankGlFields = null) =>
         ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact,
-            forDocument: false, zerosThreshold: zerosThreshold);
+            forDocument: false, zerosThreshold: zerosThreshold, neverBlankGlFields: neverBlankGlFields);
 
     /// <summary>欄位值條件選的欄位名稱，等同前端 <c>FilterValues.field(rule).label</c>；欄位不在可選清單時是 null。</summary>
     internal static string? FieldValueFieldLabel(JsonElement rule, IReadOnlyDictionary<string, string>? rdeFieldLabels)
@@ -121,10 +128,10 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountCategory>? accountCategories,
         string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument,
-        int? zerosThreshold)
+        int? zerosThreshold, IReadOnlyCollection<string>? neverBlankGlFields)
     {
         var rules = ArrayItems(group, "conditions");
-        var atoms = rules.Select(rule => ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold)).ToList();
+        var atoms = rules.Select(rule => ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields)).ToList();
         if (!HasMixedEffectiveConditionJoins(rules))
         {
             return new GroupRendering(
@@ -246,7 +253,7 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountCategory>? accountCategories,
         string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument,
-        int? zerosThreshold)
+        int? zerosThreshold, IReadOnlyCollection<string>? neverBlankGlFields)
     {
         var type = Str(r, "type");
         var text = type switch
@@ -255,8 +262,8 @@ public static class FilterConditionRenderer
             "group" when IsWeekendOrHolidayBracket(r) => "（"
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.WeekendPosting) + " 或 "
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.HolidayPosting) + "）",
-            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold),
-            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold),
+            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields),
+            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields),
             "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate, zerosThreshold),
             "text" => GlFieldName(Str(r, "field")) + " "
                 + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + TextKeywords(r) + "」",
@@ -280,7 +287,7 @@ public static class FilterConditionRenderer
             "manualRevenueEntry" => "收入之人工分錄",
             "preparerEqualsApprover" => "編製人員與核准人員相同",
             "typed" => TypedFieldAtom(r, rdeFieldLabels),
-            "fieldValue" => FieldValueAtom(r, rdeFieldLabels, compact),
+            "fieldValue" => FieldValueAtom(r, rdeFieldLabels, compact, neverBlankGlFields),
             "accountSide" => AccountSideAtom(r, categoryLabels, accountCategories),
             _ => FilterConditionLabels.RetiredCondition,
         };
@@ -336,13 +343,13 @@ public static class FilterConditionRenderer
     private static string NestedAtom(JsonElement rule, IReadOnlyDictionary<string, string>? categories,
         IReadOnlyDictionary<string, string>? fields, IReadOnlyList<AccountCategory>? accountCategories,
         string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument,
-        int? zerosThreshold)
+        int? zerosThreshold, IReadOnlyCollection<string>? neverBlankGlFields)
     {
         var children = ArrayItems(rule, "conditions");
         var text = string.Empty;
         foreach (var child in children)
         {
-            var atom = ConditionAtom(child, categories, fields, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold);
+            var atom = ConditionAtom(child, categories, fields, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields);
             text = text.Length == 0 ? atom : "（" + text + " " + JoinLabel(EffectiveConditionJoin(child)) + " " + atom + "）";
         }
         if (Str(rule, "type") == "group")
@@ -361,7 +368,8 @@ public static class FilterConditionRenderer
     private static bool ContainsExplicitVoucherCondition(JsonElement rule) => Str(rule, "type") == "voucher"
         || ArrayItems(rule, "conditions").Any(ContainsExplicitVoucherCondition);
 
-    private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels, bool compact)
+    private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels, bool compact,
+        IReadOnlyCollection<string>? neverBlankGlFields)
     {
         var fieldId = Str(rule, "fieldId");
         var glKey = Str(rule, "field");
@@ -390,7 +398,9 @@ public static class FilterConditionRenderer
         // 空白預設不列入，與 GlRulePredicates.FieldValue 的預設一致。
         var includeBlank = rule.TryGetProperty("includeBlank", out var blank) && blank.ValueKind == JsonValueKind.True;
         // 精簡讀回（自動名稱與動機用）只寫「空白也符合」，不寫預設的「空白不列入」，和前端 FilterValues.summary 的 compact 相同。
-        var blankText = op is "isBlank" or "isNotBlank" ? "" : includeBlank ? "；空白也符合" : compact ? "" : "；空白不列入";
+        // GL 中每一筆都有值的欄位沒有空白可列入或不列入，不寫這一句；前端 FilterValues.summary 的寫法相同。
+        var neverBlank = fieldId.Length == 0 && neverBlankGlFields is not null && neverBlankGlFields.Contains(glKey, StringComparer.Ordinal);
+        var blankText = op is "isBlank" or "isNotBlank" || neverBlank ? "" : includeBlank ? "；空白也符合" : compact ? "" : "；空白不列入";
         var unit = FieldValueConditions.IsMonthWindow(op) ? " 天" : FieldValueConditions.IsZeroRun(op) ? "個 0" : "";
         return field + " " + opLabel + operand + unit + blankText;
     }

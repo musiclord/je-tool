@@ -222,14 +222,125 @@ public sealed class IntakeMappingProgramTests
                 plan,
                 ["Date_of_MakeUpday"],
                 Rows(
-                    Row(3, ("Date_of_MakeUpday", "2025/01/01")),
+                    Row(3, ("Date_of_MakeUpday", "2025/13/01")),
                     Row(4, ("Date_of_MakeUpday", " "))),
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(
                         // 這句的用字已定案。
-                        "檔案有 2 列無法讀取：第 3 列：日期「2025/01/01」不是 2026-12-31 這種格式；第 4 列：日期空白",
+                        "檔案有 2 列無法讀取：第 3 列：日期「2025/13/01」不是 2026-12-31 這種格式；第 4 列：日期空白",
+            error.Message);
+    }
+
+    private static CalendarPlan CalendarFilePlan(CalendarDayType dayType, DateParseOptions? dateOptions = null) =>
+        JetAuditProgram.Plan(new CalendarFileRequest(
+            dayType == CalendarDayType.Holiday ? "import.holiday.fromFile" : "import.makeupDay.fromFile",
+            "project",
+            dayType,
+            "calendar.xlsx",
+            FileExists: true,
+            Extension: ".xlsx")
+        {
+            DateOptions = dateOptions ?? DateParseOptions.Default
+        });
+
+    // 欄名不分大小寫，也不計較欄名裡的空白、底線與連字號；三個欄都要認得：名稱有讀到、IS_Holiday 不是 Y 的列有略過。
+    [Theory]
+    [InlineData("Date_of_Holiday", "Holiday_Name", "IS_Holiday")]
+    [InlineData("date_of_holiday", "holiday_name", "is_holiday")]
+    [InlineData("DATE_OF_HOLIDAY", "HOLIDAY_NAME", "IS_HOLIDAY")]
+    [InlineData("Date of Holiday", "Holiday Name", "Is Holiday")]
+    [InlineData("DateOfHoliday", "Holiday-Name", "IsHoliday")]
+    public async Task CalendarFileProjection_HolidayColumnNames_IgnoreCaseAndSeparators(
+        string dateColumn, string nameColumn, string flagColumn)
+    {
+        var entries = await JetAuditProgram.ProjectCalendarFileAsync(
+            CalendarFilePlan(CalendarDayType.Holiday),
+            [dateColumn, nameColumn, flagColumn],
+            Rows(
+                Row(3, (dateColumn, "2025-01-01"), (nameColumn, "元旦"), (flagColumn, "Y")),
+                Row(4, (dateColumn, "2025-02-27"), (nameColumn, "平日"), (flagColumn, "N"))),
+            CancellationToken.None);
+
+        Assert.Equal([new CalendarDayEntry("2025-01-01", "元旦")], entries);
+    }
+
+    [Theory]
+    [InlineData("Date_of_MakeUpday", "MakeUpDay_Desc")]
+    [InlineData("Date_of_MakeUpDay", "MakeUpDay_Desc")]
+    [InlineData("date_of_makeupday", "makeupday_desc")]
+    [InlineData("Date of MakeUpDay", "MakeUpDay Desc")]
+    public async Task CalendarFileProjection_MakeupColumnNames_IgnoreCaseAndSeparators(string dateColumn, string nameColumn)
+    {
+        var entries = await JetAuditProgram.ProjectCalendarFileAsync(
+            CalendarFilePlan(CalendarDayType.Makeup),
+            [dateColumn, nameColumn],
+            Rows(Row(3, (dateColumn, "2025-02-08"), (nameColumn, "補班"))),
+            CancellationToken.None);
+
+        Assert.Equal([new CalendarDayEntry("2025-02-08", "補班")], entries);
+    }
+
+    // 清單裡用文字寫的日期，和 GL 的日期用同一種讀法：斜線、點號、八位數與民國年都讀成同一天；
+    // 同一天用不同寫法出現兩次只算一次，留第一次的名稱。
+    [Fact]
+    public async Task CalendarFileProjection_TextDates_AreReadTheSameWayAsGlDates()
+    {
+        var entries = await JetAuditProgram.ProjectCalendarFileAsync(
+            CalendarFilePlan(CalendarDayType.Makeup),
+            ["Date_of_MakeUpday", "MakeUpDay_Desc"],
+            Rows(
+                Row(3, ("Date_of_MakeUpday", "2025/01/01"), ("MakeUpDay_Desc", "斜線")),
+                Row(4, ("Date_of_MakeUpday", "2025.1.2"), ("MakeUpDay_Desc", "點號")),
+                Row(5, ("Date_of_MakeUpday", "20250103"), ("MakeUpDay_Desc", "八位數")),
+                Row(6, ("Date_of_MakeUpday", "114/01/04"), ("MakeUpDay_Desc", "民國年")),
+                Row(7, ("Date_of_MakeUpday", "2025-01-01"), ("MakeUpDay_Desc", "同一天的另一種寫法"))),
+            CancellationToken.None);
+
+        Assert.Equal(
+            [
+                new CalendarDayEntry("2025-01-01", "斜線"),
+                new CalendarDayEntry("2025-01-02", "點號"),
+                new CalendarDayEntry("2025-01-03", "八位數"),
+                new CalendarDayEntry("2025-01-04", "民國年")
+            ],
+            entries);
+    }
+
+    // 案件關閉民國年時，114/01/04 不是日期，整份不儲存，和 GL 的日期同一條規則。
+    [Fact]
+    public async Task CalendarFileProjection_RocYearTurnedOff_RejectsRocDates()
+    {
+        var error = await Assert.ThrowsAsync<JetActionException>(() =>
+            JetAuditProgram.ProjectCalendarFileAsync(
+                CalendarFilePlan(CalendarDayType.Makeup, new DateParseOptions(RocYearEnabled: false)),
+                ["Date_of_MakeUpday"],
+                Rows(Row(3, ("Date_of_MakeUpday", "114/01/04"))),
+                CancellationToken.None));
+
+        Assert.Equal("檔案有 1 列無法讀取：第 3 列：日期「114/01/04」不是 2026-12-31 這種格式", error.Message);
+    }
+
+    // 讀不成日期的值照舊整份不儲存：不存在的日期、純數字與缺年份的寫法。
+    [Fact]
+    public async Task CalendarFileProjection_UnrecognisedDates_StillRejectTheWholeFile()
+    {
+        var error = await Assert.ThrowsAsync<JetActionException>(() =>
+            JetAuditProgram.ProjectCalendarFileAsync(
+                CalendarFilePlan(CalendarDayType.Holiday),
+                ["Date_of_Holiday"],
+                Rows(
+                    Row(3, ("Date_of_Holiday", "2025/13/01")),
+                    Row(4, ("Date_of_Holiday", "45292")),
+                    Row(5, ("Date_of_Holiday", "12/31")),
+                    Row(6, ("Date_of_Holiday", "2025-01-01"))),
+                CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        Assert.Equal(
+            "檔案有 3 列無法讀取：第 3 列：日期「2025/13/01」不是 2026-12-31 這種格式；"
+            + "第 4 列：日期「45292」不是 2026-12-31 這種格式；第 5 列：日期「12/31」不是 2026-12-31 這種格式",
             error.Message);
     }
 

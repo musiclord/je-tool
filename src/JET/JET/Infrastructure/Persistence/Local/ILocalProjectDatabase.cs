@@ -24,7 +24,8 @@ public interface ILocalProjectDatabase : IProjectDatabaseInitializer, IProjectDa
 
     /// <summary>
     /// 建立讀寫連線；案件資料夾不存在時建立資料夾，資料庫檔不存在時開啟連線會建檔。
-    /// 回傳的型別是不分資料庫種類的 <see cref="DbConnection"/>。
+    /// 回傳的型別是不分資料庫種類的 <see cref="DbConnection"/>。這種連線進連線池重複使用，
+    /// SQLite 在每次開啟時把頁面快取設成 256 MiB。
     /// </summary>
     DbConnection CreateConnection(string projectId);
 
@@ -35,10 +36,23 @@ public interface ILocalProjectDatabase : IProjectDatabaseInitializer, IProjectDa
     IProviderSqlDialect Dialect { get; }
 
     /// <summary>
-    /// 只給匯入用的連線設定，在連線開啟之後、交易開始之前套用。
-    /// SQLite 在這裡設定 synchronous、temp_store 與 cache_size 三個 pragma。
+    /// 開一條只給匯入用的讀寫連線，回傳時已經開啟並套用匯入的設定，呼叫端接著開交易。
+    /// 這條連線不進連線池，用完就關，設定不會留給之後的動作。SQLite 在這裡設定 synchronous、temp_store 與 cache_size。
     /// </summary>
-    Task ApplyImportSessionSettingsAsync(DbConnection connection, CancellationToken cancellationToken);
+    Task<DbConnection> OpenImportConnectionAsync(string projectId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 開一條只給確認 GL 配對投影用的讀寫連線，回傳時已經開啟並套用投影的設定，呼叫端接著開交易。
+    /// 這條連線不進連線池，用完就關，設定不會留給之後的動作。SQLite 在這裡設定 temp_store 與 cache_size。
+    /// </summary>
+    Task<DbConnection> OpenGlProjectionConnectionAsync(string projectId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 大量逐列寫入 <paramref name="table"/> 之前呼叫：在 <paramref name="transaction"/> 裡先刪掉這張表的索引，
+    /// 回傳的物件在寫完以後、commit 之前建回這些索引。
+    /// </summary>
+    Task<IDeferredIndexes> DeferIndexesAsync(
+        DbConnection connection, DbTransaction transaction, string table, CancellationToken cancellationToken);
 
     /// <summary>
     /// 建立一個 <see cref="IBulkRowWriter"/>，把列數很多的逐列 INSERT 交給它，用來加快大量匯入。

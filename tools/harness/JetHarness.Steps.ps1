@@ -501,11 +501,10 @@ function New-JetTestArguments {
         [Parameter(Mandatory = $true)] [string] $ResultsDirectory,
         [Parameter(Mandatory = $true)] [int] $MinimumExpectedTests,
         [Parameter(Mandatory = $true)] $Registry,
-        [ValidateSet('None', 'Method', 'Namespace', 'Trait')] [string] $IncludeKind = 'None',
+        [ValidateSet('None', 'Method', 'Namespace')] [string] $IncludeKind = 'None',
         [string[]] $IncludeValues = @(),
-        [AllowNull()] [string[]] $ExcludedProfiles = $null,
         [AllowNull()] [string[]] $ProtectedMethodPatterns = $null,
-        # Collections：不同測試類別平行執行。None：循序，給共用私人案件副本的路線。
+        # Collections：不同測試類別平行執行。None：依序執行。
         [ValidateSet('None', 'Collections')] [string] $Parallelism = 'None'
     )
 
@@ -534,7 +533,6 @@ function New-JetTestArguments {
         $includeSwitch = switch -CaseSensitive ($IncludeKind) {
             'Method' { '--filter-method' }
             'Namespace' { '--filter-namespace' }
-            'Trait' { '--filter-trait' }
         }
         $arguments.Add($includeSwitch)
         foreach ($value in $IncludeValues) {
@@ -542,15 +540,13 @@ function New-JetTestArguments {
         }
     }
 
-    if ($null -eq $ExcludedProfiles) {
-        $ExcludedProfiles = @($Registry.testSettings.excludedProfiles)
-    }
+    $excludedProfiles = @($Registry.testSettings.excludedProfiles)
     if ($null -eq $ProtectedMethodPatterns) {
         $ProtectedMethodPatterns = @($Registry.testSettings.protectedWorkspaceMethodPatterns)
     }
-    if ($ExcludedProfiles.Count -gt 0) {
+    if ($excludedProfiles.Count -gt 0) {
         $arguments.Add('--filter-not-trait')
-        foreach ($profile in $ExcludedProfiles) {
+        foreach ($profile in $excludedProfiles) {
             $arguments.Add("TestProfile=$profile")
         }
     }
@@ -594,16 +590,14 @@ function Invoke-JetTestStep {
         [Parameter(Mandatory = $true)] [int] $MinimumExpectedTests,
         [Parameter(Mandatory = $true)] $Registry,
         [Parameter(Mandatory = $true)] [int] $TimeoutSeconds,
-        [ValidateSet('None', 'Method', 'Namespace', 'Trait')] [string] $IncludeKind = 'None',
+        [ValidateSet('None', 'Method', 'Namespace')] [string] $IncludeKind = 'None',
         [string[]] $IncludeValues = @(),
-        [AllowNull()] [string[]] $ExcludedProfiles = $null,
         [AllowNull()] [string[]] $ProtectedMethodPatterns = $null,
         [AllowNull()] [string[]] $EnvironmentVariablesToRemove = $null,
         [hashtable] $EnvironmentVariablesToSet = @{},
         [string[]] $SensitiveValuesToRedact = @(),
         [ValidateSet('NoSkips', 'BlockOnSkip', 'PublicPolicy')]
         [string] $SkipPolicy = 'NoSkips',
-        [switch] $WithholdFailureMessages,
         [switch] $CollectCoverage,
         # 這一步一定要跑到的測試類別；任何一個類別沒有測試結果，這一步就算失敗。
         [string[]] $RequiredTestClasses = @(),
@@ -627,7 +621,6 @@ function Invoke-JetTestStep {
         -Registry $Registry `
         -IncludeKind $IncludeKind `
         -IncludeValues $IncludeValues `
-        -ExcludedProfiles $ExcludedProfiles `
         -ProtectedMethodPatterns $ProtectedMethodPatterns `
         -Parallelism $Parallelism
     if ($CollectCoverage) {
@@ -674,8 +667,7 @@ function Invoke-JetTestStep {
             -RepositoryRoot $RepositoryRoot `
             -RunDirectory $RunDirectory `
             -TrxPath $trxPath `
-            -SummaryPath $summaryPath `
-            -WithholdFailureMessages:$WithholdFailureMessages
+            -SummaryPath $summaryPath
         $step['test'] = $parsed.Receipt
 
         $missingTestClasses = @(Get-JetMissingTestClasses -Records @($parsed.Records) -RequiredTestClasses $RequiredTestClasses)
@@ -701,10 +693,7 @@ function Invoke-JetTestStep {
             if ($null -ne $parsed.FirstFailure) {
                 $failedCount = [int]$parsed.Summary.counters.failed
                 $detail = "$failedCount failed. $($parsed.FirstFailure.fqn)"
-                if ($parsed.FirstFailure.messageWithheld) {
-                    $detail += ' (message withheld: private case)'
-                }
-                elseif (-not [string]::IsNullOrWhiteSpace([string]$parsed.FirstFailure.message)) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$parsed.FirstFailure.message)) {
                     $detail += ": $($parsed.FirstFailure.message)"
                 }
                 $step.classification['detail'] = $detail

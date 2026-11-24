@@ -3,41 +3,52 @@
 Two inputs are accepted: a harness Public receipt (collected with -CollectCoverage), or the TRX and
 Cobertura files written by running JET.Tests.exe directly with the documented filters, together with the
 JUnit file written by node --test for tests/frontend (--trx/--coverage/--frontend-junit).
+
+--cases-trx reads only the results of the audit logic cases from a TRX file and updates that one part of the
+workbook source; the test totals, the environment and the coverage stay as they are.
 """
 from pathlib import Path
-import sys,json,xml.etree.ElementTree as E,collections,hashlib,argparse,platform,re,subprocess
+import sys,json,xml.etree.ElementTree as E,collections,hashlib,argparse,platform,re,subprocess,datetime
 ROOT=Path(__file__).resolve().parents[3]
 SOURCE=Path(__file__).resolve().parent/'source'
 def load(p):return json.loads(p.read_text(encoding='utf-8-sig'))
-# 方案資料夾底下的三行命令，和技術文件第 14 節的程式碼區塊相同；路徑以 JET.slnx 所在的資料夾為起點。
+def local_date(stamp):
+ # The result files record the start time in UTC; the documents show the date on this computer's clock.
+ # The stamp may carry seven decimals of a second, one more than the standard library reads.
+ text=re.sub(r'(\.\d{6})\d+',r'\1',stamp.strip()).replace('Z','+00:00')
+ moment=datetime.datetime.fromisoformat(text)
+ if moment.tzinfo is None:moment=moment.replace(tzinfo=datetime.timezone.utc)
+ return moment.astimezone().date().isoformat()
+# 方案資料夾底下的三行命令，和技術文件第 12 節的程式碼區塊相同；路徑以 JET.slnx 所在的資料夾為起點。
 COMMANDS=[
  'dotnet build JET.slnx -c Debug',
  'tests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe --filter-not-trait "TestProfile=Scale"',
  'node --test --test-concurrency=4 tests/frontend/',
 ]
 # 涵蓋率表裡直接放在 JET 資料夾、不屬於任何子資料夾的那一組原始檔；技術文件第 6 節把這一層稱為 Host。
-ROOT_MODULE='Host（JET 資料夾最上層的原始檔）'
+ROOT_MODULE='Host'
+EXIT_CRITERIA = '上列命令執行的測試案例全數通過，無失敗與略過。'
 def tool_version(*command):
- # 轉換當下實際查到的版本；查不到就停止，不填推測的值。
+ # 轉換當下實際查到的版本，只取主要版本；查不到就停止，不填推測的值。
  text=subprocess.run(command,cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
  if not text:raise ValueError('No version from '+command[0])
- return text.lstrip('v')
-def package_version(name):
+ return text.lstrip('v').split('.')[0]
+def require_package(name):
+ # 測試專案檔要引用這個套件，報告才寫它的名稱。
  project=(ROOT/'src/JET/tests/JET.Tests/JET.Tests.csproj').read_text(encoding='utf-8-sig')
- hit=re.search(r'<PackageReference Include="'+re.escape(name)+r'" Version="([^"]+)"',project)
- if not hit:raise ValueError('Package not referenced: '+name)
- return hit[1]
+ if not re.search(r'<PackageReference Include="'+re.escape(name)+r'" Version="[^"]+"',project):raise ValueError('Package not referenced: '+name)
 def environment():
- # 測試與轉換在同一台電腦執行；作業系統與工具版本取轉換當下的值，套件版本取測試專案檔。
+ # 測試與轉換在同一台電腦執行；作業系統與工具取轉換當下的值，只寫名稱與主要版本，不寫建置編號與套件的完整版本。
  if platform.system()!='Windows':raise ValueError('Run on the Windows machine that ran the tests')
- edition={'Professional':'專業版','Enterprise':'企業版','Core':'家用版'}.get(platform.win32_edition(),platform.win32_edition())
- bits='64 位元' if platform.machine().endswith('64') else platform.machine()
+ bits={'AMD64':'x64','ARM64':'ARM64'}.get(platform.machine(),platform.machine())
+ require_package('xunit.v3.mtp-v2')
+ require_package('Microsoft.Testing.Extensions.CodeCoverage')
  return {
-  'os':'Windows '+platform.release()+' '+edition+' '+bits+'（'+platform.version()+'）',
+  'os':'Windows '+platform.release()+' '+bits,
   'dotnetSdk':tool_version('dotnet','--version'),
-  'testFramework':'xUnit v3（xunit.v3.mtp-v2 '+package_version('xunit.v3.mtp-v2')+'）',
+  'testFramework':'xUnit v3',
   'node':tool_version('node','--version'),
-  'coverageTool':'Microsoft.Testing.Extensions.CodeCoverage '+package_version('Microsoft.Testing.Extensions.CodeCoverage'),
+  'coverageTool':'Microsoft.Testing.Extensions.CodeCoverage',
  }
 def frontend_step(path):
  # node --test --test-reporter=junit 的結果：每個 testcase 是一個測試，失敗的帶 failure，略過的帶 skipped。檔案路徑不寫進紀錄。
@@ -58,8 +69,37 @@ parser.add_argument('--trx')
 parser.add_argument('--coverage')
 parser.add_argument('--frontend-junit')
 parser.add_argument('--excel-receipt')
+parser.add_argument('--cases-trx')
 args=parser.parse_args()
 NS='{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}'
+review=load(SOURCE/'code-review.json')
+def trx_records(trx_root):
+ names={d.get('id'):d.find(NS+'TestMethod').get('className')+'.'+d.find(NS+'TestMethod').get('name') for d in trx_root.iter(NS+'UnitTest')}
+ return [{'fqn':names[u.get('testId')],'displayName':u.get('testName'),'outcome':u.get('outcome')} for u in trx_root.iter(NS+'UnitTestResult')]
+def review_cases(records,date):
+ # 每個查核邏輯案例的執行結果。案例編號是測試顯示名稱裡的 caseId；結果檔裡沒有的案例記為未執行，不補成通過。
+ source=review['caseSource'];found={}
+ for x in records:
+  hit=re.search(r'\.'+re.escape(source['testClass'])+r'\.\w+\(caseId: "([^"]+)"\)',x.get('displayName') or '')
+  if not hit:continue
+  if hit[1] in found:raise ValueError('Case ran more than once: '+hit[1])
+  found[hit[1]]=x['outcome']
+ # 結果綁定案例檔的內容：記下案例檔的雜湊，產生活頁簿時雜湊不同就不採用這份結果。
+ # 結果檔要和案例檔是同一版；案例檔在產生 code-review.json 之後又改過時停止，先重新執行 Build-ReviewData.py 與測試。
+ digest=hashlib.sha256((ROOT/'src/JET'/source['file']).read_bytes()).hexdigest()
+ if digest!=source['sha256']:raise ValueError('Case file changed after Build-ReviewData.py ran')
+ known={c['id'] for c in review['cases']}
+ if set(found)-known:raise ValueError('Result for a case that is not in code-review.json: '+', '.join(sorted(set(found)-known)))
+ return {'testClass':source['testClass'],'date':date,'definitionSha256':digest,'results':{c['id']:{'Passed':'passed','Failed':'failed'}.get(found.get(c['id']),'notRun') for c in review['cases']}}
+if args.cases_trx:
+ # 只更新案例的執行結果，其他欄位照原樣寫回。
+ if args.receipt or args.trx or args.coverage or args.frontend_junit or args.excel_receipt:raise ValueError('Use --cases-trx on its own')
+ trx_root=E.parse(args.cases_trx).getroot()
+ data=load(SOURCE/'test-record.json')
+ data['reviewCases']=review_cases(trx_records(trx_root),local_date(trx_root.find(NS+'Times').get('start')))
+ (SOURCE/'test-record.json').write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
+ print(json.dumps({'cases':data['reviewCases']['results']},ensure_ascii=False))
+ sys.exit(0)
 steps=[]; records=[]; coverage_file=None
 if args.trx:
  # 直接執行測試程式的結果：排除的標記由執行命令決定，這裡只讀結果檔。
@@ -68,8 +108,7 @@ if args.trx:
  counter=trx_root.find('.//'+NS+'Counters')
  total,executed,passed,failed=(int(counter.get(k)) for k in ['total','executed','passed','failed'])
  if total==0:raise ValueError('TRX has no tests')
- names={d.get('id'):d.find(NS+'TestMethod').get('className')+'.'+d.find(NS+'TestMethod').get('name') for d in trx_root.iter(NS+'UnitTest')}
- records=[{'fqn':names[u.get('testId')],'outcome':u.get('outcome')} for u in trx_root.iter(NS+'UnitTestResult')]
+ records=trx_records(trx_root)
  if len(records)!=total:raise ValueError('TRX result count mismatch')
  status='passed' if failed==0 and passed==total else 'failed'
  steps.append({'name':'public-tests','status':status,'total':total,'executed':executed,'passed':passed,'failed':failed,'skipped':total-executed})
@@ -130,14 +169,19 @@ for name,lines in sorted(seen.items()):
 groups=[]
 for module,(covered,total) in sorted(modules.items(),key=lambda item:(item[0]==ROOT_MODULE,item[0])):
  groups.append({'module':module,'covered':covered,'total':total,'rate':covered/total if total else None})
-review=load(SOURCE/'code-review.json')
 env=environment()
 checks=[]
+# The case test runs the cases of every logic; a logic counts only its own cases, found by the case id in the display name.
+case_class=review['caseSource']['testClass']
+case_logic={c['id']:c['logic'] for c in review['cases']}
+def case_of(x):
+ hit=re.search(r'\.'+re.escape(case_class)+r'\.\w+\(caseId: "([^"]+)"\)',x.get('displayName') or '')
+ return case_logic.get(hit[1]) if hit else None
 for row in review['scope']:
  names=row['tests'].split('、')
- selected=[x for x in records if any('.'+name+'.' in x['fqn'] for name in names)]
+ selected=[x for x in records if any('.'+name+'.' in x['fqn'] for name in names if name!=case_class) or ('.'+case_class+'.' in x['fqn'] and case_of(x)==row['title'])]
  checks.append({'title':row['title'],'classes':names,'total':len(selected),'passed':sum(x['outcome']=='Passed' for x in selected),'failed':sum(x['outcome']=='Failed' for x in selected)})
-data={'title':'JE Tool 單元測試報告','date':r['startedUtc'][:10],'status':r['status'],'runId':r['runId'],'receipt':receipt_path.relative_to(ROOT).as_posix() if receipt_path else '','revision':(r.get('repository') or {}).get('head','')[:7],'configuration':r['configuration'],'command':'\n'.join(COMMANDS),'scope':'合成測試資料','environment':env,'exitCriteria':'上列命令執行的測試案例全數通過，無失敗與略過。','steps':steps,'reviewTests':checks,'coverage':{'covered':sum(g['covered'] for g in groups),'total':sum(g['total'] for g in groups),'modules':groups,'files':files,'measure':'行涵蓋率（line coverage），以 '+env['coverageTool']+' 量測。','method':'計算範圍為後端原始碼，不含編譯時自動產生的程式碼與原生程式庫。'}}
+data={'title':'單元測試報告','date':local_date(r['startedUtc']),'status':r['status'],'runId':r['runId'],'receipt':receipt_path.relative_to(ROOT).as_posix() if receipt_path else '','revision':(r.get('repository') or {}).get('head','')[:7],'configuration':r['configuration'],'command':'\n'.join(COMMANDS),'scope':'合成測試資料','environment':env,'exitCriteria':EXIT_CRITERIA,'steps':steps,'reviewTests':checks,'reviewCases':review_cases(records,local_date(r['startedUtc'])),'coverage':{'covered':sum(g['covered'] for g in groups),'total':sum(g['total'] for g in groups),'modules':groups,'files':files,'measure':'行涵蓋率（line coverage），以 '+env['coverageTool']+' 量測。'}}
 data['additionalChecks']=[]
 if args.excel_receipt:
  ep=Path(args.excel_receipt).resolve()

@@ -113,8 +113,8 @@ public sealed class AccountMappingImportSummaryTests
     private sealed class FailingStateReads(IResultStaleStateStore inner) : IResultStaleStateStore
     {
         public Task InvalidateForPreparationDateChangeAsync(
-            string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
-            inner.InvalidateForPreparationDateChangeAsync(projectId, saveSettings, cancellationToken);
+            string projectId, string? preparationDate, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
+            inner.InvalidateForPreparationDateChangeAsync(projectId, preparationDate, saveSettings, cancellationToken);
 
         public Task<AuditResultStaleState> ReadAsync(string projectId, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Synthetic state read failure");

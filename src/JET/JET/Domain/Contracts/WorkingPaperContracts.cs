@@ -45,6 +45,7 @@ public static class WorkingPaperSheetCatalog
 /// 金額顯示換算取 <see cref="MoneyScale"/>(scaled 整數 → 顯示值)、條件表(完整性差異調節)
 /// 需上期起日。正式底稿固定輸出完整方法學工作表；使用者只選擇要納入的已存情境。
 /// Validation 與 filter reference 必須由 handler 驗證為目前有效版本後傳入，writer 不隱含選「最新」。
+/// <see cref="SampleSeed"/> 是這份驗證結果抽樣實際使用的隨機種子，取自驗證結果，Step 2 的 A4 寫出這個值。
 /// 純資料載體,框架無關(Domain)。
 /// </summary>
 public sealed record WorkingPaperContext(
@@ -55,6 +56,7 @@ public sealed record WorkingPaperContext(
     string? PrepStartDate,
     int MoneyScale,
     string ValidationResultId,
+    long SampleSeed,
     string? ScenarioRevision,
     IReadOnlyList<int> ScenarioPositions,
     GlPopulationScope PopulationScope = GlPopulationScope.AuditPeriod,
@@ -75,7 +77,14 @@ public sealed record ExportStats(long BytesWritten, IReadOnlyList<SheetStat> She
 public sealed record TruncatedTextCells(string SheetName, int Count);
 
 /// <summary>每完成一張底稿工作表後的非權威進度快照。</summary>
-public sealed record WorkingPaperProgress(string SheetName, int SheetsCompleted, long RowsWritten);
+public sealed record WorkingPaperProgress(string SheetName, int SheetsCompleted, long RowsWritten)
+{
+    /// <summary>
+    /// 剛寫完的工作表有幾列標了符合條件。只有最後一欄是符合標記的明細表有值，
+    /// 例如條件篩選報告的「#Criteria Select n」；其他工作表與寫到一半的回報是 null。
+    /// </summary>
+    public long? MarkedRows { get; init; }
+}
 
 /// <summary>
 /// 全編製人員彙總的單列(預篩選報告 R5 與匯出底稿 step1-2 用):編製人員、人工旗標、傳票筆數、借/貸金額彙總(scaled 整數)。

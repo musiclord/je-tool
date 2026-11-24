@@ -304,7 +304,10 @@
       '</div>' + pending + '</section>';
   }
 
-  function readPreparerPreview(draft) {
+  // 讀來源檔前 10 列。被取消或另一項作業還在進行時不是讀檔失敗，畫面回到讀取前的樣子：
+  // 重讀同一份草稿時留著原本的預覽或原因；剛選檔或換工作表時，呼叫端用 returnTo 交代要回到哪一份草稿，沒有草稿就是 null。
+  function readPreparerPreview(draft, returnTo) {
+    var earlier = { previewData: draft.previewData, previewError: draft.previewError };
     draft.previewData = null;
     draft.previewError = null;
     return global.JetApi.importPreviewFile({ filePath: draft.filePath, sheetName: draft.sheetName }).then(function (data) {
@@ -312,7 +315,17 @@
       draft.previewData = data;
       Store.touch();
     }, function (error) {
-      if (preparerDraft === draft) { draft.previewError = Ui.errorText(error); Store.touch(); }
+      if (preparerDraft === draft) {
+        if (!Ui.isCancelledOrInProgress(error)) {
+          draft.previewError = Ui.errorText(error);
+        } else if (returnTo !== undefined) {
+          preparerDraft = returnTo;
+        } else {
+          draft.previewData = earlier.previewData;
+          draft.previewError = earlier.previewError;
+        }
+        Store.touch();
+      }
       throw error;
     });
   }
@@ -325,11 +338,11 @@
     bind('preview-authorized-preparer', function () { Ui.openDataPreview('authorizedPreparer'); });
     bind('cancel-authorized-preparer', function () { preparerDraft = null; Store.touch(); });
     bind('clear-authorized-preparer', function () {
-      // 先說明要拿掉的是摘要與兩個只屬於清單的鈕；等 JetApi 回來的那次重繪它們先晃一下再收起。
-      if (global.JetMotion && typeof global.JetMotion.removing === 'function') {
-        global.JetMotion.removing({ keys: ['preparer-summary', 'preparer-preview-action', 'preparer-clear-action'], wait: 15000 });
-      }
       Ui.run('移除授權編製人員清單', function () {
+        // 真的開始移除時先說明要拿掉的是摘要與兩個只屬於清單的鈕；等 JetApi 回來的那次重繪它們先晃一下再收起。
+        if (global.JetMotion && typeof global.JetMotion.removing === 'function') {
+          global.JetMotion.removing({ keys: ['preparer-summary', 'preparer-preview-action', 'preparer-clear-action'], wait: 15000 });
+        }
         return global.JetApi.importAuthorizedPreparerClear({}).then(function (result) {
           preparerDraft = null;
           delete openElsewhere.authorizedPreparer;
@@ -373,9 +386,10 @@
             if (!sheets.length) { throw new Error('來源檔沒有可讀取的欄位，請確認工作表含有標頭。'); }
             var draft = { filePath: file.filePath, fileName: file.fileName, worksheets: sheets,
               sheetName: sheets[0].name, columns: sheets[0].columns, sourceColumn: '', previewData: null };
+            var earlierDraft = preparerDraft || null;
             preparerDraft = draft;
             Store.touch();
-            return readPreparerPreview(draft);
+            return readPreparerPreview(draft, earlierDraft);
           });
         });
       });
@@ -392,9 +406,12 @@
       var selected = previous.worksheets.find(function (item) { return item.name === sheet.value; });
       var draft = Object.assign({}, previous, { sheetName: selected.name, columns: selected.columns,
         sourceColumn: '', previewData: null, previewError: null });
-      preparerDraft = draft;
-      Store.touch();
-      Ui.run('讀取授權編製人員清單來源檔預覽', function () { return readPreparerPreview(draft); });
+      // 真的開始讀新工作表時才換成新的草稿；另一項作業還在進行時，下拉選單改回原本的工作表，草稿與預覽照舊。
+      Ui.run('讀取授權編製人員清單來源檔預覽', function () {
+        preparerDraft = draft;
+        Store.touch();
+        return readPreparerPreview(draft, previous);
+      }, { onBlocked: function () { sheet.value = previous.sheetName; } });
     }); }
   }
 
@@ -526,12 +543,14 @@
     }
 
     // 非工作日（週幾）勾選：任一變更即蒐集勾選的 canonical 值送後端，回傳後更新狀態。
+    // 這次勾選沒有存進去時（另一項作業還在進行、被取消或失敗），把這一格改回去，畫面上的勾選才和已存的設定一致。
     container.querySelectorAll('[data-bind="nonworking-days"] input[data-weekday]').forEach(function (cb) {
       cb.addEventListener('change', function () {
         var days = [];
         container.querySelectorAll('[data-bind="nonworking-days"] input[data-weekday]').forEach(function (b) {
           if (b.checked) { days.push(Number(b.getAttribute('data-weekday'))); }
         });
+        var undoTick = function () { cb.checked = !cb.checked; };
         Ui.run('設定每週休息日', function () {
           return global.JetApi.calendarSetNonWorkingDays({ days: days }).then(function (data) {
             var existing = Store.getState().importState.calendar || {};
@@ -549,7 +568,7 @@
             if (changed) { Store.addMessage('已更新每週休息日設定。', 'info'); }
             Store.applyMutationEffects(data);
           });
-        });
+        }, { onBlocked: undoTick, onError: undoTick });
       });
     });
   }
@@ -961,19 +980,25 @@
           Store.touch(); // 重建以更新「開始匯入（n）」計數
           return;
         }
+        var changed = wizard.pending[index];
+        // 這一格照這一列目前記的值顯示：填的列數超過上限，或這次重新讀取沒有開始時，用它把控制項改回去。
+        var showSetting = function () {
+          control.value = key === 'headerRow' ? String(changed.headerRow || 1) : (changed[key] || '');
+        };
+        var value;
         if (key === 'headerRow') {
           // 第 1 列是預設，不送；填成 1 以下或不是數字時也當成預設。
           var headerRow = parseInt(control.value, 10);
           if (headerRow > MAX_HEADER_ROW) {
-            control.value = String(wizard.pending[index].headerRow || 1);
+            showSetting();
             return;
           }
-          wizard.pending[index].headerRow = headerRow >= 2 ? headerRow : null;
+          value = headerRow >= 2 ? headerRow : null;
         } else {
-          wizard.pending[index][key] = control.value || null;
+          value = control.value || null;
         }
         // 文字檔的編碼與分隔符，以及每個來源的欄名在第幾列：改選後重新讀前 10 列，失敗的列也在這裡重試。
-        refreshSource(wizard.pending[index], '重新讀取來源檔');
+        refreshSource(changed, '重新讀取來源檔', { key: key, value: value, onBlocked: showSetting });
       });
     });
   }
@@ -1058,7 +1083,8 @@
     return global.JetApi.importInspectFile({ filePath: file.filePath }).then(function (info) {
       queueInspected(file, info, skipped);
     }, function (error) {
-      if (error && error.code === 'operation_cancelled') { throw error; }
+      // 取消與另一項作業還在進行不是這個檔案讀不出：不列成失敗的來源，也不再讀後面的檔案。
+      if (Ui.isCancelledOrInProgress(error)) { throw error; }
       if (hasPending(file.filePath, null)) { skipped.push(sourceLabel(file, null)); return; }
       wizard.pending.push({
         filePath: file.filePath,
@@ -1122,10 +1148,16 @@
   // 重新讀來源的前 10 列。只有 import.previewFile 接受這一列選的編碼、分隔符與欄名在第幾列，所以重試檢視與改選都走這裡；
   // 欄數、提醒與預覽一起換新，「只讀到一欄」這類提醒才會跟著改選出現或消失。
   // 連續改選時只採用最後一次的結果。
-  function refreshSource(item, label) {
+  // 被取消或另一項作業還在進行時不是讀不出檔案：這一列的勾選、原因與預覽都回到重讀前的樣子。
+  // setting 是審計員剛改的那一格（key 與 value）：重新讀取真的開始時才記進這一列，被取消時改回去，設定才和留著的預覽一致；
+  // 這次重新讀取沒有開始時這一列完全不動，由 setting.onBlocked 把畫面上的控制項改回去。
+  function refreshSource(item, label, setting) {
     var recovering = !!item.inspectError;
     Ui.run(label, function () {
       var token = item.refreshToken = (item.refreshToken || 0) + 1;
+      var earlierPreview = item.previewData;
+      var earlierSetting = setting ? item[setting.key] : null;
+      if (setting) { item[setting.key] = setting.value; }
       var payload = { filePath: item.filePath, limit: 10 };
       if (item.sheetName) { payload.sheetName = item.sheetName; }
       if (item.encoding) { payload.encoding = item.encoding; }
@@ -1143,13 +1175,18 @@
         Store.touch();
       }, function (error) {
         if (item.refreshToken !== token) { return; }
-        item.inspectError = Ui.errorText(error, '檔案讀取失敗。');
-        item.include = false;
-        item.previewOpen = false;
+        if (Ui.isCancelledOrInProgress(error)) {
+          if (setting) { item[setting.key] = earlierSetting; }
+          item.previewData = earlierPreview;
+        } else {
+          item.inspectError = Ui.errorText(error, '檔案讀取失敗。');
+          item.include = false;
+          item.previewOpen = false;
+        }
         Store.touch();
         throw error;
       });
-    });
+    }, { onBlocked: setting ? setting.onBlocked : null });
   }
 
   // 檢視失敗的來源重試。文字檔與先前檢視成功過的工作表走 refreshSource，保留這一列的編碼、分隔符與欄名列；
@@ -1170,8 +1207,11 @@
         queueInspected({ filePath: item.filePath, fileName: item.fileName }, info, skipped);
         Store.touch();
       }, function (error) {
-        item.inspectError = Ui.errorText(error, '檔案讀取失敗。');
-        Store.touch();
+        // 取消與另一項作業還在進行時，留著原本讀不出的原因。
+        if (!Ui.isCancelledOrInProgress(error)) {
+          item.inspectError = Ui.errorText(error, '檔案讀取失敗。');
+          Store.touch();
+        }
         throw error;
       });
     });
@@ -1188,12 +1228,12 @@
       return;
     }
 
-    item.previewOpen = true;
-    if (item.previewData) { Store.touch(); return; } // 已快取，直接顯示
+    if (item.previewData) { item.previewOpen = true; Store.touch(); return; } // 已快取，直接顯示
 
-    Store.touch(); // 先顯示「載入預覽中…」
-
+    // 真的開始讀取時才展開；另一項作業還在進行時這一列維持收合，不會停在「載入預覽中…」。
     Ui.run('載入預覽', function () {
+      item.previewOpen = true;
+      Store.touch(); // 先顯示「載入預覽中…」
       var payload = { filePath: item.filePath, limit: 10 };
       if (item.sheetName) { payload.sheetName = item.sheetName; }
       if (item.encoding) { payload.encoding = item.encoding; }
@@ -1244,13 +1284,14 @@
       var itemIndex = Math.max(0, Math.min(items.length - 1, Number(data.sourceNo || 1) - 1));
       updateProgress(kind, items[itemIndex], itemIndex, Number(data.sourceCount) || items.length, data);
     };
-    global.JetApi.on('import.progress', onProgress);
     var unsubscribe = function () { global.JetApi.off('import.progress', onProgress); };
 
-    // 進入匯入態：Ui.run 內 setBusy(true) 會立即觸發重繪，橫幅換成「匯入中」、動作鈕收起。
-    wizard.importing = true;
-
     Ui.run('匯入 ' + label, function () {
+      // 匯入真的開始時才訂閱進度、進入匯入態；另一項作業還在進行時這裡不會執行，精靈留在原本的樣子。
+      // 作業開始時不會重畫中央面板，所以這裡重畫一次：橫幅換成「匯入中」、動作鈕收起。
+      global.JetApi.on('import.progress', onProgress);
+      wizard.importing = true;
+      Store.touch();
       return invoke({ mode: wizard.mode, sources: sources }).then(function (data) {
         unsubscribe();
         justImported = { kind: kind, mode: wizard.mode, at: Date.now() };

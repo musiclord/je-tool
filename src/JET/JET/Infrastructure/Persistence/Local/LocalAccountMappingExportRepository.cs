@@ -22,13 +22,13 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
 
         await using var command = connection.CreateCommand();
         command.CommandText =
-            ValidationProcedures.CompletenessDiffCte +
-            """
+            ValidationProcedures.CompletenessDiffCte(database.Dialect) +
+            $"""
 
             SELECT m.account_number,
                    m.account_name,
                    COALESCE(t.label, m.standardized_category),
-                   CASE WHEN m.account_number IN (SELECT account_number FROM diff WHERE not_in_tb = 1)
+                   CASE WHEN m.account_number IN (SELECT account_number FROM diff WHERE {ValidationProcedures.GlOnlyAccountPredicate})
                         THEN 1 ELSE 0 END AS not_in_tb
             FROM account_mapping m
             LEFT JOIN account_category t ON t.category_id = m.category_id
@@ -57,8 +57,9 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
 
         await using var command = connection.CreateCommand();
         // 範本與科目清單、差異清單共用可配對科目母體（排除空白科目編號），account_number 升冪。
+        // 範本的名稱只取 TB：TB 沒有名稱的科目由範本寫固定文字，不帶 GL 的名稱。
         command.CommandText =
-            AccountMappingPopulationQuery.Cte("", database.Dialect) +
+            AccountMappingPopulationQuery.Cte("", database.Dialect, useTbAccountNames: true) +
             """
 
             SELECT account_number, account_name, not_in_tb

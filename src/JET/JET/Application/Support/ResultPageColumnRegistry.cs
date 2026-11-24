@@ -202,7 +202,7 @@ internal static class ResultPageCustomValueRenderer
                 => value.DateValue,
             RdeFieldValueTypeNames.Amount
                 when value.TextValue is null && value.DateValue is null && value.AmountScaled is not null
-                => (decimal)value.AmountScaled.Value / moneyScale,
+                => MoneyScaling.FromScaled(value.AmountScaled.Value, moneyScale),
             _ => throw Stale()
         };
     }

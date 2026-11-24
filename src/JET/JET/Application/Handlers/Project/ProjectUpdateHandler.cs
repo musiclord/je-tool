@@ -40,14 +40,14 @@ public sealed class ProjectUpdateHandler(
         };
 
         // project.json 與案件資料庫無法共用交易，所以改日期時把存檔放進清除結果的交易裡：
-        // 先清除不提交，報告索引標過期、存好新設定後才提交。存檔失敗時交易回復，情境與結果都還在，重送即可；
+        // 先清除並在案件資料庫記下新日期，不提交，報告索引標過期、存好新設定後才提交。存檔失敗時交易回復，情境與結果都還在，重送即可；
         // 提交失敗時把舊設定寫回，不留下新日期搭配舊結果的狀態。報告索引寧可多標過期，不能漏標。
         if (dateChanged)
         {
             var settingsSaved = false;
             try
             {
-                await repositories.ResultStaleStates.InvalidateForPreparationDateChangeAsync(projectId, async token =>
+                await repositories.ResultStaleStates.InvalidateForPreparationDateChangeAsync(projectId, prepStartDate, async token =>
                 {
                     await repositories.ReportStore.MarkStaleAsync(projectId, _ => true, token);
                     await projectStore.SaveAsync(updated, token);

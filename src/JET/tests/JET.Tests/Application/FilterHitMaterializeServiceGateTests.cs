@@ -238,7 +238,7 @@ public sealed class FilterHitMaterializeServiceGateTests
 
     private sealed class MutableStaleStore : IResultStaleStateStore
     {
-        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, string? preparationDate, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public string DataRevision { get; set; } = "1";
         public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
@@ -249,7 +249,7 @@ public sealed class FilterHitMaterializeServiceGateTests
 
     private sealed class FixedStaleStore(bool filter) : IResultStaleStateStore
     {
-        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, string? preparationDate, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
             Task.FromResult("0");
@@ -259,7 +259,7 @@ public sealed class FilterHitMaterializeServiceGateTests
 
     private sealed class SequenceStaleStore : IResultStaleStateStore
     {
-        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, string? preparationDate, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
             Task.FromResult("0");

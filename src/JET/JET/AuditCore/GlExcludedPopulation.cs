@@ -115,6 +115,21 @@ internal static class GlExcludedPopulation
     }
 
     /// <summary>
+    /// 查詢要「只看未納入測試的分錄」時共用的 SQL 條件，只有這一個定義；資料預覽的未納入測試頁與資料驗證的筆數都用它。
+    /// <paramref name="tableAlias"/> 只能是呼叫端自己寫在 SQL 裡的資料表別名，不帶其他內容。
+    /// </summary>
+    internal static string ExcludedSqlPredicate(string? tableAlias = null)
+    {
+        if (tableAlias is null)
+        {
+            return "is_excluded = 1";
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableAlias);
+        return $"{tableAlias}.is_excluded = 1";
+    }
+
+    /// <summary>
     /// 檢查「有沒有配對過帳狀態欄位」和「有沒有提供過帳狀態設定」是否一致，並整理出可以直接保存、逐列分類用的設定。
     /// 接受的值先去掉頭尾空白並丟掉空字串，再不分大小寫去掉重複；重複的值保留第一次出現的寫法與順序。
     /// </summary>

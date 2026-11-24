@@ -739,8 +739,8 @@ if (only.includes('erd')) {
       else if (!parent.columns.some(c => c.name === column) && parent.primary.size !== 1)
         fail('Relation ' + r.from + ' -> ' + r.to + ': the column of ' + r.to + ' that matches ' + column + ' is not clear; write "' + column + ' = <column>"');
     }
-    // Identifying relation: the related columns are part of the child table's primary key.
-    r.identifying = pairs.every(([column]) => child.primary.has(column));
+    // The text and the picture name both tables of an "a = b" pair, so the label needs no explanation.
+    r.shown = pairs.map(([column, parentColumn]) => parentColumn === undefined ? column : r.from + '.' + column + ' = ' + r.to + '.' + parentColumn);
   }
   const mark = (table, column) => table.primary.has(column.name) ? 'PK' : column.unique ? 'UK' : '';
   const required = (table, column) => table.primary.has(column.name) || column.notNull;
@@ -760,7 +760,7 @@ if (only.includes('erd')) {
     plant.push('}', '');
   }
   for (const r of spec.relations)
-    plant.push(r.to + ' ' + (r.toOptional ? '|o' : '||') + (r.identifying ? '--' : '..') + (r.oneToOne ? 'o|' : 'o{') + ' ' + r.from + ' : ' + r.label);
+    plant.push(r.to + ' ' + (r.toOptional ? '|o' : '||') + '--' + (r.oneToOne ? 'o|' : 'o{') + ' ' + r.from + ' : ' + r.shown.join(', '));
   plant.push('@enduml');
   await writeText(out, 'ERD', plant);
 
@@ -787,8 +787,8 @@ if (only.includes('erd')) {
   const END = { one: ['teetee', 10], zeroOrOne: ['teeodot', 13], zeroOrMany: ['crowodot', 18] };
   const lines = arrange(uniqueKeys(spec.relations.map(r => {
     const child = END[r.oneToOne ? 'zeroOrOne' : 'zeroOrMany'], parent = END[r.toOptional ? 'zeroOrOne' : 'one'];
-    const texts = r.label.split(',').map((item, index, all) => item.trim() + (index + 1 < all.length ? ',' : ''));
-    return { key: r.from + '_' + r.to, from: r.from, to: r.to, text: texts, attrs: 'dir=both, arrowtail=' + child[0] + ', arrowhead=' + parent[0] + (r.identifying ? '' : ', style=dashed'), arrowFrom: child[1], arrowTo: parent[1] };
+    const texts = r.shown.map((item, index, all) => item + (index + 1 < all.length ? ',' : ''));
+    return { key: r.from + '_' + r.to, from: r.from, to: r.to, text: texts, attrs: 'dir=both, arrowtail=' + child[0] + ', arrowhead=' + parent[0], arrowFrom: child[1], arrowTo: parent[1] };
   })), layout, 'erd.json');
   const frames = spec.groups.map(g => ({ id: g.id, title: 'title_' + g.id, members: g.tables, titleAt: 'top', ...(layout.frames?.[g.id] ?? {}) }));
   const drawn = await drawFixed({ name: 'ERD', dir: out, statements, frames, lines, layout, labelStyle: { size: 10 }, titleAlign: 'left', density: 120, straightThrough: true, framePad: 28,
@@ -1186,8 +1186,11 @@ if (only.includes('overview')) {
     dot.push(id + ' [shape=box, style="' + (outside ? 'rounded,filled' : 'filled') + '", fillcolor="' + (outside ? '#FFFFFF' : LIGHT) + '", color="' + LINE + '", ' + sized(b.w, b.h) + ', ' + pos(b.x, b.y)
       + ', label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="2">' + htmlRows(b.lines) + '</TABLE>>];');
   }
-  routes.forEach((r, index) => dot.push(r.f.from + ' -> ' + r.f.to + ' [' + linePos(r.points, 0, 8) + '];',
-    'flow' + index + ' [shape=plain, label=' + label(r.f.label, { size: 13 }, 1) + ', ' + pos(r.label.x, r.label.y) + '];'));
+  routes.forEach((r, index) => {
+    const direction = r.f.bidirectional ? ', dir=both, arrowtail=vee' : '';
+    dot.push(r.f.from + ' -> ' + r.f.to + ' [' + linePos(r.points, r.f.bidirectional ? 8 : 0, 8) + direction + '];',
+      'flow' + index + ' [shape=plain, label=' + label(r.f.label, { size: 13 }, 1) + ', ' + pos(r.label.x, r.label.y) + '];');
+  });
   dot.push('}');
   // Read the picture back: every flow is in it, drawn along its corner points without a slanted piece.
   let drawn = null;

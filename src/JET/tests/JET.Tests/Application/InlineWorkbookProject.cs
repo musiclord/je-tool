@@ -31,10 +31,18 @@ internal sealed class InlineGlWorkbookBuilder
 
     private readonly List<object?[]> _rows = [];
     private string[] _columns = [];
+    private bool _date1904;
 
     public InlineGlWorkbookBuilder WithColumns(params string[] columns)
     {
         _columns = columns;
+        return this;
+    }
+
+    /// <summary>活頁簿改用 1904 日期系統，序列值 0 是 1904-01-01；DateTime 的儲存格照 1904 日期系統換成序列值。</summary>
+    public InlineGlWorkbookBuilder UseDate1904()
+    {
+        _date1904 = true;
         return this;
     }
 
@@ -46,8 +54,11 @@ internal sealed class InlineGlWorkbookBuilder
 
     internal string WriteWorkbook()
     {
-        return TestWorkbookBuilder.WriteWorkbook(sheet =>
+        var nonFiniteSerials = new List<(string Reference, double Value)>();
+        var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
+            // 在寫入儲存格以前設定，DateTime 的儲存格才會照 1904 日期系統換成序列值。
+            sheet.Workbook.Use1904DateSystem = _date1904;
             for (var c = 0; c < _columns.Length; c++)
             {
                 sheet.Cell(1, c + 1).SetValue(_columns[c]);
@@ -83,6 +94,20 @@ internal sealed class InlineGlWorkbookBuilder
                         case TimeSpan timeSpan:
                             cell.SetValue(timeSpan);
                             break;
+                        case ExcelDateSerial dateSerial:
+                            if (double.IsFinite(dateSerial.Value))
+                            {
+                                cell.SetValue(dateSerial.Value);
+                            }
+                            else
+                            {
+                                // ClosedXML 不接受 NaN 與無限大，先寫 0，存檔後再換成原本的值。
+                                cell.SetValue(0);
+                                nonFiniteSerials.Add((cell.Address.ToStringRelative(), dateSerial.Value));
+                            }
+
+                            cell.Style.NumberFormat.NumberFormatId = 14;
+                            break;
                         default:
                             cell.SetValue(_rows[r][c]!.ToString());
                             break;
@@ -90,6 +115,28 @@ internal sealed class InlineGlWorkbookBuilder
                 }
             }
         });
+        if (nonFiniteSerials.Count > 0)
+        {
+            WriteNonFiniteSerials(path, nonFiniteSerials);
+        }
+
+        return path;
+    }
+
+    // 其他程式產生的 xlsx 可能在數值儲存格寫 NaN、Infinity 或 -Infinity，這裡用 Open XML SDK 照這種寫法改進存好的檔案。
+    private static void WriteNonFiniteSerials(string path, IReadOnlyList<(string Reference, double Value)> serials)
+    {
+        using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(path, true);
+        var worksheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet!;
+        var cells = worksheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.Cell>()
+            .ToDictionary(cell => cell.CellReference!.Value!, StringComparer.Ordinal);
+        foreach (var (reference, value) in serials)
+        {
+            cells[reference].CellValue = new DocumentFormat.OpenXml.Spreadsheet.CellValue(
+                value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        worksheet.Save();
     }
 
     internal Dictionary<string, string> BuildFlagModeMapping()
@@ -377,3 +424,9 @@ internal static class InlineWorkbookProject
         return projectId;
     }
 }
+
+/// <summary>
+/// 寫成 Excel 日期儲存格的序列值，數字格式是內建的日期格式 14；讓測試指定 Excel 實際存的數字，例如 0 與 60，
+/// 也可以是其他程式寫進檔案的 NaN 或無限大。
+/// </summary>
+internal sealed record ExcelDateSerial(double Value);

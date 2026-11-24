@@ -175,6 +175,9 @@ internal static class ActionShapeJourney
             await FixSampleSeedAsync(projectId);
             // ui-core.js 開案只送案件名稱，之後回案件清單時重讀本機案件。
             await Send("project.load", new { projectId });
+            // 審計員在 JET 以外改了設定檔的建案者：重新開案時照案件資料庫改回，回應列出改回的項目。
+            await EditSettingsFileAsync(projectId, document => document["operatorId"] = "合成的另一位建案者");
+            await Send("project.load", new { projectId });
             await Send("project.listLocal");
             foreach (var value in new[] { null, mismatchedPrepStartDate, prepStartDate })
             {
@@ -960,12 +963,15 @@ internal static class ActionShapeJourney
             }
         }
 
-        async Task FixSampleSeedAsync(string projectId)
+        Task FixSampleSeedAsync(string projectId) =>
+            ProtectedSettingEdits.ApplyAsync(host.ProjectsRoot, projectId, document => document with { SampleSeed = 48_271 });
+
+        async Task EditSettingsFileAsync(string projectId, Action<JsonObject> edit)
         {
             var path = new JetProjectFolder(host.ProjectsRoot).GetProjectJsonPath(projectId);
             var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
-            document["sampleSeed"] = 48_271;
-            await File.WriteAllTextAsync(path, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            edit(document);
+            await ProjectJsonEdits.WriteAllTextAsync(path, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         }
 
         // 模擬較早版本的 JET 存下的情境（同 FilterScenarioRuleUpgradeOnLoadTests）：把資料庫裡這個位置的情境定義改成舊的

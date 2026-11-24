@@ -23,7 +23,7 @@ public sealed class PreparerSummaryExportTests
     [Fact]
     public async Task FetchAllAsync_DistinctPreparersBeyondLegacyLimit_ReturnsEveryPreparer()
     {
-        const int preparerCount = 60; // > 既有 SummaryRowLimit(50)
+        const int preparerCount = 60; // > 既有 ConcentrationLimits.CandidateRows(50)
 
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, builder =>

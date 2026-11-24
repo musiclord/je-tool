@@ -708,7 +708,10 @@
         }, {
           // 失敗時原因寫在案件清單的錯誤框；保留原本的開案失敗資訊，DEV 按鈕仍在。
           inlineError: true,
-          onError: function (message) { Store.setPickerFeedback(message, Store.getState().pickerFeedbackContext); }
+          onError: function (message, error) {
+            if (Ui.isCancelledOrInProgress(error)) { return; }
+            Store.setPickerFeedback(message, Store.getState().pickerFeedbackContext);
+          }
         });
       });
     }
@@ -721,19 +724,25 @@
         var context = current.pickerFeedbackContext;
         if (!context || !context.projectId) { return; }
         var originalMessage = current.pickerFeedback;
+        var originalLevel = current.pickerFeedbackLevel;
         Ui.run('輸出診斷日誌', function () {
           return global.JetApi.devLogExportFile({
             projectId: context.projectId,
             correlationId: context.correlationId || null
           }).then(function (data) {
             var note = data.source === 'ringBuffer' ? '（sink 檔不可讀，內容為 ring buffer 快照）' : '';
+            // 匯出成功只多記檔案位置；清單上方的句子與它的等級（錯誤或琥珀色提示）照按下時的樣子寫回去。
             Store.setPickerFeedback(
               originalMessage,
-              Object.assign({}, context, { devExportedPath: data.filePath + note }));
+              Object.assign({}, context, { devExportedPath: data.filePath + note }),
+              originalLevel);
           });
         }, {
           inlineError: true,
-          onError: function (message) { Store.setPickerFeedback(message, context); }
+          onError: function (message, error) {
+            if (Ui.isCancelledOrInProgress(error)) { return; }
+            Store.setPickerFeedback(message, context);
+          }
         });
       });
     }
@@ -746,12 +755,12 @@
       modal.querySelector('[data-action="modal-confirm"]').addEventListener('click', function () {
         if (!pendingDelete) { return; }
         var target = pendingDelete;
-        // 刪除後重新讀回案件清單時，這一列先輕微快速地晃一下再收起。
-        if (global.JetMotion) { global.JetMotion.removing({ keys: 'project-' + target.id, wait: 20000 }); }
         closeModal(false);
-        Store.setPickerFeedback(null);
         var cleanupWarning = null;
         Ui.run('刪除案件', function () {
+          // 刪除後重新讀回案件清單時，這一列先輕微快速地晃一下再收起。真的開始刪除才記下要拿掉這一列、清掉清單上方的提示。
+          if (global.JetMotion) { global.JetMotion.removing({ keys: 'project-' + target.id, wait: 20000 }); }
+          Store.setPickerFeedback(null);
           return global.JetApi.projectDelete({ projectId: target.id }).then(function (data) {
             Store.addMessage('已刪除案件「' + target.name + '」。', 'info');
             // 本機資料夾清理失敗時後端仍回 ok，附 message（DB 刪除已成功）——照實提示，不當作刪除失敗。
@@ -775,6 +784,7 @@
           refreshLabel: '重新讀取案件清單',
           inlineError: true,
           onError: function (message, error) {
+            if (Ui.isCancelledOrInProgress(error)) { return; }
             Store.setPickerFeedback(message, {
               projectId: target.id,
               errorCode: error && error.code,
@@ -4813,6 +4823,16 @@
         }
       });
     }
+    // 取消鈕對準的 request 一結束就清掉對象：同一項作業後面還有不能取消的階段時（例如開案後讀訊息紀錄），
+    // 取消鈕收起，不會對準已經結束的 request。
+    if (global.JetApi && typeof global.JetApi.onRequestFinished === 'function') {
+      global.JetApi.onRequestFinished(function (request) {
+        if (request && request.requestId && Store.getState().activeRequestId === request.requestId) {
+          busyActiveAction = null;
+          Store.setBusyRequest(null);
+        }
+      });
+    }
 
     // 長作業進度只更新 busy chrome；最終權威仍是 action response。
     if (global.JetApi && typeof global.JetApi.on === 'function') {
@@ -4866,7 +4886,10 @@
         global.JetApi.operationCancel({ requestId: targetRequestId })
           .then(function (result) {
             var latest = Store.getState();
-            if (latest.busy && latest.activeRequestId === targetRequestId && result) {
+            // 回覆晚到時，對準的 request 可能已經結束、取消鈕已收起；只要同一項作業還在、沒有換成別的 request，照樣說明。
+            var sameTarget = latest.activeRequestId === targetRequestId ||
+              (!latest.activeRequestId && latest.cancellationRequested);
+            if (latest.busy && sameTarget && result) {
               if (!result.requested) {
                 Store.addMessage('目前的動作已完成，結果已保留；尚未開始的後續作業不會執行。', 'info');
               } else {

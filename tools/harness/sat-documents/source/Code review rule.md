@@ -1,8 +1,7 @@
 ---
 title: Code Review Rules
-english: Unit-test-based acceptance with manual review of hard-coded content
+subtitle: Unit-test-based acceptance with manual review of hard-coded content
 cover: plain
-header: Code Review Rules
 toc: true
 ---
 ## 1. Purpose and Scope

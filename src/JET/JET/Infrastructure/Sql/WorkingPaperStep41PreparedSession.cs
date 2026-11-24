@@ -540,7 +540,7 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
          FROM {_schemaPrefix}filter_hit r
          JOIN {_schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id
          JOIN {_schemaPrefix}gl g ON g.entry_id = r.entry_id
-         WHERE g.voucher_number IS NOT NULL
+         WHERE {HitVoucherRows.HasVoucherNumber("g")}
            AND {GlPopulationScopeSql.Predicate(_context, "g")}
            {ScenarioPredicate("fs.position")};
          """;
@@ -562,7 +562,7 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
                    FROM {_schemaPrefix}filter_hit r
                    JOIN {_schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id
                    JOIN {_schemaPrefix}gl hit ON hit.entry_id = r.entry_id
-                   WHERE hit.voucher_number IS NOT NULL
+                   WHERE {HitVoucherRows.HasVoucherNumber("hit")}
                      AND {GlPopulationScopeSql.Predicate(_context, "hit")}
                      {_hitVoucherScenarioScope.Predicate("fs.position")}
                ) hit_voucher
@@ -617,7 +617,7 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
             + "  ON raw.batch_id = g.batch_id AND raw.row_number = g.source_row_number "
             + $"LEFT JOIN {_tagTable} t ON t.entry_id = g.entry_id "
             + $"WHERE {GlPopulationScopeSql.Predicate(_context, "g")} "
-            + "AND (v.voucher_number IS NOT NULL OR (g.voucher_number IS NULL AND t.entry_id IS NOT NULL)) "
+            + $"AND {HitVoucherRows.ListedInWorkingPaper("g", "v", "t")} "
             + $"ORDER BY {documentOrder}, {lineNullRank}, {lineOrder}, g.entry_id;";
     }
 

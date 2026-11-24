@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using JET.Domain;
 
 namespace JET.Application;
@@ -45,7 +46,9 @@ internal sealed class ExportProgressSession
         string phase,
         string? sheetName,
         int sheetsCompleted,
-        long rowsWritten)
+        long rowsWritten,
+        long? completedSheetRows = null,
+        long? completedSheetMarkedRows = null)
     {
         _cancellationToken.ThrowIfCancellationRequested();
 
@@ -54,20 +57,61 @@ internal sealed class ExportProgressSession
         elapsed = Math.Max(0, Math.Max(_lastElapsedMilliseconds, elapsed));
         _lastElapsedMilliseconds = elapsed;
 
-        _eventPublisher.Publish("export.progress", new
-        {
-            reportKind = ReportKindValues.ToValue(kind),
+        _eventPublisher.Publish("export.progress", new ExportProgressUpdate(
+            ReportKindValues.ToValue(kind),
             phase,
             sheetName,
             sheetsCompleted,
             rowsWritten,
-            elapsedMilliseconds = elapsed
+            elapsed)
+        {
+            CompletedSheetRows = completedSheetRows,
+            CompletedSheetMarkedRows = completedSheetMarkedRows,
         });
 
         // 事件發布者如果是同步執行的，可能在處理這個事件時就要求取消，測試用的發布者也是這樣。
         // 這時不讓 action 繼續進到下一個階段。
         _cancellationToken.ThrowIfCancellationRequested();
     }
+}
+
+/// <summary>
+/// 送給畫面的 export.progress 內容，欄名與順序固定。剛寫完一張工作表時，另帶那張表的資料列數與標了符合條件的列數；
+/// 這兩項只給日誌讀，序列化時略過，畫面收到的內容不變。
+/// </summary>
+internal sealed class ExportProgressUpdate(
+    string reportKind,
+    string phase,
+    string? sheetName,
+    int sheetsCompleted,
+    long rowsWritten,
+    long elapsedMilliseconds)
+{
+    [JsonPropertyName("reportKind")]
+    public string ReportKind { get; } = reportKind;
+
+    [JsonPropertyName("phase")]
+    public string Phase { get; } = phase;
+
+    [JsonPropertyName("sheetName")]
+    public string? SheetName { get; } = sheetName;
+
+    [JsonPropertyName("sheetsCompleted")]
+    public int SheetsCompleted { get; } = sheetsCompleted;
+
+    [JsonPropertyName("rowsWritten")]
+    public long RowsWritten { get; } = rowsWritten;
+
+    [JsonPropertyName("elapsedMilliseconds")]
+    public long ElapsedMilliseconds { get; } = elapsedMilliseconds;
+
+    /// <summary>剛寫完的那張工作表有幾列資料；不是剛寫完一張表的進度是 null。</summary>
+    [JsonIgnore]
+    public long? CompletedSheetRows { get; init; }
+
+    /// <summary>剛寫完的那張工作表有幾列標了符合條件；沒有符合標記欄的工作表是 null。</summary>
+    [JsonIgnore]
+    public long? CompletedSheetMarkedRows { get; init; }
 }
 
 internal sealed class ExportReportProgress
@@ -194,7 +238,9 @@ internal sealed class ExportReportProgress
             WritingSheetPhase,
             value.SheetName,
             _sheetsCompleted,
-            _completedRows);
+            _completedRows,
+            value.RowsWritten,
+            value.MarkedRows);
     }
 
     private void BeginOrContinueSheet(WorkingPaperProgress value)

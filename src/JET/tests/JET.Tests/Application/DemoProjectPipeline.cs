@@ -9,8 +9,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 共用的 demo 專案建置流程（與前端 MockDataLoader 完全相同的正式管線：
-/// loadDemo → create → export xlsx → import.*.fromFile → calendar → mapping commit → validate）。
+/// 共用的 demo 專案建置流程，依序送出這些 action：
+/// loadDemo → create → export xlsx → import.*.fromFile → calendar → mapping commit → validate。
 /// Debug-only demo actions 由本測試專用 dispatcher 提供；正式 workflow actions 仍走 production composition。
 /// 測試以此為 deterministic 母體，並以 QueryScalarAsync 做獨立 SQL recount。
 /// 同一組參數在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。

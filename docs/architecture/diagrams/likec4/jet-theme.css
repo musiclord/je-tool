@@ -1,5 +1,5 @@
 /* JET 圖表頁的畫布配色：與入口頁同一組淺色與深色底色；節點與連線顏色在 likec4.config.json。
-   LikeC4 1.59.4 的 customCss 設定在本機試用時無法註冊，所以由 package-redraw.py 在封裝時插入匯出的 HTML。
+   LikeC4 1.59.4 的 customCss 設定在本機試用時無法註冊，所以在封裝時插入匯出的 HTML。
    React Flow 在 .react-flow 元素上自己設定背景變數，所以這裡同時覆寫根元素與 .react-flow。 */
 html:root[data-mantine-color-scheme=light],
 html:root[data-mantine-color-scheme=light] .react-flow {

@@ -42,8 +42,7 @@ public enum BlankRecordCategory
 /// <summary>
 /// 完整性全科目的 keyset 分頁，包含差異為 0 的科目；資料驗證報告與底稿 step1 讀完整份清單時改用一個查詢讀完。
 /// 與 <see cref="ICompletenessDiffPageRepository"/> 共用逐科目比對的 SQL 定義、排序與游標，
-/// 但不過濾差異，且科目名稱只取 TB；TB 名稱空白或 GL 有、TB 無時不以 GL 名稱補值。
-/// 差異頁及底稿 step1-3 仍可用 GL 名稱補值。
+/// 但不過濾差異。科目名稱的取法和差異頁相同：先取 TB 的名稱，TB 沒有名稱或 GL 有、TB 無時取 GL 的名稱。
 /// 每頁筆數有上限；母體大小由目前案件查詢結果決定，不預設案件識別或固定筆數。
 /// 回傳型別共用 <see cref="CompletenessDiffAccount"/>，欄位包含科目編號、名稱、TB 與 GL 金額、差異及是否 GL 有而 TB 無。
 /// </summary>

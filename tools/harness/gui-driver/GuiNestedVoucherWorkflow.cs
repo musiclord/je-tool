@@ -41,8 +41,8 @@ internal static partial class GuiScenarios
         const string condition = ".rule-row[data-ri='0.1.1']";
         const string field = ".rule-row[data-ri='0.1.1.0']";
         const string group = ".rule-row[data-ri='0.1.1.1']";
-        const string date = ".rule-row[data-ri='0.1.1.1.0']";
-        const string description = ".rule-row[data-ri='0.1.1.1.1']";
+        const string filledDescription = ".rule-row[data-ri='0.1.1.1.0']";
+        const string blankDescription = ".rule-row[data-ri='0.1.1.1.1']";
         const string classification = ".rule-row[data-ri='0.1.1.2']";
         ResizeFilterWindow(1120, 860);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
@@ -74,9 +74,11 @@ internal static partial class GuiScenarios
         await AddChild(all, "type:group"); await Click(ChildJoin(all, "OR"));
         await AddChild(condition, "field:accountNumber"); await Choose(field + " [data-value-kind]", "exact");
         await Fill(field + " [data-value-key=values]", "GUI-ABSENT-ACCOUNT"); await Choose(field + " [data-value-polarity]", "exclude");
-        await AddChild(condition, "type:group"); await AddChild(group, "field:glDate");
-        await Choose(date + " [data-value-kind]", "blank"); await Choose(date + " [data-value-polarity]", "exclude");
-        await AddChild(group, "field:description"); await Choose(description + " [data-value-kind]", "blank");
+        // 這一組用 OR 接「摘要 不是空白」與「摘要 空白」，每一筆分錄都符合。
+        // 用摘要是因為總帳日期這類 GL 中一定有值的欄位，第五步不提供「空白」。
+        await AddChild(condition, "type:group"); await AddChild(group, "field:description");
+        await Choose(filledDescription + " [data-value-kind]", "blank"); await Choose(filledDescription + " [data-value-polarity]", "exclude");
+        await AddChild(group, "field:description"); await Choose(blankDescription + " [data-value-kind]", "blank");
         await Click(ChildJoin(group, "OR"));
         // 「選取依據」一起隱藏（裁定 2026-11-03-27），科目分類條件照舊用包含下層分類；原本在這裡切到僅分類本身再切回來。
         await AddChild(condition, "type:accountSide");

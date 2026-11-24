@@ -78,7 +78,7 @@ public sealed class QueryHighRiskSummaryVoucherPageHandler(
                 voucherNumber = r.VoucherNumber,
                 glDate = r.GlDate,
                 createdBy = r.CreatedBy,
-                voucherTotal = (decimal)r.VoucherTotalScaled / scale,
+                voucherTotal = MoneyScaling.FromScaled(r.VoucherTotalScaled, scale),
                 matchedPositions = r.VoucherNumber is not null
                     ? positions.GetValueOrDefault(r.VoucherNumber, [])
                     : (IReadOnlyList<int>)[]

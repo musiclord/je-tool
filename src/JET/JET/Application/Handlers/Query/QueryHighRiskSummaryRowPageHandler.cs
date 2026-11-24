@@ -90,7 +90,7 @@ public sealed class QueryHighRiskSummaryRowPageHandler(
                 approvedBy = r.ApprovedBy,
                 accountNumber = r.AccountNumber,
                 accountName = r.AccountName,
-                amount = (decimal)r.AmountScaled / scale,
+                amount = MoneyScaling.FromScaled(r.AmountScaled, scale),
                 matchedPositions = positions.GetValueOrDefault(entryIds[i], []),
                 description = r.Description
             };

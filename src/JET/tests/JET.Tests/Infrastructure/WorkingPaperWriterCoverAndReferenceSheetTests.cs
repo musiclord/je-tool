@@ -285,15 +285,16 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal(expected, string.Concat(rows.Select(row => row.Workday)));
     }
 
-    // ================= 自動化工具-科目配對資訊(Not-in-TB 字面值)=================
+    // ================= 自動化工具-科目配對資訊(名稱照上傳的檔案，沒有名稱寫 Not in TB)=================
 
+    /// <summary>底稿照審計員上傳的科目配對檔寫名稱，和舊版 JET 照上傳的檔案原樣寫相同；只在 GL 的 5501 也寫檔案裡的名稱。</summary>
     [Fact]
-    public async Task AccountMapping_NotInTbAccount_WritesLiteral_OthersWriteAccountName()
+    public async Task AccountMapping_WritesTheUploadedNames_AlsoForAGlOnlyAccount()
     {
         using var host = new HandlerTestHost();
         var longAccountName = string.Concat(Enumerable.Repeat("長科目名稱", 12));
 
-        // 母體:GL 含 1101(TB 有)與 5501(TB 無 → Not in TB);TB 只列 1101。
+        // 母體:GL 含 1101(TB 有)與 5501(TB 無);TB 只列 1101。
         var projectId = await InlineWorkbookProject.SetupAsync(
             host,
             gl =>
@@ -358,10 +359,10 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             expectedAccountNameWidth + 1.5D);
         AssertSingleLine(sheet.Cell(row1101, 2));
 
-        // 5501 在 GL 不在 TB → GL_NAME 寫字面「Not in TB」(非 account_name);分類仍寫。
+        // 5501 在 GL 不在 TB，上傳的檔案寫了名稱「管理費用」→ GL_NAME 寫這個名稱;分類仍寫。
         var row5501 = FindRowByColumnValue(sheet, "A", "5501", 2);
         Assert.True(row5501 > 0, "科目配對應含 5501");
-        Assert.Equal("Not in TB", sheet.Cell($"B{row5501}").GetString());
+        Assert.Equal("管理費用", sheet.Cell($"B{row5501}").GetString());
         Assert.Equal("Others", sheet.Cell($"C{row5501}").GetString());
         Assert.Equal(
             AccountMappingCategories.All.Order(StringComparer.Ordinal),
@@ -373,6 +374,133 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             "SELECT COUNT(*) FROM (SELECT account_number FROM gl " +
             "EXCEPT SELECT account_number FROM tb) x WHERE account_number = '5501';");
         Assert.Equal(1, notInTb);
+    }
+
+    /// <summary>
+    /// 已儲存的科目配對沒有科目名稱時，GL_NAME 寫「Not in TB」，不留白；科目在試算表裡也一樣。
+    /// 1201 在科目配對檔的名稱欄是空的；1301 的名稱欄是「Not in TB」，匯入時當成沒有科目名稱。
+    /// </summary>
+    [Fact]
+    public async Task AccountMapping_AccountWithoutASavedName_WritesNotInTb()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "建立人員", "金額", "借方旗標");
+                gl.AddRow("JV1", "2025-03-01", "1101", "現金", "說明", "甲", "100.00", 1);
+                gl.AddRow("JV1", "2025-03-01", "1201", "應收帳款", "說明", "甲", "60.00", 0);
+                gl.AddRow("JV1", "2025-03-01", "1301", "存貨", "說明", "甲", "40.00", 0);
+            },
+            configureTb: tb =>
+            {
+                tb.AddRow("1101", "現金", 0);
+                tb.AddRow("1201", "應收帳款", 0);
+                tb.AddRow("1301", "存貨", 0);
+            });
+
+        var mappingFile = TestWorkbookBuilder.WriteWorkbook(ws =>
+        {
+            ws.Cell(1, 1).Value = "GL_NUMBER";
+            ws.Cell(1, 2).Value = "GL_NAME";
+            ws.Cell(1, 3).Value = "STANDARDIZED_ACCOUNT_NAME";
+            ws.Cell(2, 1).Value = "1101"; ws.Cell(2, 2).Value = "現金"; ws.Cell(2, 3).Value = "Cash";
+            ws.Cell(3, 1).Value = "1201"; ws.Cell(3, 3).Value = "Receivables";
+            ws.Cell(4, 1).Value = "1301"; ws.Cell(4, 2).Value = "Not in TB"; ws.Cell(4, 3).Value = "Others";
+        });
+        try
+        {
+            await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new
+            {
+                filePath = mappingFile,
+                fileName = "inline-account-mapping.xlsx"
+            }));
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(mappingFile);
+        }
+
+        using var workbook = await WriteAndReadAsync(host, projectId);
+        var sheet = workbook.Worksheet(AccountMappingSheet);
+
+        Assert.Equal(
+            new[] { ("1101", "現金"), ("1201", "Not in TB"), ("1301", "Not in TB") },
+            new[] { "1101", "1201", "1301" }.Select(accountNumber =>
+            {
+                var row = FindRowByColumnValue(sheet, "A", accountNumber, 2);
+                Assert.True(row > 0, $"科目配對應含 {accountNumber}");
+                return (accountNumber, sheet.Cell($"B{row}").GetString());
+            }));
+    }
+
+    /// <summary>
+    /// 同一份資料在畫面分類，或用沒有改過名稱的科目配對範本匯回，底稿「自動化工具-科目配對資訊」寫的名稱相同。
+    /// 1102 在試算表沒有名稱、總帳是「銀行存款」，5101 只在總帳；兩條路都和範本一樣寫「Not in TB」。
+    /// </summary>
+    [Fact]
+    public async Task AccountMapping_ScreenClassificationAndUnchangedTemplate_WriteTheSameNames()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "建立人員", "金額", "借方旗標");
+                gl.AddRow("JV1", "2025-03-01", "1101", "現金", "說明", "甲", "100.00", 1);
+                gl.AddRow("JV1", "2025-03-01", "1102", "銀行存款", "說明", "甲", "60.00", 0);
+                gl.AddRow("JV1", "2025-03-01", "5101", "薪資", "說明", "甲", "40.00", 0);
+            },
+            configureTb: tb =>
+            {
+                tb.AddRow("1101", "現金", 0);
+                tb.AddRow("1102", null, 0);
+            });
+        var expected = new[] { ("1101", "現金"), ("1102", "Not in TB"), ("5101", "Not in TB") };
+
+        await host.DispatchAsync("accountMapping.save", JsonSerializer.Serialize(new
+        {
+            changes = expected.Select(account => new { accountNumber = account.Item1, categoryId = "builtin.cash" }).ToArray()
+        }));
+        var onScreen = await AccountMappingNamesAsync(host, projectId, expected.Select(account => account.Item1));
+
+        var export = await host.DispatchAsync("export.accountMappingTemplate", "{}");
+        var templatePath = export.GetProperty("filePath").GetString()!;
+        var filledPath = Path.Combine(host.ProjectsRoot, "synthetic-filled-account-mapping.xlsx");
+        using (var template = new XLWorkbook(templatePath))
+        {
+            var sheet = template.Worksheet("AccountMapping");
+            for (var row = 4; row <= sheet.LastRowUsed()!.RowNumber(); row++)
+            {
+                sheet.Cell(row, 3).Value = AccountMappingCategories.Cash;
+            }
+
+            template.SaveAs(filledPath);
+        }
+
+        await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new
+        {
+            filePath = filledPath,
+            fileName = "synthetic-filled-account-mapping.xlsx"
+        }));
+        var fromTemplate = await AccountMappingNamesAsync(host, projectId, expected.Select(account => account.Item1));
+
+        Assert.Equal(expected, onScreen);
+        Assert.Equal(expected, fromTemplate);
+    }
+
+    private static async Task<(string, string)[]> AccountMappingNamesAsync(
+        HandlerTestHost host, string projectId, IEnumerable<string> accountNumbers)
+    {
+        using var workbook = await WriteAndReadAsync(host, projectId);
+        var sheet = workbook.Worksheet(AccountMappingSheet);
+        return accountNumbers.Select(accountNumber =>
+        {
+            var row = FindRowByColumnValue(sheet, "A", accountNumber, 2);
+            Assert.True(row > 0, $"科目配對應含 {accountNumber}");
+            return (accountNumber, sheet.Cell($"B{row}").GetString());
+        }).ToArray();
     }
 
     // ================= 整本活頁簿 =================

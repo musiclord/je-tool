@@ -129,10 +129,11 @@ public sealed class ReportTextEncodingTests
         var mappedRows = preview.GetProperty("rows").EnumerateArray()
             .Select(row => row.EnumerateArray().Select(cell => cell.GetString()).ToArray())
             .ToArray();
-        // 只在總帳出現的 5000 在工作檔寫「Not in TB」，匯回時當成沒有科目名稱。
+        // 只在總帳出現的 5000 在工作檔寫「Not in TB」，匯回時當成沒有科目名稱；
+        // 資料預覽在沒有存名稱的科目照全科目表的取法，顯示總帳含控制字元的名稱，同樣要和來源一字不差。
         // 含控制字元的名稱由試算表也有的 1000 帶進工作檔，同樣要原樣讀回。
         var mapped = mappedRows.Single(row => row[0] == "5000");
-        Assert.Null(mapped[1]);
+        Assert.Equal(GlOnlyAccountName, mapped[1]);
         Assert.Equal(AccountMappingCategories.Cash, mapped[2]);
         var mappedTbAccount = mappedRows.Single(row => row[0] == "1000");
         Assert.Equal(AccountName, mappedTbAccount[1]);

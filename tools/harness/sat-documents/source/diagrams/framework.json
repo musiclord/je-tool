@@ -1,5 +1,5 @@
 {
-  "title": "JE Tool 系統架構圖",
+  "title": "系統架構圖",
   "sourceRoot": "src/JET/JET",
   "pathPrefix": "JET/",
   "componentSpec": "component.json",
@@ -34,6 +34,7 @@
       "group": "infrastructureLayer",
       "label": "Infrastructure Layer",
       "nodes": [
+        "logging",
         "infrastructure"
       ]
     }
@@ -41,6 +42,7 @@
   "outside": [
     "user",
     "adsi",
+    "logs",
     "sources",
     "database",
     "reports"
@@ -72,7 +74,7 @@
       ],
       "at": [
         -20,
-        256
+        250
       ],
       "evidence": [
         {
@@ -118,11 +120,28 @@
         "Application"
       ],
       "at": [
-        548,
+        590,
         80
       ],
       "components": [
         "application"
+      ]
+    },
+    {
+      "id": "logging",
+      "name": [
+        "Diagnostics",
+        "ProcessingLog"
+      ],
+      "detail": [
+        "支援日誌、操作監看、處理紀錄"
+      ],
+      "at": [
+        271,
+        250
+      ],
+      "components": [
+        "diagnostics"
       ]
     },
     {
@@ -132,31 +151,52 @@
         "Domain"
       ],
       "at": [
-        530,
-        256
+        585,
+        250
       ],
       "components": [
         "auditcore",
         "domain"
       ],
-      "width": 150
+      "width": 170
     },
     {
       "id": "infrastructure",
       "name": [
-        "Infrastructure"
+        "Persistence、Sql",
+        "FileIO、Export"
       ],
       "at": [
-        270,
-        256
+        340,
+        392
       ],
       "components": [
         "persistence",
         "fileio",
-        "export",
-        "diagnostics"
+        "export"
       ],
       "width": 190
+    },
+    {
+      "id": "logs",
+      "name": [
+        "處理紀錄",
+        "支援日誌"
+      ],
+      "at": [
+        -20,
+        392
+      ],
+      "evidence": [
+        {
+          "file": "Infrastructure/ProcessingLog/ProcessingLogFile.cs",
+          "text": "處理紀錄.txt"
+        },
+        {
+          "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
+          "text": "FileName = \"events.ndjson\""
+        }
+      ]
     },
     {
       "id": "sources",
@@ -167,8 +207,8 @@
         "Excel、文字檔、Access"
       ],
       "at": [
-        86,
-        430
+        150,
+        566
       ],
       "evidence": [
         {
@@ -186,8 +226,8 @@
         "jet.db"
       ],
       "at": [
-        270,
-        430
+        340,
+        566
       ],
       "evidence": [
         {
@@ -206,8 +246,8 @@
         "Excel 報告與工作底稿"
       ],
       "at": [
-        466,
-        430
+        536,
+        566
       ],
       "evidence": [
         {
@@ -239,8 +279,9 @@
       "from": "frontend",
       "to": "bridge",
       "label": [
-        "送出請求"
+        "JSON"
       ],
+      "bidirectional": true,
       "basis": [
         {
           "interface": "WebMessageChannel",
@@ -259,6 +300,33 @@
           "interface": "IApplicationActionHandler",
           "usedBy": "bridge"
         }
+      ]
+    },
+    {
+      "from": "bridge",
+      "to": "logging",
+      "label": [
+        "記錄作業"
+      ],
+      "basis": [
+        {
+          "file": "Bridge/ActionDispatcher.cs",
+          "text": "_operationMonitor?.BeginOperation(action, cancellationToken)"
+        },
+        {
+          "file": "Bridge/ActionDispatcher.cs",
+          "text": "_processingLog.RecordAsync(action, payload, result, _session.CurrentProjectId)"
+        }
+      ],
+      "via": [
+        [
+          356,
+          150
+        ]
+      ],
+      "labelAt": [
+        322,
+        152
       ]
     },
     {
@@ -284,13 +352,13 @@
       ],
       "via": [
         [
-          576,
-          138
+          620,
+          160
         ]
       ],
       "labelAt": [
-        542,
-        170
+        654,
+        160
       ]
     },
     {
@@ -311,33 +379,28 @@
         {
           "interface": "ReportOutputInterfaces",
           "usedBy": "application"
-        },
-        {
-          "interface": "ISupportDiagnosticLogStore",
-          "usedBy": "application"
         }
       ],
       "via": [
         [
-          520,
-          138
+          560,
+          150
         ],
         [
-          346,
-          138
+          400,
+          150
         ]
       ],
       "labelAt": [
-        433,
-        152
+        480,
+        136
       ]
     },
     {
       "from": "infrastructure",
       "to": "core",
       "label": [
-        "使用",
-        "SQL 片段"
+        "使用 SQL 條件"
       ],
       "basis": [
         {
@@ -346,6 +409,50 @@
             "to": "auditcore"
           }
         }
+      ],
+      "via": [
+        [
+          585,
+          392
+        ]
+      ],
+      "labelAt": [
+        516,
+        378
+      ]
+    },
+    {
+      "from": "logging",
+      "to": "logs",
+      "label": [
+        "寫入"
+      ],
+      "basis": [
+        {
+          "component": "diagnostics"
+        },
+        {
+          "file": "Infrastructure/ProcessingLog/ProcessingLogRecorder.cs",
+          "text": "ProcessingLogFile.AppendAsync("
+        },
+        {
+          "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
+          "text": "await AppendAsync(Path.Combine(directory, FileName)"
+        }
+      ],
+      "via": [
+        [
+          190,
+          326
+        ],
+        [
+          -20,
+          326
+        ]
+      ],
+      "labelAt": [
+        72,
+        312
       ]
     },
     {
@@ -365,17 +472,17 @@
       ],
       "via": [
         [
-          230,
-          332
+          300,
+          468
         ],
         [
-          86,
-          332
+          150,
+          468
         ]
       ],
       "labelAt": [
-        109,
-        368
+        173,
+        504
       ]
     },
     {
@@ -394,8 +501,8 @@
         }
       ],
       "labelAt": [
-        293,
-        368
+        363,
+        504
       ]
     },
     {
@@ -419,17 +526,17 @@
       ],
       "via": [
         [
-          310,
-          332
+          380,
+          468
         ],
         [
-          466,
-          332
+          536,
+          468
         ]
       ],
       "labelAt": [
-        443,
-        368
+        513,
+        504
       ]
     },
     {

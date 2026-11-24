@@ -229,7 +229,7 @@ public sealed class ReportTrustJourneyTests
         await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
 
         Assert.Single(Directory.GetFiles(projectDirectory, "*ValidationReport*.xlsx"));
-        Assert.Single(Directory.GetFiles(projectDirectory, "*INFReport*.xlsx"));
+        Assert.Single(Directory.GetFiles(projectDirectory, "*INF_Report*.xlsx"));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         Assert.Single(
             loaded.GetProperty("reports").EnumerateArray(),

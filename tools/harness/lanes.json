@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runnerContractVersion": "9.0",
+  "runnerContractVersion": "10.0",
   "limits": {
     "defaultTimeoutSeconds": 1800,
     "maximumTimeoutSeconds": 3600,
@@ -12,17 +12,12 @@
     "project": "src/JET/tests/JET.Tests/JET.Tests.csproj",
     "developmentRepositoryBuildExtension": "tools/harness/development-repository-tests/DevelopmentRepositoryTests.targets",
     "developmentRepositoryRequiredTestClasses": [
-      "JET.Tests.Architecture.SensitiveDataPolicyTests",
-      "JET.Tests.Infrastructure.LegacyAuditParityProfileTests"
+      "JET.Tests.Architecture.SensitiveDataPolicyTests"
     ],
     "targetFramework": "net10.0-windows",
     "seed": 20260828,
     "publicMinimumExpectedTests": 3000,
     "publicSkipPolicy": "public-skip-policy.json",
-    "privateCaseMinimumExpectedTests": 2,
-    "privateCaseRootEnvironmentVariable": "JET_PRIVATE_CASE_ROOT",
-    "privateCaseManifestEnvironmentVariable": "JET_PRIVATE_CASE_MANIFEST",
-    "privateCaseProviderEnvironmentVariable": "JET_PRIVATE_CASE_PROVIDER",
     "packageMinimumExpectedTests": 70,
     "packageMethodPatterns": [
       "*AccountMappingTemplatePackageDiffTests*",
@@ -46,7 +41,6 @@
       "*.SupportedActionsParityTests.*"
     ],
     "excludedProfiles": [
-      "PrivateCase",
       "Scale"
     ],
     "protectedWorkspaceMethodPatterns": [],
@@ -57,16 +51,10 @@
       "JET_ACCOUNT_MAPPING_EVIDENCE_PATH",
       "JET_AGENT_GUI_CHILD",
       "JET_AGENT_GUI_ROOT",
-      "JET_LEGACY_PARITY_KEEP_OUTPUTS",
-      "JET_LEGACY_PARITY_PROVIDER",
-      "JET_LEGACY_PARITY_STOP_AFTER",
       "JET_PRESCREEN_MONTHLY_BENCHMARK",
       "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
       "JET_PRESCREEN_POSTPERIOD_PROBE",
       "JET_PRESCREEN_POSTPERIOD_PROBE_OUTPUT",
-      "JET_PRIVATE_CASE_MANIFEST",
-      "JET_PRIVATE_CASE_PROVIDER",
-      "JET_PRIVATE_CASE_ROOT",
       "JET_PROJECTS_ROOT",
       "JET_SCALE_JOURNEY",
       "JET_SCALE_JOURNEY_OUTPUT",
@@ -156,8 +144,8 @@
       {
         "name": "filter-common-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 78,
-        "expectedActionCount": 78,
+        "actionBudget": 76,
+        "expectedActionCount": 76,
         "screenshotBudget": 1
       },
       {
@@ -270,7 +258,6 @@
   },
   "releaseCandidateSettings": {
     "snapshotWorkspaceRoot": "artifacts/harness/rc",
-    "privateCaseIncluded": false,
     "steps": [
       {
         "name": "contract",
@@ -393,12 +380,6 @@
       "requiresExclusiveLock": true,
       "privateDataAccess": false
     },
-    "PrivateCase": {
-      "lane": "PrivateCase",
-      "enabled": true,
-      "requiresExclusiveLock": true,
-      "privateDataAccess": true
-    },
     "Mutation": {
       "lane": "Mutation",
       "enabled": true,
@@ -442,11 +423,6 @@
       "stage": 5,
       "enabled": true,
       "privateDataAccess": false
-    },
-    "PrivateCase": {
-      "stage": 6,
-      "enabled": true,
-      "privateDataAccess": true
     },
     "Mutation": {
       "stage": 8,

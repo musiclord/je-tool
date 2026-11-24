@@ -202,8 +202,9 @@ internal static class ReportTemplatePackage
             // 輸出從頭寫起，原本的內容整份清掉，不留在檔尾。
             output.Position = 0;
             output.SetLength(0);
-            // 失敗或取消時不寫完壓縮檔：output 寫到一半就丟掉，沒有必要再寫目錄。
-            var archive = new FormalWorkbookArchive(output);
+            // 失敗或取消時不把活頁簿其餘的項目複製過去，output 寫到一半就丟掉；
+            // 離開這一段時只放掉還開著的工作表項目並關閉壓縮檔。
+            using var archive = new FormalWorkbookArchive(output);
             using (var target = SpreadsheetDocument.Open(
                        workbook,
                        true,

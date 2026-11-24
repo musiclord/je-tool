@@ -178,7 +178,7 @@
 
   // Raw AST 的第一條 rule.join 不參與左折疊；只有其後 semantic 有效邊同時含 AND/OR 時才逐邊呈現。
   // Mixed branch 跟 typed AST 一樣忽略大小寫/前後空白；uniform fallback 仍沿用既有 groupCombinator，
-  // 因此全小寫 uniform join 的 read-back 不在本 slice 被正規化。
+  // groupCombinator 也用這個函式讀每條 join，所以大小寫與前後空白的處理和 mixed branch 相同。
   function effectiveConditionJoin(rule) {
     var raw = rule && typeof rule.join === 'string' ? rule.join.trim().toUpperCase() : '';
     return raw === 'OR' ? 'OR' : 'AND';

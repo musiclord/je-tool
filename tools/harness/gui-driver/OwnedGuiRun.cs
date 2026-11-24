@@ -22,6 +22,8 @@ internal sealed partial class OwnedGuiRun : IDisposable
 {
     private const string DirectoryPrefix = "jet-agent-gui-";
     private const string MarkerFileName = ".jet-agent-gui-run.json";
+    // 和 JET 的案件設定檔同名；Gui 驅動程式不參考 JET 的組件，所以另外寫一次。
+    private const string ProjectJsonFileName = "project.json";
     private const int MaximumCleanupEntries = 20_000;
     private const int MaximumBundleSearchEntries = 2_000;
     private static readonly TimeSpan WebViewReleaseTimeout = TimeSpan.FromSeconds(20);
@@ -32,9 +34,6 @@ internal sealed partial class OwnedGuiRun : IDisposable
         "JET_ACCOUNT_MAPPING_EVIDENCE_PATH",
         "JET_AGENT_GUI_CHILD",
         "JET_AGENT_GUI_ROOT",
-        "JET_LEGACY_PARITY_KEEP_OUTPUTS",
-        "JET_LEGACY_PARITY_PROVIDER",
-        "JET_LEGACY_PARITY_STOP_AFTER",
         "JET_PRESCREEN_MONTHLY_BENCHMARK",
         "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
         "JET_PRESCREEN_POSTPERIOD_PROBE",
@@ -665,6 +664,7 @@ internal sealed partial class OwnedGuiRun : IDisposable
         {
             try
             {
+                ReleaseProjectJsonReadOnly();
                 Directory.Delete(RootPath, recursive: true);
                 return !Directory.Exists(RootPath);
             }
@@ -732,6 +732,28 @@ internal sealed partial class OwnedGuiRun : IDisposable
                 {
                     directories.Push(entry);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// JET 寫好案件設定檔就設成唯讀，Directory.Delete 刪不掉唯讀檔，所以刪除這次的根目錄前先取消唯讀。
+    /// 不進入連結指向的資料夾，只改這次根目錄裡的檔案。
+    /// </summary>
+    private void ReleaseProjectJsonReadOnly()
+    {
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            IgnoreInaccessible = true,
+        };
+        foreach (var path in Directory.EnumerateFiles(RootPath, ProjectJsonFileName, options))
+        {
+            var attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.ReadOnly) != 0)
+            {
+                File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
             }
         }
     }

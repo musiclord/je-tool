@@ -157,6 +157,9 @@
        highRiskSummaryOpen / highRiskSummaryData —— 高風險條件彙總展開狀態與情境摘要（highRiskSummaryScenarios）快取。
        cleanDraftKey    —— 換成目前這份草稿後，第一次畫好時的內容；之後內容不同才算有還沒存的修改。
                            換草稿時清成 null，下一次 bind 在自動名稱與卡片身分收斂後補記。
+       ruleErrors       —— 後端回報、對得到條件列的錯誤：每一則記是哪一條條件、原因，以及那條條件送出時的樣子。
+       saveNotice       —— 儲存鈕上方提示框現在寫的那一則提示，沒有時是 null。
+                           這兩項跟著草稿走：換成另一份草稿就清掉。畫到畫面上與各自收起的時機見 filter-step.js。
      重置時機（四個訊號、範圍遞減）：
        1. 專案切換或同案重新載入（project 參照變）→ 全重置。
        2. 已存清單被替換（savedScenarios 參照變＝commit 成功、移除情境、resume、resetWorkflow）
@@ -181,11 +184,17 @@
       highRiskSummaryOpen: false,
       highRiskSummaryData: null,
       pendingRemovalIndex: null,
-      cleanDraftKey: null
+      cleanDraftKey: null,
+      ruleErrors: [],
+      saveNotice: null
     };
   }
 
   FilterStep.viewState = freshViewState();
+
+  // 第五步現在畫在上面的那一塊畫面，由 render 記下。中央面板每次重畫都換一塊新的；等後端回應之後才要改畫面的程式
+  // 一律從這裡取，不用送出當時的那一塊，那一塊可能已經不在畫面上。
+  FilterStep.shownContainer = null;
 
   var viewProjectKey = null;
 
@@ -264,6 +273,9 @@
     if (state.filter.draft !== viewDraftRef) {
       viewDraftRef = state.filter.draft;
       FilterStep.viewState.cleanDraftKey = null;
+      // 條件列的錯誤與儲存鈕上方的提示說的是上一份草稿。
+      FilterStep.viewState.ruleErrors = [];
+      FilterStep.viewState.saveNotice = null;
     }
     if (state.filter.savedScenarios !== viewSavedRef) {
       invalidateScenarioResponseGuards();
@@ -378,7 +390,9 @@
   function restoreViewState(container) {
     var draftPreview = Store.getState().filter.preview;
     if (draftPreview && draftPreview.voucherPage) {
-      Ui.FilterVouchers.mount(container.querySelector('[data-bind="preview-pane-body"] .filter-voucher-host'), draftPreview);
+      // 條件改了、換了案件或重新預覽之後，Store 裡的預覽就不是這一份。
+      Ui.FilterVouchers.mount(container.querySelector('[data-bind="preview-pane-body"] .filter-voucher-host'), draftPreview,
+        function () { return Store.getState().filter.preview === draftPreview; });
     }
     if (FilterStep.viewState.workspacePane === 'saved') { restoreSavedViews(container); }
   }

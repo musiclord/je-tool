@@ -140,9 +140,9 @@ public sealed class LocalProjectLockHandlerTests
             await creator.DispatchAsync("project.create", CreatePayload(projectId, provider));
         }
 
-        // 同上：以唯讀 project.json 讓載入在取鎖之後失敗。
+        // 其他程式開著 project.json、不讓 JET 換檔，讓載入在取鎖之後、寫回最近開啟時間時失敗。
         var projectJson = Path.Combine(projectDirectory, JetProjectFolder.ProjectJsonFileName);
-        File.SetAttributes(projectJson, FileAttributes.ReadOnly);
+        var holder = new FileStream(projectJson, FileMode.Open, FileAccess.Read, FileShare.Read);
 
         using var failingHost = new HandlerTestHost(projectsRootPath: root.Path);
         try
@@ -160,7 +160,7 @@ public sealed class LocalProjectLockHandlerTests
         }
         finally
         {
-            File.SetAttributes(projectJson, FileAttributes.Normal);
+            holder.Dispose();
         }
 
         using var retryingHost = new HandlerTestHost(projectsRootPath: root.Path);
@@ -178,13 +178,13 @@ public sealed class LocalProjectLockHandlerTests
         using var owner = new HandlerTestHost(projectsRootPath: root.Path);
         using var contender = new HandlerTestHost(projectsRootPath: root.Path);
         var projectId = NewProjectId(provider, "reload-failure");
-        // 壞掉的報告清單不會擋載入，所以用唯讀的 project.json 讓載入在取鎖之後、
+        // 壞掉的報告清單不會擋載入，所以讓其他程式開著 project.json、不讓 JET 換檔，載入在取鎖之後、
         // 寫回 LastOpened 時失敗；測的是「取鎖後失敗」的鎖行為。
         var projectJson = Path.Combine(root.Path, projectId, JetProjectFolder.ProjectJsonFileName);
 
         await owner.DispatchAsync("project.create", CreatePayload(projectId, provider));
         await owner.DispatchAsync("project.load", LoadPayload(projectId));
-        File.SetAttributes(projectJson, FileAttributes.ReadOnly);
+        var holder = new FileStream(projectJson, FileMode.Open, FileAccess.Read, FileShare.Read);
         try
         {
             var reloadError = await Assert.ThrowsAsync<JetActionException>(
@@ -197,8 +197,8 @@ public sealed class LocalProjectLockHandlerTests
         }
         finally
         {
-            // 斷言失敗時也要還原屬性，否則 TempProjectRoot 清不掉資料夾，會蓋掉真正的失敗原因。
-            File.SetAttributes(projectJson, FileAttributes.Normal);
+            // 斷言失敗時也要關掉檔案，否則 TempProjectRoot 清不掉資料夾，會蓋掉真正的失敗原因。
+            holder.Dispose();
         }
 
         await owner.DispatchAsync("project.releaseLock");

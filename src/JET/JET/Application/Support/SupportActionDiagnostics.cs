@@ -184,15 +184,17 @@ public static partial class SupportPayloadShape
 
 /// <summary>
 /// 支援日誌 action.end 的結果版本：從回應取出批次、執行、報告與條件的版本代號、筆數和狀態，最多往下四層。
-/// 回應可以是 C# 物件或 JSON（例如驗證結果）。只取白名單內的名稱：版本代號與狀態必須像程式代號，
-/// 筆數只取白名單內的計數，清單只記筆數；檔名、路徑、案件名稱、金額與資料內容一律不取。
+/// 回應可以是 C# 物件或 JSON（例如驗證結果）。只取白名單內的名稱：版本代號與狀態必須像程式代號；
+/// 筆數取名稱以 Count 結尾的整數，以及白名單內的計數。清單一般只記筆數；情境、匯入來源與預篩選規則
+/// 依各自的代號逐項記筆數，例如 scenarios[2].voucherHitCount。檔名、路徑、案件名稱、金額與資料內容一律不取。
 /// 版本代號排在前面，超過長度上限時先截掉後面的筆數與狀態。
 /// </summary>
 public static partial class SupportResultRefs
 {
-    private const int MaxLength = 1024;
+    private const int MaxLength = 4096;
     private const int MaxDepth = 4;
     private const int MaxListedItems = 4;
+    private const int MaxKeyedItems = 32;
 
     // 版本代號：批次、執行、報告、條件版本與規則邏輯版本。
     private static readonly HashSet<string> VersionKeys = new(StringComparer.Ordinal)
@@ -209,11 +211,19 @@ public static partial class SupportResultRefs
         "staleState.validation", "staleState.prescreen", "staleState.filter",
     };
 
-    // 計數：只取整數，不取金額。
+    // 計數：只取整數，不取金額。名稱以 Count 結尾的整數另由 CountNamePattern 認；這裡列名稱不以 Count 結尾的計數，
+    // 例如預篩選規則的命中分錄與命中傳票、規則期間的母體列數，以及資料可靠性抽樣的筆數。
     private static readonly HashSet<string> CountKeys = new(StringComparer.Ordinal)
     {
-        "rowCount", "projectedRowCount", "totalCount", "savedCount", "recalculatedCount", "count", "bytes",
-        "holidayCount", "makeupDayCount", "blankCategoryCount",
+        "count", "bytes", "hitLines", "hitVouchers", "population", "sampleSize", "requestedSampleSize",
+    };
+
+    // 逐項記筆數的清單與每一項的代號：情境的位置、匯入來源的序號、預篩選規則的代號。每一項只取筆數。
+    private static readonly Dictionary<string, string> KeyedListKeys = new(StringComparer.Ordinal)
+    {
+        ["scenarios"] = "position",
+        ["sources"] = "sourceNo",
+        ["rules"] = "key",
     };
 
     // 只記筆數的清單。
@@ -277,18 +287,23 @@ public static partial class SupportResultRefs
                     others.Add(path + "=" + state);
                 }
             }
-            else if (CountKeys.Contains(name))
+            else if (IsCountName(name))
             {
                 if (Integer(child) is { } count)
                 {
                     others.Add(path + "=" + count);
                 }
             }
-            else if (ListCountKeys.Contains(name))
+            else if (ListCountKeys.Contains(name) || KeyedListKeys.ContainsKey(name))
             {
-                if (Count(child) is { } count)
+                if (ListCountKeys.Contains(name) && Count(child) is { } count)
                 {
                     others.Add(path + "=" + count);
+                }
+
+                if (KeyedListKeys.TryGetValue(name, out var keyName))
+                {
+                    CollectKeyedItemCounts(child, path, keyName, others);
                 }
             }
             else if (ListedKeys.Contains(name))
@@ -305,6 +320,32 @@ public static partial class SupportResultRefs
             }
         }
     }
+
+    /// <summary>逐項記清單裡的筆數，每一項用自己的代號標示；代號不是整數或程式代號的項目略過。</summary>
+    private static void CollectKeyedItemCounts(object list, string path, string keyName, List<string> others)
+    {
+        foreach (var item in Items(list).Take(MaxKeyedItems))
+        {
+            var children = Children(item).ToArray();
+            var key = children.Where(pair => pair.Name == keyName)
+                .Select(pair => Integer(pair.Value) ?? Code(pair.Value))
+                .FirstOrDefault();
+            if (key is null)
+            {
+                continue;
+            }
+
+            foreach (var (name, value) in children)
+            {
+                if (name != keyName && IsCountName(name) && Integer(value) is { } count)
+                {
+                    others.Add($"{path}[{key}].{name}={count}");
+                }
+            }
+        }
+    }
+
+    private static bool IsCountName(string name) => CountKeys.Contains(name) || CountNamePattern().IsMatch(name);
 
     private static IEnumerable<(string Name, object Value)> Children(object node)
     {
@@ -398,6 +439,9 @@ public static partial class SupportResultRefs
 
     [GeneratedRegex("^[A-Za-z0-9_.:-]{1,64}$")]
     private static partial Regex CodePattern();
+
+    [GeneratedRegex("^[a-z][A-Za-z0-9]*Count$")]
+    private static partial Regex CountNamePattern();
 }
 
 /// <summary>

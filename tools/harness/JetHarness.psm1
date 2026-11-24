@@ -24,7 +24,6 @@ if ($null -eq ('Jet.Harness.BoundedProcessRunner' -as [type])) {
 . (Join-Path $PSScriptRoot 'JetHarness.Artifacts.ps1')
 . (Join-Path $PSScriptRoot 'JetHarness.Results.ps1')
 . (Join-Path $PSScriptRoot 'JetHarness.Steps.ps1')
-. (Join-Path $PSScriptRoot 'JetHarness.Preflight.ps1')
 . (Join-Path $PSScriptRoot 'JetHarness.Lanes.ps1')
 . (Join-Path $PSScriptRoot 'JetHarness.ReleaseCandidate.ps1')
 
@@ -228,9 +227,9 @@ function Invoke-JetHarness {
         if ($CollectCoverage -and $Command -notin @('Public', 'Focused')) {
             throw [ArgumentException]::new('CollectCoverage is accepted only by Public or Focused.')
         }
-        if ($NoRestore -and $Command -notin @('Build', 'Focused', 'Public', 'Package', 'PrivateCase')) {
+        if ($NoRestore -and $Command -notin @('Build', 'Focused', 'Public', 'Package')) {
             throw [ArgumentException]::new(
-                'NoRestore is accepted only by Build, Focused, Public, Package, or PrivateCase.')
+                'NoRestore is accepted only by Build, Focused, Public, or Package.')
         }
         if ($Command -ceq 'Package' -and $Configuration -cne 'Release') {
             throw [ArgumentException]::new('Package requires Configuration Release.')
@@ -268,7 +267,7 @@ function Invoke-JetHarness {
             throw [ArgumentException]::new(
                 "ReleaseCandidate TimeoutSeconds must be at least $releaseCandidateMinimumTimeoutSeconds seconds per child.")
         }
-        if ($Command -in @('Restore', 'Build', 'Focused', 'Public', 'Package', 'Gui', 'Excel', 'PrivateCase', 'ReleaseCandidate') -and
+        if ($Command -in @('Restore', 'Build', 'Focused', 'Public', 'Package', 'Gui', 'Excel', 'ReleaseCandidate') -and
             -not (Test-Path -LiteralPath (Join-Path $repositoryFull 'src/JET/JET.slnx') -PathType Leaf)) {
             throw [ArgumentException]::new('Repository solution contract is missing.')
         }
@@ -317,9 +316,6 @@ function Invoke-JetHarness {
     $status = 'passed'
     $exitCode = $script:ExitPassed
     $errorEvidence = $null
-    $privateDataState = if ($Command -ceq 'PrivateCase') { 'selected' } else { 'not_selected' }
-    $privateDataPathInspected = $false
-    $privateCaseProvider = $null
     $releaseCandidateWorkspace = $null
     $releaseCandidateWorkspaceCleanup = $null
     $mutationEvidence = $null
@@ -527,53 +523,7 @@ function Invoke-JetHarness {
                 }
                 # 原本另有 Provider 路線，跑兩種本機資料庫的一致性與 live SQL Server 測試；
                 # 隨 DuckDB 與 SQL Server 一起移除（裁定 2026-11-06-08），還原點是提交 7e88b7b。
-                'PrivateCase' {
-                    $privatePreflight = Get-JetPrivateCasePreflight -Registry $registry
-                    $privateDataPathInspected = [bool]$privatePreflight.PathInspected
-                    $privateCaseProvider = $privatePreflight.Provider
-                    $steps.Add($privatePreflight.Step)
-                    if ($steps[$steps.Count - 1].status -ceq 'passed') {
-                        foreach ($buildStep in @(Invoke-JetBuildPipeline `
-                                -RepositoryRoot $repositoryFull `
-                                -RunDirectory $context.RunDirectory `
-                                -Configuration $Configuration `
-                                -SkipRestore ([bool]$NoRestore) `
-                                -Registry $registry `
-                                -TimeoutSeconds $parsedTimeoutSeconds)) {
-                            $steps.Add($buildStep)
-                        }
-                    }
-                    if ($steps[$steps.Count - 1].status -ceq 'passed') {
-                        $privateTempRoot = Join-Path $context.ScratchDirectory 'private-case-temp'
-                        Assert-JetNoExistingReparsePoint `
-                            -RepositoryRoot $repositoryFull `
-                            -Candidate $privateTempRoot
-                        [void][IO.Directory]::CreateDirectory($privateTempRoot)
-                        Assert-JetNoExistingReparsePoint `
-                            -RepositoryRoot $repositoryFull `
-                            -Candidate $privateTempRoot
-                        $privatePreflight.EnvironmentVariablesToSet['TEMP'] = $privateTempRoot
-                        $privatePreflight.EnvironmentVariablesToSet['TMP'] = $privateTempRoot
-                        $privateSensitiveValues = @($privatePreflight.SensitiveValues) + @($privateTempRoot)
-                        $privateCase = Invoke-JetTestStep `
-                            -RepositoryRoot $repositoryFull `
-                            -RunDirectory $context.RunDirectory `
-                            -Configuration $Configuration `
-                            -Name 'private-case-tests' `
-                            -MinimumExpectedTests ([int]$registry.testSettings.privateCaseMinimumExpectedTests) `
-                            -Registry $registry `
-                            -TimeoutSeconds $parsedTimeoutSeconds `
-                            -IncludeKind Trait `
-                            -IncludeValues @('TestProfile=PrivateCase') `
-                            -ExcludedProfiles @('Scale') `
-                            -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove) `
-                            -EnvironmentVariablesToSet $privatePreflight.EnvironmentVariablesToSet `
-                            -SensitiveValuesToRedact $privateSensitiveValues `
-                            -SkipPolicy NoSkips `
-                            -WithholdFailureMessages
-                        $steps.Add($privateCase)
-                    }
-                }
+                # 原本也有讀取本機真實案件的 PrivateCase 路線，使用者 2026-11-24 要求移除。
                 'ReleaseCandidate' {
                     $snapshot = New-JetReleaseCandidateSnapshot `
                         -RepositoryRoot $repositoryFull `
@@ -943,19 +893,6 @@ function Invoke-JetHarness {
                     assertionDrift = Get-JetTestAssertionDrift -RepositoryRoot $repositoryFull
                 }
             }
-            'PrivateCase' {
-                [ordered]@{
-                    provider = $privateCaseProvider
-                    providerMustBeExplicit = $true
-                    sourcePathsRecorded = $false
-                    expectedReports = 6
-                    reportComparison = 'content-and-appearance'
-                    infAcceptance = 'rules-and-effective-population'
-                    cleanupPolicy = 'always-delete'
-                    outputsRetained = $false
-                    sanitizedEnvironmentVariables = @($registry.testSettings.environmentVariablesToRemove)
-                }
-            }
             'ReleaseCandidate' {
                 [ordered]@{
                     configuration = 'Release'
@@ -965,7 +902,6 @@ function Invoke-JetHarness {
                     sourceGitIndexMutated = $releaseCandidateIndexMutated
                     failFast = $true
                     childCommands = @($registry.releaseCandidateSettings.steps | ForEach-Object { [string]$_.command })
-                    privateCaseIncluded = [bool]$registry.releaseCandidateSettings.privateCaseIncluded
                     privateRootsInspected = $false
                     sanitizedEnvironmentVariables = @($registry.testSettings.environmentVariablesToRemove)
                 }
@@ -1037,10 +973,9 @@ function Invoke-JetHarness {
             $null
         }
         privateData = [ordered]@{
-            state = $privateDataState
-            pathInspected = $privateDataPathInspected
+            state = 'not_selected'
+            pathInspected = $false
             pathsRecorded = $false
-            outputsRetained = if ($Command -ceq 'PrivateCase') { $false } else { $null }
         }
         error = $errorEvidence
     }
@@ -1078,8 +1013,8 @@ function Invoke-JetHarness {
                 type = $_.Exception.GetType().Name
             }
             privateData = [ordered]@{
-                state = $privateDataState
-                pathInspected = $privateDataPathInspected
+                state = 'not_selected'
+                pathInspected = $false
             }
         })
         return $script:ExitInfrastructure

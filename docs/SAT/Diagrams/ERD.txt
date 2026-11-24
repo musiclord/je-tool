@@ -1,12 +1,190 @@
 @startuml
-' JE Tool 1.0.0.0 實體關聯圖（ERD）。範圍：案件資料庫 jet.db（SQLite，每個案件一個檔案）的全部資料表與欄位。
-' 表示法：資訊工程（Information Engineering）表示法。欄位前的 * 表示主鍵或 NOT NULL，<<PK>> 是主鍵，<<UK>> 是唯一索引。
-' 關聯線標示 SQL 查詢使用的關聯欄位，資料庫未宣告外鍵；「a = b」表示子資料表的 a 欄對應父資料表的 b 欄。實線表示關聯欄位屬於子資料表的主鍵，虛線表示不屬於。
-title JE Tool 實體關聯圖（ERD）：案件資料庫
+' 範圍：案件資料庫 jet.db（SQLite，每個案件一個檔案）的全部資料表與欄位。
+title 實體關聯圖（ERD）：案件資料庫
 
 hide circle
 
-package "匯入來源" {
+package "來源資料" {
+  entity pbc_gl {
+    * batch_id : TEXT <<PK>>
+    * row_number : INTEGER <<PK>>
+    --
+    * source_no : INTEGER
+    * source_row_number : INTEGER
+    * row_json : TEXT
+  }
+  entity pbc_tb {
+    * batch_id : TEXT <<PK>>
+    * row_number : INTEGER <<PK>>
+    --
+    * source_no : INTEGER
+    * source_row_number : INTEGER
+    * row_json : TEXT
+  }
+  entity account_mapping {
+    * mapping_id : INTEGER <<PK>>
+    --
+    * batch_id : TEXT
+    * source_row_number : INTEGER
+    * account_number : TEXT <<UK>>
+    account_name : TEXT
+    * standardized_category : TEXT
+    category_id : TEXT
+    classification_explicit : INTEGER
+  }
+  entity authorized_preparer {
+    * name : TEXT <<PK>>
+    --
+  }
+  entity calendar_day {
+    * day_type : TEXT <<PK>>
+    * date : TEXT <<PK>>
+    --
+    day_name : TEXT
+  }
+}
+
+package "標準化與暫存資料" {
+  entity gl {
+    * entry_id : INTEGER <<PK>>
+    --
+    * batch_id : TEXT
+    * source_row_number : INTEGER
+    voucher_number : TEXT
+    line_item : TEXT
+    line_item_numeric_sort_key : TEXT
+    gl_date : TEXT
+    approval_date : TEXT
+    account_number : TEXT
+    account_name : TEXT
+    description : TEXT
+    source_module : TEXT
+    created_by : TEXT
+    approved_by : TEXT
+    is_manual : INTEGER
+    * amount_scaled : INTEGER
+    * debit_amount_scaled : INTEGER
+    * credit_amount_scaled : INTEGER
+    * dr_cr : TEXT
+    posting_status : TEXT
+    is_excluded : INTEGER
+    exclusion_reason : TEXT
+  }
+  entity tb {
+    * balance_id : INTEGER <<PK>>
+    --
+    * batch_id : TEXT
+    * source_row_number : INTEGER
+    account_number : TEXT
+    account_name : TEXT
+    * change_amount_scaled : INTEGER
+  }
+  entity gl_rde_value {
+    * entry_id : INTEGER <<PK>>
+    * field_id : TEXT <<PK>>
+    --
+    * value_type : TEXT
+    text_value : TEXT
+    date_value : TEXT
+    amount_scaled : INTEGER
+  }
+  entity pbc_account_mapping {
+    * batch_id : TEXT <<PK>>
+    * row_number : INTEGER <<PK>>
+    --
+    * source_no : INTEGER
+    * source_row_number : INTEGER
+    * row_json : TEXT
+  }
+  entity pbc_authorized_preparer {
+    * batch_id : TEXT <<PK>>
+    * row_number : INTEGER <<PK>>
+    --
+    * source_no : INTEGER
+    * source_row_number : INTEGER
+    * row_json : TEXT
+  }
+}
+
+package "結果" {
+  entity validation_result {
+    * result_id : TEXT <<PK>>
+    --
+    * generated_utc : TEXT
+    * summary_json : TEXT
+  }
+  entity inf_sample {
+    * result_id : TEXT <<PK>>
+    * entry_id : INTEGER <<PK>>
+    --
+    voucher_number : TEXT
+    line_item : TEXT
+  }
+  entity prescreen_result {
+    * result_id : TEXT <<PK>>
+    --
+    * generated_utc : TEXT
+    * summary_json : TEXT
+  }
+  entity filter_hit {
+    * scenario_id : INTEGER <<PK>>
+    * entry_id : INTEGER <<PK>>
+    --
+  }
+  entity filter_hit_condition {
+    * scenario_id : INTEGER <<PK>>
+    * entry_id : INTEGER <<PK>>
+    * group_no : INTEGER <<PK>>
+    * condition_no : INTEGER <<PK>>
+    --
+  }
+}
+
+package "系統資料" {
+  entity field_mapping {
+    * dataset_kind : TEXT <<PK>>
+    --
+    * mapping_json : TEXT
+    * mode_name : TEXT
+    * source_batch_id : TEXT
+    * committed_utc : TEXT
+    * format_version : INTEGER
+    options_json : TEXT
+  }
+  entity field_mapping_previous {
+    * dataset_kind : TEXT <<PK>>
+    --
+    * mapping_json : TEXT
+    * mode_name : TEXT
+    * source_batch_id : TEXT
+    * committed_utc : TEXT
+    * format_version : INTEGER
+    options_json : TEXT
+  }
+  entity account_category {
+    * category_id : TEXT <<PK>>
+    --
+    * label : TEXT
+    * ordinal : INTEGER <<UK>>
+    * semantic_role : TEXT
+    * is_builtin : INTEGER
+    * revision : INTEGER
+    parent_category_id : TEXT
+  }
+  entity account_category_path {
+    * ancestor_id : TEXT <<PK>>
+    * descendant_id : TEXT <<PK>>
+    --
+  }
+  entity filter_scenario {
+    * scenario_id : INTEGER <<PK>>
+    --
+    * position : INTEGER
+    * name : TEXT
+    * rationale : TEXT
+    * definition_json : TEXT
+    * saved_utc : TEXT
+  }
   entity import_batch {
     * batch_id : TEXT <<PK>>
     --
@@ -45,94 +223,14 @@ package "匯入來源" {
     * field_origin : TEXT
     jet_field : TEXT
   }
-  entity pbc_gl {
-    * batch_id : TEXT <<PK>>
-    * row_number : INTEGER <<PK>>
+  entity gl_rde_field {
+    * field_id : TEXT <<PK>>
     --
-    * source_no : INTEGER
-    * source_row_number : INTEGER
-    * row_json : TEXT
-  }
-  entity pbc_tb {
-    * batch_id : TEXT <<PK>>
-    * row_number : INTEGER <<PK>>
-    --
-    * source_no : INTEGER
-    * source_row_number : INTEGER
-    * row_json : TEXT
-  }
-  entity pbc_account_mapping {
-    * batch_id : TEXT <<PK>>
-    * row_number : INTEGER <<PK>>
-    --
-    * source_no : INTEGER
-    * source_row_number : INTEGER
-    * row_json : TEXT
-  }
-  entity pbc_authorized_preparer {
-    * batch_id : TEXT <<PK>>
-    * row_number : INTEGER <<PK>>
-    --
-    * source_no : INTEGER
-    * source_row_number : INTEGER
-    * row_json : TEXT
-  }
-}
-
-package "配對與整理後的資料" {
-  entity field_mapping {
-    * dataset_kind : TEXT <<PK>>
-    --
-    * mapping_json : TEXT
-    * mode_name : TEXT
-    * source_batch_id : TEXT
-    * committed_utc : TEXT
-    * format_version : INTEGER
-    options_json : TEXT
-  }
-  entity field_mapping_previous {
-    * dataset_kind : TEXT <<PK>>
-    --
-    * mapping_json : TEXT
-    * mode_name : TEXT
-    * source_batch_id : TEXT
-    * committed_utc : TEXT
-    * format_version : INTEGER
-    options_json : TEXT
-  }
-  entity gl {
-    * entry_id : INTEGER <<PK>>
-    --
-    * batch_id : TEXT
-    * source_row_number : INTEGER
-    voucher_number : TEXT
-    line_item : TEXT
-    line_item_numeric_sort_key : TEXT
-    gl_date : TEXT
-    approval_date : TEXT
-    account_number : TEXT
-    account_name : TEXT
-    description : TEXT
-    source_module : TEXT
-    created_by : TEXT
-    approved_by : TEXT
-    is_manual : INTEGER
-    * amount_scaled : INTEGER
-    * debit_amount_scaled : INTEGER
-    * credit_amount_scaled : INTEGER
-    * dr_cr : TEXT
-    posting_status : TEXT
-    is_excluded : INTEGER
-    exclusion_reason : TEXT
-  }
-  entity tb {
-    * balance_id : INTEGER <<PK>>
-    --
-    * batch_id : TEXT
-    * source_row_number : INTEGER
-    account_number : TEXT
-    account_name : TEXT
-    * change_amount_scaled : INTEGER
+    * source_column : TEXT
+    * label : TEXT
+    * value_type : TEXT
+    * ordinal : INTEGER
+    * is_rde : INTEGER
   }
   entity gl_control_total {
     * singleton : INTEGER <<PK>>
@@ -147,117 +245,25 @@ package "配對與整理後的資料" {
     gl_debit_scaled : INTEGER
     gl_credit_scaled : INTEGER
   }
-  entity gl_rde_field {
-    * field_id : TEXT <<PK>>
-    --
-    * source_column : TEXT
-    * label : TEXT
-    * value_type : TEXT
-    * ordinal : INTEGER
-    * is_rde : INTEGER
-  }
-  entity gl_rde_value {
-    * entry_id : INTEGER <<PK>>
-    * field_id : TEXT <<PK>>
-    --
-    * value_type : TEXT
-    text_value : TEXT
-    date_value : TEXT
-    amount_scaled : INTEGER
-  }
-}
-
-package "規則與結果" {
-  entity account_category {
-    * category_id : TEXT <<PK>>
-    --
-    * label : TEXT
-    * ordinal : INTEGER <<UK>>
-    * semantic_role : TEXT
-    * is_builtin : INTEGER
-    * revision : INTEGER
-    parent_category_id : TEXT
-  }
-  entity account_category_path {
-    * ancestor_id : TEXT <<PK>>
-    * descendant_id : TEXT <<PK>>
-    --
-  }
-  entity account_mapping {
-    * mapping_id : INTEGER <<PK>>
-    --
-    * batch_id : TEXT
-    * source_row_number : INTEGER
-    * account_number : TEXT <<UK>>
-    account_name : TEXT
-    * standardized_category : TEXT
-    category_id : TEXT
-    classification_explicit : INTEGER
-  }
-  entity authorized_preparer {
-    * name : TEXT <<PK>>
-    --
-  }
-  entity calendar_day {
-    * day_type : TEXT <<PK>>
-    * date : TEXT <<PK>>
-    --
-    day_name : TEXT
-  }
-  entity validation_result {
-    * result_id : TEXT <<PK>>
-    --
-    * generated_utc : TEXT
-    * summary_json : TEXT
-  }
-  entity prescreen_result {
-    * result_id : TEXT <<PK>>
-    --
-    * generated_utc : TEXT
-    * summary_json : TEXT
-  }
-  entity inf_sample {
-    * result_id : TEXT <<PK>>
-    * entry_id : INTEGER <<PK>>
-    --
-    voucher_number : TEXT
-    line_item : TEXT
-  }
-  entity filter_scenario {
-    * scenario_id : INTEGER <<PK>>
-    --
-    * position : INTEGER
-    * name : TEXT
-    * rationale : TEXT
-    * definition_json : TEXT
-    * saved_utc : TEXT
-  }
-  entity filter_hit {
-    * scenario_id : INTEGER <<PK>>
-    * entry_id : INTEGER <<PK>>
-    --
-  }
-  entity filter_hit_condition {
-    * scenario_id : INTEGER <<PK>>
-    * entry_id : INTEGER <<PK>>
-    * group_no : INTEGER <<PK>>
-    * condition_no : INTEGER <<PK>>
-    --
-  }
-}
-
-package "系統紀錄" {
-  entity schema_info {
-    * key : TEXT <<PK>>
-    --
-    * value : TEXT
-  }
   entity result_stale_state {
     * singleton : INTEGER <<PK>>
     --
     * validation_stale : INTEGER
     * prescreen_stale : INTEGER
     * filter_stale : INTEGER
+  }
+  entity project_setting {
+    * singleton : INTEGER <<PK>>
+    --
+    * period_start : TEXT
+    * period_end : TEXT
+    * money_scale : INTEGER
+    * roc_date_enabled : INTEGER
+    * sample_seed : INTEGER
+    * sample_seed_version : INTEGER
+    * operator_id : TEXT
+    last_accounting_period_date : TEXT
+    non_working_days : TEXT
   }
   entity message_log {
     * message_id : INTEGER <<PK>>
@@ -276,6 +282,11 @@ package "系統紀錄" {
     * subject_count : INTEGER
     * replaced_count : INTEGER
   }
+  entity schema_info {
+    * key : TEXT <<PK>>
+    --
+    * value : TEXT
+  }
 }
 
 import_batch ||--o{ import_batch_source : batch_id
@@ -283,18 +294,18 @@ import_batch ||--o{ field_info : batch_id
 import_batch ||--o{ pbc_gl : batch_id
 import_batch ||--o{ pbc_tb : batch_id
 import_batch ||--o{ pbc_account_mapping : batch_id
-import_batch_source ||..o{ pbc_gl : batch_id, source_no
-pbc_gl ||..o| gl : batch_id, source_row_number = row_number
+import_batch_source ||--o{ pbc_gl : batch_id, source_no
+pbc_gl ||--o| gl : batch_id, gl.source_row_number = pbc_gl.row_number
 field_mapping |o--o| field_mapping_previous : dataset_kind
 gl ||--o{ gl_rde_value : entry_id
 gl_rde_field ||--o{ gl_rde_value : field_id
 account_category ||--o{ account_category_path : ancestor_id
 account_category ||--o{ account_category_path : descendant_id
-account_category |o..o{ account_mapping : category_id
+account_category |o--o{ account_mapping : category_id
 filter_scenario ||--o{ filter_hit : scenario_id
 filter_scenario ||--o{ filter_hit_condition : scenario_id
 gl ||--o{ filter_hit : entry_id
 gl ||--o{ filter_hit_condition : entry_id
 gl ||--o{ inf_sample : entry_id
-account_mapping |o..o{ gl : account_number
+account_mapping |o--o{ gl : account_number
 @enduml

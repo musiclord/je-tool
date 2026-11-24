@@ -294,6 +294,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                 "2025-12-31",
                 10_000,
                 validationResultId,
+                123_456_789,
                 revision,
                 [1]);
             var plan = await CreatePlanAsync(database, context);

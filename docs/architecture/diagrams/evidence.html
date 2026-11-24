@@ -159,21 +159,26 @@ iframe{height:72vh;min-height:420px}main{padding:14px 16px 36px}.top-inner{paddi
                     loggerFactory,
                     session,
                     actionExecutionGate),
-                sqliteDatabase);</pre></details><details><summary>AGENTS.md 第 1–6 行</summary><pre># JET Agent 指南
+                sqliteDatabase);</pre></details><details><summary>docs/jet-guide.md 第 921–930 行</summary><pre>## 9. 系統分層
 
-JET 是 Windows 桌面審計工具，用 C# 與 .NET 10 寫成，WinForms 視窗承載 WebView2 網頁畫面，發布成單一執行檔。
-大量資料留在 SQLite 案件資料庫，用集合式 SQL 處理；DuckDB 與 SQL Server 在短期上線期間暫時移除（裁定 2026-11-06-08）。
-這份檔案是所有 AI 編碼工具（Claude Code、Codex、GitHub Copilot、VS Code）的共用入口，只寫不可協商的邊界，
-以及細節該去哪裡找。給 Agent 讀的流程文件放在 `.agents/`，給人讀的文件放在 `docs/`；兩邊都不複寫這裡的規則。</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-likec4-C04">LikeC4 模型的全部關係：JET 桌面程序 到 WebView2 執行階段</a></li><li><a href="connections.html#c-deployment-ui">電腦環境與交付內容：JET 桌面程序 到 WebView2 執行階段</a></li><li><a href="connections.html#c-deployment-sql">電腦環境與交付內容：JET 桌面程序 到 內嵌資料庫引擎</a></li></ul></details></div></details><details class="group card fact" id="f-environment"><summary><h2>正式環境限制</h2></summary><div class="group-body"><p class="muted">依專案文件與使用者要求</p><p>正式環境不能假設使用者有系統管理員權限，也不能存取外部 AI 服務；使用者不能另外安裝程式，本機資料庫要內嵌在 JET 裡使用，不依賴另外安裝的驅動程式或資料庫。短期上線的版本只支援 SQLite，DuckDB 與 SQL Server 暫時移除。匯入 Access 一般資料表時使用公司電腦現有的 x64 ACE 16，目前只在本機 x64 ACE 環境驗證過。</p><details><summary>docs/project-context.md 第 64–87 行</summary><pre>## 開發電腦與正式環境不同
+| 層 | 責任 | 主要位置 |
+|:---|:---|:---|
+| WinForms 主程式 | 視窗、WebView2、原生檔案對話框與程序生命週期 | `src/JET/JET/Form1*`, `Program.cs` |
+| Web 前端 | 操作、呈現、分頁與使用者回饋 | `src/JET/JET/wwwroot/` |
+| Bridge | 傳送請求、回應與非權威進度事件 | `src/JET/JET/Bridge/` |
+| Application | action 處理器、流程協調、取消與工作階段 | `src/JET/JET/Application/` |
+| Domain／AuditCore | 欄位、規則、金額與查核語意 | `src/JET/JET/Domain/`, `AuditCore/` |
+| Infrastructure | SQLite、檔案讀寫與報告輸出 | `src/JET/JET/Infrastructure/` |</pre></details><details><summary>docs/jet-guide.md 第 977–980 行</summary><pre>每種資料庫各有一組資料存取物件（repository），程式啟動時建好；目前只有 SQLite 一組（裁定 2026-11-06-08）。建立或載入案件時，
+Application 依 `project.json` 記錄的資料庫種類選定這一組，種類不是 SQLite 時在動任何資料之前回 `unsupported_provider`；
+選定的一組和案件編號一起存進工作階段。其他動作開始時取一次這份紀錄，
+整個動作只用這一組；即使途中另一個請求載入了別的案件，進行中的動作也不會改用新的一組。刪除不在使用中的案件時，</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-likec4-C04">LikeC4 模型的全部關係：JET 桌面程序 到 WebView2 執行階段</a></li><li><a href="connections.html#c-deployment-ui">電腦環境與交付內容：JET 桌面程序 到 WebView2 執行階段</a></li><li><a href="connections.html#c-deployment-sql">電腦環境與交付內容：JET 桌面程序 到 內嵌資料庫引擎</a></li></ul></details></div></details><details class="group card fact" id="f-environment"><summary><h2>正式環境限制</h2></summary><div class="group-body"><p class="muted">依專案文件與使用者要求</p><p>正式環境不能假設使用者有系統管理員權限，本機案件處理要能在沒有企業中心服務時工作；使用者不能另外安裝程式，本機資料庫要內嵌在 JET 裡使用，不依賴另外安裝的驅動程式或資料庫。短期上線的版本只支援 SQLite，DuckDB 與 SQL Server 暫時移除。匯入 Access 一般資料表時使用公司電腦現有的 x64 ACE 16，目前只在本機 x64 ACE 環境驗證過。</p><details><summary>docs/project-context.md 第 64–71 行</summary><pre>## 開發電腦與正式環境不同
 
 目前常見的開發方式，是從公司環境遠端連到個人電腦進行開發與驗證。個人電腦可以提供開發工具、SQL Server
 或原生 Excel 等能力，但它不是正式部署環境，也不能拿這台電腦的權限和軟體狀態當成公司環境必然具備的條件。
 
 正式方向必須遵守下列限制：
 
-- 公司環境不能假設使用者有系統管理員權限。
-- 公司環境無法存取 AI 相關網路服務；AI 可以協助開發，但不能成為 JET 執行期依賴。
-- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。
+- 公司環境不能假設使用者有系統管理員權限。</pre></details><details><summary>docs/project-context.md 第 73–87 行</summary><pre>- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。
 - 短期上線的版本只支援 SQLite：審計員只能用 SQLite 操作本機案件，案件資料夾仍能在不同電腦之間搬移。
   DuckDB 與 SQL Server 的程式、測試與驗證路線暫時刪除，最後的完整版本是提交 `7e88b7b`，短期目標上線後從那裡接回繼續開發
   （裁定 2026-11-06-08）。這台開發電腦的 SQL Server 服務平時保持停止，操作方式見
@@ -2768,16 +2773,14 @@ public sealed class SystemPingHandler(bool devToolsEnabled) : IApplicationAction
         {
             message = &quot;JET host bridge ok.&quot;,
             utcNow = DateTimeOffset.UtcNow,
-            devToolsEnabled</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-maintenance-same_record">部署與維護程序草案：結果一致？ 到 匯出支援日誌</a></li><li><a href="connections.html#c-maintenance-record_triage">部署與維護程序草案：匯出支援日誌 到 區分問題來源</a></li><li><a href="connections.html#c-deployment-log">電腦環境與交付內容：JET 桌面程序 到 支援日誌</a></li></ul></details></div></details><details class="group card fact" id="f-operations-proposal"><summary><h2>待確認的正式部署程序</h2></summary><div class="group-body"><p class="muted">建議程序，未執行</p><p>版本核對、用合成資料做的初步驗收、備份保留期限、復原演練，以及公司審查的負責人，都是研究提出的建議，還不是產品功能，也不是公司核准的程序。</p><details><summary>docs/project-context.md 第 64–90 行</summary><pre>## 開發電腦與正式環境不同
+            devToolsEnabled</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-maintenance-same_record">部署與維護程序草案：結果一致？ 到 匯出支援日誌</a></li><li><a href="connections.html#c-maintenance-record_triage">部署與維護程序草案：匯出支援日誌 到 區分問題來源</a></li><li><a href="connections.html#c-deployment-log">電腦環境與交付內容：JET 桌面程序 到 支援日誌</a></li></ul></details></div></details><details class="group card fact" id="f-operations-proposal"><summary><h2>待確認的正式部署程序</h2></summary><div class="group-body"><p class="muted">建議程序，未執行</p><p>版本核對、用合成資料做的初步驗收、備份保留期限、復原演練，以及公司審查的負責人，都是研究提出的建議，還不是產品功能，也不是公司核准的程序。</p><details><summary>docs/project-context.md 第 64–71 行</summary><pre>## 開發電腦與正式環境不同
 
 目前常見的開發方式，是從公司環境遠端連到個人電腦進行開發與驗證。個人電腦可以提供開發工具、SQL Server
 或原生 Excel 等能力，但它不是正式部署環境，也不能拿這台電腦的權限和軟體狀態當成公司環境必然具備的條件。
 
 正式方向必須遵守下列限制：
 
-- 公司環境不能假設使用者有系統管理員權限。
-- 公司環境無法存取 AI 相關網路服務；AI 可以協助開發，但不能成為 JET 執行期依賴。
-- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。
+- 公司環境不能假設使用者有系統管理員權限。</pre></details><details><summary>docs/project-context.md 第 73–90 行</summary><pre>- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。
 - 短期上線的版本只支援 SQLite：審計員只能用 SQLite 操作本機案件，案件資料夾仍能在不同電腦之間搬移。
   DuckDB 與 SQL Server 的程式、測試與驗證路線暫時刪除，最後的完整版本是提交 `7e88b7b`，短期目標上線後從那裡接回繼續開發
   （裁定 2026-11-06-08）。這台開發電腦的 SQL Server 服務平時保持停止，操作方式見

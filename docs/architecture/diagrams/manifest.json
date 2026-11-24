@@ -108,8 +108,8 @@
         "ok": true
       },
       "finalizedHtmlSha256": "1e79612da485c0186bfdcf16eb10e3f2010a033676f769176b8f2b677a96af3f",
-      "candidateSha256": "44aa8dd02420f0d851b763904deb81155ffe52fc25d2dd59a059ffc3d0059ba8",
-      "htmlSha256": "79b421316ceb71a5fd93fde76ab0419c7fc8f78b1127a9a786e6081769ec85f7"
+      "candidateSha256": "79e15659a05da9e00bd589470e0bf02854b6183614870baeb071e4a4740a607d",
+      "htmlSha256": "842826710058885800b1b454a554fb5c97ddc39a9878a4908b337bb1e679e774"
     },
     {
       "id": "maintenance",
@@ -499,7 +499,7 @@
   "likec4Export": {
     "html": "likec4/index.html",
     "sourceSha256": "d582c42014c8cc91f8236eda83dc0a0afea24ebb3b36cda1b0330dd0c4eda7d7",
-    "portableSha256": "aae38f825334754294b621c06d7d30eba58b6ac93771e8eae3cc8191d2a6a82a",
+    "portableSha256": "78b6506490e24c1947beca206b334142622c0e0f1b4a79392bc78ab269c1eee8",
     "rewrittenLocalLinks": 56,
     "transformation": "Rewrite local links relative to the package root, inline the favicon and insert likec4/jet-theme.css; keep the model and layout.",
     "themeConfig": "likec4/likec4.config.json"
@@ -554,11 +554,11 @@
     },
     {
       "path": "archify/deployment/candidate.json",
-      "sha256": "44aa8dd02420f0d851b763904deb81155ffe52fc25d2dd59a059ffc3d0059ba8"
+      "sha256": "79e15659a05da9e00bd589470e0bf02854b6183614870baeb071e4a4740a607d"
     },
     {
       "path": "archify/deployment/deployment.html",
-      "sha256": "79b421316ceb71a5fd93fde76ab0419c7fc8f78b1127a9a786e6081769ec85f7"
+      "sha256": "842826710058885800b1b454a554fb5c97ddc39a9878a4908b337bb1e679e774"
     },
     {
       "path": "archify/export-classes/candidate.json",
@@ -758,11 +758,11 @@
     },
     {
       "path": "evidence/source-excerpts.json",
-      "sha256": "8fd537ab22262b29ac04e2743f553a040c47c24c455c1f8bc806b6ab29cea401"
+      "sha256": "6a7804bb4c4ebec761f40bfb5382c26cb427427f8d6b243f64f016332d6593ee"
     },
     {
       "path": "evidence/source-manifest.json",
-      "sha256": "c2f84175e2dff6f72c48d49d0082e7e53533fd23efd036b99976db655e5f107d"
+      "sha256": "890c63c9630a11146379a6fc363cd3923ab51e015771bbb0a5f7d92c2b1c5aee"
     },
     {
       "path": "evidence/sqlite-schema.json",
@@ -770,11 +770,11 @@
     },
     {
       "path": "evidence/verified-facts.json",
-      "sha256": "4190ae3c9ba08a393e1246322465d20009b43a23a06d0f759b946b3209210dd3"
+      "sha256": "b89db5763eb6c7e05095e5f4898119a3d59c3bed62e25a46309426463459af3b"
     },
     {
       "path": "evidence.html",
-      "sha256": "0a6eb6bfb22f1e61835d6d863799188b4a38f9c81be1b6d1c2df5baa86c356c3"
+      "sha256": "8240f38d082404c1237fd47693b5e7d0ebc19e8ae8fc06d0d48145addd7d6c38"
     },
     {
       "path": "index.html",
@@ -790,15 +790,15 @@
     },
     {
       "path": "likec4/index.html",
-      "sha256": "aae38f825334754294b621c06d7d30eba58b6ac93771e8eae3cc8191d2a6a82a"
+      "sha256": "78b6506490e24c1947beca206b334142622c0e0f1b4a79392bc78ab269c1eee8"
     },
     {
       "path": "likec4/jet-theme.css",
-      "sha256": "c60e1a55230a3f33e9e7e7d7f0719736cc547a8bf791585c0b98e5a7865189c7"
+      "sha256": "90df538a5da05b9b6ea5a7b0dd8a820d3b0114dca04aeae419eb09c75f4c59b9"
     },
     {
       "path": "likec4/jet.c4",
-      "sha256": "6fa1da0dcf31a625fdd36866422646bf35a3605e6ce4d7aad2bf1df4304fd2cb"
+      "sha256": "7a61647b5472e42afb077d96a81564be4a5546ca2195b4bdfdf16f86adc2ae82"
     },
     {
       "path": "likec4/likec4.config.json",
@@ -806,7 +806,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "3f1dcb6cbb2f1096de88e48c9304a12f4d6468ab2367a93f811072dbdb8e255f"
+      "sha256": "67513f81a5853bac1d007c995eebb6e605c9074cc908f79a61af86713304cc5d"
     },
     {
       "path": "schema.html",

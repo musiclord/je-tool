@@ -63,11 +63,12 @@ public sealed class GuiScenarioCoverageTests
         Assert.Contains("an automatic card name already used by a saved scenario gets a number and saves", frontend);
         Assert.Contains("copying identical conditions and removing the copy resets and reloads the high-risk summary columns", frontend);
         Assert.Contains("clicking each card with a default rationale alone fills its own rationale, the fixed-asset card adds its account category pair, and clicking again removes it", frontend);
-        // 情境的操作次數是 78 次：開啟已存情境時草稿還有未儲存的內容，JET 先詢問，情境選「不儲存，直接編輯」多點一次；
+        // 情境的操作次數是 76 次：開啟已存情境時草稿還有未儲存的內容，JET 先詢問，情境選「不儲存，直接編輯」多點一次；
         // 預篩選條件從條件總覽的「預篩選」分頁直接加入；有常用查法的欄位的一般條件收在「加入」打開的選單，
         // 加入金額與摘要各要先按一次「加入」；金額門檻先選「大於」再改選「大於或等於」，每次選篩選方式算兩次操作。
-        Assert.Equal(78, scenario.GetProperty("actionBudget").GetInt32());
-        Assert.Equal(78, scenario.GetProperty("expectedActionCount").GetInt32());
+        // 金額在 GL 中一定有值，金額條件沒有選項區，情境不展開選項區，也不勾選「空白也列入」。
+        Assert.Equal(76, scenario.GetProperty("actionBudget").GetInt32());
+        Assert.Equal(76, scenario.GetProperty("expectedActionCount").GetInt32());
     }
 
     private static JsonElement FindCommonEditing(JsonElement value)

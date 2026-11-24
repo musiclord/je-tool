@@ -5,9 +5,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 第五步金額的「尾數連續多個 0」：一條條件取代改版前的子條件組
-/// 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」，第四步預篩選規則「分錄金額中有連續 0 的尾數」也用同一個述詞，0 的個數由 GL 算出。
-/// 預期分錄逐筆手算：整數部分以 N 個 0 結尾，而且整數部分不是 0。新條件、改版前的子條件組與預篩選規則都要選到同一組分錄，
+/// 第五步金額的「尾數連續多個 0」是一條條件。已儲存的情境可能留著較早的寫法，也就是子條件組
+/// 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」，照樣要讀得回來並執行。第四步預篩選規則「分錄金額中有連續 0 的尾數」也用同一個述詞，0 的個數由 GL 算出。
+/// 預期分錄逐筆手算：整數部分以 N 個 0 結尾，而且整數部分不是 0。這一條條件、子條件組與預篩選規則都要選到同一組分錄，
 /// 預期值不由被測程式算出。全部資料都是程式生成的合成資料。
 /// </summary>
 public sealed class TrailingZeroRunConditionsTests
@@ -70,7 +70,7 @@ public sealed class TrailingZeroRunConditionsTests
             var count = zeros.ToString(System.Globalization.CultureInfo.InvariantCulture);
             Assert.Equal(hits, await Hits(ZeroRun("endsWithZeros", count)));
             Assert.Equal(AllEntries.Except(hits), await Hits(ZeroRun("notEndsWithZeros", count)));
-            // 改版前第五步加入的子條件組，已儲存的情境照舊這樣讀與執行。
+            // 已儲存的情境可能留著的子條件組寫法，照舊這樣讀與執行。
             var oldGroup = $$"""
                 {"type":"group","conditions":[
                   {"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"{{new string('0', zeros)}}","amountBasis":"absolute"},

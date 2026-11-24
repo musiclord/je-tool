@@ -563,6 +563,241 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         Assert.Equal("-18261.0", sheet.Cell(8, approverColumn).GetString());
     }
 
+    // 日期儲存格的序列值 60 與 0 在 Excel 顯示成日曆上沒有的 1900-02-29 與 1900 年 1 月 0 日，JET 照 Excel 顯示的年月日存下來。
+    // 底稿第 4-1 頁照存下來的文字寫成文字儲存格，匯出照常完成；序列值 1 的 1900-01-01 早於 1900-03-01，同樣寫成文字。
+    [Fact]
+    public async Task Step41_DateCellExcelShowsAsNonexistentDay_IsWrittenAsTheShownText()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns(
+                    "傳票號碼",
+                    "傳票項次",
+                    "傳票日期",
+                    "核准日期",
+                    "科目代號",
+                    "科目名稱",
+                    "摘要",
+                    "金額",
+                    "借方旗標",
+                    "核准人員");
+                gl.AddRow("DOC-0001", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0001", 1m, 1, new DateTime(2025, 3, 6));
+                gl.AddRow("DOC-0002", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0002", 1m, 0, new ExcelDateSerial(60));
+                gl.AddRow("DOC-0003", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0003", 1m, 0, new ExcelDateSerial(0));
+                gl.AddRow("DOC-0004", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0004", 1m, 0, new ExcelDateSerial(1));
+            },
+            validateForDownstream: true);
+        await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new
+            {
+                populationScope = GlPopulationScopeValues.AuditPeriod,
+                scenarios = new[]
+                {
+                    new
+                    {
+                        name = "日曆上沒有的日期",
+                        rationale = "匯出不能因為這一格失敗",
+                        groups = new[]
+                        {
+                            new
+                            {
+                                join = "and",
+                                conditions = new[]
+                                {
+                                    new
+                                    {
+                                        join = "and",
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+
+        var context = await CurrentContextForAsync(host, projectId);
+        var plan = await CurrentPlanForAsync(host, context);
+        await using var stream = new MemoryStream();
+        await ((IWorkingPaperPlanWriter)BuildWriter(host)).WriteAsync(stream, context, plan, CancellationToken.None);
+
+        var approverColumn = plan.Step41Columns
+            .Select(column => column.Header)
+            .ToList()
+            .IndexOf("傳票核准人員_JE") + 1;
+        Assert.True(approverColumn > 0);
+        stream.Position = 0;
+        using var workbook = new XLWorkbook(stream);
+        var sheet = workbook.Worksheet(Step41Sheet);
+        Assert.Equal(new DateTime(2025, 3, 6), sheet.Cell(6, approverColumn).GetDateTime());
+        int[] textRows = [7, 8, 9];
+        Assert.All(textRows, row => Assert.Equal(XLDataType.Text, sheet.Cell(row, approverColumn).DataType));
+        Assert.Equal(
+            ["1900-02-29", "1900-01-00", "1900-01-01"],
+            textRows.Select(row => sheet.Cell(row, approverColumn).GetString()));
+    }
+
+    // 1904 日期系統的序列值 -1460.75 與 -1460.5 早於 1900-01-01，換算不出日期，讀取器存下序列值的文字「1.25」與「1.5」。
+    // 底稿第 4-1 頁照存下來的文字寫成文字儲存格，不把它們當成沒寫年份的 1 月 25 日與 1 月 5 日，寫成匯出當年的日期。
+    [Fact]
+    public async Task Step41_SerialTextThatLooksLikeMonthAndDay_IsWrittenAsTheStoredText()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.UseDate1904();
+                gl.WithColumns(
+                    "傳票號碼",
+                    "傳票項次",
+                    "傳票日期",
+                    "核准日期",
+                    "科目代號",
+                    "科目名稱",
+                    "摘要",
+                    "金額",
+                    "借方旗標",
+                    "核准人員");
+                // 1904 日期系統的序列值 44260 是 2025-03-06。
+                gl.AddRow("DOC-0001", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0001", 1m, 1, new ExcelDateSerial(44260));
+                gl.AddRow("DOC-0002", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0002", 1m, 0, new ExcelDateSerial(-1460.75));
+                gl.AddRow("DOC-0003", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0003", 1m, 0, new ExcelDateSerial(-1460.5));
+            },
+            validateForDownstream: true);
+        await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new
+            {
+                populationScope = GlPopulationScopeValues.AuditPeriod,
+                scenarios = new[]
+                {
+                    new
+                    {
+                        name = "像月日的序列值文字",
+                        rationale = "照存下來的文字寫出",
+                        groups = new[]
+                        {
+                            new
+                            {
+                                join = "and",
+                                conditions = new[]
+                                {
+                                    new
+                                    {
+                                        join = "and",
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+
+        var context = await CurrentContextForAsync(host, projectId);
+        var plan = await CurrentPlanForAsync(host, context);
+        await using var stream = new MemoryStream();
+        await ((IWorkingPaperPlanWriter)BuildWriter(host)).WriteAsync(stream, context, plan, CancellationToken.None);
+
+        var approverColumn = plan.Step41Columns
+            .Select(column => column.Header)
+            .ToList()
+            .IndexOf("傳票核准人員_JE") + 1;
+        Assert.True(approverColumn > 0);
+        stream.Position = 0;
+        using var workbook = new XLWorkbook(stream);
+        var sheet = workbook.Worksheet(Step41Sheet);
+        Assert.Equal(new DateTime(2025, 3, 6), sheet.Cell(6, approverColumn).GetDateTime());
+        int[] textRows = [7, 8];
+        Assert.Equal(
+            ["Text|1.25", "Text|1.5"],
+            textRows.Select(row => sheet.Cell(row, approverColumn).DataType + "|" + sheet.Cell(row, approverColumn).GetString()));
+    }
+
+    // 其他程式產生的 xlsx 可能在日期儲存格寫 NaN 或無限大，換算不出日期，讀取器存下「NaN」「Infinity」「-Infinity」。
+    // 這是來源資料本來的樣子，底稿第 4-1 頁照存下來的文字寫成文字儲存格，匯出照常完成。
+    [Fact]
+    public async Task Step41_DateCellThatIsNaNOrInfinity_IsWrittenAsTheStoredText()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns(
+                    "傳票號碼",
+                    "傳票項次",
+                    "傳票日期",
+                    "核准日期",
+                    "科目代號",
+                    "科目名稱",
+                    "摘要",
+                    "金額",
+                    "借方旗標",
+                    "核准人員");
+                gl.AddRow("DOC-0001", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0001", 1m, 1, new DateTime(2025, 3, 6));
+                gl.AddRow("DOC-0002", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0002", 1m, 0, new ExcelDateSerial(double.NaN));
+                gl.AddRow("DOC-0003", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0003", 1m, 0, new ExcelDateSerial(double.PositiveInfinity));
+                gl.AddRow("DOC-0004", "01", "2025-03-05", "2025-03-06", "1101", "現金", "命中 SEQ-0004", 1m, 0, new ExcelDateSerial(double.NegativeInfinity));
+            },
+            validateForDownstream: true);
+        await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new
+            {
+                populationScope = GlPopulationScopeValues.AuditPeriod,
+                scenarios = new[]
+                {
+                    new
+                    {
+                        name = "不是有限數值的日期儲存格",
+                        rationale = "匯出不能因為這一格失敗",
+                        groups = new[]
+                        {
+                            new
+                            {
+                                join = "and",
+                                conditions = new[]
+                                {
+                                    new
+                                    {
+                                        join = "and",
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+
+        var context = await CurrentContextForAsync(host, projectId);
+        var plan = await CurrentPlanForAsync(host, context);
+        await using var stream = new MemoryStream();
+        var exportError = await Record.ExceptionAsync(() =>
+            ((IWorkingPaperPlanWriter)BuildWriter(host)).WriteAsync(stream, context, plan, CancellationToken.None));
+        Assert.Null(exportError);
+
+        var approverColumn = plan.Step41Columns
+            .Select(column => column.Header)
+            .ToList()
+            .IndexOf("傳票核准人員_JE") + 1;
+        Assert.True(approverColumn > 0);
+        stream.Position = 0;
+        using var workbook = new XLWorkbook(stream);
+        var sheet = workbook.Worksheet(Step41Sheet);
+        Assert.Equal(new DateTime(2025, 3, 6), sheet.Cell(6, approverColumn).GetDateTime());
+        int[] textRows = [7, 8, 9];
+        Assert.Equal(
+            ["Text|NaN", "Text|Infinity", "Text|-Infinity"],
+            textRows.Select(row => sheet.Cell(row, approverColumn).DataType + "|" + sheet.Cell(row, approverColumn).GetString()));
+    }
+
     [Fact]
     public async Task Step41_FinalSchema_UsesLatePageRawValuesSignedAmountAndFullDataWidths()
     {

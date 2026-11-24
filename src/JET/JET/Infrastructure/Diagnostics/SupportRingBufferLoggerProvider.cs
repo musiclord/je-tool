@@ -109,6 +109,8 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         SupportEventNames.SqlCancelled,
         SupportEventNames.SqlFailed,
         SupportEventNames.ExportProgress,
+        // 處理紀錄寫不進案件資料夾：只記哪一份紀錄、錯誤類型與還沒寫進去的筆數，不記內容或路徑。
+        SupportEventNames.ProcessingLogWriteFailed,
     };
 
     private static readonly HashSet<string> AllowedFields = new(StringComparer.Ordinal)
@@ -176,8 +178,8 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "module_version_id",
         "build_configuration",
         // 操作監看模組的時間與筆數。current_stage 是程式寫死的步驟代號；stage_path 依序列出這些代號與各步驟開始的毫秒數，
-        // 步驟太多時中間只寫省略幾個。匯出進度在這裡另加完成幾張表與寫了幾列，報告種類、階段與經過時間沿用上面的
-        // report_kind、phase 與 elapsed_ms；工作表名稱只留在診斷日誌。
+        // 步驟太多時中間只寫省略幾個。匯出進度在這裡另加完成幾張表與寫了幾列，剛寫完一張表時再加那張表的資料列數
+        // 與標了符合條件的列數；報告種類、階段與經過時間沿用上面的 report_kind、phase 與 elapsed_ms，工作表名稱只留在診斷日誌。
         "current_stage",
         "stage_path",
         "still_running",
@@ -201,6 +203,11 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "managed_heap_mb",
         "sheets_completed",
         "rows_written",
+        "sheet_rows",
+        "marked_rows",
+        // processing_log.write_failed：哪一份處理紀錄（gl、tb）與還沒寫進去的筆數。
+        "log_target",
+        "pending_entries",
     };
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
@@ -288,8 +295,13 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             return;
         }
 
-        // 輸入結構、結果版本與步驟路徑本身就是有界的摘要，允許比一般欄位長。
-        var limit = key is "payload_shape" or "result_refs" or "stage_path" ? 1024 : 256;
+        // 輸入結構、結果版本與步驟路徑本身就是有界的摘要，允許比一般欄位長；結果版本另含各情境、來源與規則的筆數，再長一些。
+        var limit = key switch
+        {
+            "result_refs" => 4096,
+            "payload_shape" or "stage_path" => 1024,
+            _ => 256,
+        };
         fields[key] = value switch
         {
             null => null,
@@ -338,7 +350,11 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
                 + $"code={fields.GetValueOrDefault("sqlite_error_code") ?? "n/a"}",
             SupportEventNames.ExportProgress => $"export {fields.GetValueOrDefault("report_kind") ?? "unknown"} "
                 + $"{fields.GetValueOrDefault("phase") ?? "unknown"} sheets_completed={fields.GetValueOrDefault("sheets_completed") ?? 0} "
-                + $"rows={fields.GetValueOrDefault("rows_written") ?? 0}",
+                + $"rows={fields.GetValueOrDefault("rows_written") ?? 0}"
+                + (fields.GetValueOrDefault("sheet_rows") is { } sheetRows ? $" sheet_rows={sheetRows}" : "")
+                + (fields.GetValueOrDefault("marked_rows") is { } markedRows ? $" marked_rows={markedRows}" : ""),
+            SupportEventNames.ProcessingLogWriteFailed => $"processing log {fields.GetValueOrDefault("log_target") ?? "unknown"} not written "
+                + $"error={fields.GetValueOrDefault("error_type") ?? "unknown"} pending={fields.GetValueOrDefault("pending_entries") ?? 0}",
             _ => eventName,
         };
     }

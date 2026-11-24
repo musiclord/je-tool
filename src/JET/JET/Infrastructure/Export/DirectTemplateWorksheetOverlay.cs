@@ -27,6 +27,8 @@ internal sealed record DirectTemplateWorksheetOverlayPlan(
 /// 把呼叫端一列一列產生的 XML 疊寫到一張既有的範本工作表上，由上往下寫，不回頭。
 /// 範本原本的 XML 先複製到關閉時自動刪除的暫存檔；記憶體裡只放目前處理的兩列，也就是範本的一列與產生的一列，
 /// 以及資料列以外的工作表設定，這部分的大小有上限。
+/// 內容寫完時由 <see cref="Complete"/> 關閉輸出；沒有寫完就釋放時只放掉輸出與暫存檔，不補寫結尾，
+/// 這時匯出已經失敗或取消，這張工作表的內容不要了。
 /// </summary>
 internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
 {
@@ -61,11 +63,16 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
     private bool _completed;
     private bool _disposed;
 
+    /// <param name="createTemplateCopy">
+    /// 建立放範本副本的暫存檔；沒有指定時用 <see cref="CreateTemporaryWorksheetStream"/>。
+    /// 測試從這裡留住副本，核對寫入器釋放或建構失敗之後副本已經關閉。
+    /// </param>
     internal DirectTemplateWorksheetOverlayWriter(
         string worksheetName,
         WorksheetPart templatePart,
         DirectTemplateWorksheetOverlayPlan plan,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<FileStream>? createTemplateCopy = null)
     {
         ArgumentNullException.ThrowIfNull(templatePart);
         ArgumentNullException.ThrowIfNull(plan);
@@ -81,18 +88,27 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
         _cancellationToken = cancellationToken;
         cancellationToken.ThrowIfCancellationRequested();
 
-        _templateCopy = CreateTemporaryWorksheetStream();
-        using (var input = templatePart.GetStream(FileMode.Open, FileAccess.Read))
+        _templateCopy = (createTemplateCopy ?? CreateTemporaryWorksheetStream)();
+        try
         {
-            input.CopyTo(_templateCopy);
+            using (var input = templatePart.GetStream(FileMode.Open, FileAccess.Read))
+            {
+                input.CopyTo(_templateCopy);
+            }
+            _templateCopy.Position = 0;
+            _template = new StreamingWorksheet(
+                worksheetName,
+                _templateCopy,
+                cancellationToken);
+            _content = FormalWorkbookArchive.OpenWorksheetContent(templatePart);
+            _output = XmlWriter.Create(_content, WriterSettings());
         }
-        _templateCopy.Position = 0;
-        _template = new StreamingWorksheet(
-            worksheetName,
-            _templateCopy,
-            cancellationToken);
-        _content = FormalWorkbookArchive.OpenWorksheetContent(templatePart);
-        _output = XmlWriter.Create(_content, WriterSettings());
+        catch
+        {
+            // 建構失敗時呼叫端拿不到這個寫入器，暫存的範本副本與已經開啟的項目要在這裡放掉。
+            ExportResources.ReleaseAll(_output, _content, _template, _templateCopy);
+            throw;
+        }
     }
 
     internal void Start(XElement? generatedDimension, XElement? generatedColumns)
@@ -359,19 +375,20 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
         _output.WriteEndDocument();
         _output.Flush();
         _completed = true;
+        // 內容寫完後在這裡關閉輸出：關閉壓縮檔項目時還會寫出最後一段，失敗代表工作表不完整，要往外丟。
+        _output.Dispose();
+        _content.Dispose();
     }
 
+    /// <summary>只放掉輸出與暫存的範本副本，不補寫結尾，也不丟出例外。</summary>
     public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
-        _output.Dispose();
-        _content.Dispose();
-        _template.Dispose();
-        _templateCopy.Dispose();
         _disposed = true;
+        ExportResources.ReleaseAll(_output, _content, _template, _templateCopy);
     }
 
     private void EnsureStarted()
@@ -1056,7 +1073,8 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
             CloseOutput = false
         };
 
-    private static FileStream CreateTemporaryWorksheetStream()
+    /// <summary>在 Windows 暫存資料夾建立放範本副本的暫存檔，關閉時自動刪除。</summary>
+    internal static FileStream CreateTemporaryWorksheetStream()
     {
         var path = Path.Combine(
             Path.GetTempPath(),

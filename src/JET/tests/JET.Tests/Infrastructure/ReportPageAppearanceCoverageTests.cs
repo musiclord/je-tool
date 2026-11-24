@@ -1,5 +1,4 @@
 using ClosedXML.Excel;
-using JET.Domain;
 using JET.Tests.Application;
 using Xunit;
 
@@ -40,50 +39,12 @@ public sealed class ReportPageAppearanceCoverageTests
         Page("CriteriaSelectionReport", "#Criteria Select 10"),
     ];
 
-    internal static readonly string[] SummaryOnlyNoSheetPages =
+    internal static readonly string[] NotWrittenPages =
     [
         Page("Pre-screeningReport", "A2"),
         Page("Pre-screeningReport", "A3"),
         Page("Pre-screeningReport", "A4"),
     ];
-
-    private static readonly IReadOnlyDictionary<string, string[]> DirectPhysicalOraclePagesByCase =
-        new Dictionary<string, string[]>(StringComparer.Ordinal)
-        {
-            ["case-A"] =
-            [
-                Page("ValidationReport", "V_Report 3"),
-                Page("ValidationReport", "V_Report 4"),
-                Page("ValidationReport", "V_Report 5"),
-                Page("INF_Report", "可靠性樣本_所有欄位"),
-                Page("Pre-screeningReport", "R1"),
-                Page("Pre-screeningReport", "R2"),
-                Page("Pre-screeningReport", "R3"),
-                Page("Pre-screeningReport", "R4"),
-                Page("Pre-screeningReport", "R5"),
-                Page("Pre-screeningReport", "R6"),
-                Page("Pre-screeningReport", "R7"),
-                Page("CriteriaSelectionReport", "#Criteria Select 1"),
-                Page("CriteriaSelectionReport", "#Criteria Select 2"),
-                Page("CriteriaSelectionReport", "#Criteria Select 3"),
-                Page("CriteriaSelectionReport", "#Criteria Select 4"),
-                Page("CriteriaSelectionReport", "#Criteria Select 5"),
-                Page("CriteriaSelectionReport", "#Criteria Select 6"),
-                Page("WorkingPaper", "step4-1 符合高風險條件傳票明細"),
-            ],
-            ["case-B"] =
-            [
-                Page("ValidationReport", "V_Report 5"),
-                Page("INF_Report", "可靠性樣本_所有欄位"),
-                Page("Pre-screeningReport", "R2"),
-                Page("Pre-screeningReport", "R4"),
-                Page("Pre-screeningReport", "R5"),
-                Page("Pre-screeningReport", "R6"),
-                Page("CriteriaSelectionReport", "#Criteria Select 1"),
-                Page("CriteriaSelectionReport", "#Criteria Select 2"),
-                Page("WorkingPaper", "step4-1 符合高風險條件傳票明細"),
-            ],
-        };
 
     [Fact]
     public void RegistryBasePages_AreExactlyPartitionedByOraclePolicy()
@@ -93,61 +54,18 @@ public sealed class ReportPageAppearanceCoverageTests
             .ToArray();
         var classifiedPages = DirectPhysicalOraclePages
             .Concat(FamilyProjectionPages)
-            .Concat(SummaryOnlyNoSheetPages)
+            .Concat(NotWrittenPages)
             .ToArray();
 
         Assert.Equal(28, registryPages.Length);
         Assert.Equal(28, registryPages.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(18, DirectPhysicalOraclePages.Length);
         Assert.Equal(7, FamilyProjectionPages.Length);
-        Assert.Equal(3, SummaryOnlyNoSheetPages.Length);
+        Assert.Equal(3, NotWrittenPages.Length);
         Assert.Equal(28, classifiedPages.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(
             registryPages.Order(StringComparer.Ordinal),
             classifiedPages.Order(StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void TrackedCaseAliases_HaveTheExactDirectPhysicalOracleCoverage()
-    {
-        SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.SolutionRoot);
-
-        Assert.Equal(
-            new[] { "case-A", "case-B" },
-            DirectPhysicalOraclePagesByCase.Keys.Order(StringComparer.Ordinal));
-        Assert.Equal(18, DirectPhysicalOraclePagesByCase["case-A"].Length);
-        Assert.Equal(9, DirectPhysicalOraclePagesByCase["case-B"].Length);
-        Assert.Equal(
-            DirectPhysicalOraclePages.Order(StringComparer.Ordinal),
-            DirectPhysicalOraclePagesByCase.Values
-                .SelectMany(pages => pages)
-                .Distinct(StringComparer.Ordinal)
-                .Order(StringComparer.Ordinal));
-        foreach (var (caseAlias, expectedPages) in DirectPhysicalOraclePagesByCase)
-        {
-            Assert.Equal(
-                expectedPages.Order(StringComparer.Ordinal),
-                TrackedBasePages(caseAlias).Order(StringComparer.Ordinal));
-        }
-    }
-
-    [Fact]
-    public void TrackedCases_ConfirmTheConditionalStep13PageWasNotPhysicallyObserved()
-    {
-        SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.SolutionRoot);
-
-        foreach (var caseAlias in new[] { "case-A", "case-B" })
-        {
-            var sheets = TrackedFingerprint(caseAlias, LegacyReportKind.WorkingPaper)
-                .Entries
-                .Select(entry => SheetName(entry.Location))
-                .Where(name => name is not null)
-                .Select(name => name!)
-                .ToHashSet(StringComparer.Ordinal);
-            Assert.DoesNotContain(WorkingPaperSheetCatalog.Step13, sheets);
-        }
     }
 
     internal static string WorksheetName(string page)
@@ -160,103 +78,37 @@ public sealed class ReportPageAppearanceCoverageTests
         return page[(separator + 1)..];
     }
 
-    private static IReadOnlyList<string> TrackedBasePages(string caseAlias)
-    {
-        var sheetsByReport = new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
-        foreach (var report in LegacyAppearanceRegistry.Load().ScriptUnspecifiedSheets
-                     .Select(item => item.Report)
-                     .Distinct(StringComparer.Ordinal))
-        {
-            var kind = LegacyKindOf(report);
-            var fingerprint = TrackedFingerprint(caseAlias, kind);
-            sheetsByReport.Add(
-                report,
-                fingerprint.Entries
-                    .Select(entry => SheetName(entry.Location))
-                    .Where(name => name is not null)
-                    .Select(name => name!)
-                    .ToHashSet(StringComparer.Ordinal));
-        }
-
-        return LegacyAppearanceRegistry.Load().ScriptUnspecifiedSheets
-            .Where(item => sheetsByReport[item.Report].Contains(item.Worksheet))
-            .Select(item => Page(item.Report, item.Worksheet))
-            .ToArray();
-    }
-
-    private static SpreadsheetAppearanceFingerprint TrackedFingerprint(
-        string caseAlias,
-        LegacyReportKind kind)
-    {
-        var identity = Assert.Single(
-            SpreadsheetAppearanceSnapshotSchemaGuard.ExpectedSnapshots,
-            item => item.Report == kind
-                && item.FileName.StartsWith(caseAlias + "-", StringComparison.Ordinal));
-        var fixtureDirectory = Path.Combine(
-            TestRepositoryPaths.SolutionRoot,
-            SpreadsheetAppearanceSnapshotSchemaGuard.FixtureRelativeDirectory.Replace(
-                '/',
-                Path.DirectorySeparatorChar));
-        return SpreadsheetAppearanceFingerprint.LoadJson(
-            File.ReadAllBytes(Path.Combine(fixtureDirectory, identity.FileName)),
-            kind);
-    }
-
-    private static LegacyReportKind LegacyKindOf(string report) => report switch
-    {
-        "ValidationReport" => LegacyReportKind.ValidationReport,
-        "INF_Report" => LegacyReportKind.InfReport,
-        "Pre-screeningReport" => LegacyReportKind.PrescreenReport,
-        "CriteriaSelectionReport" => LegacyReportKind.CriteriaSelectionReport,
-        "WorkingPaper" => LegacyReportKind.WorkingPaper,
-        _ => throw new InvalidDataException("Registry report is outside the closed catalog."),
-    };
-
-    private static string? SheetName(string location)
-    {
-        if (string.Equals(location, "$workbook", StringComparison.Ordinal))
-        {
-            return null;
-        }
-        var separator = location.IndexOf('!');
-        if (separator <= 0)
-        {
-            throw new InvalidDataException("Snapshot location is invalid.");
-        }
-        return location[..separator];
-    }
-
     private static string Page(string report, string worksheet) => $"{report}|{worksheet}";
 }
 
-public sealed class PrescreenCustomRuleSummaryOnlyTests(ReportExportFixture fixture)
+public sealed class PrescreenCustomRuleNotWrittenTests(ReportExportFixture fixture)
     : IClassFixture<ReportExportFixture>
 {
+    // 舊版的自訂特定摘要、自訂科目借貸組合與自訂特定尾數，JET 的預篩選報告都不寫：摘要頁沒有這三列，也沒有同名的工作表。
     [Fact]
-    public async Task CustomPrescreenVariants_RemainSummaryOnlyAndNeverCreateWorksheets()
+    public async Task CustomPrescreenVariants_AreNeitherSummaryRowsNorWorksheets()
     {
         var response = await fixture.ExportPrescreenReportAsync();
         var path = fixture.ReportPath(response.GetProperty("publishedReport"));
         using var workbook = new XLWorkbook(path);
-        var summaryOnlyNames = ReportPageAppearanceCoverageTests
-            .SummaryOnlyNoSheetPages
+        var notWrittenNames = ReportPageAppearanceCoverageTests
+            .NotWrittenPages
             .Select(ReportPageAppearanceCoverageTests.WorksheetName)
             .ToArray();
+        var summary = workbook.Worksheet("Pre-screening_Report");
 
-        Assert.Equal(
-            summaryOnlyNames,
-            workbook.Worksheet("Pre-screening_Report")
-                .Range("B14:B16")
-                .Cells()
-                .Select(cell => cell.GetString())
-                .ToArray());
+        Assert.Equal(new[] { "A2", "A3", "A4" }, notWrittenNames);
         Assert.All(
-            summaryOnlyNames,
+            notWrittenNames,
+            name => Assert.DoesNotContain(
+                name,
+                summary.CellsUsed().Select(cell => cell.GetString())));
+        Assert.All(
+            notWrittenNames,
             worksheet => Assert.DoesNotContain(
                 worksheet,
                 workbook.Worksheets.Select(sheet => sheet.Name)));
-        Assert.All(
-            workbook.Worksheet("Pre-screening_Report").Range("E14:F16").Cells(),
-            cell => Assert.Equal("N/A", cell.GetString()));
+        Assert.Equal(14, summary.LastRowUsed()!.RowNumber());
+        Assert.Equal("# 分錄無摘要描述(即空白摘要)", summary.Cell("B14").GetString());
     }
 }

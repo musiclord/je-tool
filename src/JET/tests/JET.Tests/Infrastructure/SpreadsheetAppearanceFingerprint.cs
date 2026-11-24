@@ -128,16 +128,13 @@ internal sealed class SpreadsheetAppearanceFingerprint
 
     internal byte[] JsonBytes => Encoding.UTF8.GetBytes(Json);
 
-    internal static string SerializeEntries(IReadOnlyList<AppearanceEntry> entries)
+    private static string SerializeEntries(IReadOnlyList<AppearanceEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
         return JsonSerializer.Serialize(
             new AppearanceDocument(1, entries),
             JsonOptions) + "\n";
     }
-
-    internal static bool IsKnownBuiltInNumberFormatCode(string value) =>
-        BuiltInNumberFormats.Values.Contains(value, StringComparer.Ordinal);
 
     internal static SpreadsheetAppearanceFingerprint Capture(string path) =>
         Capture(path, excludedWorksheetNames: null);
@@ -188,24 +185,6 @@ internal sealed class SpreadsheetAppearanceFingerprint
         return new SpreadsheetAppearanceFingerprint(properties, resolver.Baseline);
     }
 
-    internal static SpreadsheetAppearanceFingerprint LoadJson(
-        ReadOnlyMemory<byte> bytes,
-        LegacyReportKind report)
-    {
-        var entries = SpreadsheetAppearanceSnapshotSchemaGuard.ReadEntries(bytes, report);
-        var properties = entries.ToDictionary(
-            entry => new AppearanceKey(entry.Location, entry.Property),
-            entry => entry.Value);
-        var baseline = new Dictionary<string, string>(CanonicalExcelDefaults, StringComparer.Ordinal);
-        foreach (var entry in entries.Where(entry =>
-                     entry.Location == WorkbookBaseline
-                     && entry.Property.StartsWith("default.", StringComparison.Ordinal)))
-        {
-            baseline[entry.Property["default.".Length..]] = entry.Value;
-        }
-        return new SpreadsheetAppearanceFingerprint(properties, baseline);
-    }
-
     internal string? DescribeFirstDifference(SpreadsheetAppearanceFingerprint actual)
     {
         var difference = DescribeDifferences(actual, maximumCount: 1).SingleOrDefault();
@@ -215,7 +194,7 @@ internal sealed class SpreadsheetAppearanceFingerprint
                 + $"expected={difference.ExpectedValue} actual={difference.ActualValue}";
     }
 
-    internal IReadOnlyList<SpreadsheetAppearanceDifference> DescribeDifferences(
+    private IReadOnlyList<SpreadsheetAppearanceDifference> DescribeDifferences(
         SpreadsheetAppearanceFingerprint actual,
         int maximumCount = int.MaxValue)
     {
@@ -252,106 +231,6 @@ internal sealed class SpreadsheetAppearanceFingerprint
         }
 
         return differences;
-    }
-
-    internal int CountDifferences(SpreadsheetAppearanceFingerprint actual)
-    {
-        ArgumentNullException.ThrowIfNull(actual);
-        var count = 0;
-        foreach (var key in _properties.Keys.Concat(actual._properties.Keys).Distinct())
-        {
-            if (!string.Equals(
-                    EffectiveValue(key),
-                    actual.EffectiveValue(key),
-                    StringComparison.Ordinal))
-            {
-                count = checked(count + 1);
-            }
-        }
-        return count;
-    }
-
-    internal IReadOnlyList<SpreadsheetAppearanceDifferenceGroup> DescribeDifferenceGroups(
-        SpreadsheetAppearanceFingerprint actual)
-    {
-        ArgumentNullException.ThrowIfNull(actual);
-        var groups = new Dictionary<SpreadsheetAppearanceDifferenceGroupKey, DifferenceAccumulator>();
-        var keys = _properties.Keys
-            .Concat(actual._properties.Keys)
-            .Distinct()
-            .OrderBy(key => key.Location, StringComparer.Ordinal)
-            .ThenBy(key => key.Property, StringComparer.Ordinal);
-        foreach (var key in keys)
-        {
-            var expectedValue = EffectiveValue(key);
-            var actualValue = actual.EffectiveValue(key);
-            if (string.Equals(expectedValue, actualValue, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var (sheetName, scopeKind) = DifferenceScope(key.Location);
-            var groupKey = new SpreadsheetAppearanceDifferenceGroupKey(
-                sheetName,
-                scopeKind,
-                key.Property,
-                expectedValue,
-                actualValue);
-            if (!groups.TryGetValue(groupKey, out var accumulator))
-            {
-                groups.Add(groupKey, new DifferenceAccumulator(1, key.Location));
-            }
-            else
-            {
-                groups[groupKey] = accumulator with
-                {
-                    Count = checked(accumulator.Count + 1),
-                };
-            }
-        }
-
-        return groups
-            .Select(item => new SpreadsheetAppearanceDifferenceGroup(
-                item.Key.SheetName,
-                item.Key.ScopeKind,
-                item.Key.Property,
-                item.Key.ExpectedValue,
-                item.Key.ActualValue,
-                item.Value.Count,
-                item.Value.FirstLocation))
-            .OrderByDescending(item => item.Count)
-            .ThenBy(item => item.SheetName, StringComparer.Ordinal)
-            .ThenBy(item => item.ScopeKind, StringComparer.Ordinal)
-            .ThenBy(item => item.Property, StringComparer.Ordinal)
-            .ThenBy(item => item.ExpectedValue, StringComparer.Ordinal)
-            .ThenBy(item => item.ActualValue, StringComparer.Ordinal)
-            .ToArray();
-    }
-
-    private static (string SheetName, string ScopeKind) DifferenceScope(string location)
-    {
-        if (location == WorkbookBaseline)
-        {
-            return (WorkbookBaseline, "workbook");
-        }
-        var separator = location.IndexOf('!');
-        var sheetName = separator > 0 ? location[..separator] : "<invalid>";
-        var scope = separator >= 0 && separator < location.Length - 1
-            ? location[(separator + 1)..]
-            : string.Empty;
-        var scopeKind = scope switch
-        {
-            "cellStream" => "cellStream",
-            "sheetFormat" => "sheetFormat",
-            "pageSetup" => "pageSetup",
-            "sheetProtection" => "sheetProtection",
-            _ when scope.StartsWith("column:", StringComparison.Ordinal) => "column",
-            _ when scope.StartsWith("row:", StringComparison.Ordinal) => "row",
-            _ when scope.StartsWith("merge:", StringComparison.Ordinal) => "merge",
-            _ when scope.StartsWith("sheetView:", StringComparison.Ordinal) => "sheetView",
-            _ => "cell",
-        };
-        return (sheetName, scopeKind);
     }
 
     internal string? Value(string location, string property) =>
@@ -1476,15 +1355,6 @@ internal sealed class SpreadsheetAppearanceFingerprint
 
     private readonly record struct AppearanceKey(string Location, string Property);
 
-    private readonly record struct SpreadsheetAppearanceDifferenceGroupKey(
-        string SheetName,
-        string ScopeKind,
-        string Property,
-        string ExpectedValue,
-        string ActualValue);
-
-    private sealed record DifferenceAccumulator(int Count, string FirstLocation);
-
     private sealed record AppearanceDocument(int SchemaVersion, IReadOnlyList<AppearanceEntry> Entries);
 }
 
@@ -1495,12 +1365,3 @@ internal sealed record SpreadsheetAppearanceDifference(
     string Property,
     string ExpectedValue,
     string ActualValue);
-
-internal sealed record SpreadsheetAppearanceDifferenceGroup(
-    string SheetName,
-    string ScopeKind,
-    string Property,
-    string ExpectedValue,
-    string ActualValue,
-    int Count,
-    string FirstLocation);

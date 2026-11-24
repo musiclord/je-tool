@@ -66,7 +66,7 @@ public sealed class MappingValueComparisonKeyTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            projectName = "第6批跨請求合成", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "跨請求合成案件",periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {

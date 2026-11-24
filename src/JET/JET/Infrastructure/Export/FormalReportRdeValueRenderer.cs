@@ -60,7 +60,7 @@ internal static class FormalReportRdeValueRenderer
                     => value.DateValue,
                 RdeFieldValueTypeNames.Amount
                     when value.TextValue is null && value.DateValue is null && value.AmountScaled is not null
-                    => ((decimal)value.AmountScaled.Value / moneyScale)
+                    => MoneyScaling.FromScaled(value.AmountScaled.Value, moneyScale)
                         .ToString(CultureInfo.InvariantCulture),
                 _ => throw Stale()
             };

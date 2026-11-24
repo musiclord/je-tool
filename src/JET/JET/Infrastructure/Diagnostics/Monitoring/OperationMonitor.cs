@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using JET.Domain;
 using Microsoft.Data.Sqlite;
@@ -16,7 +17,7 @@ namespace JET.Infrastructure;
 /// <list type="bullet">
 /// <item>操作跑太久時定時記一筆目前的步驟、SQL 用掉的時間，以及程式用掉的處理器時間與記憶體。</item>
 /// <item>SQL 在 SQLite 裡跑太久（還在跑或已跑完）、被取消或出錯時各記一筆；慢查詢在診斷日誌另附執行計畫。</item>
-/// <item>匯出報表的進度變化。</item>
+/// <item>匯出報表的進度變化；每寫完一張工作表，記下那張表的資料列數與標了符合條件的列數。</item>
 /// <item>操作結束時的摘要：經過的步驟、SQL 筆數、讀取列數、要求取消到真正停下的時間，以及最花時間的語句。</item>
 /// </list>
 /// SQL 文字、參數值與執行計畫只寫進診斷日誌；支援日誌依它自己的允許清單只收時間、筆數與程式代號。
@@ -93,8 +94,12 @@ public sealed class OperationMonitor : IOperationMonitor, ISqlStatementObserver,
             var phase = Read(payload, "phase")?.ToString();
             var sheetName = Read(payload, "sheetName")?.ToString();
             var sheetsCompleted = Convert.ToInt64(Read(payload, "sheetsCompleted") ?? 0L);
+            // 剛寫完一張工作表時，進度另帶那張表的資料列數與標了符合條件的列數；這一筆一定記。
+            var sheetRows = Read(payload, "completedSheetRows") is { } rows ? Convert.ToInt64(rows) : (long?)null;
+            var markedRows = Read(payload, "completedSheetMarkedRows") is { } marked ? Convert.ToInt64(marked) : (long?)null;
             var throttle = _current.Value?.ExportProgress ?? _unownedExportProgress;
-            if (!throttle.ShouldLog(phase, sheetName, sheetsCompleted, Stopwatch.GetTimestamp(), Options.ExportProgressInterval))
+            if (!throttle.ShouldLog(phase, sheetName, sheetsCompleted, Stopwatch.GetTimestamp(), Options.ExportProgressInterval)
+                && sheetRows is null)
             {
                 return;
             }
@@ -102,20 +107,34 @@ public sealed class OperationMonitor : IOperationMonitor, ISqlStatementObserver,
             var reportKind = Read(payload, "reportKind")?.ToString();
             var rowsWritten = Convert.ToInt64(Read(payload, "rowsWritten") ?? 0L);
             var elapsed = Convert.ToInt64(Read(payload, "elapsedMilliseconds") ?? 0L);
+            var fields = new LogFields
+            {
+                ["report_kind"] = reportKind,
+                ["phase"] = phase,
+                ["sheet_name"] = sheetName,
+                ["sheets_completed"] = sheetsCompleted,
+                ["rows_written"] = rowsWritten,
+                ["elapsed_ms"] = elapsed,
+            };
+            var completedText = "";
+            if (sheetRows is not null)
+            {
+                fields["sheet_rows"] = sheetRows;
+                completedText = $" sheet_rows={sheetRows}";
+            }
+
+            if (markedRows is not null)
+            {
+                fields["marked_rows"] = markedRows;
+                completedText += $" marked_rows={markedRows}";
+            }
+
             Write(
                 context: null,
                 LogLevel.Information,
                 ExportProgressEvent,
-                $"export {reportKind} {phase} sheet={sheetName} sheets_completed={sheetsCompleted} rows={rowsWritten} in {elapsed} ms",
-                new()
-                {
-                    ["report_kind"] = reportKind,
-                    ["phase"] = phase,
-                    ["sheet_name"] = sheetName,
-                    ["sheets_completed"] = sheetsCompleted,
-                    ["rows_written"] = rowsWritten,
-                    ["elapsed_ms"] = elapsed,
-                });
+                $"export {reportKind} {phase} sheet={sheetName} sheets_completed={sheetsCompleted} rows={rowsWritten}{completedText} in {elapsed} ms",
+                fields);
         }
         catch (Exception)
         {
@@ -640,8 +659,11 @@ public sealed class OperationMonitor : IOperationMonitor, ISqlStatementObserver,
             (_logger, level, eventId, state));
     }
 
+    /// <summary>依名稱讀事件內容的屬性，不分大小寫：匿名物件的屬性是小寫開頭，具名的事件類別是大寫開頭。</summary>
     private static object? Read(object payload, string name) =>
-        payload.GetType().GetProperty(name)?.GetValue(payload);
+        payload.GetType()
+            .GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase)
+            ?.GetValue(payload);
 
     private static string StepName(SqlStep step) => step == SqlStep.Read ? "read" : "execute";
 

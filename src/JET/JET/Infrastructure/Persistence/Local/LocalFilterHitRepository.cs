@@ -65,9 +65,8 @@ public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILo
         plan.BindParametersTo(command);
         // 條件組出的 WHERE 只用到子查詢裡的別名 g；外層用另一個別名 whole_row 數出這些傳票的全部分錄。
         command.CommandText = "SELECT COUNT(*) FROM gl whole_row "
-            + $"WHERE {GlPopulationScopeSql.Predicate(context, "whole_row")} AND whole_row.voucher_number IN ("
-            + "SELECT g.voucher_number FROM gl g "
-            + $"WHERE g.voucher_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "g")} AND ({plan.Sql}));";
+            + $"WHERE {GlPopulationScopeSql.Predicate(context, "whole_row")} AND "
+            + HitVoucherRows.InVouchersWithHit("whole_row", string.Empty, GlPopulationScopeSql.Predicate(context, "g"), plan.Sql) + ";";
 
         var result = await command.ExecuteScalarLoggedAsync(_log, _provider, cancellationToken);
         return result is null or DBNull ? 0L : Convert.ToInt64(result);

@@ -75,7 +75,7 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Help
 ```
 
 結束碼：`0` 通過、`1` 失敗、`2` 受阻（尚無正誤結論，不能當成通過）、`3` 用法錯誤、`4` 框架本身錯誤。
-另有 `Package`、`Gui`、`Excel`、`PrivateCase`、`ReleaseCandidate` 五條較重的路線，見
+另有 `Package`、`Gui`、`Excel`、`ReleaseCandidate` 四條較重的路線，見
 [`tools/README.md`](tools/README.md)。
 
 ## 專案結構

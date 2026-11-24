@@ -55,7 +55,7 @@ public sealed class JsonFileProjectStoreTests
         if (scale is null) json.Remove("moneyScale");
         else json["moneyScale"] = scale.Value;
         var damaged = json.ToJsonString();
-        await File.WriteAllTextAsync(path, damaged);
+        await ProjectJsonEdits.WriteAllTextAsync(path, damaged);
 
         var error = await Assert.ThrowsAsync<JetActionException>(() => store.FindAsync(document.ProjectId, CancellationToken.None));
 
@@ -240,7 +240,7 @@ public sealed class JsonFileProjectStoreTests
         await store.CreateAsync(document, CancellationToken.None);
         var path = folder.GetProjectJsonPath(document.ProjectId);
         var json = await File.ReadAllTextAsync(path);
-        await File.WriteAllTextAsync(
+        await ProjectJsonEdits.WriteAllTextAsync(
             path,
             json.Replace("\"sampleSeed\": 7", $"\"sampleSeed\": {corruptJsonValue}"));
 
@@ -281,7 +281,7 @@ public sealed class JsonFileProjectStoreTests
         {
             node[propertyName] = legacyValue.Value;
         }
-        await File.WriteAllTextAsync(path, node.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
 
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             store.FindAsync(legacy.ProjectId, CancellationToken.None));
@@ -323,7 +323,7 @@ public sealed class JsonFileProjectStoreTests
         {
             node[propertyName] = value.Value;
         }
-        await File.WriteAllTextAsync(path, node.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
 
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             store.FindAsync(document.ProjectId, CancellationToken.None));
@@ -536,5 +536,85 @@ public sealed class JsonFileProjectStoreTests
 
         Assert.Null(await store.FindAsync(@"..\..\evil", CancellationToken.None));
         Assert.Null(await store.FindAsync("not-a-guid", CancellationToken.None));
+    }
+
+    // 審計員在 Windows 裡用記事本或其他程式改 project.json，存檔時會被擋下；JET 建案與儲存照常寫入，寫完再設回唯讀。
+    [Fact]
+    public async Task CreateAndSave_LeaveProjectJsonReadOnly_SoOtherProgramsCannotOverwriteIt()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument();
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+
+        await store.CreateAsync(document, CancellationToken.None);
+
+        Assert.True(File.GetAttributes(path).HasFlag(FileAttributes.ReadOnly));
+        Assert.Throws<UnauthorizedAccessException>(() => File.WriteAllText(path, "{}"));
+
+        var saved = document with { ClientName = "儲存後的合成公司" };
+        await store.SaveAsync(saved, CancellationToken.None);
+
+        Assert.True(File.GetAttributes(path).HasFlag(FileAttributes.ReadOnly));
+        Assert.Equal(saved.ClientName, (await store.FindAsync(document.ProjectId, CancellationToken.None))!.ClientName);
+        Assert.Empty(Directory.GetFiles(folder.GetProjectDirectory(document.ProjectId), "*.tmp"));
+    }
+
+    // 以前的版本建立的案件，設定檔不是唯讀；下一次儲存，例如開案時記下開啟時間，就設成唯讀。
+    [Fact]
+    public async Task Save_ProjectJsonWithoutReadOnly_SetsItReadOnlyAfterSaving()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument();
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+        await store.CreateAsync(document, CancellationToken.None);
+        ProjectJsonEdits.ReleaseReadOnly(path);
+
+        await store.SaveAsync(document with { LastOpenedUtc = DateTimeOffset.UtcNow }, CancellationToken.None);
+
+        Assert.True(File.GetAttributes(path).HasFlag(FileAttributes.ReadOnly));
+    }
+
+    // 換檔一直失敗時，原本的設定檔留著，而且照樣是唯讀，不因為 JET 為了換檔取消唯讀就一直開著。
+    [Fact]
+    public async Task Save_WhenTheReplacementKeepsFailing_LeavesTheOldProjectJsonReadOnly()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var original = NewDocument();
+        var path = folder.GetProjectJsonPath(original.ProjectId);
+        await store.CreateAsync(original, CancellationToken.None);
+        File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);
+
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var error = await Assert.ThrowsAsync<JetActionException>(() =>
+                store.SaveAsync(original with { ClientName = "換檔失敗的合成公司" }, CancellationToken.None));
+            Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+        }
+
+        Assert.True(File.GetAttributes(path).HasFlag(FileAttributes.ReadOnly));
+        Assert.Equal(original.ClientName, (await store.FindAsync(original.ProjectId, CancellationToken.None))!.ClientName);
+    }
+
+    // 刪除案件時，唯讀的設定檔和資料夾裡其他檔案一起刪掉。
+    [Fact]
+    public async Task Delete_ReadOnlyProjectJson_RemovesTheCaseFolder()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument();
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+        await store.CreateAsync(document, CancellationToken.None);
+        File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);
+
+        await store.DeleteAsync(document.ProjectId, CancellationToken.None);
+
+        Assert.False(Directory.Exists(folder.GetProjectDirectory(document.ProjectId)));
     }
 }

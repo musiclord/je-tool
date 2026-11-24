@@ -232,10 +232,11 @@ internal sealed partial class LegacyReportWriter
 
     private static IReadOnlyCollection<string> InfMainMutableCells(int rowCount, bool approverMapped)
     {
-        var result = new List<string>(3 + 11 * rowCount)
+        var result = new List<string>(4 + 11 * rowCount)
         {
             "A1",
-            "A2"
+            "A2",
+            "A4"
         };
         if (approverMapped)
         {
@@ -263,6 +264,8 @@ internal sealed partial class LegacyReportWriter
         cells.SetInlineString(
             "A2",
             $"財務報表期間 [{context.Project.PeriodStart} ~ {context.Project.PeriodEnd}]");
+        // 範本原句後接上這批樣本實際使用的隨機種子序號，格式照範本 A4。
+        cells.SetInlineString("A4", InfSampling.SampleSeedSentence(context.SampleSeed));
         if (approverMapped)
         {
             cells.SetInlineString("L51", "傳票核准人員");

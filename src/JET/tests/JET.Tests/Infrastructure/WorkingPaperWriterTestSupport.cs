@@ -124,6 +124,7 @@ internal static class WorkingPaperWriterTestSupport
         PrepStartDate: "2023-01-01",
         MoneyScale: MoneyScale,
         ValidationResultId: string.Empty,
+        SampleSeed: 123_456_789,
         ScenarioRevision: string.Empty,
         ScenarioPositions: Array.Empty<int>());
 
@@ -149,9 +150,14 @@ internal static class WorkingPaperWriterTestSupport
                 "已存測試情境應含正準 populationScope。");
         }
 
-        return ContextFor(projectId) with
+        var context = ContextFor(projectId);
+        return context with
         {
             ValidationResultId = validation?.ResultId ?? string.Empty,
+            // 和匯出底稿時一樣，取驗證結果記下的種子；還沒有驗證結果時沿用固定的合成種子。
+            SampleSeed = validation is null
+                ? context.SampleSeed
+                : ValidationReportProjectionParser.ParseSampleSeed(validation.SummaryJson),
             ScenarioRevision = revision,
             ScenarioPositions = scenarios.Select(item => item.Position).ToArray(),
             PopulationScope = populationScope

@@ -2,14 +2,15 @@
 
 `docs/SAT/` 只放交付的文件。這個資料夾放產生那些文件的腳本，`source` 放文字、表單資料與圖表來源。
 哪些內容可以寫、文件該用什麼角度寫，見 [SAT 文件的製作與交接](../../../.agents/harness/sat-documents.md)。
+文件的架構、版面與樣式以公司 2026-11-23 的更新版範本為準：Technical Document 共 17 節，章節對照也在那份文件。
 
 ## 來源與成品
 
 | 成品（在 docs/SAT 底下） | 來源 | 產生腳本 |
 |---|---|---|
-| Technical Document.docx、Design Principle.docx、Code Review/Code review rule.docx | source 的同名 Markdown | Build-Documents.py |
+| Technical Document.docx、Design Principle.docx、Code Review/Code review rule.docx | source 的同名 Markdown；版面與樣式寫在 Build-Documents.py | Build-Documents.py |
 | Code Review/Code review.xlsx | Build-ReviewData.py 內的檢查項目、核心查核邏輯與固定值清單 | Build-ReviewData.py、Build-Workbooks.mjs |
-| Code Review/Unit test Report.xlsx | 測試程式的結果檔 | Export-SatEvidence.py、Build-Workbooks.mjs |
+| Code Review/Unit test Report.xlsx | 測試程式的結果檔；「案例清單」的案例取自 src/JET/tests/JET.Tests/Fixtures/audit-logic-cases.json，各案例的結果在 source/test-record.json 的 reviewCases | Build-ReviewData.py、Export-SatEvidence.py、Build-Workbooks.mjs |
 | 版本更新紀錄.xlsx | source/release-notes.json | Build-Workbooks.mjs |
 | Workflow.xlsx | source/workflow.json | Build-Workflow.py |
 | Diagrams/ERD.txt、ERD.png | 產品程式的建表語句，分組與關聯在 source/diagrams/erd.json | Build-Diagrams.mjs |
@@ -20,7 +21,9 @@
 | 程式修訂紀錄/git_code_changes_log.txt | 直接編輯，見下方「提交紀錄」 | 無 |
 | Github Security Reports | GitHub 匯出的檔案，見下方「GitHub 安全報告」 | 無 |
 
-元件清冊是 source/dependencies.csv。送審只提交 `src/JET`，文件不能指向這個資料夾，所以 Technical Document 第 5 節直接列出直接引用的元件、版本與授權。更新 NuGet 套件後同步修改這份清冊、source/package-summary.json 的數量與第 5 節的表格，並重新查詢漏洞、核對授權；查詢結果存成 source/security-check.json，不要沿用先前的「未列出漏洞」。
+Technical Document 第 6、7、9 節照範本指向架構文件的資料夾，寫成 `..\architecture`，從 docs/SAT 看就是 docs/architecture；這是文件裡唯一指向 docs/SAT 以外的路徑。
+
+元件清冊是 source/dependencies.csv。送審只提交 `src/JET`，文件不能指向這個資料夾，所以 Technical Document 第 5.1 節的元件表直接列出直接與間接引用的元件、版本與授權；測試專案另外用到的套件只寫數量。更新 NuGet 套件後同步修改這份清冊、source/package-summary.json 的數量與第 5 節的表格，並重新查詢漏洞、核對授權；查詢結果存成 source/security-check.json，不要沿用先前的「未列出漏洞」。
 
 ## 執行環境
 
@@ -32,7 +35,7 @@ Node.js 找不到套件時，先確認這個目錄裡的 `node/node_modules` 是
 
 ## 更新測試紀錄
 
-報告的數字要和技術文件第 14 節寫的命令一致。那三行命令寫的是只有 `src/JET` 時的做法；這個儲存庫用 `tools/verify.ps1` 建置出來的測試程式
+報告的數字要和技術文件第 12 節寫的命令一致。那三行命令寫的是只有 `src/JET` 時的做法；這個儲存庫用 `tools/verify.ps1` 建置出來的測試程式
 另外編進了 `tools/harness/development-repository-tests/` 的測試，不能拿來算報告的數字。所以測試紀錄在儲存庫外、只有 `src/JET` 的副本產生：
 把 `src/JET` 複製到儲存庫外的新資料夾，在副本裡建置、執行後端測試並排除 `Scale` 標記，再用 Node.js 執行前端測試，
 最後回到專案根目錄，把三份結果檔交給轉換工具。副本的路徑要以 `\src\JET` 結尾，轉換工具靠路徑裡的 `/src/JET/JET/` 辨認涵蓋率檔的原始檔。
@@ -58,8 +61,24 @@ python tools/harness/sat-documents/Export-SatEvidence.py --trx "$out/result.trx"
 
 結果資料夾要給完整路徑；給相對路徑時，測試結果檔會寫到測試程式所在的資料夾底下。副本與結果檔用完可以刪除。
 
+副本裡沒有專案根目錄的 `global.json`。電腦上另外裝了更新的 .NET SDK 時，副本會改用那一版建置，和報告「測試環境」寫的 SDK 版本不一致。
+建置前在副本裡執行 `dotnet --version`，確認和專案根目錄查到的版本相同；不同時，把專案根目錄的 `global.json` 複製到 `$work`，也就是 `src` 的上一層，再建置。
+
 轉換工具也接受 `Public -CollectCoverage` 的收據，但那份結果多出 `tools/harness/development-repository-tests/` 的測試，
 不用來產生送審的報告。
+
+轉換工具另外把六項核心查核邏輯每個測試案例的結果寫進 source/test-record.json 的 `reviewCases`，Unit test Report.xlsx 的「案例清單」讀它；「核心查核邏輯」工作表各項邏輯的測試案例數也包含這些案例，依案例編號只算進所屬的那一項邏輯。測試結果檔記的時間是 UTC，執行日期換算成這台電腦的日期。
+案例編號取自測試顯示名稱裡的 `caseId`，例如 `AuditLogicCaseTests.Case_ProducesTheExpectedResult(caseId: "POP-01")`；結果檔裡沒有的案例記為未執行。
+`reviewCases` 另外記下案例檔的 SHA-256；Build-Workbooks.mjs 發現它和 source/code-review.json 記的雜湊不同時，全部案例寫未執行。案例檔在 Build-ReviewData.py 執行後又改過時，轉換工具停止。
+轉換工具從 source/code-review.json 讀案例清單，所以改過案例之後，先執行 Build-ReviewData.py 再轉換。
+案例檔分成 `datasets` 與 `cases` 兩段：一份測試資料寫一次，案例寫用哪一份資料、執行什麼與每一筆分錄的預期歸屬。測試資料與預期結果留在案例檔，不印進活頁簿。
+「案例清單」上方四列是自動化測試、測試資料與預期結果、執行日期與結果；表格有案例編號、案例名稱與結果三欄。每項查核邏輯一列有底色的標題，寫該項的案例數與通過數，底下每個分類一列粗體標題。表頭在每一頁重複，失敗的結果用紅字，工作表不凍結窗格。
+只改了案例、不重新量測全部測試時，用 `--cases-trx` 單獨更新案例的結果，測試總數、測試環境與涵蓋率都不動：
+
+```powershell
+pwsh -NoProfile -File tools/verify.ps1 -Command Focused -Filter 'AuditLogicCaseTests'
+python tools/harness/sat-documents/Export-SatEvidence.py --cases-trx artifacts/harness/runs/<這次執行的資料夾>/test-results/focused-selected/result.trx
+```
 
 若另已完成原生 Excel 驗證，可在轉換命令加上 `--excel-receipt <該次 receipt.json 路徑>`，結果只記在 source/test-record.json，不寫進報告。
 
@@ -68,22 +87,22 @@ python tools/harness/sat-documents/Export-SatEvidence.py --trx "$out/result.trx"
 由 `tools/` 的工具執行，不在送審範圍，不寫進報告。它不執行測試，也不會把失敗改成通過。
 結果檔放在儲存庫外，不放真實案件資料。
 
-報告的「測試環境」是轉換工具在轉換當下查的：作業系統、`dotnet --version`、`node --version`，以及測試專案檔裡 xUnit 與涵蓋率工具的版本。
-所以轉換要和執行測試在同一台電腦、同一天做。報告的「執行命令」寫在 Export-SatEvidence.py 的 `COMMANDS`，要和 Technical Document 第 14 節的命令一致。
+報告的「測試環境」是轉換工具在轉換當下查的：作業系統的名稱與位元、`dotnet --version` 與 `node --version` 的主要版本，以及測試專案檔引用的 xUnit v3；不記作業系統的建置編號與套件的完整版本。Build-Workbooks.mjs 把兩個主要版本寫成 .NET 10 SDK、Node.js 26 的樣子。涵蓋率工具的名稱寫在「涵蓋率量測方式」那一列。
+所以轉換要和執行測試在同一台電腦、同一天做。報告的「執行命令」寫在 Export-SatEvidence.py 的 `COMMANDS`，要和 Technical Document 第 12 節的命令一致。
 
 涵蓋率依來源檔與行號去重，只計本次列出的產品 C# 程式，排除產生碼。
 
-複核規則要求測試在送交複核的那個版本上通過。Unit test Report 的「Commit ID」欄留給部門儲存庫的 commit：首次 commit 完成後，在那個 commit 上重新執行測試、重新產生報告，再填入 commit ID。直接執行測試程式時，source/test-record.json 不記 commit ID。
+複核規則要求測試在送交複核的那個版本上通過。兩份活頁簿以「軟體與版本」欄寫出受測與複核的版本，不另外記 commit ID。
 
 報告的標題、測試資料、驗收條件、涵蓋率量測方式與模組名稱「Host（JET 資料夾最上層的原始檔）」寫在 Export-SatEvidence.py，轉換時寫進 source/test-record.json。只改文字、不重新執行測試時，腳本與 JSON 兩邊要改成一樣。
 
 ## 更新 Word、Excel 與圖表
 
-1. 修改 source 的 Markdown 或資料來源。Build-ReviewData.py 會確認固定值清單的每一項仍在程式裡，也確認複核範圍列的測試類別仍在測試專案裡；找不到時腳本停止。複核人員填過的 Code review.xlsx 要另存，重新產生會蓋掉填寫的內容。
-2. 執行 Build-Documents.py，產生三份 Word 文件。封面、頁首與文件屬性的產品名稱與版本寫在腳本開頭的 `PRODUCT` 與 `VERSION`。Markdown 裡連續的「1. 」編號行會變成一份 Word 自動編號的清單，數字由 Word 產生，段落文字不含數字；公司的 Code review rule 靠這個做法讓段落文字和原文相同。圖片寫成 `![圖名](檔案)`，圖名同時是圖片的替代文字與圖下方的圖名。再執行 Update-WordFields.ps1，在背景用 Word 更新目錄與功能變數、重新分頁並存檔。Word 存檔時會把這台電腦的 Office 使用者名稱寫進「上次儲存者」，所以腳本在 Word 結束後把文件屬性的作者與上次儲存者改成 JET，再檢查每份文件的內部 XML；找到 Windows 使用者名稱、Office 使用者名稱、電腦名稱或本機路徑時報錯。最後轉成 PDF，逐頁檢查排版。要先看結果再覆蓋 docs/SAT 時，Build-Documents.py 加 `--output <資料夾>`，Update-WordFields.ps1 加 `-Root <資料夾>`。
-3. 執行 Build-Workbooks.mjs，產生三份 Excel 文件，再執行 Set-WorkbookPrint.py 設定列印範圍與分頁；活頁簿多了沒有列印規則的工作表時，Set-WorkbookPrint.py 會停止。產生套件會用自己的產品名稱替活頁簿內嵌的佈景主題命名，Set-WorkbookPrint.py 把主題名稱改成 Office，並確認每個內部檔案都搜尋不到那幾個產品名稱，找到時停止。它也替沒有檢視設定的工作表補上 sheetViews，少了這一段時 Excel 會把列高讀成一半；把產生套件留下的預設字型改成 Microsoft JhengHei，並把欄寬換算回原設計，因為換字型後 Excel 會把欄寬放大約 6%；每張工作表加上置中的頁尾「第 N 頁，共 M 頁」。用 Excel 核對下拉選單、公式及列印版面。
+1. 修改 source 的 Markdown 或資料來源。Build-ReviewData.py 會確認固定值清單的每一項仍在程式裡，也確認複核範圍列的測試類別仍在測試專案裡；找不到時腳本停止。它也讀測試專案的案例定義 Fixtures/audit-logic-cases.json，把每個案例的編號、查核邏輯、分類與名稱依操作順序寫進 source/code-review.json，並在複核範圍每一項邏輯的測試類別加上 AuditLogicCaseTests；案例定義只有這一份，測試類別 AuditLogicCaseTests 執行的也是它。案例的查核邏輯不在複核範圍、某一項邏輯沒有案例、案例編號重複、案例指到清單沒有的固定值、固定值清單有一項既沒有案例也不在「未列案例」的名單，或測試類別不在測試專案時，腳本停止。複核人員填過的 Code review.xlsx 要另存，重新產生會蓋掉填寫的內容。
+2. 執行 Build-Documents.py，產生三份 Word 文件。版面與樣式照公司範本：A4、四邊邊界 2.54 公分、沒有頁首與頁尾，字型是 Office 佈景主題的 Aptos 與新細明體，標題、目錄與內文用範本的樣式；設定值寫在腳本開頭的說明與常數，範本檔不放進儲存庫。第一頁是封面：Markdown 開頭的 `title` 是封面標題，也是文件屬性的標題；有 `subtitle` 時加一行副標題；`toc: true` 時下面是置中粗體的「Table of Contents」與目錄，正文從第二頁開始。`body` 指定一般段落的樣式，Technical Document 與 Design Principle 用範本的內文2；段落開頭寫 `{內文1} ` 時改用內文1，Technical Document 第 5 節照範本用它。段落裡寫 `<br>` 會在同一段裡換行，Technical Document 第 2 到第 5 節的範本段落用它讓每個項目各占一行。`cover: plain` 標記公司提供的 Code review rule，它的文件屬性不寫主旨；另外兩份的主旨是腳本開頭的 `PRODUCT` 與 `VERSION`。Markdown 裡連續的「1. 」編號行會變成一份 Word 自動編號的清單，數字由 Word 產生，段落文字不含數字；公司的 Code review rule 靠這個做法讓段落文字和原文相同。「- 」項目前面縮排兩個以上的空白時，是上一個項目底下的第二層項目；設計原則的 UX 用它把各點放在四個類別底下。圖片寫成 `![圖名](檔案)`，圖名同時是圖片的替代文字與圖下方的圖名。表格的儲存格裡寫 `<br>` 會換一行，每一行是儲存格裡的一個段落。再執行 Update-WordFields.ps1，在背景用 Word 更新目錄與功能變數、重新分頁並存檔。Word 存檔時會把這台電腦的 Office 使用者名稱寫進「上次儲存者」，所以腳本在 Word 結束後把文件屬性的作者與上次儲存者改成 JET，再檢查每份文件的內部 XML；找到 Windows 使用者名稱、Office 使用者名稱、電腦名稱或本機路徑時報錯。最後轉成 PDF，逐頁檢查排版。要先看結果再覆蓋 docs/SAT 時，Build-Documents.py 加 `--output <資料夾>`，Update-WordFields.ps1 加 `-Root <資料夾>`。
+3. 執行 Build-Workbooks.mjs，產生三份 Excel 文件，再執行 Set-WorkbookPrint.py 設定列印範圍與分頁；只要重新產生其中一份活頁簿時，兩支腳本都在最後加上它的名稱，例如 `"Code Review/Code review"`，其餘兩份不會被改寫；活頁簿多了沒有列印規則的工作表時，Set-WorkbookPrint.py 會停止。產生套件會用自己的產品名稱替活頁簿內嵌的佈景主題命名，Set-WorkbookPrint.py 把主題名稱改成 Office，並確認每個內部檔案都搜尋不到那幾個產品名稱，找到時停止。它也替沒有檢視設定的工作表補上 sheetViews，少了這一段時 Excel 會把列高讀成一半；把產生套件留下的預設字型改成 Microsoft JhengHei，並把欄寬換算回原設計，因為換字型後 Excel 會把欄寬放大約 6%；每張工作表加上置中的頁尾「第 N 頁，共 M 頁」。分頁點放在分組之間，合併儲存格的一組不會被切到兩頁；「案例清單」的一個分類放得下一頁時不跨頁，放不下時在案例之間分頁；不能再切開的一組列比一頁還高時，Set-WorkbookPrint.py 停止。用 Excel 核對下拉選單、公式及列印版面。
 4. 執行 Build-Diagrams.mjs，產生實體關聯圖、類別圖、元件圖、活動圖與系統架構圖。資料表與欄位直接讀產品程式的建表語句；每個類別、元件、關係與活動節點都在來源的 JSON 記了可核對的檔案與字串，在程式裡找不到時腳本停止。元件圖另外掃描程式裡各元件之間的引用：每一組引用都要畫在圖上、寫在註記，或列在 component.json 的 undrawn 並說明原因，否則腳本停止。系統架構圖要先產生，Build-Documents.py 才嵌得到新圖。
-5. 執行 Build-Workflow.py，產生 Workflow.xlsx。來源 source/workflow.json 記錄泳道、階段帶、每個圖形的種類、文字與位置，以及每條連接線的起點、終點、折點與 Pass、Fail 標籤；座標的寫法在檔案開頭的「說明」。`cells` 記錄公司範本裡不屬於泳道、階段帶與連接線標籤的儲存格，可以只合併不寫字，也可以指定靠左或用標籤的字級；圖形文字裡的換行會寫成同一個段落裡的分行，和公司範本相同。流程圖是 Excel 的原生圖形與肘形接點，版面是橫向 A4 縮成一頁。圖形重疊、連接線的起點或終點不存在、連接線穿過圖形時，腳本停止，不產生檔案。產生後用 Excel 在背景開啟並轉成 PDF，確認沒有修復提示、箭頭方向正確。
+5. 執行 Build-Workflow.py，產生 Workflow.xlsx。流程圖最上面一列寫各欄的負責角色，最左邊一欄寫階段。來源 source/workflow.json 記錄角色名稱、階段名稱、每個圖形的種類、文字與位置，以及每條連接線的起點、終點、折點與 Pass、Fail 標籤；座標的寫法在檔案開頭的「說明」。角色名稱只寫角色，不寫機構、部門或團隊的名稱；產生後解開 Workflow.xlsx，確認內部檔案搜尋不到這些名稱。`cells` 記錄公司範本裡不屬於角色名稱、階段名稱與連接線標籤的儲存格，可以只合併不寫字，也可以指定靠左或用標籤的字級；圖形文字裡的換行會寫成同一個段落裡的分行，和公司範本相同。流程圖是 Excel 的原生圖形與肘形接點，版面是橫向 A4 縮成一頁。圖形重疊、連接線的起點或終點不存在、連接線穿過圖形時，腳本停止，不產生檔案。產生後用 Excel 在背景開啟並轉成 PDF，確認沒有修復提示、箭頭方向正確。
 6. 執行文件檢查。
 
 ```powershell
@@ -116,7 +135,7 @@ Copy-Item -LiteralPath 'tools/harness/sat-documents/Build-Workbooks.mjs', 'tools
 
 ## 提交紀錄
 
-對部門來說，JET 1.0.0.0 是儲存庫的第一筆 commit，所以 git_code_changes_log.txt 只記一筆，commit message 寫「首次提交：JET 1.0.0.0」，照 `git log` 的樣子寫 commit、Author、Date 三行，值先寫待填。
+對部門來說，JET 1.0.0.0 是儲存庫的第一筆 commit，所以 git_code_changes_log.txt 只記一筆，commit message 寫「首次提交：JET 1.0.0.0」，照 `git log` 的樣子寫 commit、Author、Date 三行。commit 與 Date 照公司更新版範本寫 `XXX` 與 `yyyy-MM-dd`；範本的 Author 是人員姓名，不抄進儲存庫，寫待填寫。
 開發期間在個人儲存庫的 commit 不列進這份紀錄。首次 commit 完成後，在部門儲存庫執行下面的命令，用輸出取代檔案內容：
 
 ```powershell

@@ -6,8 +6,8 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// OpenXML SAX 串流讀取器。
-/// 前五個測試自 ClosedXmlTableReaderTests 原樣移植（行為契約不變；fixture 由 ClosedXML
-/// 寫出，兼作讀寫互通檢查）；其後的 raw-zip 案例覆蓋 ClosedXML writer 寫不出的形狀。
+/// 基本讀取行為的 fixture 多由 ClosedXML 寫出，兼作讀寫互通檢查；
+/// 其後的 raw-zip 案例覆蓋 ClosedXML writer 寫不出的形狀。
 /// oracle：規格手算（cell 型別表、數值 double→decimal 正規化、日期樣式判定）。
 /// </summary>
 public sealed class OpenXmlSaxTableReaderTests
@@ -45,7 +45,7 @@ public sealed class OpenXmlSaxTableReaderTests
         return rows;
     }
 
-    // ---- 自 ClosedXmlTableReaderTests 移植（golden：行為契約跨讀取器不變）----
+    // ---- 基本讀取行為（fixture 多由 ClosedXML 寫出）----
 
     [Fact]
     public async Task ReadsSparseAndTypedCellsWithNormalizedHeaders()

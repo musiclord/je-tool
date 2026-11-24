@@ -41,10 +41,10 @@ public static class FieldValueConditions
             return rule.TypedValues.Select(value => value.Trim()).Distinct(StringComparer.Ordinal).ToArray();
         return rule.TypedValues.Select(value => field.ValueType switch
         {
-            "text" => value.Trim().ToUpperInvariant(),
+            "text" => SourceText.ComparisonKey(value),
             "date" when TypedFieldOperandRules.TryNormalizeDate(value, dateOptions ?? DateParseOptions.Default, out var iso) => iso,
             "amount" when TypedFieldOperandRules.TryNormalizeMoney(value, scale, out var scaled) =>
-                ((decimal)scaled / scale).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                MoneyScaling.FromScaled(scaled, scale).ToString(System.Globalization.CultureInfo.InvariantCulture),
             _ => value
         }).Distinct(StringComparer.Ordinal).ToArray();
     }
@@ -140,6 +140,19 @@ public static class FieldValueConditions
         return true;
     }
 
+    /// <summary>
+    /// 條件選的是不是 GL 中每一筆都有值的核心欄位。攸關資料元素欄位空白時不存值，一律不算；
+    /// 沒有帶清單的獨立檢查不知道案件的配對，也不算。
+    /// </summary>
+    internal static bool IsNeverBlank(FilterConditionSpec rule, IReadOnlyCollection<string>? neverBlankGlFields) =>
+        rule.FieldId is null && rule.Field is not null && neverBlankGlFields is not null
+        && neverBlankGlFields.Contains(rule.Field, StringComparer.Ordinal);
+
+    /// <summary>對一定有值的欄位選「空白」時的原因與改法；前端 filter-values.js 同一句。</summary>
+    internal static string NeverBlankReason(string field) => field == JetFieldCatalog.GlAmount
+        ? "GL 中的金額不會空白，來源空白的金額已當成 0；要找 0 元的分錄，請改用「指定金額」填 0"
+        : $"GL 中的{FilterConditionLabels.GlFieldReadback(field)}不會空白，請移除這條條件";
+
     public static GlRdeFieldMetadata? Resolve(FilterConditionSpec rule, IReadOnlyList<GlRdeFieldMetadata> extraFields)
     {
         if (rule.FieldId is not null)
@@ -177,6 +190,12 @@ public static partial class FilterScenarioValidator
         if (rule.TypedOperator is null || !FieldValueConditions.Operators(field.ValueType).Contains(rule.TypedOperator))
         {
             errors.Add($"{label}：此欄位不適用此比較方式");
+            return;
+        }
+        // 「非空白」與「空白也列入」在一定有值的欄位上不改變結果，已存的情境照樣能用；只有「空白」一定是 0 筆，要請審計員改。
+        if (rule.TypedOperator == "isBlank" && FieldValueConditions.IsNeverBlank(rule, context.NeverBlankGlFields))
+        {
+            errors.Add($"{label}：{FieldValueConditions.NeverBlankReason(rule.Field!)}");
             return;
         }
         if (field.ValueType == "amount" && !TypedAmountBasisNames.IsCanonical(rule.AmountBasis))

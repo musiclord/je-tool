@@ -30,9 +30,7 @@ internal static class FilterHitInsertSql
         string conditionPredicateSql) =>
         $"INSERT INTO {tablePrefix}filter_hit_condition (scenario_id, entry_id, group_no, condition_no) "
         + $"SELECT @scenarioId, g.entry_id, @groupNo, @conditionNo FROM {tablePrefix}gl g "
-        + $"WHERE {populationPredicateSql} AND g.voucher_number IN ("
-        + $"SELECT hg.voucher_number FROM {tablePrefix}filter_hit hh JOIN {tablePrefix}gl hg ON hg.entry_id = hh.entry_id "
-        + "WHERE hh.scenario_id = @scenarioId AND hg.voucher_number IS NOT NULL) "
+        + $"WHERE {populationPredicateSql} AND {HitVoucherRows.InOneSavedScenarioHitVouchers("g", tablePrefix)} "
         + $"AND ({conditionPredicateSql});";
 
     /// <summary>刪掉一個情境的結果；先刪符合第幾組第幾條，再刪命中。</summary>

@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 步驟四預篩選重定位的 backend-authority／frontend-mirror 守衛。
+/// 預篩選定位說明的守衛：文字以後端為準，前端存的同一段文字要和後端逐字相同。
 /// 可見審計語意由 AuditCore renderer 產生；有預篩選結果時前端用回應裡的 positioning，
 /// 同一份文字的前端鏡像只給還沒有預篩選結果的畫面用（例如流程總覽、第四步卡片與匯出面）。
 /// 兩條彙總排在逐筆輔助訊號與可選報告之前，由前端測試核對。

@@ -4,6 +4,7 @@ using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
@@ -153,7 +154,7 @@ public sealed class UnreadableProjectRecoveryTests
         await host.DispatchAsync("project.create", """{"projectName":"healthy","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
         var path = Path.Combine(host.ProjectsRoot, "broken", "project.json");
         const string corrupt = "{not-valid-synthetic-json";
-        await File.WriteAllTextAsync(path, corrupt);
+        await ProjectJsonEdits.WriteAllTextAsync(path, corrupt);
         var response = await host.DispatchAsync(action);
         var rows = response.GetProperty("projects").EnumerateArray().ToArray();
         Assert.Equal(2, rows.Length);
@@ -192,7 +193,7 @@ public sealed class UnreadableProjectRecoveryTests
         var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         if (damage == "legacy") { document.Remove("databaseProvider"); }
         if (damage == "invalidPeriod") { document["periodStart"] = "2026-01-01"; }
-        await File.WriteAllTextAsync(path, damage == "corrupt" ? "{not-valid-synthetic-json" : document.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(path, damage == "corrupt" ? "{not-valid-synthetic-json" : document.ToJsonString());
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", """{"projectId":"delete-broken"}"""));
 
         var deleted = await host.DispatchAsync("project.delete", """{"projectId":"delete-broken"}""");
@@ -229,7 +230,7 @@ public sealed class UnreadableProjectRecoveryTests
         {
             damaged = """{"\udc00":1,""" + document.ToJsonString()[1..];
         }
-        await File.WriteAllTextAsync(path, damaged);
+        await ProjectJsonEdits.WriteAllTextAsync(path, damaged);
 
         var listed = await host.DispatchAsync("project.listLocal");
 
@@ -380,7 +381,7 @@ public sealed class UnreadableProjectRecoveryTests
         var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
         document["periodStart"] = start; document["periodEnd"] = end;
         var saved = document.ToJsonString();
-        await File.WriteAllTextAsync(path, saved);
+        await ProjectJsonEdits.WriteAllTextAsync(path, saved);
         await host.DispatchAsync("project.create", """{"projectName":"keep-active","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
         var exception = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", """{"projectId":"invalid-period"}"""));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);

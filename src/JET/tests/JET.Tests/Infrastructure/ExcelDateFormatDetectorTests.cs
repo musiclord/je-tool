@@ -28,7 +28,7 @@ public sealed class ExcelDateFormatDetectorTests
     [InlineData(26, ExcelNumberKind.None)]
     [InlineData(27, ExcelNumberKind.Date)]
     [InlineData(36, ExcelNumberKind.Date)]
-    [InlineData(43, ExcelNumberKind.None)]  // 會計千分位（真實 TB 的金額樣式）
+    [InlineData(43, ExcelNumberKind.None)]  // 會計千分位（試算表常見的金額樣式）
     [InlineData(44, ExcelNumberKind.None)]
     [InlineData(45, ExcelNumberKind.Time)]
     [InlineData(47, ExcelNumberKind.Time)]

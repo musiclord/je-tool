@@ -108,7 +108,7 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
                     accountNumber = r.AccountNumber,
                     accountName = r.AccountName,
                     description = r.Description,
-                    amount = (decimal)r.AmountScaled / scale,
+                    amount = MoneyScaling.FromScaled(r.AmountScaled, scale),
                     drCr = r.DrCr
                 }).ToArray()
             }
@@ -331,6 +331,7 @@ internal static class FilterValidationContextFactory
             HasCounterpartCategory: accountMappingState?.HasCounterpart ?? false)
         {
             AvailableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions),
+            NeverBlankGlFields = JetFieldCatalog.NeverBlankGlFields(glMapping.Mapping, glMapping.GlOptions),
             // 正式的六個入口都帶入案件有沒有國定假日清單與補班日清單；null 只供沒有案件資料的獨立測試。
             HasHolidayCalendar = calendarLists?.HasHolidays,
             HasMakeupCalendar = calendarLists?.HasMakeupDays,

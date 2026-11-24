@@ -4,7 +4,8 @@
     "圖形與文字方塊的 left、top、width、height 以儲存格為單位。left 的整數部分是欄的序號，A 欄是 0，小數部分是在該欄裡的比例；top 的整數部分是列的序號，第 1 列是 0。",
     "連接線從 from 的接點出發，依序經過 bends 的折點，到 to 的接點結束，箭頭畫在終點。side 是圖形的接點，可填 top、left、bottom、right。相鄰兩點必須同欄或同列。",
     "connectors 的 label 是這條線代表的判定結果。labels 記錄 Pass 與 Fail 的文字放在哪裡：有 cell 的寫在儲存格，有 left 與 top 的用文字方塊。",
-    "cells 是公司範本裡不屬於泳道、階段帶與連接線標籤的儲存格。range 是單一儲存格或合併範圍；text 可以省略，只合併儲存格；align 填 left 時靠左，不填時置中；font 填 label 時用 Pass、Fail 標籤的字級。X21 的 Pass 在範本裡沒有對應的連接線，位置在「測試」圖形底下，照範本保留。"
+    "lanes 是最上面一列的角色名稱，header 是名稱所在的儲存格範圍，也決定這個角色占哪幾欄；名稱只寫角色，不寫機構、部門或團隊的名稱。phases 是最左邊一欄的階段名稱，band 是名稱所在的儲存格範圍，也決定這個階段占哪幾列。圖形的 lane 與 phase 填它所屬的角色與階段。",
+    "cells 是公司範本裡不屬於角色名稱、階段名稱與連接線標籤的儲存格。range 是單一儲存格或合併範圍；text 可以省略，只合併儲存格；align 填 left 時靠左，不填時置中；font 填 label 時用 Pass、Fail 標籤的字級。X21 的 Pass 在範本裡沒有對應的連接線，位置在「測試」圖形底下，照範本保留。"
   ],
   "sheet": {
     "name": "Workflow",
@@ -17,9 +18,9 @@
     "printArea": "C4:AM63"
   },
   "lanes": [
-    { "id": "dev", "text": "AI Team Dev", "header": "D4:U6" },
-    { "id": "qa", "text": "AI Team QA", "header": "V4:Y6" },
-    { "id": "sat-its", "text": "SAT/ITS", "header": "Z4:AM6" }
+    { "id": "dev", "text": "Dev & Monitor", "header": "D4:U6" },
+    { "id": "qa", "text": "QA", "header": "V4:Y6" },
+    { "id": "sat", "text": "SAT", "header": "Z4:AM6" }
   ],
   "phases": [
     { "id": "dev-testing", "text": "Dev\nTesting", "band": "C7:C32" },
@@ -41,12 +42,12 @@
     { "id": "code-change-log", "type": "flowChartDocument", "text": "程式修訂紀錄", "lane": "dev", "phase": "staging", "left": 9.8, "top": 45.4, "width": 2.1, "height": 4.4 },
     { "id": "release-notes", "type": "flowChartDocument", "text": "版本更新紀錄", "lane": "dev", "phase": "staging", "left": 13.3, "top": 45.4, "width": 2.1, "height": 4.4 },
     { "id": "user-manual", "type": "flowChartDocument", "text": "操作說明", "lane": "dev", "phase": "staging", "left": 16.8, "top": 45.4, "width": 2.1, "height": 4.4 },
-    { "id": "sat", "type": "flowChartDecision", "text": "SAT", "lane": "sat-its", "phase": "staging", "left": 25.85, "top": 40.55, "width": 2.6, "height": 4.4 },
+    { "id": "sat", "type": "flowChartDecision", "text": "SAT", "lane": "sat", "phase": "staging", "left": 25.85, "top": 40.55, "width": 2.6, "height": 4.4 },
     { "id": "track-security", "type": "flowChartProcess", "text": "Track Security", "lane": "dev", "phase": "production", "left": 3.9, "top": 56.4, "width": 2.1, "height": 4.4 },
     { "id": "production-version-dev-lane", "type": "flowChartDocument", "text": "Production version", "lane": "dev", "phase": "production", "left": 6.55, "top": 56.4, "width": 2.1, "height": 4.4 },
-    { "id": "production-version-sat-lane", "type": "flowChartDocument", "text": "Production\nversion", "lane": "sat-its", "phase": "production", "left": 29.65, "top": 56.4, "width": 2.1, "height": 4.4 },
-    { "id": "deploy", "type": "flowChartProcess", "text": "Deploy", "lane": "sat-its", "phase": "production", "left": 32.95, "top": 56.4, "width": 2.1, "height": 4.4 },
-    { "id": "end", "type": "flowChartTerminator", "text": "End", "lane": "sat-its", "phase": "production", "left": 36.1, "top": 57.5, "width": 2.1, "height": 2.2 }
+    { "id": "production-version-sat-lane", "type": "flowChartDocument", "text": "Production\nversion", "lane": "sat", "phase": "production", "left": 29.65, "top": 56.4, "width": 2.1, "height": 4.4 },
+    { "id": "deploy", "type": "flowChartProcess", "text": "Deploy", "lane": "sat", "phase": "production", "left": 32.95, "top": 56.4, "width": 2.1, "height": 4.4 },
+    { "id": "end", "type": "flowChartTerminator", "text": "End", "lane": "sat", "phase": "production", "left": 36.1, "top": 57.5, "width": 2.1, "height": 2.2 }
   ],
   "connectors": [
     { "id": "start-to-dev", "from": { "shape": "start", "side": "bottom" }, "to": { "shape": "dev", "side": "top" }, "bends": [] },

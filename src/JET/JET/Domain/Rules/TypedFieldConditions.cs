@@ -62,12 +62,12 @@ internal static class TypedFieldOperandRules
 {
     internal static bool TryNormalizeText(string? raw, out string normalized)
     {
-        normalized = raw?.Trim() ?? string.Empty;
+        normalized = raw is null ? string.Empty : SourceText.Trim(raw);
         return normalized.Length > 0;
     }
 
-    /// <summary>文字的比較鍵：把已去掉頭尾空白的值用 ToUpperInvariant 轉成大寫；SQL 那一側用 UPPER(TRIM(...))，兩邊做法相同。</summary>
-    internal static string TextComparisonKey(string normalized) => normalized.ToUpperInvariant();
+    /// <summary>文字的比較鍵，規則在 <see cref="SourceText.ComparisonKey"/>；SQL 那一側用 UPPER(TRIM(...))，兩邊做法相同。</summary>
+    internal static string TextComparisonKey(string normalized) => SourceText.ComparisonKey(normalized);
 
     internal static bool TryNormalizeDate(string? raw, out string isoDate) =>
         TryNormalizeDate(raw, DateParseOptions.Default, out isoDate);
@@ -87,8 +87,6 @@ internal static class TypedFieldOperandRules
 
     internal static bool TryNormalizeMoney(string? raw, int moneyScale, out long scaled)
     {
-        scaled = 0;
-        return MoneyScaling.TryParseAmount(raw, out var amount)
-            && MoneyScaling.TryToScaled(amount, moneyScale, out scaled);
+        return MoneyScaling.TryParseScaled(raw, moneyScale, out scaled);
     }
 }

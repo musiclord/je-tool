@@ -1,7 +1,8 @@
-# 產生 docs/SAT/Workflow.xlsx：一張泳道流程圖，描述從開發、測試、Staging、SAT 評估到正式部署的流程。
+# 產生 docs/SAT/Workflow.xlsx：一張流程圖，描述從開發、測試、Staging、SAT 評估到正式部署的流程。
+# 最上面一列寫各欄的負責角色，最左邊一欄寫階段；每個圖形畫在它的角色與階段交會的那一格裡。
 #
-# 來源是 source/workflow.json，記錄泳道、階段帶、每個圖形與每條連接線。這支腳本直接寫出 xlsx 的 XML：
-# 表頭與階段帶寫在儲存格並加框線，流程圖用 Excel 的原生流程圖圖形與肘形接點畫出，在 Excel 裡可以選取與編輯。
+# 來源是 source/workflow.json，記錄角色、階段、每個圖形與每條連接線。這支腳本直接寫出 xlsx 的 XML：
+# 角色名稱與階段名稱寫在儲存格並加框線，流程圖用 Excel 的原生流程圖圖形與肘形接點畫出，在 Excel 裡可以選取與編輯。
 # 版面設定為橫向 A4、縮成一頁。成品不含任何範本檔的零件，文件屬性的作者固定寫 JET。
 #
 # 用法（python 指裝有 lxml 的 Python 3）：
@@ -9,8 +10,8 @@
 #   python tools/harness/sat-documents/Build-Workflow.py --source <workflow.json> --output <Workflow.xlsx>
 #
 # 寫檔前的檢查，任何一項不成立就停止，不產生檔案：
-#   - 圖形、連接線的識別名稱不重複；泳道與階段帶對得上。
-#   - 每個圖形都在它標示的泳道與階段帶裡，圖形與文字標籤互不重疊。
+#   - 圖形、連接線的識別名稱不重複；圖形標示的角色與階段都存在。
+#   - 每個圖形都在它標示的角色與階段的範圍裡，圖形與文字標籤互不重疊。
 #   - 每條連接線的起點與終點圖形都存在，相鄰兩點同欄或同列，從接點朝外出發、朝內抵達，不穿過其他圖形與文字標籤。
 #   - 每個 Pass 或 Fail 標籤指到的連接線都存在，而且那條線標的是同一個結果。
 #
@@ -32,7 +33,7 @@ DEFAULT_SOURCE = HERE / 'source' / 'workflow.json'
 DEFAULT_OUTPUT = HERE.parents[2] / 'docs' / 'SAT' / 'Workflow.xlsx'
 
 FONT = '微軟正黑體'
-CELL_FONT_SIZE = 12       # 表頭與階段帶；也是活頁簿的預設字型，欄寬以它的數字寬度換算
+CELL_FONT_SIZE = 12       # 角色名稱與階段名稱；也是活頁簿的預設字型，欄寬以它的數字寬度換算
 LABEL_FONT_SIZE = 11      # Pass 與 Fail
 SHAPE_FONT_SIZE = 11
 DIGIT_WIDTH_PIXELS = 9    # 微軟正黑體 12 點在 96 DPI 的數字寬度
@@ -294,19 +295,19 @@ def load(source):
     for lane in data['lanes']:
         c1, r1, c2, r2 = parse_range(lane['header'])
         if header_rows not in (None, (r1, r2)):
-            stop('泳道表頭必須在同樣的列。')
+            stop('各角色名稱的儲存格必須在同樣的列。')
         header_rows = (r1, r2)
         if lane['id'] in lanes:
-            stop('泳道 %r 重複。' % lane['id'])
+            stop('角色 %r 重複。' % lane['id'])
         lanes[lane['id']] = dict(lane, columns=(c1, c2))
     phases, band_columns = {}, None
     for phase in data['phases']:
         c1, r1, c2, r2 = parse_range(phase['band'])
         if band_columns not in (None, (c1, c2)):
-            stop('階段帶必須在同樣的欄。')
+            stop('各階段名稱的儲存格必須在同樣的欄。')
         band_columns = (c1, c2)
         if phase['id'] in phases:
-            stop('階段帶 %r 重複。' % phase['id'])
+            stop('階段 %r 重複。' % phase['id'])
         phases[phase['id']] = dict(phase, rows=(r1, r2))
 
     shapes = {}
@@ -316,7 +317,7 @@ def load(source):
         if shape['type'] not in SHAPE_TYPES:
             stop('圖形 %r 的種類 %r 不在支援的流程圖圖形裡。' % (shape['id'], shape['type']))
         if shape['lane'] not in lanes or shape['phase'] not in phases:
-            stop('圖形 %r 標示的泳道或階段帶不存在。' % shape['id'])
+            stop('圖形 %r 標示的角色或階段不存在。' % shape['id'])
         box = Box(shape['id'], grid.x(shape['left']), grid.y(shape['top']),
                   grid.x(shape['left'] + shape['width']), grid.y(shape['top'] + shape['height']),
                   'diamond' if shape['type'] == 'flowChartDecision' else 'rect')
@@ -324,7 +325,7 @@ def load(source):
         r1, r2 = phases[shape['phase']]['rows']
         if not (grid.column_edges[c1] <= box.left and box.right <= grid.column_edges[c2 + 1]
                 and r1 * grid.row_emu <= box.top and box.bottom <= (r2 + 1) * grid.row_emu):
-            stop('圖形 %r 超出它標示的泳道或階段帶。' % shape['id'])
+            stop('圖形 %r 超出它標示的角色與階段的範圍。' % shape['id'])
         shapes[shape['id']] = dict(shape, box=box)
     require_no_overlap([shape['box'] for shape in shapes.values()], [])
 

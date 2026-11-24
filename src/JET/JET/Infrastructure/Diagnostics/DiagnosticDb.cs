@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 /// 參數的名稱與值、duration_ms、rows_affected，以及呼叫端傳入的資料庫種類 provider。
 /// logger 沒有開 Debug 層級時不組參數字串，Release 組建就是這種情形。
 /// 要記錄的地方逐一改呼叫這裡的方法。沒有改用一層包裝把連線整個包起來，
-/// 因為那樣會換掉連線的具體型別，SqlBulkCopy 與各資料庫專用的參數型別就不能用了。
+/// 因為那樣會換掉連線的具體型別，要認出 SQLite 連線才能用的功能（例如註冊自訂函式）就不能用了。
 /// </summary>
 internal static class DiagnosticDb
 {

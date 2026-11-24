@@ -289,7 +289,9 @@ public sealed class FilterCommitCancellationTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task InvalidateDependentResultsAsync(string projectId, CancellationToken cancellationToken) =>
+        public Task InvalidateDependentResultsAsync(
+            string projectId, IReadOnlyList<int> nonWorkingDays, Func<CancellationToken, Task> saveSettings,
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<int> CountAsync(string projectId, CalendarDayType type, CancellationToken cancellationToken) =>

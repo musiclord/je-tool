@@ -54,6 +54,30 @@ internal static class ValidationReportProjectionParser
         }
     }
 
+    /// <summary>
+    /// 讀出這次驗證抽樣實際使用的隨機種子，資料可靠性抽樣清單與底稿 Step 2 寫出這個值。
+    /// 不讀案件設定檔：設定檔在抽樣之後被改過、沒有重新執行資料驗證時，樣本仍是這個種子抽出來的。
+    /// </summary>
+    internal static long ParseSampleSeed(string summaryJson)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(summaryJson);
+
+        try
+        {
+            using var document = JetJsonStorage.Parse(summaryJson);
+            var root = document.RootElement;
+            ValidationSummaryShapeValidator.Require(root);
+            return root.GetProperty("infSamplingTest").GetProperty("seed").GetInt64();
+        }
+        catch (Exception exception) when (exception is JsonException or FormatException or OverflowException)
+        {
+            throw new JetActionException(
+                JetErrorCodes.StaleResult,
+                "資料驗證結果不完整，請重新執行資料驗證後再產生報告。",
+                innerException: exception);
+        }
+    }
+
     private static string? CompletenessNaReason(JsonElement root) =>
         root.TryGetProperty("completenessTest", out var completeness)
         && completeness.TryGetProperty("naReason", out var reason)

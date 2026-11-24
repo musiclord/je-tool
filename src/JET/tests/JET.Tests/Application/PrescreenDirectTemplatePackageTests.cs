@@ -70,13 +70,9 @@ public sealed class PrescreenDirectTemplatePackageTests
                 summary.Cell("C8").GetString(),
                 StringComparison.Ordinal);
             Assert.Equal(
-                new[] { "A2", "A3", "A4" },
-                summary.Range("B14:B16").Cells()
-                    .Select(cell => cell.GetString())
-                    .ToArray());
-            Assert.Equal(
                 "# 分錄無摘要描述(即空白摘要)",
-                summary.Cell("B17").GetString());
+                summary.Cell("B14").GetString());
+            Assert.Equal(14, summary.LastRowUsed()!.RowNumber());
             Assert.Equal(1, summary.Cell("E8").GetValue<long>());
             Assert.Equal(plannedRowCount, summary.Cell("F8").GetValue<long>());
             // D 欄照舊版原句，筆數看 E、F 欄。
@@ -86,7 +82,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                     : "明細筆數超過10,000筆，明細資料不匯出",
                 summary.Cell("D8").GetString());
             Assert.All(
-                summary.Range("E12:F16").Cells(),
+                summary.Range("E12:F14").Cells(),
                 cell => Assert.Equal("N/A", cell.GetString()));
             Assert.True(summary.Cell("C8").Style.Alignment.WrapText);
             if (expectedDetailSheet)
@@ -794,6 +790,115 @@ public sealed class PrescreenDirectTemplatePackageTests
     [Fact]
     public async Task Summary_DColumnUsesLegacySentencesForEachOutcome()
     {
+        using var workbook = new XLWorkbook(
+            new MemoryStream(await WriteSummaryWithEveryOutcomeAsync(), writable: false));
+        var summary = workbook.Worksheet("Pre-screening_Report");
+        Assert.Equal("沒有設定傳票核准日欄位", summary.Cell("D8").GetString());
+        Assert.Equal("沒有符合預篩選條件之明細項", summary.Cell("D9").GetString());
+        Assert.Equal("N/A（測試未執行）", summary.Cell("D10").GetString());
+        Assert.Equal("符合預篩選條件之明細項請詳 [R4] 工作表", summary.Cell("D11").GetString());
+        Assert.Equal("符合新增預篩選條件之明細項請詳 [R7] 工作表", summary.Cell("D14").GetString());
+        foreach (var row in new[] { 8, 9, 10 })
+        {
+            Assert.Equal("N/A", summary.Cell(row, "E").GetString());
+            Assert.Equal("N/A", summary.Cell(row, "F").GetString());
+        }
+        Assert.Equal(1, summary.Cell("E11").GetValue<long>());
+        Assert.Equal(2, summary.Cell("F11").GetValue<long>());
+        Assert.Equal(1, summary.Cell("E14").GetValue<long>());
+        Assert.Equal(1, summary.Cell("F14").GetValue<long>());
+        var sheetNames = workbook.Worksheets.Select(static sheet => sheet.Name).ToArray();
+        Assert.Contains("R4", sheetNames);
+        Assert.Contains("R7", sheetNames);
+        Assert.DoesNotContain("R1", sheetNames);
+        Assert.DoesNotContain("R2", sheetNames);
+        Assert.DoesNotContain("R3", sheetNames);
+    }
+
+    // 摘要頁照範本只有 14 列：第 8 到 13 列是六項預先篩選程序，第 14 列是空白摘要，JET 不另外加列。
+    // JET 只寫表頭的 E1、E2、E4、E5，第 8 列與第 11 列的說明，以及第 8 到 14 列的狀態、結果、傳票數量與分錄筆數；
+    // 其他格子的內容和範本相同。
+    [Fact]
+    public async Task Summary_KeepsTheFourteenTemplateRowsAndWritesOnlyTheResultCells()
+    {
+        var bytes = await WriteSummaryWithEveryOutcomeAsync();
+        var templateBytes = await TemplateBytesAsync(ReportTemplateCatalog.Prescreen);
+
+        using (var document = SpreadsheetDocument.Open(new MemoryStream(bytes, writable: false), false))
+        {
+            var worksheet = WorksheetPartFor(document, "Pre-screening_Report").RequiredWorksheet();
+            Assert.Equal("A1:F14", worksheet.GetFirstChild<SheetDimension>()?.Reference?.Value);
+            Assert.Equal(
+                Enumerable.Range(1, 14).Select(static row => (uint)row).ToArray(),
+                worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
+                    .Select(static row => row.RowIndex!.Value)
+                    .ToArray());
+        }
+
+        using var workbook = new XLWorkbook(new MemoryStream(bytes, writable: false));
+        using var template = new XLWorkbook(new MemoryStream(templateBytes, writable: false));
+        var summary = workbook.Worksheet("Pre-screening_Report");
+        var templateSummary = template.Worksheet("Pre-screening_Report");
+        Assert.Equal(14, summary.LastRowUsed()!.RowNumber());
+        Assert.Equal(6, summary.LastColumnUsed()!.ColumnNumber());
+
+        Assert.Equal(
+            new[]
+            {
+                "預先篩選的程序",
+                "# 1. 於期末財務報表準備期間核准並入到查核年度總帳之分錄",
+                "# 2. 分錄摘要出現特定描述",
+                "# 3. 未預期出現之特定借貸組合",
+                "# 4. 分錄金額中有連續0的尾數(0的位數依分錄金額平均數決定)",
+                "# 5. 依分錄編製者彙總分錄",
+                "# 6. 較少使用之科目",
+                "# 分錄無摘要描述(即空白摘要)"
+            },
+            Enumerable.Range(7, 8).Select(row => summary.Cell(row, "B").GetString().Trim()).ToArray());
+        Assert.Equal(
+            new[] { "na", "V", "na", "V", "V", "V", "V" },
+            Enumerable.Range(8, 7).Select(row => summary.Cell(row, "A").GetString()).ToArray());
+        Assert.Equal(
+            new[]
+            {
+                "沒有設定傳票核准日欄位",
+                "沒有符合預篩選條件之明細項",
+                "N/A（測試未執行）",
+                "符合預篩選條件之明細項請詳 [R4] 工作表",
+                "符合預篩選條件之明細項請詳 [R5] 工作表",
+                "符合預篩選條件之明細項請詳 [R6] 工作表",
+                "符合新增預篩選條件之明細項請詳 [R7] 工作表"
+            },
+            Enumerable.Range(8, 7).Select(row => summary.Cell(row, "D").GetString()).ToArray());
+        Assert.Equal(
+            new[] { "N/A|N/A", "N/A|N/A", "N/A|N/A", "1|2", "N/A|N/A", "N/A|N/A", "1|1" },
+            Enumerable.Range(8, 7)
+                .Select(row => $"{summary.Cell(row, "E").GetString()}|{summary.Cell(row, "F").GetString()}")
+                .ToArray());
+
+        var written = new HashSet<string>(StringComparer.Ordinal) { "E1", "E2", "E4", "E5", "C8", "C11" };
+        foreach (var row in Enumerable.Range(8, 7))
+        {
+            written.UnionWith(new[] { $"A{row}", $"D{row}", $"E{row}", $"F{row}" });
+        }
+        foreach (var cell in summary.Range("A1:F14").Cells())
+        {
+            var address = cell.Address.ToString()!;
+            if (written.Contains(address))
+            {
+                Assert.False(cell.IsEmpty(), $"{address} 應該由 JET 寫入。");
+            }
+            else
+            {
+                Assert.True(
+                    templateSummary.Cell(address).GetString() == cell.GetString(),
+                    $"{address} 的內容應該和範本相同。");
+            }
+        }
+    }
+
+    private static async Task<byte[]> WriteSummaryWithEveryOutcomeAsync()
+    {
         using var host = new HandlerTestHost();
         var projectId = await ReportExportFixture.SetupProjectAsync(host);
         var database = new SqliteProjectDatabase(
@@ -838,29 +943,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             "tester",
             CancellationToken.None);
 
-        using var workbook = new XLWorkbook(
-            new MemoryStream(output.ToArray(), writable: false));
-        var summary = workbook.Worksheet("Pre-screening_Report");
-        Assert.Equal("沒有設定傳票核准日欄位", summary.Cell("D8").GetString());
-        Assert.Equal("沒有符合預篩選條件之明細項", summary.Cell("D9").GetString());
-        Assert.Equal("N/A（測試未執行）", summary.Cell("D10").GetString());
-        Assert.Equal("符合預篩選條件之明細項請詳 [R4] 工作表", summary.Cell("D11").GetString());
-        Assert.Equal("符合新增預篩選條件之明細項請詳 [R7] 工作表", summary.Cell("D17").GetString());
-        foreach (var row in new[] { 8, 9, 10 })
-        {
-            Assert.Equal("N/A", summary.Cell(row, "E").GetString());
-            Assert.Equal("N/A", summary.Cell(row, "F").GetString());
-        }
-        Assert.Equal(1, summary.Cell("E11").GetValue<long>());
-        Assert.Equal(2, summary.Cell("F11").GetValue<long>());
-        Assert.Equal(1, summary.Cell("E17").GetValue<long>());
-        Assert.Equal(1, summary.Cell("F17").GetValue<long>());
-        var sheetNames = workbook.Worksheets.Select(static sheet => sheet.Name).ToArray();
-        Assert.Contains("R4", sheetNames);
-        Assert.Contains("R7", sheetNames);
-        Assert.DoesNotContain("R1", sheetNames);
-        Assert.DoesNotContain("R2", sheetNames);
-        Assert.DoesNotContain("R3", sheetNames);
+        return output.ToArray();
     }
 
     // 配對了人工傳票欄位時，R5 照舊版在人員後面多一欄「人工傳票否_JE_S」，

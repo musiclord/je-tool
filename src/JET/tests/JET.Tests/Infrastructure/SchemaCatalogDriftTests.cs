@@ -9,7 +9,7 @@ namespace JET.Tests.Infrastructure;
 /// <summary>
 /// 漂移守門:中央三層表名登錄(<see cref="JetSchemaCatalog"/>)必須與真 SQLite schema 完全對齊。
 ///
-/// 機制:以 <see cref="SqliteProjectDatabase.EnsureCreatedAsync"/> 在 temp 目錄建一個全新專案 DB
+/// 機制:以 <see cref="SqliteProjectDatabase.EnsureCreatedAsync(string, CancellationToken)"/> 在 temp 目錄建一個全新專案 DB
 /// (跑權威 SchemaSql),再查 <c>sqlite_master</c> 取得全部使用者表(排除 <c>sqlite_%</c> 內部表,
 /// 與 dev 檢視 inspector 同一過濾),雙向比對:
 ///   (a) 每張實體表都已登錄 → 日後加表卻忘了登錄(漏登錄)時測試會失敗(負向保護)。

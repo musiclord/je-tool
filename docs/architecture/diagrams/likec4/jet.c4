@@ -534,7 +534,7 @@ views {
 
 deployment {
   workstation local 'Windows 工作站' {
-    description '使用一般權限執行 JET，不需要外部 AI 服務。'
+    description '使用一般權限執行 JET，不需要企業中心服務。'
     folder release '發布資料夾' {
       description 'JET.exe、Excel 範本與 wwwroot 要一起交付。'
       instanceOf jet.desktop

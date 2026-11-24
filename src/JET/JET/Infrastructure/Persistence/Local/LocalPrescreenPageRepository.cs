@@ -133,8 +133,7 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
             return predicateSql;
         }
 
-        return $"g.voucher_number IN (SELECT g.voucher_number FROM {schemaPrefix}gl g "
-            + $"WHERE g.voucher_number IS NOT NULL AND {GlExcludedPopulation.SqlPredicate("g")} AND ({predicateSql}))";
+        return HitVoucherRows.InVouchersWithHit("g", schemaPrefix, GlExcludedPopulation.SqlPredicate("g"), predicateSql);
     }
 
     internal static FilterScenarioSpec PrescreenScenario(string ruleKey) => new(

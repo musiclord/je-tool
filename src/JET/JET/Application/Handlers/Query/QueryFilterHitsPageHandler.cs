@@ -95,7 +95,7 @@ public sealed class QueryFilterHitsPageHandler(
                 glDate = r.GlDate,
                 accountNumber = r.AccountNumber,
                 accountName = r.AccountName,
-                amount = (decimal)r.AmountScaled / scale,
+                amount = MoneyScaling.FromScaled(r.AmountScaled, scale),
                 drCr = r.DrCr,
                 description = r.Description,
                 customValues = customValues[r.EntryId]

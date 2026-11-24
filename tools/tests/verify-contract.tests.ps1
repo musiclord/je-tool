@@ -306,13 +306,16 @@ try {
     # Provider 路線隨 DuckDB 與 SQL Server 移除（裁定 2026-11-06-08），這份清單、Help 列出的路線、ReleaseCandidate 的
     # liveProviderIncluded 與契約版本一起改；第一次失敗是當時那一次執行的
     # 「The enabled lanes must match the currently implemented Harness boundary.」。
-    Assert-Contract -Condition ((@($enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Public,ReleaseCandidate') `
+    # PrivateCase 路線在使用者 2026-11-24 要求下移除，這份清單、Help、ReleaseCandidate 的 privateCaseIncluded、
+    # 測試設定與契約版本一起改。
+    Assert-Contract -Condition ((@($enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,Public,ReleaseCandidate') `
         -Message 'The enabled lanes must match the currently implemented Harness boundary.'
-    Assert-Contract -Condition ([bool]$registry.lanes.PrivateCase.enabled -and
-        [bool]$registry.commands.PrivateCase.enabled -and
-        [bool]$registry.commands.PrivateCase.requiresExclusiveLock -and
-        [bool]$registry.commands.PrivateCase.privateDataAccess) `
-        -Message 'PrivateCase must remain an explicit, exclusive, private-data command.'
+    Assert-Contract -Condition (-not $registry.commands.ContainsKey('PrivateCase') -and
+        -not $registry.lanes.ContainsKey('PrivateCase')) `
+        -Message 'The removed PrivateCase command and lane must not return.'
+    Assert-Contract -Condition (@($registry.commands.Keys | Where-Object { [bool]$registry.commands[$_].privateDataAccess }).Count -eq 0 -and
+        @($registry.lanes.Keys | Where-Object { [bool]$registry.lanes[$_].privateDataAccess }).Count -eq 0) `
+        -Message 'No command or lane may access private data.'
     Assert-Contract -Condition ([bool]$registry.lanes.ReleaseCandidate.enabled -and
         [bool]$registry.commands.ReleaseCandidate.enabled -and
         [bool]$registry.commands.ReleaseCandidate.requiresExclusiveLock -and
@@ -324,20 +327,18 @@ try {
             'contract:Contract:Release:False,documentation:Documentation:Release:False,public:Public:Release:False,package:Package:Release:True,gui:Gui:AgentGuiTest:False,excel:Excel:Release:False') `
         -Message 'ReleaseCandidate must retain its six reviewed public-candidate children.'
     Assert-Contract -Condition ([string]$registry.releaseCandidateSettings.snapshotWorkspaceRoot -ceq 'artifacts/harness/rc' -and
-        -not [bool]$registry.releaseCandidateSettings.privateCaseIncluded -and
+        -not $registry.releaseCandidateSettings.ContainsKey('privateCaseIncluded') -and
         -not $registry.releaseCandidateSettings.ContainsKey('liveProviderIncluded')) `
-        -Message 'ReleaseCandidate must use the short owned workspace without PrivateCase or a live Provider setting.'
-    # Contract 8.2 added Context; 9.0 removes the Provider command and lane. Keep the exact version assertion.
-    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '9.0') `
-        -Message 'The validation commands without Provider require runner contract 9.0.'
-    Assert-Contract -Condition ([int]$registry.testSettings.privateCaseMinimumExpectedTests -eq 2) `
-        -Message 'PrivateCase must run both the manifest and full acceptance tests.'
-    Assert-Contract -Condition ((@(
-                [string]$registry.testSettings.privateCaseRootEnvironmentVariable,
-                [string]$registry.testSettings.privateCaseManifestEnvironmentVariable,
-                [string]$registry.testSettings.privateCaseProviderEnvironmentVariable) -join ',') -ceq
-            'JET_PRIVATE_CASE_ROOT,JET_PRIVATE_CASE_MANIFEST,JET_PRIVATE_CASE_PROVIDER') `
-        -Message 'PrivateCase must use only the reviewed explicit input boundary.'
+        -Message 'ReleaseCandidate must use the short owned workspace without a PrivateCase or live Provider setting.'
+    # Contract 8.2 added Context; 9.0 removes the Provider command and lane; 10.0 removes the PrivateCase command and
+    # lane. Keep the exact version assertion.
+    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '10.0') `
+        -Message 'The validation commands without Provider and PrivateCase require runner contract 10.0.'
+    Assert-Contract -Condition (@($registry.testSettings.Keys | Where-Object { [string]$_ -clike 'privateCase*' }).Count -eq 0 -and
+        @($registry.testSettings.excludedProfiles) -cnotcontains 'PrivateCase' -and
+        @($registry.testSettings.environmentVariablesToRemove | Where-Object {
+                [string]$_ -clike 'JET_PRIVATE_CASE_*' -or [string]$_ -clike 'JET_LEGACY_PARITY_*' }).Count -eq 0) `
+        -Message 'Test settings must not keep PrivateCase inputs or legacy-parity variables after the route was removed.'
     Assert-Contract -Condition ([string]$registry.excelSettings.scenario -ceq 'synthetic-report-roundtrip') `
         -Message 'The Excel lane must retain its one reviewed synthetic scenario.'
     Assert-Contract -Condition ((@($registry.excelSettings.reportKinds) -join ',') -ceq `
@@ -371,74 +372,17 @@ try {
                 Where-Object { [string]$_ -cnotmatch '^\*[A-Za-z0-9_.+]+Tests\.\*$' }
         ).Count -eq 0) `
         -Message 'Protected-workspace filters must identify exact test classes.'
-    Assert-Contract -Condition ($protectedWorkspacePatterns -cnotcontains '*JET.Tests.Infrastructure.LegacyAuditParity*') `
-        -Message 'A broad LegacyAuditParity filter must not hide synthetic oracle tests.'
-    Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot `
-                    'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityCrossCaseVerification.cs'))) `
-        -Message 'The retired two-case PrivateParity driver must not return.'
-    Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot `
-                    'tools/harness/development-repository-tests/Infrastructure/LegacyAuditParityCrossCaseVerification.cs'))) `
-        -Message 'The retired two-case PrivateParity driver must not return next to the development-repository tests.'
-    foreach ($retiredLegacyBatch in @(
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityReportBoundaryCorrectionBatch.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage6Audit.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage6AuditTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage6ClassificationCatalog.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage6Finalizer.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage7FieldInfoCorrectionBatch.cs')) {
-        Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredLegacyBatch))) `
-            -Message "$retiredLegacyBatch is an old batch correction and must not return."
-        $retiredPathAfterMove = $retiredLegacyBatch.Replace('src/JET/tests/JET.Tests/', 'tools/harness/development-repository-tests/')
-        Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredPathAfterMove))) `
-            -Message "$retiredPathAfterMove is an old batch correction and must not return."
+    # PrivateCase 路線與只為它存在的舊版比對程式在使用者 2026-11-24 要求下一起刪除；原本這裡逐一列出舊版比對的
+    # 測試類別與已退役的批次檔，現在改成確認兩個測試資料夾都不再有這些程式。
+    foreach ($testRoot in @('src/JET/tests/JET.Tests', 'tools/harness/development-repository-tests')) {
+        $retiredPrivateCaseSources = @(
+            Get-ChildItem -LiteralPath (Join-Path $repositoryRoot $testRoot) -Recurse -File -Filter '*.cs' |
+                Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
+                Where-Object { $_.Name -cmatch '^(PrivateCase|LegacyAuditParity|LegacyParityFixture)' })
+        Assert-Contract -Condition ($retiredPrivateCaseSources.Count -eq 0) `
+            -Message "$testRoot must not bring back the removed PrivateCase or legacy-parity test sources."
     }
-    foreach ($safeLegacyOracleClass in @(
-            'JET.Tests.Infrastructure.LegacyAuditParityComparatorTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityControlTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityJourneyInputFactoryTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityJourneyTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityLegacyObservationFactoryTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityMetricDependenciesTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityObservationFactoryTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityObservationsTests',
-            'JET.Tests.Infrastructure.LegacyAuditParityProfileTests',
-            'JET.Tests.Infrastructure.LegacyWorkbookContentComparisonTests',
-            'JET.Tests.Infrastructure.LegacyWorkbookHeaderCatalogTests')) {
-        $probeIdentity = "$safeLegacyOracleClass.AnyMethod"
-        Assert-Contract -Condition (@(
-                $protectedWorkspacePatterns | Where-Object { $probeIdentity -clike [string]$_ }
-            ).Count -eq 0) `
-            -Message "$safeLegacyOracleClass must remain in the public synthetic test set."
-    }
-    foreach ($retiredLegacyOraclePath in @(
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityCrossCaseContent.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityCrossCaseContentDecisionCatalog.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityCrossCaseContentTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage8ContentFingerprint.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage8ContentFingerprintTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage9AppearanceDecisionCatalog.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityStage9AppearanceDecisionCatalogTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityTbModeAggregateEvidence.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityTbModeAggregateEvidenceTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityTbModeDecisions.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityTbModeDecisionsTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityBatch.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityBatchTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityFinalRegistry.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityFinalRegistryTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityScenarioRefresh.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityScenarioRefreshBatch.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityScenarioRefreshJourney.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityScenarioRefreshTests.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityScenarioShapeArtifact.cs',
-            'src/JET/tests/JET.Tests/Infrastructure/LegacyAuditParityScenarioShapeArtifactTests.cs')) {
-        Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredLegacyOraclePath))) `
-            -Message "$retiredLegacyOraclePath must not return as a new PrivateCase dependency."
-        $retiredPathAfterMove = $retiredLegacyOraclePath.Replace('src/JET/tests/JET.Tests/', 'tools/harness/development-repository-tests/')
-        Assert-Contract -Condition (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $retiredPathAfterMove))) `
-            -Message "$retiredPathAfterMove must not return as a new PrivateCase dependency."
-    }
-    $scenarioNames.Add('LegacyOracleBoundary')
+    $scenarioNames.Add('RemovedPrivateCaseSources')
 
     $toolDirectories = @(Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'tools') -Directory)
     Assert-Contract -Condition ((@($toolDirectories.Name | Sort-Object) -join ',') -ceq 'harness,tests') `
@@ -798,7 +742,7 @@ try {
     $scenarioNames.Add('Help')
     Assert-Contract -Condition ($help.NativeExitCode -eq 0) -Message 'Help native exit code must be 0.'
     Assert-Contract -Condition ($help.Envelope.status -ceq 'passed') -Message 'Help must pass.'
-    Assert-Contract -Condition ((@($help.Envelope.enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Public,ReleaseCandidate') `
+    Assert-Contract -Condition ((@($help.Envelope.enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,Public,ReleaseCandidate') `
         -Message 'Help must expose the eight existing lanes and optional Mutation.'
     Assert-Contract -Condition (@($help.Envelope.commands) -cnotcontains 'Provider') `
         -Message 'Help must not expose the removed Provider command.'
@@ -809,8 +753,8 @@ try {
         -Message 'Help must expose the Gui command.'
     Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'Excel') `
         -Message 'Help must expose the Excel command.'
-    Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'PrivateCase') `
-        -Message 'Help must expose the PrivateCase command.'
+    Assert-Contract -Condition (@($help.Envelope.commands) -cnotcontains 'PrivateCase') `
+        -Message 'Help must not expose the removed PrivateCase command.'
     Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'ReleaseCandidate') `
         -Message 'Help must expose the ReleaseCandidate command.'
     Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'Mutation' -and
@@ -1277,52 +1221,19 @@ try {
     Assert-Contract -Condition ($guiNoRestore.Envelope.status -ceq 'usage_error') `
         -Message 'Gui NoRestore must be a usage error.'
 
-    $privateVariableNames = @(
-        [string]$registry.testSettings.privateCaseRootEnvironmentVariable,
-        [string]$registry.testSettings.privateCaseManifestEnvironmentVariable,
-        [string]$registry.testSettings.privateCaseProviderEnvironmentVariable)
-    $priorPrivateValues = @{}
-    try {
-        foreach ($variableName in $privateVariableNames) {
-            $priorPrivateValues[$variableName] = [Environment]::GetEnvironmentVariable(
-                $variableName,
-                [EnvironmentVariableTarget]::Process)
-            [Environment]::SetEnvironmentVariable(
-                $variableName,
-                $null,
-                [EnvironmentVariableTarget]::Process)
-        }
-        $privateCaseMissingInput = Invoke-Runner -Label 'private-case-missing-input' -Arguments @(
-            '-Command', 'PrivateCase',
-            '-NoRestore',
-            '-TimeoutSeconds', '30',
-            '-EvidenceRoot', $runsRelativeRoot)
-    }
-    finally {
-        foreach ($variableName in $privateVariableNames) {
-            [Environment]::SetEnvironmentVariable(
-                $variableName,
-                $priorPrivateValues[$variableName],
-                [EnvironmentVariableTarget]::Process)
-        }
-    }
-    $scenarioNames.Add('PrivateCasePreflight')
-    Assert-Contract -Condition ($privateCaseMissingInput.NativeExitCode -eq 2) `
-        -Message 'PrivateCase without all three explicit inputs must be blocked.'
-    $privateCaseReceipt = Get-Receipt -Run $privateCaseMissingInput
-    Assert-CommonReceipt -Receipt $privateCaseReceipt -ExpectedStatus 'blocked'
-    Assert-Contract -Condition ($privateCaseReceipt.steps.Count -eq 1) `
-        -Message 'Blocked PrivateCase preflight cannot start build or tests.'
-    Assert-Contract -Condition ($privateCaseReceipt.firstRed.reason -ceq 'private_case_input_not_configured') `
-        -Message 'PrivateCase must retain its missing-input reason.'
-    Assert-Contract -Condition ($privateCaseReceipt.privateData.state -ceq 'selected' -and
-        $privateCaseReceipt.privateData.pathInspected -eq $false -and
-        $privateCaseReceipt.privateData.outputsRetained -eq $false) `
-        -Message 'Blocked PrivateCase must record selection without claiming data access or retained output.'
-    Assert-Contract -Condition ($privateCaseReceipt.testBoundary.reportComparison -ceq 'content-and-appearance' -and
-        $privateCaseReceipt.testBoundary.infAcceptance -ceq 'rules-and-effective-population' -and
-        $privateCaseReceipt.testBoundary.cleanupPolicy -ceq 'always-delete') `
-        -Message 'PrivateCase receipts must retain the three fixed acceptance decisions.'
+    # 原本這裡核對 PrivateCase 缺少私人案件輸入時停在執行前檢查（PrivateCasePreflight）。PrivateCase 命令在使用者
+    # 2026-11-24 要求下移除，改成確認它被當成未知命令擋下，不會改跑其他測試。
+    $removedPrivateCase = Invoke-Runner -Label 'usage-removed-private-case' -Arguments @(
+        '-Command', 'PrivateCase',
+        '-NoRestore',
+        '-TimeoutSeconds', '30',
+        '-EvidenceRoot', $runsRelativeRoot)
+    $scenarioNames.Add('RemovedPrivateCaseCommand')
+    Assert-Contract -Condition ($removedPrivateCase.NativeExitCode -eq 3) `
+        -Message 'The removed PrivateCase command must be a usage error.'
+    Assert-Contract -Condition ($removedPrivateCase.Envelope.status -ceq 'usage_error' -and
+        $removedPrivateCase.Envelope.privateData.pathInspected -eq $false) `
+        -Message 'The removed PrivateCase command must fail closed without inspecting private data.'
 
     $releaseWrongConfiguration = Invoke-Runner -Label 'release-candidate-release-required' -Arguments @(
         '-Command', 'ReleaseCandidate',
@@ -1624,19 +1535,6 @@ Actual: 2 at $repositoryRoot\src\Synthetic.cs</Message></ErrorInfo></Output>
         -Message 'The first failure message must be one line with the repository root masked.'
     Assert-Contract -Condition ([string]$firstFailure.Receipt.firstFailure.fqn -ceq 'Synthetic.Suite.Fails') `
         -Message 'The test receipt must carry the first failure.'
-    $withheldFailure = & $harnessModule {
-        param($repositoryRoot, $runDirectory)
-        Read-JetTrxResult `
-            -RepositoryRoot $repositoryRoot `
-            -RunDirectory $runDirectory `
-            -TrxPath (Join-Path $runDirectory 'result.trx') `
-            -SummaryPath (Join-Path $runDirectory 'test-summary.json') `
-            -WithholdFailureMessages
-    } $repositoryRoot $firstFailureRoot
-    Assert-Contract -Condition ($null -eq $withheldFailure.FirstFailure.message -and
-            $withheldFailure.FirstFailure.messageWithheld -eq $true -and
-            [string]$withheldFailure.FirstFailure.fqn -ceq 'Synthetic.Suite.Fails') `
-        -Message 'Private-case failure messages must be withheld while the test name stays.'
 
     # 斷言變動只警示不判定：相對 HEAD 移除的 Assert、移除的 [Fact]/[Theory] 與新增的 Skip 都要數出來。
     $driftRepo = Join-Path $suiteRoot 'assertion-drift-repo'

@@ -114,7 +114,11 @@ public sealed class ExportValidationReportsHandler(
                 async (stream, ct) =>
                 {
                     var progress = progressByKind[ReportKind.InfReport];
-                    var infContext = new InfReportContext(project, run.ResultId, run.GeneratedUtc);
+                    var infContext = new InfReportContext(
+                        project,
+                        run.ResultId,
+                        run.GeneratedUtc,
+                        ValidationReportProjectionParser.ParseSampleSeed(run.SummaryJson));
                     infStats = await infWriter.WriteAsync(
                         stream,
                         infContext,
@@ -338,7 +342,8 @@ public sealed class ExportCriteriaSelectionReportHandler(
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             conditionLogic[scenario.Position] =
                 FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, categorySnapshot.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true,
-                    zerosThreshold: TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale));
+                    zerosThreshold: TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale),
+                    neverBlankGlFields: FilterConditionRenderer.NeverBlankGlFields(glMapping));
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);

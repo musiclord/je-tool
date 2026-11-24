@@ -138,6 +138,8 @@ internal static class JetSchemaCatalog
             "存入筆數與合計核對的控制總數(單列中間計算;投影時落地供 validate 對值)"),
         new("result_stale_state", "RESULT_STALE_STATE", SchemaLayer.System, SchemaAudience.Hidden,
             "上游資料修改後，驗證、預篩選與篩選結果的過期狀態"),
+        new("project_setting", "PROJECT_SETTING", SchemaLayer.System, SchemaAudience.Hidden,
+            "以案件資料庫為準的案件設定(查核期間、金額存放倍率、民國年選項、隨機種子、建案者、期末財報準備日與每週休息日)"),
         new("message_log", "MESSAGE_LOG", SchemaLayer.System, SchemaAudience.Hidden,
             "前端狀態與訊息的持久化(UX 輔助紀錄,非審計留痕)"),
         new("operation_log", "OPERATION_LOG", SchemaLayer.System, SchemaAudience.Hidden,

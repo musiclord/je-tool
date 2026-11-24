@@ -28,11 +28,15 @@ public sealed class SourceCommentPolicyTests
             RegexOptions.CultureInvariant)),
         // 註解、字串與識別字都要看：開發階段與批次的編號、分組代號，不分大小寫，也包括接在識別字中間的寫法。
         // 匯入批次的代號在數字前有連字號，不算批次編號。
+        // 單獨出現的「一個大寫字母、數字、一個小寫字母」是階段代號；前後還接著英數字的雜湊值、色碼與格式字串不算。
+        // 用阿拉伯數字寫的「第幾批」是開發批次的編號；儲存時分批送出的資料用中文數字寫成「第一批」「第二批」，不算。
         ("計畫與階段的名稱", new Regex(
             @"(?:(?<![A-Za-z])(?i:stage|phase)|(?<=[a-z0-9])(?:Stage|Phase))[-_ ]?\d+"
             + @"|(?:(?<![A-Za-z])(?i:batch)|(?<=[a-z0-9])Batch)\d+"
             + @"|(?:(?<![A-Za-z])|(?<=[a-z]))Track ?[A-Z](?![a-z])"
-            + "|第[一二三四五六七八九十]+(?:波|輪|階段)",
+            + @"|(?<![A-Za-z0-9_#])[A-Z][0-9]+[a-z](?![A-Za-z0-9_])"
+            + "|第[一二三四五六七八九十]+(?:波|輪|階段)"
+            + "|第" + @"\s*[0-9０-９]+\s*批",
             RegexOptions.CultureInvariant)),
         // 比對用的範例檔、任務說明與任務編號、開發時用的腳本與技能名稱，以及只寫「照規定」而不寫規定內容的說法。
         // 「可靠性樣本」「摘要樣本」這類資料上的樣本，以及 C# 的 Task 型別都不算。
@@ -205,6 +209,13 @@ public sealed class SourceCommentPolicyTests
     [InlineData("// 使用者選取的檔案正被 Excel 開啟時，改用共用讀取。", false)]
     [InlineData("// 使用者指定的工作表不存在時，回報找不到工作表。", false)]
     [InlineData("// 匯入失敗時向使用者回報原因與接下來能做的事。", false)]
+    [InlineData("// 第一批在按下儲存的同一輪送出；之後依序一批接一批。", false)]
+    [InlineData("// 501 個改動分成 500 與 1 兩批；第二批失敗時只剩那 1 筆待儲存。", false)]
+    [InlineData("('zeros',4,'Z04','2025-03-01','1000',1000,1000,0,'DEBIT',0),", false)]
+    [InlineData("// R3 含 Cash、C2 命中兩張傳票。", false)]
+    [InlineData("var digest = \"9F3a7C1e\";", false)]
+    [InlineData("  color: #F0f;", false)]
+    [InlineData("var cell = $\"V{number:D3}\";", false)]
     public void PatternsLeaveOrdinaryCommentsAndDataAlone(string line, bool expected)
     {
         Assert.Equal(expected, DevelopmentRecords.Any(record => record.Pattern.IsMatch(line)));
@@ -230,6 +241,10 @@ public sealed class SourceCommentPolicyTests
         var batchInData = "\"ba" + "tch9-broken\"";
         var batchInIdentifier = "const fixture = ba" + "tch8Fixture();";
         var trackInIdentifier = "var entries = Tra" + "ckWEntries();";
+        var stageCode = "// S2" + "b 的大母體符合比例可能遠低於 0.1%。";
+        var stageCodeWithColon = "/// P10" + "a：每條述詞各自只跑一次。";
+        var numberedBatchInData = "projectName = \"第5" + "批合成分類\",";
+        var numberedBatchWithSpaces = "// 第 6 " + "批補上的檢查。";
         var alignedToSample = "// 表頭合併範圍(逐字對齊" + "樣本)。";
         var sampleLayout = "// 日期轉成樣本" + "顯示形式 yyyy/MM/dd。";
         var localSample = "/// 對本機參考" + "樣本逐字復解的 cell 內容。";
@@ -252,6 +267,7 @@ public sealed class SourceCommentPolicyTests
         {
             stage, track, phase, wave, stageInIdentifier, stageWithHyphen, stageInConstant,
             phaseInData, batchInData, batchInIdentifier, trackInIdentifier,
+            stageCode, stageCodeWithColon, numberedBatchInData, numberedBatchWithSpaces,
         }, line =>
             Assert.Equal("計畫與階段的名稱", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(line)).Name));
         Assert.All(new[]

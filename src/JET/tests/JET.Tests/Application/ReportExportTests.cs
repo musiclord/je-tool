@@ -1046,12 +1046,9 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
             "將篩選期末關帳開始日",
             summary.Cell("C8").GetString(),
             StringComparison.Ordinal);
-        Assert.Equal(
-            new[] { "A2", "A3", "A4" },
-            summary.Range("B14:B16").Cells().Select(cell => cell.GetString()).ToArray());
-        Assert.Equal("# 分錄無摘要描述(即空白摘要)", summary.Cell("B17").GetString());
+        Assert.Equal("# 分錄無摘要描述(即空白摘要)", summary.Cell("B14").GetString());
         Assert.Equal("Prepared by: tester", summary.Cell("E4").GetString());
-        Assert.Equal(17, summary.Range("A8:F17").LastRow().RowNumber());
+        Assert.Equal(14, summary.LastRowUsed()!.RowNumber());
         Assert.Equal(1, summary.Cell("E8").GetValue<long>());
         Assert.Equal(2, summary.Cell("F8").GetValue<long>());
         Assert.Equal("N/A", summary.Cell("E12").GetString());
@@ -1064,8 +1061,13 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
             "因於資料欄未配對時未配對編制人員欄位，故此預篩選程序未執行",
             summary.Cell("D12").GetString());
         Assert.Equal("符合預篩選條件之明細項請詳 [R6] 工作表", summary.Cell("D13").GetString());
-        Assert.All(summary.Range("D14:D16").Cells(),
-            cell => Assert.Contains("Step 4", cell.GetString(), StringComparison.Ordinal));
+        Assert.Equal("符合新增預篩選條件之明細項請詳 [R7] 工作表", summary.Cell("D14").GetString());
+        // 摘要頁沒有自訂特定摘要、自訂科目借貸組合與自訂特定尾數這三列。
+        Assert.All(summary.CellsUsed(), cell =>
+        {
+            Assert.DoesNotContain(cell.GetString(), new[] { "A2", "A3", "A4" });
+            Assert.DoesNotContain("Step 4", cell.GetString(), StringComparison.Ordinal);
+        });
         Assert.Contains("A1:A5", summary.MergedRanges.Select(range => range.RangeAddress.ToString()));
         Assert.Contains("B1:D5", summary.MergedRanges.Select(range => range.RangeAddress.ToString()));
         Assert.Contains("E5:F5", summary.MergedRanges.Select(range => range.RangeAddress.ToString()));
@@ -1377,7 +1379,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
             Assert.Equal(71.140625, ColumnWidth(worksheet, 2), 6);
             Assert.Equal(26.1D, worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
                 .Single(row => row.RowIndex?.Value == 8).Height?.Value);
-            Assert.Equal(17U, worksheet.GetFirstChild<SheetData>()!.Elements<Row>().Last().RowIndex?.Value);
+            Assert.Equal(14U, worksheet.GetFirstChild<SheetData>()!.Elements<Row>().Last().RowIndex?.Value);
             Assert.Empty(new OpenXmlValidator().Validate(document));
         }
 

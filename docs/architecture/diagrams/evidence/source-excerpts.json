@@ -20,19 +20,33 @@
     "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd",
     "excerpt": "            // SQLite 的整組 repository 只組一次。建案與載入依案件的資料庫種類從 catalog 選組，連同案件編號存進 session；\n            // 其他動作在一開始取 session 的快照，只用快照裡那一組。刪除非作用中案件時依該案件自己的 project.json\n            // 從 catalog 選組，不碰 session。catalog 只認得 SQLite，其他種類回 unsupported_provider。\n            var repositoryCatalog = CreateProjectRepositoryCatalog(\n                new ProjectRepositoryAssembly(\n                    projectStore,\n                    new ProjectCreateBackendPort(sqliteDatabase),\n                    localFileLockService,\n                    baseReportStore,\n                    loggerFactory,\n                    session,\n                    actionExecutionGate),\n                sqliteDatabase);"
   },
-  "AGENTS.md:1-6": {
-    "path": "AGENTS.md",
-    "line": 1,
-    "endLine": 6,
-    "sha256": "8506cbcde9c15fa2425c4d946221fdc744e9634151559b0727640adb8214de5b",
-    "excerpt": "# JET Agent 指南\n\nJET 是 Windows 桌面審計工具，用 C# 與 .NET 10 寫成，WinForms 視窗承載 WebView2 網頁畫面，發布成單一執行檔。\n大量資料留在 SQLite 案件資料庫，用集合式 SQL 處理；DuckDB 與 SQL Server 在短期上線期間暫時移除（裁定 2026-11-06-08）。\n這份檔案是所有 AI 編碼工具（Claude Code、Codex、GitHub Copilot、VS Code）的共用入口，只寫不可協商的邊界，\n以及細節該去哪裡找。給 Agent 讀的流程文件放在 `.agents/`，給人讀的文件放在 `docs/`；兩邊都不複寫這裡的規則。"
+  "docs/jet-guide.md:921-930": {
+    "path": "docs/jet-guide.md",
+    "line": 921,
+    "endLine": 930,
+    "sha256": "9fabf4a366c804f65deaf1df9dbe77c1e4fad52b6353e6c39d1895583659b445",
+    "excerpt": "## 9. 系統分層\n\n| 層 | 責任 | 主要位置 |\n|:---|:---|:---|\n| WinForms 主程式 | 視窗、WebView2、原生檔案對話框與程序生命週期 | `src/JET/JET/Form1*`, `Program.cs` |\n| Web 前端 | 操作、呈現、分頁與使用者回饋 | `src/JET/JET/wwwroot/` |\n| Bridge | 傳送請求、回應與非權威進度事件 | `src/JET/JET/Bridge/` |\n| Application | action 處理器、流程協調、取消與工作階段 | `src/JET/JET/Application/` |\n| Domain／AuditCore | 欄位、規則、金額與查核語意 | `src/JET/JET/Domain/`, `AuditCore/` |\n| Infrastructure | SQLite、檔案讀寫與報告輸出 | `src/JET/JET/Infrastructure/` |"
   },
-  "docs/project-context.md:64-87": {
+  "docs/jet-guide.md:977-980": {
+    "path": "docs/jet-guide.md",
+    "line": 977,
+    "endLine": 980,
+    "sha256": "9fabf4a366c804f65deaf1df9dbe77c1e4fad52b6353e6c39d1895583659b445",
+    "excerpt": "每種資料庫各有一組資料存取物件（repository），程式啟動時建好；目前只有 SQLite 一組（裁定 2026-11-06-08）。建立或載入案件時，\nApplication 依 `project.json` 記錄的資料庫種類選定這一組，種類不是 SQLite 時在動任何資料之前回 `unsupported_provider`；\n選定的一組和案件編號一起存進工作階段。其他動作開始時取一次這份紀錄，\n整個動作只用這一組；即使途中另一個請求載入了別的案件，進行中的動作也不會改用新的一組。刪除不在使用中的案件時，"
+  },
+  "docs/project-context.md:64-71": {
     "path": "docs/project-context.md",
     "line": 64,
+    "endLine": 71,
+    "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978",
+    "excerpt": "## 開發電腦與正式環境不同\n\n目前常見的開發方式，是從公司環境遠端連到個人電腦進行開發與驗證。個人電腦可以提供開發工具、SQL Server\n或原生 Excel 等能力，但它不是正式部署環境，也不能拿這台電腦的權限和軟體狀態當成公司環境必然具備的條件。\n\n正式方向必須遵守下列限制：\n\n- 公司環境不能假設使用者有系統管理員權限。"
+  },
+  "docs/project-context.md:73-87": {
+    "path": "docs/project-context.md",
+    "line": 73,
     "endLine": 87,
     "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978",
-    "excerpt": "## 開發電腦與正式環境不同\n\n目前常見的開發方式，是從公司環境遠端連到個人電腦進行開發與驗證。個人電腦可以提供開發工具、SQL Server\n或原生 Excel 等能力，但它不是正式部署環境，也不能拿這台電腦的權限和軟體狀態當成公司環境必然具備的條件。\n\n正式方向必須遵守下列限制：\n\n- 公司環境不能假設使用者有系統管理員權限。\n- 公司環境無法存取 AI 相關網路服務；AI 可以協助開發，但不能成為 JET 執行期依賴。\n- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。\n- 短期上線的版本只支援 SQLite：審計員只能用 SQLite 操作本機案件，案件資料夾仍能在不同電腦之間搬移。\n  DuckDB 與 SQL Server 的程式、測試與驗證路線暫時刪除，最後的完整版本是提交 `7e88b7b`，短期目標上線後從那裡接回繼續開發\n  （裁定 2026-11-06-08）。這台開發電腦的 SQL Server 服務平時保持停止，操作方式見\n  [`../tools/README.md`](../tools/README.md#日常資料庫測試與服務收尾)。企業中心化管理仍要等公司帳號、\n  網路、權限、身分與維運責任都能確認後再啟動。\n- 使用者 2026-11-05 預告 SQLite 要上線到正式環境，所以 SQLite 運行的穩健性要先確認，測試程序要涵蓋完整（裁定 2026-11-05-69）。\n- 公司電腦目前是 Windows 11 23H2，預計 2027 年更新為 25H2；電腦預裝完整的 Office 365，Excel 與 Access\n  都可使用。這是公司現況與更新安排，不等於已驗證所有版本的相容性。\n- 使用者只有一般使用者權限，不能申請安裝額外程式。網路及 Cisco 相關資安通道由公司組織管理。\n  本機資料庫必須隨 JET 內嵌使用，不依賴另裝驅動程式或資料庫安裝程序；現行的 SQLite 符合這個方向，\n  DuckDB 在短期上線期間暫時移除（裁定 2026-11-06-08）。\n- JET 可以匯入 .xls 與 Access 一般資料表，Access 讀取使用公司電腦現有的 ACE 16。這不是 Access 案件\n  資料庫 provider，也不使其他格式依賴 Office。目前只在本機 x64 ACE 環境驗證過，不推定所有 Office\n  位元版本都已驗證。"
+    "excerpt": "- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。\n- 短期上線的版本只支援 SQLite：審計員只能用 SQLite 操作本機案件，案件資料夾仍能在不同電腦之間搬移。\n  DuckDB 與 SQL Server 的程式、測試與驗證路線暫時刪除，最後的完整版本是提交 `7e88b7b`，短期目標上線後從那裡接回繼續開發\n  （裁定 2026-11-06-08）。這台開發電腦的 SQL Server 服務平時保持停止，操作方式見\n  [`../tools/README.md`](../tools/README.md#日常資料庫測試與服務收尾)。企業中心化管理仍要等公司帳號、\n  網路、權限、身分與維運責任都能確認後再啟動。\n- 使用者 2026-11-05 預告 SQLite 要上線到正式環境，所以 SQLite 運行的穩健性要先確認，測試程序要涵蓋完整（裁定 2026-11-05-69）。\n- 公司電腦目前是 Windows 11 23H2，預計 2027 年更新為 25H2；電腦預裝完整的 Office 365，Excel 與 Access\n  都可使用。這是公司現況與更新安排，不等於已驗證所有版本的相容性。\n- 使用者只有一般使用者權限，不能申請安裝額外程式。網路及 Cisco 相關資安通道由公司組織管理。\n  本機資料庫必須隨 JET 內嵌使用，不依賴另裝驅動程式或資料庫安裝程序；現行的 SQLite 符合這個方向，\n  DuckDB 在短期上線期間暫時移除（裁定 2026-11-06-08）。\n- JET 可以匯入 .xls 與 Access 一般資料表，Access 讀取使用公司電腦現有的 ACE 16。這不是 Access 案件\n  資料庫 provider，也不使其他格式依賴 Office。目前只在本機 x64 ACE 環境驗證過，不推定所有 Office\n  位元版本都已驗證。"
   },
   "src/JET/JET/wwwroot/js/jet-api.js:5-45": {
     "path": "src/JET/JET/wwwroot/js/jet-api.js",
@@ -489,12 +503,12 @@
     "sha256": "ec13a52aff7fbdd46138e299aa06daec35951de89ec9e7135352e841a661ac36",
     "excerpt": "/// devToolsEnabled 表示這個組建有沒有註冊開發者工具，Debug 組建是 true，Release 組建是 false；\n/// 前端依它決定要不要顯示開發面板。\n/// </summary>\npublic sealed class SystemPingHandler(bool devToolsEnabled) : IApplicationActionHandler\n{\n    public string Action => \"system.ping\";\n\n    public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)\n    {\n        return Task.FromResult<object?>(new\n        {\n            message = \"JET host bridge ok.\",\n            utcNow = DateTimeOffset.UtcNow,\n            devToolsEnabled"
   },
-  "docs/project-context.md:64-90": {
+  "docs/project-context.md:73-90": {
     "path": "docs/project-context.md",
-    "line": 64,
+    "line": 73,
     "endLine": 90,
     "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978",
-    "excerpt": "## 開發電腦與正式環境不同\n\n目前常見的開發方式，是從公司環境遠端連到個人電腦進行開發與驗證。個人電腦可以提供開發工具、SQL Server\n或原生 Excel 等能力，但它不是正式部署環境，也不能拿這台電腦的權限和軟體狀態當成公司環境必然具備的條件。\n\n正式方向必須遵守下列限制：\n\n- 公司環境不能假設使用者有系統管理員權限。\n- 公司環境無法存取 AI 相關網路服務；AI 可以協助開發，但不能成為 JET 執行期依賴。\n- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。\n- 短期上線的版本只支援 SQLite：審計員只能用 SQLite 操作本機案件，案件資料夾仍能在不同電腦之間搬移。\n  DuckDB 與 SQL Server 的程式、測試與驗證路線暫時刪除，最後的完整版本是提交 `7e88b7b`，短期目標上線後從那裡接回繼續開發\n  （裁定 2026-11-06-08）。這台開發電腦的 SQL Server 服務平時保持停止，操作方式見\n  [`../tools/README.md`](../tools/README.md#日常資料庫測試與服務收尾)。企業中心化管理仍要等公司帳號、\n  網路、權限、身分與維運責任都能確認後再啟動。\n- 使用者 2026-11-05 預告 SQLite 要上線到正式環境，所以 SQLite 運行的穩健性要先確認，測試程序要涵蓋完整（裁定 2026-11-05-69）。\n- 公司電腦目前是 Windows 11 23H2，預計 2027 年更新為 25H2；電腦預裝完整的 Office 365，Excel 與 Access\n  都可使用。這是公司現況與更新安排，不等於已驗證所有版本的相容性。\n- 使用者只有一般使用者權限，不能申請安裝額外程式。網路及 Cisco 相關資安通道由公司組織管理。\n  本機資料庫必須隨 JET 內嵌使用，不依賴另裝驅動程式或資料庫安裝程序；現行的 SQLite 符合這個方向，\n  DuckDB 在短期上線期間暫時移除（裁定 2026-11-06-08）。\n- JET 可以匯入 .xls 與 Access 一般資料表，Access 讀取使用公司電腦現有的 ACE 16。這不是 Access 案件\n  資料庫 provider，也不使其他格式依賴 Office。目前只在本機 x64 ACE 環境驗證過，不推定所有 Office\n  位元版本都已驗證。\n- 組織成員透過 Teams、OneDrive，以及檔案總管可直接存取的組織網路磁碟機傳遞檔案。\n  這說明傳遞通道，沒有改變案件可攜性的既有前提：正常離開 JET 後，冷複製完整案件資料夾。\n  直接在同步中或共用位置開啟資料庫的並行操作，不由檔案傳遞管道的可用性推定已驗收。"
+    "excerpt": "- 本機案件處理要能在沒有企業中心服務時工作，並避免要求一般 GA 人員管理 SQL Server。\n- 短期上線的版本只支援 SQLite：審計員只能用 SQLite 操作本機案件，案件資料夾仍能在不同電腦之間搬移。\n  DuckDB 與 SQL Server 的程式、測試與驗證路線暫時刪除，最後的完整版本是提交 `7e88b7b`，短期目標上線後從那裡接回繼續開發\n  （裁定 2026-11-06-08）。這台開發電腦的 SQL Server 服務平時保持停止，操作方式見\n  [`../tools/README.md`](../tools/README.md#日常資料庫測試與服務收尾)。企業中心化管理仍要等公司帳號、\n  網路、權限、身分與維運責任都能確認後再啟動。\n- 使用者 2026-11-05 預告 SQLite 要上線到正式環境，所以 SQLite 運行的穩健性要先確認，測試程序要涵蓋完整（裁定 2026-11-05-69）。\n- 公司電腦目前是 Windows 11 23H2，預計 2027 年更新為 25H2；電腦預裝完整的 Office 365，Excel 與 Access\n  都可使用。這是公司現況與更新安排，不等於已驗證所有版本的相容性。\n- 使用者只有一般使用者權限，不能申請安裝額外程式。網路及 Cisco 相關資安通道由公司組織管理。\n  本機資料庫必須隨 JET 內嵌使用，不依賴另裝驅動程式或資料庫安裝程序；現行的 SQLite 符合這個方向，\n  DuckDB 在短期上線期間暫時移除（裁定 2026-11-06-08）。\n- JET 可以匯入 .xls 與 Access 一般資料表，Access 讀取使用公司電腦現有的 ACE 16。這不是 Access 案件\n  資料庫 provider，也不使其他格式依賴 Office。目前只在本機 x64 ACE 環境驗證過，不推定所有 Office\n  位元版本都已驗證。\n- 組織成員透過 Teams、OneDrive，以及檔案總管可直接存取的組織網路磁碟機傳遞檔案。\n  這說明傳遞通道，沒有改變案件可攜性的既有前提：正常離開 JET 後，冷複製完整案件資料夾。\n  直接在同步中或共用位置開啟資料庫的並行操作，不由檔案傳遞管道的可用性推定已驗收。"
   },
   "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:362-369": {
     "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",

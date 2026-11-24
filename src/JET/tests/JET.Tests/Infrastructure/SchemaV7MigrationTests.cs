@@ -17,8 +17,8 @@ public sealed class SchemaV7MigrationTests
 
         await env.Database.EnsureCreatedAsync(env.ProjectId, CancellationToken.None);
 
-        // 新資料庫直接建成現行結構，現行版本是第 20 版。
-        Assert.Equal("20", await env.TextAsync(
+        // 新資料庫直接建成現行結構，現行版本是第 21 版。
+        Assert.Equal("21", await env.TextAsync(
             "SELECT value FROM schema_info WHERE key = 'schema_version';"));
         Assert.Equal(4, await env.V7TableCountAsync());
         Assert.Equal(

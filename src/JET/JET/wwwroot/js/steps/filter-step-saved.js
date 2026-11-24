@@ -102,7 +102,8 @@
         : '目前的條件尚未儲存為情境。' + wording.effect + '這些條件。',
       continueLabel: '不儲存，直接' + wording.verb,
       saveLabel: '儲存並' + wording.verb,
-      // 儲存失敗或被擋下時留在原情境，原因照舊寫在儲存按鈕上方與訊息紀錄。
+      // 儲存失敗或被擋下時留在原情境。原因寫在儲存按鈕上方；審計員在「已儲存情境」分頁時，同一句也寫在這個分頁最上面，
+      // 對得到條件列的後端錯誤則改在步驟上方顯示。
       save: function () {
         return Promise.resolve(FilterStep.saveDraftForReplacement ? FilterStep.saveDraftForReplacement() : null)
           .then(function () { return !hasUnsavedScenarioChanges(); });
@@ -410,10 +411,12 @@
 
   // 已存情境展開後的傳票清單。s 帶著符合的傳票數、分錄筆數與 query.filterVoucherPage 的第一頁。
   // 後端一律回傳傳票清單。
-  function renderScenarioHitPreview(previewEl, s) {
+  // stillCurrent 是讀回這份結果時用的那一個回應檢查：案件、底層資料、已存清單與版本都沒變，也沒有重讀過，這份結果才還在用。
+  // 清單之後的換頁與展開分錄沿用它；從快取畫回來時不必再給。
+  function renderScenarioHitPreview(previewEl, s, stillCurrent) {
     previewEl.innerHTML = Ui.FilterVouchers.summary(s);
     previewEl.setAttribute('data-loaded', '1');
-    Ui.FilterVouchers.mount(previewEl.querySelector('.filter-voucher-host'), s);
+    Ui.FilterVouchers.mount(previewEl.querySelector('.filter-voucher-host'), s, stillCurrent);
   }
 
   // 確保某個展開中的已存情境詳情有命中預覽：優先用 viewState 快取（bump 重繪後不重抓；已存定義只在
@@ -477,7 +480,7 @@
         // 不寫入剛被 syncViewState 重置的快取（防止舊定義的預覽掛到新清單的同一序位上）。
         if (!acceptResponse()) { return; }
         if (hasSavedVersion) { FilterStep.viewState.scenarioPreviews[index] = data.scenario; }
-        fillSmoothly(previewEl, function () { renderScenarioHitPreview(previewEl, data.scenario); });
+        fillSmoothly(previewEl, function () { renderScenarioHitPreview(previewEl, data.scenario, acceptResponse); });
       }).catch(function (error) {
         // 舊案件／舊 revision 的失敗不可污染目前案件訊息；當前失敗則留可重試提示並交給共用訊息區。
         if (!acceptResponse()) { return; }
@@ -805,9 +808,11 @@
           });
         }, {
           onError: function () {
+            // 等待回應的期間這一步可能已經重畫，所以在現在畫在畫面上的那一塊裡找確認鈕，不用按下時的那一塊。
             if (global.JetFocus) {
               global.JetFocus.defer(function () {
-                return container.querySelector(
+                var shown = FilterStep.shownContainer || container;
+                return shown.querySelector(
                   '[data-action="confirm-remove-scenario"][data-index="' + index + '"]');
               });
             }

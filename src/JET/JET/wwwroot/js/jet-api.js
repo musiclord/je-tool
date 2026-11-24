@@ -7,6 +7,7 @@
 
   var pending = Object.create(null);
   var requestStartedHandlers = [];
+  var requestFinishedHandlers = [];
 
   function isReady() {
     return !!(global.chrome && global.chrome.webview && global.chrome.webview.postMessage);
@@ -55,6 +56,19 @@
     return 'jet-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   }
 
+  // request 有了結果（成功、失敗，或畫面卸載而放棄等待）時通知訂閱者。通知排在交出結果之前，
+  // 接著送出的下一個 request 開始時，訂閱者已經知道上一個結束了。
+  function notifyRequestFinished(requestId) {
+    requestFinishedHandlers.slice().forEach(function (handler) {
+      try {
+        handler({ requestId: requestId });
+      } catch (error) {
+        // request 追蹤只服務取消 UX；訂閱者失敗不得讓 request 的結果交不出去。
+        if (global.console) { global.console.error('JET request-finish handler failed:', error); }
+      }
+    });
+  }
+
   // host→web 事件訂閱表（主程式進度事件：信封 { event, data }、無 requestId）
   var eventHandlers = Object.create(null);
 
@@ -93,6 +107,7 @@
 
     var callbacks = pending[message.requestId];
     delete pending[message.requestId];
+    notifyRequestFinished(message.requestId);
 
     if (message.ok) {
       callbacks.resolve(message.data);
@@ -122,6 +137,7 @@
     Object.keys(pending).forEach(function (requestId) {
       var callbacks = pending[requestId];
       delete pending[requestId];
+      notifyRequestFinished(requestId);
       var error = new Error('畫面在動作完成前重新載入，無法確認這個動作的結果。');
       error.code = 'bridge_unloaded';
       callbacks.reject(error);
@@ -241,12 +257,18 @@
     requestStartedHandlers.push(handler);
   }
 
+  // request 有了結果時通知，handler 收到 { requestId }；和 onRequestStarted 成對，UI 用來知道取消鈕對準的 request 已經結束。
+  function onRequestFinished(handler) {
+    requestFinishedHandlers.push(handler);
+  }
+
   var JetApi = {
     isReady: isReady,
     invoke: invoke,
     on: on,
     off: off,
-    onRequestStarted: onRequestStarted
+    onRequestStarted: onRequestStarted,
+    onRequestFinished: onRequestFinished
   };
 
   SUPPORTED_ACTIONS.forEach(function (action) {

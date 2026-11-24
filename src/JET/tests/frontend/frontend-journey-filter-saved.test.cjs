@@ -9,6 +9,10 @@ require('./support/resource-guard.cjs');
 // 按「重新檢查並儲存情境」；產生條件篩選報告；後端只讓篩選命中失效、情境保留。
 // 情境 14「開案時有待修正的舊情境」：開案回應帶「規則升級已重算」或待修正清單，看第五、六步，一個一個修改。
 // 情境 15 的編輯部分「舊情境裡的舊式條件」：編輯 typed 條件與文字值清單，新增條件時找不到舊式型別。讀回部分在 frontend-journey-readback.test.cjs。
+// 情境 12、13 補充「錯誤與提示畫在現在的畫面上」：步驟上方還留著上一次的失敗提示時再按儲存、預覽或確認移除；後端退回某一條條件後
+// 繼續加條件、改條件、打名稱；在「已儲存情境」分頁選「儲存並編輯」而目前的條件還不能儲存。夾具與做法寫在檔案最後那一段的開頭。
+// 情境 13 另外兩段：傳票清單換頁或展開分錄還沒讀回來，那份結果就被換掉（換案件、已存清單換了、條件改了、情境重讀）；
+// 在「尚未儲存」對話框選了不儲存，換情境的那一步中途出錯後再按一次「編輯」。
 //
 // 每個測試都執行正式的 state.js、ui-core.js 與第一到第六步的步驟腳本（共用夾具 usageJourneyFixture），
 // 在假 DOM 上畫出第五步或第六步，用點擊、選單與輸入操作；合成資料只控制邊界，後端回應都是寫死的合成值。
@@ -653,6 +657,82 @@ test('answers that arrive after the case, the saved list or the version changed 
   k.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
   assert.equal(k.sent('filterPreview').length, 2, 'the replaced list is read again instead of reusing the late answer');
   assert.ok(!k.text().includes('LATE-1'));
+});
+
+// 傳票清單換頁或展開分錄的讀取還沒回來，畫面上那份結果就被換掉：換了案件、已存清單換了、條件改了，或還沒有可用版本的情境重讀了一次。
+// 晚到的回應說的是已經不在畫面上的清單：失敗不留訊息，成功也不顯示；仍在畫面上的清單照常顯示失敗與「重新載入」。
+test('a voucher page or entry read that comes back after its list was replaced is dropped without a message', async () => {
+  const lateFailure = async (f, pending, label) => {
+    const before = f.messages().length;
+    pending.reject(new Error('舊清單的讀取失敗')); await settle(); await settle();
+    assert.deepEqual(f.messages().slice(0, f.messages().length - before), [], label);
+    assert.ok(!f.text().includes('舊清單的讀取失敗'), label);
+  };
+  const openSaved = async f => {
+    f.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
+    f.request('queryFilterVoucherPage').resolve({ ...savedFirstPage('JV-1'), nextCursor: 'after-first' }); await settle(); await settle();
+    return f.$('[data-bind="scenario-preview-0"] .filter-voucher-host');
+  };
+
+  // 展開分錄的讀取在途時換開另一個案件。
+  const a = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
+  (await openSaved(a)).querySelector('[data-voucher-row="0"]').onclick();
+  const entries = a.request('queryFilterVoucherRowsPage');
+  a.store.setProject({ projectId: 'another-synthetic-case' });
+  await lateFailure(a, entries, 'an entry read from the previous case');
+
+  // 換頁的讀取在途時已存清單被換掉。
+  const b = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
+  (await openSaved(b)).querySelector('[data-voucher-next]').onclick();
+  const nextPage = b.request('queryFilterVoucherPage');
+  assert.equal(nextPage.payload.cursor, 'after-first');
+  b.store.setSavedScenarios([savedBlankNamed('甲'), savedBlankNamed('乙')]);
+  await lateFailure(b, nextPage, 'a page read for the replaced saved list');
+
+  // 編輯中的預覽：換頁的讀取在途時又加了一條條件，預覽已經作廢。
+  const c = savedFixture();
+  c.click('[data-common-card="blankDescription"]');
+  c.click('[data-action="preview-scenario"]'); await settle();
+  c.request('filterPreview').resolve(scenarioPreview()); await settle();
+  c.request('queryFilterVoucherPage').resolve({ ...voucherPage('JV-D'), nextCursor: 'after-draft' }); await settle(); await settle();
+  c.$('[data-bind="preview-pane-body"] .filter-voucher-host').querySelector('[data-voucher-next]').onclick();
+  const draftPage = c.request('queryFilterVoucherPage');
+  assert.equal(draftPage.payload.cursor, 'after-draft');
+  c.click('[data-common-card="specificTrailingDigits"]');
+  assert.equal(c.store.getState().filter.preview, null, 'adding a condition discards the preview');
+  await lateFailure(c, draftPage, 'a page read for the discarded draft preview');
+
+  // 還沒有可用版本的情境每次重畫都重讀一次；舊的那一份展開分錄的讀取晚到。
+  const d = savedFixture({ saved: [savedBlankNamed('甲')], resultRef: null, pane: 'saved' });
+  d.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
+  d.request('filterPreview').resolve(scenarioPreview()); await settle();
+  d.request('queryFilterVoucherPage').resolve(voucherPage('JV-LIVE')); await settle(); await settle();
+  d.$('[data-bind="scenario-preview-0"] .filter-voucher-host').querySelector('[data-voucher-row="0"]').onclick();
+  const liveEntries = d.request('queryFilterVoucherRowsPage');
+  d.store.touch(); await settle();
+  assert.equal(d.sent('filterPreview').length, 2, 'the redraw reads the scenario again');
+  await lateFailure(d, liveEntries, 'an entry read for the result the redraw replaced');
+
+  // 晚到的是成功的回應時同樣不採用：不顯示那一頁，也不會為了已經不在畫面上的清單要求移動焦點。
+  const g = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
+  (await openSaved(g)).querySelector('[data-voucher-next]').onclick();
+  const latePage = g.request('queryFilterVoucherPage');
+  g.store.setSavedScenarios([savedBlankNamed('甲'), savedBlankNamed('乙')]);
+  let focusRequests = 0;
+  g.window.JetFocus.defer = () => { focusRequests++; };
+  latePage.resolve(voucherPage('LATE-PAGE-1')); await settle(); await settle();
+  assert.equal(focusRequests, 0, 'a late page asks for no focus move');
+  assert.ok(!g.text().includes('LATE-PAGE-1'), 'the late page is not shown');
+
+  // 對照：清單還在畫面上時，失敗照常寫在清單上並留一則訊息。
+  const e = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
+  const host = await openSaved(e);
+  host.querySelector('[data-voucher-next]').onclick();
+  const shown = e.messages().length;
+  e.request('queryFilterVoucherPage').reject(new Error('合成換頁失敗')); await settle(); await settle();
+  assert.equal(e.messages().length, shown + 1, 'a failure of the list on screen is still reported');
+  assert.match(e.$('[data-bind="scenario-preview-0"] .filter-voucher-host').textContent, /合成換頁失敗/);
+  assert.ok(e.$('[data-bind="scenario-preview-0"] [data-voucher-retry]') !== null);
 });
 
 test('while another operation runs, saved results still load and pressing save explains that work is still running', async () => {
@@ -1572,6 +1652,30 @@ test('staying in the unsaved-changes dialog opened from a scenario\'s actions me
   assert.equal(JSON.stringify(f.draft()), draft, 'staying keeps the conditions');
 });
 
+// 在「尚未儲存」對話框選了「不儲存，直接編輯」，換情境的那一步卻中途出錯（這裡讓寫入草稿的那一次丟出例外）。
+// 審計員再按一次「編輯」時，對話框照樣跳出來，不會被當成上一個對話框還開著而沒有反應；這一次順利換到要編輯的情境。
+test('when the step after the unsaved-changes dialog breaks, pressing edit again still opens the dialog', () => {
+  const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
+  f.dom.document.body = f.dom.element('body');
+  const dialog = () => f.dom.document.body.querySelector('[data-bind="filter-pending-modal"]');
+  const choose = choice => dialog().fire('click', { target: dialog().querySelector('.modal__actions [data-pending-choice="' + choice + '"]') });
+  f.click('[data-common-card="revenueDebitNearQuarterEnd"]');
+  const draft = JSON.stringify(f.draft());
+  f.click('[data-action="edit-scenario"][data-index="1"]');
+  assert.ok(dialog() !== null, 'the unsaved-changes dialog opens');
+  const setFilterDraft = f.store.setFilterDraft;
+  f.store.setFilterDraft = () => { f.store.setFilterDraft = setFilterDraft; throw new Error('合成：換情境時出錯'); };
+  assert.throws(() => choose('continue'), /合成：換情境時出錯/);
+  assert.ok(dialog() === null, 'the dialog closed when the choice was made');
+  assert.equal(JSON.stringify(f.draft()), draft, 'the conditions are still the unsaved ones');
+
+  f.click('[data-action="edit-scenario"][data-index="1"]');
+  assert.ok(dialog() !== null, 'the dialog opens again instead of the press doing nothing');
+  choose('continue');
+  assert.ok(dialog() === null);
+  assert.equal(f.draft().__editingIndex, 1, 'this time the other scenario is opened for editing');
+});
+
 // 同功能的元件只留一套：第五步的兩組頁籤和其他頁籤一樣，方向鍵左右、Home、End 直接換頁，
 // 只有選中的頁籤留在 Tab 鍵順序裡。
 test('step five work and condition-source tabs switch with arrow keys, Home and End, and keep only the selected tab in the Tab order', () => {
@@ -1732,4 +1836,238 @@ test('with cards the step-six options show only the evaluation notes, and a rewr
   const meta = f.$$('.scenario-export-option').filter(option => option.querySelector('[data-scenario-position]'))
     .map(option => option.querySelector('.scenario-export-option__meta').textContent);
   assert.deepEqual(meta, [PREPARER_EVALUATION, PREPARER_EVALUATION, '合成改寫的動機\n自訂：僅貸方']);
+});
+
+// ================================================================================================
+// 第五部分　情境 12、13 補充：後端回報的錯誤與儲存鈕上方的提示，畫在審計員現在看得到的畫面上
+// ================================================================================================
+//
+// 審計員的操作：上一次作業失敗、步驟上方還留著失敗提示時，再按儲存、預覽或確認移除；之後繼續加條件、改條件、打名稱；
+// 在「已儲存情境」分頁編輯另一個情境時選「儲存並編輯」，目前的條件還沒補齊，或後端退回其中一條。
+// 前三個測試用整個 JET 畫面（共用夾具 bootFullApp）：中央面板由正式的 app.js 重畫，步驟上方的失敗提示出現與拿掉時
+// 目前步驟的內容整塊換掉，所以看得出錯誤是不是標在換上來的那一塊。其餘用本檔的 savedFixture。
+
+const FULL_APP_CASE = { projectId: '合成情境案', databaseProvider: 'sqlite' };
+
+// 從案件清單開案，佈置到可以操作第五步：GL、TB 已匯入並確認配對，驗證可以繼續，科目分類齊全。
+async function fullAppAtStepFive(saved = []) {
+  const f = await F.bootFullApp([FULL_APP_CASE]);
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', { project: { ...FULL_APP_CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 1 } }); await F.flush();
+  f.reply('log.recent', { messages: [] }); await F.flush();
+  for (const kind of ['gl', 'tb']) {
+    f.store.setImportResult(kind, { batchId: kind + '-source', columns: ['Account'], rowCount: 2 });
+    f.store.setMappingCommitted(kind, { mode: kind === 'gl' ? 'signed' : 'direct', mapping: {} });
+  }
+  f.store.setResult('validate', { resultRef: { resultId: 'v1', generatedUtc: '2026-01-01T00:00:00Z' },
+    completenessTest: { eligibility: { isEligible: true, reason: null, warning: null } } });
+  f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
+  f.store.setSavedScenarios(saved);
+  f.store.setFilterResultRef(saved.length ? REF : null);
+  f.store.setStepIndex(4); await F.flush();
+  return f;
+}
+// 目前步驟畫在畫面上的那一塊；每次都重新找，不留著舊的。
+function shownStep(f) { const node = f.$('.stepflow-item--current .stepflow-item__body'); assert.ok(node !== null, 'the current step is shown'); return node; }
+const stepFailure = f => f.$('.stepflow-item__failure');
+// 讓一項合成作業失敗：目前步驟的標題下方出現步驟失敗提示。
+async function leaveStepFailure(f) {
+  const done = f.ui.run('合成作業', () => f.api.systemPing({}));
+  f.fail(f.sent('system.ping').at(-1), { code: 'synthetic', message: '合成作業原因。' }); await done; await F.flush();
+  assert.ok(stepFailure(f) !== null, 'a step failure notice is showing');
+}
+// 某一列條件上的錯誤說明；沒有標紅時是 null。
+function ruleErrors(f, index) {
+  const row = shownStep(f).querySelector('.rule-row[data-gi="0"][data-ri="' + index + '"]');
+  assert.ok(row !== null, 'condition ' + index + ' is shown');
+  return row.classList.contains('rule-row--invalid') ? row.querySelectorAll('[data-rule-error]:not([data-motion-folding])').map(node => node.textContent) : null;
+}
+const invalidCondition = message => ({ code: 'invalid_scenario', message: '第 1 組第 1 條：' + message,
+  details: [{ group: 1, rule: 1, message, scenarioPosition: 1, scenarioName: '' }] });
+const LIMIT_SENTENCE = '最多可儲存 10 個篩選情境，請先移除不需要的情境。';
+const LIST_CHANGED_SENTENCE = '已儲存的情境清單已變更，請重新選擇要編輯的情境；目前的草稿仍保留。';
+const MISSING_VALUE_SENTENCE = '尚需補齊：第 1 組第 1 條「傳票摘要」請填 1 到 100 個值';
+
+for (const action of ['save', 'preview']) test('a condition the backend rejects on ' + action + ' is marked on the screen shown now, stays through redraws and clears when that condition is edited', async () => {
+  const f = await fullAppAtStepFive();
+  f.click('[data-common-card="specificTrailingDigits"]'); await F.flush();
+  await leaveStepFailure(f);
+  f.click('[data-action="' + action + '-scenario"]');
+  const sent = f.request(action === 'save' ? 'filter.scenario.save' : 'filter.preview');
+  assert.ok(stepFailure(f) === null, 'sending again takes the earlier step notice away, which redraws the step');
+  f.fail(sent, invalidCondition('合成原因')); await F.flush();
+  assert.deepEqual(ruleErrors(f, 0), ['合成原因'], 'the condition on screen is marked with the reason');
+  assert.equal(f.state().operationFailure, null, 'the reason is on the condition, so there is no step notice');
+
+  // 再送出一次：紅框先收起。這次被取消，不算失敗，畫面回到送出前的樣子，紅框與原因照樣放回來。
+  f.click('[data-action="' + action + '-scenario"]');
+  assert.equal(ruleErrors(f, 0), null, 'sending again takes the mark away');
+  f.fail(f.request(action === 'save' ? 'filter.scenario.save' : 'filter.preview'), { code: 'operation_cancelled', message: '合成：已取消' }); await F.flush();
+  assert.deepEqual(ruleErrors(f, 0), ['合成原因'], 'a cancelled send leaves the screen as it was before it was sent');
+
+  // 別的原因造成重畫：紅框與原因還在。
+  f.store.touch(); await F.flush();
+  assert.deepEqual(ruleErrors(f, 0), ['合成原因'], 'still marked after a redraw');
+  // 加入另一條條件會重畫整步：還沒修的那一條照樣標著，新加的不標。
+  f.click('[data-common-card="blankDescription"]'); await F.flush();
+  assert.deepEqual(ruleErrors(f, 0), ['合成原因'], 'adding another condition keeps the mark on the one not fixed yet');
+  assert.equal(ruleErrors(f, 1), null, 'the new condition is not marked');
+  // 改了被標的那一條的值：紅框與原因收起，之後重畫也不回來。
+  const value = shownStep(f).querySelector('.rule-row[data-gi="0"][data-ri="0"] [data-value-key="value"]');
+  assert.ok(value !== null, 'the marked condition has a value box');
+  value.value = '999'; value.dispatch('input'); await F.flush();
+  assert.equal(ruleErrors(f, 0), null, 'editing the marked condition takes the mark away');
+  f.store.touch(); await F.flush();
+  assert.equal(ruleErrors(f, 0), null, 'and a redraw does not bring it back');
+});
+
+test('a save failure with no condition to point at is written above the save button on the screen shown now and is not also a step notice', async () => {
+  const f = await fullAppAtStepFive();
+  const notice = () => { const node = shownStep(f).querySelector('[data-bind="scenario-notice"]'); return node.hidden ? '' : node.textContent; };
+  f.click('[data-common-card="blankDescription"]'); await F.flush();
+  await leaveStepFailure(f);
+  f.click('[data-action="save-scenario"]');
+  const save = f.request('filter.scenario.save');
+  assert.ok(stepFailure(f) === null, 'the earlier step notice is gone');
+  f.fail(save, { code: 'synthetic', message: '合成儲存失敗。' }); await F.flush();
+  assert.equal(notice(), '儲存失敗：合成儲存失敗。');
+  assert.equal(f.state().operationFailure, null, 'the reason is above the save button, so there is no step notice');
+  f.store.touch(); await F.flush();
+  assert.equal(notice(), '儲存失敗：合成儲存失敗。', 'still there after a redraw');
+  // 再送出一次：上一次的原因先收起。這次被取消，不算失敗，畫面回到送出前的樣子，上一次的原因照樣放回來。
+  f.click('[data-action="save-scenario"]');
+  assert.equal(notice(), '', 'sending again takes the earlier reason away');
+  f.fail(f.request('filter.scenario.save'), { code: 'operation_cancelled', message: '合成：已取消' }); await F.flush();
+  assert.equal(notice(), '儲存失敗：合成儲存失敗。', 'a cancelled save leaves the screen as it was before it was sent');
+  assert.equal(f.state().operationFailure, null);
+});
+
+test('a failed removal puts the focus back on the confirm button that is on screen', async () => {
+  const f = await fullAppAtStepFive([savedBlankNamed('甲'), savedBlankNamed('乙')]);
+  f.click('[data-filter-pane-select="saved"]'); await F.flush();
+  f.click('[data-action="remove-scenario"][data-index="1"]'); await F.flush(); f.timers.run();
+  await leaveStepFailure(f); f.timers.run();
+  f.click('[data-action="confirm-remove-scenario"][data-index="1"]');
+  f.fail(f.request('filter.scenario.remove'), { code: 'synthetic', message: '合成移除失敗。' }); await F.flush();
+  f.timers.run();
+  const confirm = shownStep(f).querySelector('[data-action="confirm-remove-scenario"][data-index="1"]');
+  assert.ok(confirm !== null, 'the confirmation is still open');
+  assert.ok(f.dom.document.activeElement === confirm, 'the focus is on the confirm button the auditor can see');
+});
+
+// 儲存鈕上方的提示框一次寫一種提示：尚需補齊、清單已變更、已存滿、儲存失敗。各自的情況還在時，打名稱或重畫都不會收起。
+test('the reminder above the save button stays while its own reason holds and goes when that reason is gone', async () => {
+  // 尚需補齊：欄位條件還沒填值。打名稱、重畫都還在；值補上才收起。
+  let f = savedFixture();
+  f.click('[data-condition-source="field"]');
+  f.click('[data-add-field="description"]');
+  f.click('[data-action="save-scenario"]'); await settle();
+  assert.equal(f.notice(), MISSING_VALUE_SENTENCE);
+  f.type('[data-bind="scenario-name"]', '合成名稱');
+  assert.equal(f.notice(), MISSING_VALUE_SENTENCE, 'typing a name does not hide what is still missing');
+  f.store.touch();
+  assert.equal(f.notice(), MISSING_VALUE_SENTENCE, 'a redraw does not hide what is still missing');
+  f.type('[data-value-key="values"]', '合成');
+  assert.equal(f.notice(), '', 'filling the value takes the reminder away');
+  assert.equal(f.scenarioWrites().length, 0);
+
+  // 已存滿 10 個：打動機、重畫都還在；清單有空位就收起。
+  const ten = Array.from({ length: 10 }, (_, i) => savedBlankNamed('合成情境' + (i + 1)));
+  f = savedFixture({ saved: ten });
+  f.click('[data-common-card="specificTrailingDigits"]');
+  f.click('[data-action="save-scenario"]'); await settle();
+  assert.equal(f.notice(), LIMIT_SENTENCE);
+  assert.match(f.$('[data-bind="scenario-notice"]').className, /form-notice--warning/);
+  f.type('[data-bind="scenario-rationale"]', '合成動機');
+  assert.equal(f.notice(), LIMIT_SENTENCE, 'typing does not hide the limit reminder');
+  f.store.touch();
+  assert.equal(f.notice(), LIMIT_SENTENCE, 'a redraw does not hide the limit reminder');
+  f.store.setSavedScenarios(ten.slice(0, 9));
+  assert.equal(f.notice(), '', 'the reminder goes once the list has room');
+  assert.equal(f.scenarioWrites().length, 0);
+  // 換成另一份草稿：提示說的是上一份草稿，跟著收起。
+  f = savedFixture({ saved: ten });
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+  f.click('[data-action="save-scenario-copy"]'); await settle();
+  assert.equal(f.notice(), LIMIT_SENTENCE);
+  f.click('[data-action="cancel-edit-scenario"]');
+  assert.equal(f.notice(), '', 'the reminder was about the draft that was replaced');
+  assert.equal(f.scenarioWrites().length, 0);
+
+  // 清單已變更：編輯中的情境所在的清單被換掉。打名稱、重畫都還在。
+  f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')] });
+  f.click('[data-action="edit-scenario"][data-index="0"]');
+  f.store.setSavedScenarios([savedBlankNamed('甲'), savedBlankNamed('乙')]);
+  f.click('[data-action="save-scenario"]'); await settle();
+  assert.equal(f.notice(), LIST_CHANGED_SENTENCE);
+  assert.match(f.$('[data-bind="scenario-notice"]').className, /form-notice--warning/);
+  f.type('[data-bind="scenario-name"]', '甲（修改）');
+  assert.equal(f.notice(), LIST_CHANGED_SENTENCE, 'typing does not hide the changed-list reminder');
+  f.store.touch();
+  assert.equal(f.notice(), LIST_CHANGED_SENTENCE, 'a redraw does not hide the changed-list reminder');
+  assert.equal(f.scenarioWrites().length, 0);
+
+  // 儲存失敗：原因說的是送出的那一份草稿，草稿改了就收起；紅色，不是琥珀色。
+  f = savedFixture();
+  f.click('[data-common-card="specificTrailingDigits"]');
+  f.click('[data-action="save-scenario"]'); await settle();
+  f.request('filterScenarioSave').reject(new Error('合成儲存失敗。')); await settle(); await settle();
+  assert.equal(f.notice(), '儲存失敗：合成儲存失敗。');
+  assert.doesNotMatch(f.$('[data-bind="scenario-notice"]').className, /form-notice--warning/);
+  f.store.touch();
+  assert.equal(f.notice(), '儲存失敗：合成儲存失敗。', 'a redraw does not hide the failure');
+  f.type('[data-bind="scenario-rationale"]', '合成動機（修改）');
+  assert.equal(f.notice(), '', 'the failure was about the draft as sent');
+});
+
+// 在「已儲存情境」分頁選「儲存並編輯」：儲存鈕在另一個分頁，原因也要寫在這個分頁。
+test('save and edit from the saved-scenarios tab says on that tab why the save did not go through', async () => {
+  const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
+  f.dom.document.body = f.dom.element('body');
+  f.store.setView('workflow'); f.store.setStepIndex(4);
+  const here = () => { const node = f.$('[data-bind="scenario-notice-saved-pane"]'); return node && !node.hidden ? node.textContent : ''; };
+  const chooseSave = () => { const dialog = f.dom.document.body.querySelector('[data-bind="filter-pending-modal"]'); assert.ok(dialog !== null, 'the unsaved-changes dialog opens');
+    dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="save"]') }); };
+  // 目前的條件還沒填值。
+  f.click('[data-condition-source="field"]');
+  f.click('[data-add-field="description"]');
+  assert.equal(here(), '', 'nothing is written before a save is tried');
+  f.click('[data-action="edit-scenario"][data-index="1"]'); chooseSave(); await settle(); await settle();
+  assert.equal(f.scenarioWrites().length, 0, 'the save is not sent');
+  assert.equal(f.$('[data-filter-pane="saved"]').hidden, false, 'the auditor is still on the saved-scenarios tab');
+  assert.equal(here(), MISSING_VALUE_SENTENCE, 'the tab on screen says what is missing');
+  assert.equal(f.notice(), MISSING_VALUE_SENTENCE, 'the same sentence waits above the save button');
+  assert.equal(f.draft().__editingIndex, undefined, 'the other scenario is not opened');
+  f.store.touch();
+  assert.equal(here(), MISSING_VALUE_SENTENCE, 'still there after a redraw');
+
+  // 補好值再選一次，後端退回這一條：條件列在另一個分頁，這個分頁改用步驟上方的失敗提示；條件列照樣標著。
+  f.type('[data-value-key="values"]', '合成');
+  assert.equal(here(), '', 'the reminder goes once the value is filled');
+  f.click('[data-action="edit-scenario"][data-index="1"]'); chooseSave(); await settle();
+  f.request('filterScenarioSave').reject(Object.assign(new Error('第 1 組第 1 條：合成原因'), { code: 'invalid_scenario',
+    details: [{ group: 1, rule: 1, message: '合成原因', scenarioPosition: 3, scenarioName: '' }] })); await settle(); await settle();
+  const failure = f.store.getState().operationFailure;
+  assert.ok(failure !== null, 'the failure is shown above the step because the condition is on the other tab');
+  assert.match(failure.message, /^.*儲存.*失敗：第 1 組第 1 條：合成原因。$/);
+  assert.equal(failure.level, 'error');
+  assert.equal(f.draft().__editingIndex, undefined, 'the other scenario is not opened');
+  f.click('[data-filter-pane-select="filter"]');
+  const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
+  assert.ok(row.classList.contains('rule-row--invalid'), 'the condition is marked where it is drawn');
+  assert.equal(row.querySelector('[data-rule-error]').textContent, '合成原因');
+
+  // 已存滿時也一樣：這次沒有送出，原因寫在這個分頁，用琥珀色。
+  const g = savedFixture({ saved: Array.from({ length: 10 }, (_, i) => savedBlankNamed('合成情境' + (i + 1))), pane: 'saved' });
+  g.dom.document.body = g.dom.element('body');
+  g.click('[data-common-card="specificTrailingDigits"]');
+  g.click('[data-action="edit-scenario"][data-index="0"]');
+  const dialog = g.dom.document.body.querySelector('[data-bind="filter-pending-modal"]');
+  assert.ok(dialog !== null, 'the unsaved-changes dialog opens');
+  dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="save"]') }); await settle(); await settle();
+  const there = g.$('[data-bind="scenario-notice-saved-pane"]');
+  assert.equal(g.scenarioWrites().length, 0);
+  assert.ok(there !== null, 'the saved-scenarios tab has a place for the reminder');
+  assert.equal(there.hidden ? '' : there.textContent, LIMIT_SENTENCE);
+  assert.match(there.className, /form-notice--warning/);
 });

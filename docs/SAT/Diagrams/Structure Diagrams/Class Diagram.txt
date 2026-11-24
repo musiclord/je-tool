@@ -1,7 +1,6 @@
 @startuml
-' JE Tool 1.0.0.0 類別圖。範圍：前端送出 validate.run（資料驗證）與 export.workingPaperStream（匯出工作底稿）後，後端處理請求的主要類別與介面；各類別僅列主要成員。
-' 表示法：UML 類別圖。+ 為 public，- 為 private，~ 為 internal，<<static>> 為靜態類別；實線箭頭為使用，虛線箭頭為建立，虛線空心三角為實作介面。
-title JE Tool 類別圖：資料驗證與匯出工作底稿的主要類別
+' 範圍：前端送出 validate.run（資料驗證）與 export.workingPaperStream（匯出工作底稿）後，後端處理請求的主要類別與介面；各類別僅列主要成員。
+title 類別圖：資料驗證與匯出工作底稿的主要類別
 
 left to right direction
 skinparam classAttributeIconSize 0

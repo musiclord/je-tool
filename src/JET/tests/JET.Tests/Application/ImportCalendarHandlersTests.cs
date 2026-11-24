@@ -245,7 +245,7 @@ public sealed class ImportCalendarHandlersTests
             ws.Cell(2, 1).Value = "Date_of_Holiday";
             ws.Cell(2, 2).Value = "Holiday_Name";
             ws.Cell(2, 3).Value = "IS_Holiday";
-            ws.Cell(3, 1).Value = "2025/01/01";   // 文字、非 yyyy-MM-dd
+            ws.Cell(3, 1).Value = "2025/13/01";   // 文字，沒有 13 月，讀不成日期
             ws.Cell(3, 2).Value = "元旦";
             ws.Cell(3, 3).Value = "Y";
         });
@@ -258,7 +258,7 @@ public sealed class ImportCalendarHandlersTests
             Assert.Equal(JetErrorCodes.ProjectionFailed, ex.Code);
             Assert.Equal(
                                 // 這句的用字已定案。
-                                "檔案有 1 列無法讀取：第 3 列：日期「2025/01/01」不是 2026-12-31 這種格式",
+                                "檔案有 1 列無法讀取：第 3 列：日期「2025/13/01」不是 2026-12-31 這種格式",
                 ex.Message);
         }
         finally
@@ -288,6 +288,39 @@ public sealed class ImportCalendarHandlersTests
                 "import.makeupDay.fromFile", JsonSerializer.Serialize(new { filePath = path }));
 
             Assert.Equal(1, data.GetProperty("count").GetInt32());
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(path);
+        }
+    }
+
+    // 清單裡用文字寫的日期照 GL 日期的讀法：斜線與民國年都讀得進去，同一天只算一次。
+    [Fact]
+    public async Task ImportMakeupDayFromFile_TextDatesWrittenLikeGlDates_AreImported()
+    {
+        using var host = new HandlerTestHost();
+        await host.DispatchAsync("project.create", CreatePayload);
+
+        var path = TestWorkbookBuilder.WriteWorkbook(ws =>
+        {
+            ws.Cell(1, 2).Value = "補班日/結帳日Table";
+            ws.Cell(2, 1).Value = "date of makeupday";
+            ws.Cell(2, 2).Value = "MakeUpDay_Desc";
+            ws.Cell(3, 1).Value = "2025/2/8";
+            ws.Cell(3, 2).Value = "春節補班";
+            ws.Cell(4, 1).Value = "114/02/08";
+            ws.Cell(4, 2).Value = "同一天的民國年寫法";
+            ws.Cell(5, 1).Value = "20250927";
+            ws.Cell(5, 2).Value = "教師節補班";
+        });
+
+        try
+        {
+            var data = await host.DispatchAsync(
+                "import.makeupDay.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+
+            Assert.Equal(2, data.GetProperty("count").GetInt32());
         }
         finally
         {

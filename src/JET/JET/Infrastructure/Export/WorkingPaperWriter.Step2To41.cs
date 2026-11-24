@@ -15,7 +15,8 @@ internal sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「step2 可靠性測試」:樣本以上的說明、測試程序與欄標都是範本的原字。JET 只寫 A1、A2、
-    /// 配對了傳票核准人員時的 L51，以及 U 欄起攸關資料元素欄的標題。樣本從第 53 列起，一頁一頁向 infSamples 讀取。
+    /// A4 範本原句後的隨機種子序號、配對了傳票核准人員時的 L51，以及 U 欄起攸關資料元素欄的標題。
+    /// 樣本從第 53 列起，一頁一頁向 infSamples 讀取。
     /// A 欄的樣本序號是列的順序 1 到 N；J 欄分錄來源與 E 欄借貸代號由 InfSampleDisplayValues 決定；T 欄說明留給審計員填寫。
     /// </summary>
     private async Task EmitStep2Async(
@@ -106,6 +107,8 @@ internal sealed partial class WorkingPaperWriter
             keptTemplateCells: approverMapped ? null : new HashSet<(uint Row, uint Column)> { (51U, 12U) });
         ConfigureStep2Layout(sheet, spool.Widths);
         WriteCompanyAndPeriod(sheet, context);
+        // 範本原句後接上這批樣本實際使用的隨機種子序號；這一格照範本 A4 的格式，傳入的樣式不會用到。
+        sheet.WriteFixedRow(4, [sheet.TextCell(4, 1, InfSampling.SampleSeedSentence(context.SampleSeed), WorkingPaperStyles.Default)]);
 
         // 第 49 與 51 列只寫範本沒有的欄標;資料第 53 列起。
         WriteStep2ColumnHeaders(sheet, rdeHeaders, approverMapped);
@@ -897,15 +900,19 @@ internal sealed partial class WorkingPaperWriter
         string value,
         WorkingPaperStep41Column column)
     {
-        if (!DateTime.TryParse(
+        // 日期型欄位存的日期一律是 yyyy-MM-dd，只有這種寫法寫成日期儲存格。寬鬆的日期解析會把「1.25」這類序列值的文字
+        // 當成沒寫年份的 1 月 25 日，補上匯出當年，改掉來源的值，所以不用它。
+        if (!DateOnly.TryParseExact(
                 value,
+                "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
-                DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.RoundtripKind,
+                DateTimeStyles.None,
                 out var date))
         {
-            // 換算不出日期的 Excel 日期儲存格，例如負的序列值，讀取器存下的是序列值的文字，不是日期。
+            // 換算不出日期的 Excel 日期儲存格，例如負的序列值，或其他程式寫進檔案的 NaN 與無限大，讀取器存下的是序列值的文字，不是日期；
+            // Excel 顯示成日曆上沒有的 1900-02-29 或 1900 年 1 月 0 日時，存下的是 Excel 顯示的年月日。
             // 這是來源資料本來的樣子，照存下來的文字寫出；其他讀不成日期的內容才是資料庫的內容不對。
-            if (IsStoredDateSerial(value))
+            if (IsStoredDateSerial(value) || ExcelSerialDate.IsShownNonexistentDate(value))
             {
                 return Text(value);
             }
@@ -913,7 +920,7 @@ internal sealed partial class WorkingPaperWriter
             throw LocalEngineErrors.DatabaseCorrupt();
         }
 
-        if (!TryExcelDateSerial(date.Date, out var serial))
+        if (!ExcelSerialDate.TryExcelDateSerial(date, out var serial))
         {
             return Text(value);
         }
@@ -922,33 +929,16 @@ internal sealed partial class WorkingPaperWriter
             Text: null,
             NumberLiteral: serial,
             Style: WorkingPaperStyles.Step41Date,
-            RenderedText: date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            RenderedText: value);
     }
 
-    // Excel 的日期序列值從 1900-03-01 起才和實際日期一致：Excel 把 1900 年當成閏年，更早的日期會差一天，
-    // 1900 年以前的日期顯示不出來，西元 100 年以前連序列值都換算不出來。
-    // 這些日期不寫成日期儲存格，呼叫端改把存下來的日期文字照原樣寫成文字儲存格，匯出照常完成。
-    private static readonly DateTime FirstExcelFaithfulDate = new(1900, 3, 1);
-
+    // 讀取器存下的序列值文字是一般的數字，或 NaN、Infinity、-Infinity。
     private static bool IsStoredDateSerial(string value) =>
         double.TryParse(
             value,
             NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
             CultureInfo.InvariantCulture,
-            out var number)
-        && double.IsFinite(number);
-
-    private static bool TryExcelDateSerial(DateTime date, out string serial)
-    {
-        if (date < FirstExcelFaithfulDate)
-        {
-            serial = string.Empty;
-            return false;
-        }
-
-        serial = date.ToOADate().ToString("R", CultureInfo.InvariantCulture);
-        return true;
-    }
+            out _);
 
     private static Step41ProjectedValue Time(
         string value,
@@ -1577,7 +1567,7 @@ internal sealed partial class WorkingPaperWriter
         sheet.WriteFixedRow(3, [sheet.TextCell(3, 1, "證實測試 - 會計分錄及其他調整", WorkingPaperStyles.Bold)]);
     }
 
-    /// <summary>A1 公司名與 A2 財務報表期間。step2 只寫這兩列，第 3 列是範本的原字。</summary>
+    /// <summary>A1 公司名與 A2 財務報表期間。step2 的第 3 列是範本的原字。</summary>
     private static void WriteCompanyAndPeriod(SheetWriter sheet, WorkingPaperContext context)
     {
         sheet.WriteFixedRow(1, [sheet.TextCell(1, 1, $"公司名稱 : {context.CompanyName}", WorkingPaperStyles.Bold)]);
@@ -1720,7 +1710,7 @@ internal sealed partial class WorkingPaperWriter
                 $"step2 RDE field '{field.FieldId}' has invalid date '{value}'.");
         }
 
-        if (!TryExcelDateSerial(date.ToDateTime(TimeOnly.MinValue), out var serial))
+        if (!ExcelSerialDate.TryExcelDateSerial(date, out var serial))
         {
             return ProjectText(value);
         }

@@ -47,9 +47,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         var targetTable = TargetTableFor(kind);
         var fieldInfos = FieldInfoAccumulator.Create(first.Columns);
 
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await database.ApplyImportSessionSettingsAsync(connection, cancellationToken);
+        await using var connection = await database.OpenImportConnectionAsync(projectId, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
 
@@ -249,9 +247,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         var stagingTable = StagingTableFor(kind);
         var targetTable = TargetTableFor(kind);
 
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await database.ApplyImportSessionSettingsAsync(connection, cancellationToken);
+        await using var connection = await database.OpenImportConnectionAsync(projectId, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
 

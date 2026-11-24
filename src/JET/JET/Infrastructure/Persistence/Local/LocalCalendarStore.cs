@@ -71,7 +71,11 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }
 
-    public async Task InvalidateDependentResultsAsync(string projectId, CancellationToken cancellationToken)
+    public async Task InvalidateDependentResultsAsync(
+        string projectId,
+        IReadOnlyList<int> nonWorkingDays,
+        Func<CancellationToken, Task> saveSettings,
+        CancellationToken cancellationToken)
     {
         await database.EnsureReadyAsync(projectId, cancellationToken);
 
@@ -84,6 +88,9 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
             transaction,
             cancellationToken,
             AuditMutation.Calendar);
+        await LocalProjectSettingSql.UpdateNonWorkingDaysAsync(connection, transaction, nonWorkingDays, cancellationToken);
+        // 設定檔存不進去時直接離開，交易在釋放時回復。
+        await saveSettings(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }

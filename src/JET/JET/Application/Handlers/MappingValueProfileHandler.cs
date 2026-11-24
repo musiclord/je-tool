@@ -87,19 +87,30 @@ public sealed class MappingValueProfileHandler(
                 SourceColumnMissing(sourceColumn));
         }
 
-        var profile = await repositories.MappingValueProfiles.GetAsync(
-            projectId,
-            batch.BatchId,
-            sourceColumn,
-            limit,
-            fillDown,
-            cancellationToken);
+        MappingValueProfile profile;
+        IReadOnlyList<string>? missing = null;
+        if (checkSourceValues)
+        {
+            // 值概況與核對一起算，整份來源只掃一次。
+            var checkedProfile = await repositories.MappingValueProfiles.GetWithSourceValueCheckAsync(
+                projectId, batch.BatchId, sourceColumn, limit, fillDown, comparisonValues, cancellationToken);
+            profile = checkedProfile.Profile;
+            missing = checkedProfile.MissingValues;
+        }
+        else
+        {
+            profile = await repositories.MappingValueProfiles.GetAsync(
+                projectId,
+                batch.BatchId,
+                sourceColumn,
+                limit,
+                fillDown,
+                cancellationToken);
+        }
 
         var values = profile.Values.Select(item => new { value = item.Value, count = item.Count }).ToArray();
         if (checkSourceValues)
         {
-            var missing = await repositories.MappingValueProfiles.FindMissingValuesAsync(
-                projectId, batch.BatchId, sourceColumn, comparisonValues, cancellationToken);
             return new
             {
                 sourceColumn = profile.SourceColumn,

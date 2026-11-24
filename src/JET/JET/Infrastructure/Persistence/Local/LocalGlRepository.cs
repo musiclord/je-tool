@@ -80,8 +80,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         await database.EnsureReadyAsync(projectId, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
 
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await database.OpenGlProjectionConnectionAsync(projectId, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
 
@@ -94,6 +93,9 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 + "DELETE FROM gl;";
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
+
+        // gl 的索引先刪掉，逐列寫完再一次建回，比每寫一列就更新每個索引快。
+        var glIndexes = await database.DeferIndexesAsync(connection, transaction, JetSchemaCatalog.GlTableName, cancellationToken);
 
         // 重新投影會改寫 gl，已有的規則結果跟著失效，在同一個交易裡清除；投影失敗 rollback 時，這次清除也一起回復。
         await ResultReset.ClearWithinAsync(
@@ -325,6 +327,10 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             txLog.RolledBack();
             throw new JetActionException(JetErrorCodes.GlAmountsAllZero, GlProjectionGuard.DegenerateAmountMessage);
         }
+
+        // 逐列寫入與上面的檢查都通過以後，才建回 gl 的索引，之後補序號與檢查空白欄都在有索引的 gl 上執行。
+        // 上面擋下或中途取消時交易回復，刪掉的索引也跟著回復。
+        await glIndexes.RebuildAsync(cancellationToken);
 
         // 沒有配對 lineItem 時，投影完再替每張傳票的分錄依序編號。這個編號只用來顯示，不參與任何規則計算，也不當成任何鍵。
         // 編號要用視窗函式 ROW_NUMBER，一列一列處理的投影做不到，所以在這裡用一句集合式 SQL 在同一個交易裡補上。

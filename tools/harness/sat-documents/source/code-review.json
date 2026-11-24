@@ -1,241 +1,1569 @@
 {
-  "title": "JE Tool Code Review 紀錄",
-  "change": "首次 commit。原始碼以自動化測試的結果為主要驗收依據；人工複核的範圍為核心查核邏輯，以及程式內的固定值與規則（hard-coded content）。複核規則第 4 節的需求、可讀性與錯誤處理三項檢查，以人工複核的範圍為限。",
+  "title": "Code Review 紀錄",
+  "change": "首次 commit。",
+  "acceptance": "以自動化測試結果為主要驗收依據，結果見 Code Review/Unit test Report.xlsx。",
+  "manualScope": "程式內的固定值與規則（hard-coded content），即寫在程式內的六項核心查核邏輯，以及這些邏輯使用的固定值。複核規則第 4 節的需求、可讀性與錯誤處理三項檢查，以此範圍為限。",
   "requirement": "舊版 JET（IDEA 版）的功能與查核團隊的作業需求。",
   "scope": [
     {
       "title": "納入測試的分錄範圍",
+      "points": [
+        "日期：總帳日期在查核期間內的分錄才納入；總帳日期空白或無法辨識的分錄不納入。\n例：查核期間是 2025-01-01 至 2025-12-31 時，總帳日期 2026-01-01 的分錄不納入。",
+        "過帳狀態：配對了過帳狀態時，值在指定清單內的分錄才納入；選擇納入空白時，過帳狀態空白的分錄也納入。",
+        "不納入的原因：每筆不納入的分錄只記一種原因。先判斷日期，日期在查核期間內才判斷過帳狀態。\n例：日期與過帳狀態都不符的分錄，記為日期的原因。"
+      ],
       "path": "AuditCore/GlExcludedPopulation.cs",
-      "tests": "GlExcludedPopulationTests、GlExcludedPopulationPartitionTests、GlExcludedPopulationProjectionProviderTests"
+      "tests": "GlExcludedPopulationTests、GlExcludedPopulationPartitionTests、GlExcludedPopulationProjectionProviderTests、AuditLogicCaseTests"
     },
     {
       "title": "完整性測試",
-      "path": "AuditCore/ValidationProcedures.cs；AuditCore/AccountComparisonProcedure.cs；AuditCore/CompletenessEligibility.cs；Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
-      "tests": "CompletenessEligibilityTests、WorkflowWithoutTbTests、TaiwanSmePopulationAndCompletenessTests、CompletenessAccountPageTests"
+      "points": [
+        "GL 的合計：納入測試的分錄依會計科目編號合計，借方為正、貸方為負；未納入測試的分錄不計入。",
+        "比較與差異金額：GL 合計與 TB 同一科目的年度變動金額不相等，就列為差異；差異金額是 TB 減 GL。\n例：TB 1,000、GL 900 時，差異金額是 100。",
+        "只在一邊出現的科目：GL 有分錄、TB 沒有的科目，TB 金額當成 0；TB 有金額、GL 沒有分錄的科目，GL 金額當成 0。兩者都列為差異。"
+      ],
+      "path": "AuditCore/ValidationProcedures.cs；AuditCore/AccountComparisonProcedure.cs；AuditCore/CompletenessEligibility.cs",
+      "tests": "CompletenessEligibilityTests、WorkflowWithoutTbTests、TaiwanSmePopulationAndCompletenessTests、CompletenessAccountPageTests、AuditLogicCaseTests"
     },
     {
       "title": "借貸不平測試",
+      "points": [
+        "合計方式：納入測試的分錄依傳票號碼合計，借方合計與貸方合計不相等的傳票列為借貸不平。\n例：借方合計 1,000.00、貸方合計 999.99 的傳票列出。",
+        "部分分錄未納入：同一張傳票只合計納入測試的分錄；整張傳票都未納入測試時不列出。",
+        "傳票號碼空白：傳票號碼空白的分錄不合成一張傳票，也不列為借貸不平。"
+      ],
       "path": "AuditCore/ValidationProcedures.cs",
-      "tests": "UnbalancedVoucherDateRowsTests、TaiwanSmePopulationAndCompletenessTests"
+      "tests": "UnbalancedVoucherDateRowsTests、TaiwanSmePopulationAndCompletenessTests、AuditLogicCaseTests"
     },
     {
       "title": "資料可靠性測試",
+      "points": [
+        "抽樣的範圍：只從納入測試的分錄抽樣，抽出的分錄不重複。",
+        "抽樣筆數：預設 59 筆，使用者可在執行前指定；納入測試的分錄少於要抽的筆數時，全部抽出。\n例：只有 6 筆納入測試的分錄時，6 筆全部抽出。",
+        "重新執行：同一個案件的資料與抽樣筆數不變時，重新執行抽到同一批分錄。"
+      ],
       "path": "AuditCore/ValidationProcedures.cs；AuditCore/InfSampling.cs",
-      "tests": "ConfigurableInfSamplingTests、InfSamplingPrfTests、InfSamplingPrfProviderTests"
+      "tests": "ConfigurableInfSamplingTests、InfSamplingPrfTests、InfSamplingPrfProviderTests、AuditLogicCaseTests"
     },
     {
       "title": "進階條件篩選",
-      "path": "AuditCore/FilterCompilation.cs；AuditCore/GlRulePredicates.cs；AuditCore/GlRulePredicates.Values.cs；AuditCore/GlRulePredicates.Frequency.cs",
-      "tests": "FilterCompilationTests、SqliteGlRuleSqlEquivalenceTests、CommonFilterPredicateTests、FilterCompletenessTests、EntityFrequencyWorkflowTests"
+      "points": [
+        "單一條件的判斷：欄位條件、常用篩選條件與當成條件的預篩選規則，各自判斷一筆分錄是否命中；「介於」的條件含上下限。\n例：金額絕對值介於 1,000 至 5,000 時，金額 -5,000 的分錄命中。",
+        "條件的合併：用 AND 連接的條件要由同一筆分錄同時符合；AND 與 OR 混用時，依畫面上的順序由左到右計算，AND 不優先計算。\n例：「金額等於 5,000 OR 借方 AND 金額大於或等於 50,000」只有金額達到 50,000 的借方分錄命中。",
+        "整張傳票條件：選「至少一筆符合」時，同一張傳票有任一筆分錄符合子條件，這張傳票納入測試的分錄全部列出；選「不存在符合」時，沒有任何一筆符合的傳票全部列出。"
+      ],
+      "path": "AuditCore/FilterCompilation.cs；AuditCore/GlRulePredicates.cs；AuditCore/GlRulePredicates.Values.cs；AuditCore/GlRulePredicates.Frequency.cs；AuditCore/HitVoucherRows.cs；AuditCore/PersonIdentity.cs",
+      "tests": "FilterCompilationTests、SqliteGlRuleSqlEquivalenceTests、CommonFilterPredicateTests、FilterCompletenessTests、EntityFrequencyWorkflowTests、AuditLogicCaseTests"
     },
     {
       "title": "預篩選",
+      "points": [
+        "比較的日期欄位：週末過帳與假日過帳依總帳日期；週末核准、假日核准與期末財報準備日起核准之分錄依傳票核准日，傳票核准日空白的分錄不命中。",
+        "週末與假日：週末的規則依每週休息日判斷，補班日是週六或週日時仍然命中；假日的規則只依使用者匯入的國定假日清單判斷。\n例：補班日是週六時，那天入帳的分錄列入週末過帳。",
+        "名單的比對：非授權編製人員比對使用者匯入的授權編製人員名單；英文大小寫不同或前後多了空白，仍算同一個人；傳票建立人員空白的分錄不命中。"
+      ],
       "path": "Domain/Rules/PrescreenRuleDefinitions.cs；Domain/Rules/PrescreenRules.cs；AuditCore/PrescreenRulePredicates.cs；AuditCore/GlRulePredicates.cs",
-      "tests": "PrescreenRuleFixedAnswerTests、SqliteGlRuleSqlEquivalenceTests、DemoRuleOracleTests"
+      "tests": "PrescreenRuleFixedAnswerTests、SqliteGlRuleSqlEquivalenceTests、DemoRuleOracleTests、AuditLogicCaseTests"
     }
   ],
   "checklist": [
     {
       "rule": "2. Unit-Test Acceptance Rules",
-      "item": "新增或修改的程序與函式均有對應的單元測試，涵蓋預期行為、邊界條件、無效輸入與錯誤處理。"
+      "name": "Required tests",
+      "items": [
+        "預期行為有測試：正常的資料得到需求規定的結果。\n例：借方與貸方合計相等的傳票，不列為借貸不平。",
+        "邊界條件有測試：剛好落在界線上的值，結果符合需求。\n例：總帳日期是查核起始日或截止日當天的分錄，納入測試。",
+        "無效輸入與錯誤處理有測試：資料無法使用或超過上限時，結果符合需求。\n例：總帳日期無法辨識的分錄不納入測試，並記下原因；清單條件超過 100 個值時，儲存時擋下並說明原因。"
+      ]
     },
     {
       "rule": "2. Unit-Test Acceptance Rules",
-      "item": "必要的測試與受影響的回歸測試，以送交複核的 commit 執行並全數通過。"
+      "name": "Pass criterion",
+      "items": [
+        "本次變更的測試與受影響的回歸測試，以送交複核的版本執行，全部通過。"
+      ]
     },
     {
       "rule": "2. Unit-Test Acceptance Rules",
-      "item": "斷言核對具體的預期結果；預期結果依需求或已確認的查核邏輯訂定，非由受測程式產生。"
+      "name": "Test quality",
+      "items": [
+        "斷言核對具體的結果，不只確認程式執行完成。\n例：核對列為借貸不平的傳票號碼與金額。",
+        "預期結果依需求或已確認的查核邏輯訂定，不是把受測程式算出的值抄進測試。\n例：差異金額的預期值依「TB 減 GL」的規則另外算出。"
+      ]
     },
     {
       "rule": "2. Unit-Test Acceptance Rules",
-      "item": "測試結果可重現，測試使用的外部資源已適當控制；必要的測試無略過、停用或結果不穩定的情形。"
+      "name": "Repeatability",
+      "items": [
+        "重複執行得到相同的結果，測試使用的外部資源已控制。\n例：測試使用程式產生的合成資料與暫存資料夾。",
+        "必要的測試沒有略過、停用或結果不穩定的情形。\n例：單元測試報告的略過數為 0。"
+      ]
     },
     {
       "rule": "2. Unit-Test Acceptance Rules",
-      "item": "變更的行為與主要判斷分支均由測試涵蓋。"
+      "name": "Coverage",
+      "items": [
+        "變更的行為與主要的判斷分支都有測試執行到。\n例：配對了過帳狀態與沒有配對過帳狀態的兩種情形都有測試。"
+      ]
     },
     {
       "rule": "2. Unit-Test Acceptance Rules",
-      "item": "缺陷修正於可行時附有重現該缺陷的測試；未為取得通過結果而移除、放寬或更改測試。"
+      "name": "Regression protection",
+      "items": [
+        "缺陷修正附有重現該缺陷的測試，修正前失敗、修正後通過。",
+        "沒有為了取得通過的結果而刪除、放寬或改動測試。"
+      ]
     },
     {
       "rule": "3. Manual Review of Hard-Coded Content",
-      "item": "程式內的固定值與規則已逐項列出，來源與用途均經確認。"
+      "name": "Identify hard-coded content",
+      "items": [
+        "程式內影響查核結果的固定值與規則，都列在「固定值與規則」工作表，例如門檻、日期、比率、代碼與固定的判斷邏輯。"
+      ]
     },
     {
       "rule": "3. Manual Review of Hard-Coded Content",
-      "item": "隨環境、部署或業務政策變動的值已改由設定提供；留在程式內的穩定值為具名常數，意義與理由明確。"
+      "name": "Validate the source",
+      "items": [
+        "每一項的來源已確認，符合需求或舊版 JET 的規則；用途與單位已寫明。\n例：分錄摘要的預設關鍵字和舊版 JET 相同。"
+      ]
     },
     {
       "rule": "3. Manual Review of Hard-Coded Content",
-      "item": "原始碼未包含密碼、金鑰、token 等機敏資訊。"
+      "name": "Assess maintainability",
+      "items": [
+        "會隨環境、部署或業務政策改變的值，由設定或使用者輸入提供。\n例：查核期間、國定假日清單與授權編製人員名單由使用者填寫或匯入。",
+        "留在程式內的固定值，意義與查核上的用途清楚，同一個值在各處一致。\n例：抽樣預設筆數 59 筆只在後端定義一次，前端顯示後端提供的值。"
+      ]
     },
     {
       "rule": "3. Manual Review of Hard-Coded Content",
-      "item": "固定值與規則的邊界、精度、進位、預設值與替代行為已確認；其效果於可行時由測試核對。"
+      "name": "Protect sensitive information",
+      "items": [
+        "原始碼沒有密碼、金鑰、token 等機密資訊。"
+      ]
+    },
+    {
+      "rule": "3. Manual Review of Hard-Coded Content",
+      "name": "Verify behavior",
+      "items": [
+        "邊界、精度與進位方式已確認。\n例：金額等於 0 算借方；金額保留到小數第 4 位，第 5 位四捨五入。",
+        "預設值與值無法使用時的處理已確認。\n例：來源金額空白時當成 0；不是有效的金額時列為錯誤。",
+        "可行時有測試確認固定值的效果。\n例：有測試核對資料可靠性測試預設抽出 59 筆。"
+      ]
+    },
+    {
+      "rule": "3. Manual Review of Hard-Coded Content",
+      "name": "Record the conclusion",
+      "items": [
+        "「固定值與規則」每一列都已填寫複核結果：可接受、已修正或例外核准；沒有未解決的事項。"
+      ]
     },
     {
       "rule": "4. Supporting Review Rules",
-      "item": "實作符合需求，無不相關的變更與非預期的副作用。"
+      "name": "Requirements and scope",
+      "items": [
+        "實作符合需求。\n例：完整性測試的差異金額是 TB 減 GL，和需求相同。",
+        "沒有不相關的變更或非預期的副作用。\n例：修改預篩選的規則時，共用同一段判斷的進階條件篩選結果不受影響。"
+      ]
     },
     {
       "rule": "4. Supporting Review Rules",
-      "item": "命名明確，控制流程易於理解，註解適當，無不必要的重複，並符合專案的撰寫慣例。"
+      "name": "Readability and consistency",
+      "items": [
+        "命名看得出對應哪一項查核，控制流程容易看懂。\n例：不納入測試的分錄由 GlExcludedPopulation 決定。",
+        "註解說明程式做什麼、為什麼這樣做。",
+        "同一項查核邏輯只定義一次，沒有不必要的重複，並符合專案的撰寫慣例。\n例：把預篩選規則當成進階條件篩選的條件時，判斷方式和預篩選相同。"
+      ]
     },
     {
       "rule": "4. Supporting Review Rules",
-      "item": "輸入檢查、例外處理、資源釋放、機敏資料處理與相關的存取檢查適當。"
+      "name": "Error handling and security",
+      "items": [
+        "輸入檢查適當。\n例：抽樣筆數填 0 或不是整數時擋下，並說明可以填的範圍。",
+        "例外處理與資源釋放適當。\n例：來源檔正被 Excel 開著時，照樣匯入最後一次存檔的內容，並提醒尚未存檔的修改沒有匯入。",
+        "機密資訊的處理與相關的存取檢查適當。"
+      ]
     },
     {
       "rule": "4. Supporting Review Rules",
-      "item": "行為取決於資料庫、外部服務、部署設定或單元測試未涵蓋的互動時，已另以整合測試、系統測試或其他適當方式確認。"
+      "name": "Beyond unit tests",
+      "items": [
+        "行為取決於資料庫、外部服務、部署設定或單元測試沒有涵蓋的互動時，已另外用整合測試、系統測試或其他方式確認。\n例：用一份合成的案件，依序執行驗證、篩選，並匯出報告與底稿，核對每一步的結果。"
+      ]
     },
     {
       "rule": "4. Supporting Review Rules",
-      "item": "複核人員非開發人員本人；風險較高的變更已完成專案要求的額外複核。"
+      "name": "Independent review",
+      "items": [
+        "複核人員不是開發人員本人。",
+        "風險較高的變更已完成專案要求的額外複核。"
+      ]
     }
   ],
   "hardCoded": [
     {
       "id": 1,
       "item": "抽樣預設筆數",
-      "content": "預設 59 筆；使用者可於執行前改為 1 至 1,048,524 筆。",
-      "path": "AuditCore/InfSampling.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "預設值：59 筆。",
+        "可指定的筆數：使用者可在執行前改成其他筆數，上限 1,048,524 筆。"
+      ],
+      "path": "AuditCore/InfSampling.cs；Application/Handlers/ValidateRunHandler.cs"
     },
     {
       "id": 2,
-      "item": "抽樣排序演算法",
-      "content": "以抽樣種子對來源列號執行三輪 Feistel 運算，依排序鍵由小到大取樣。模數 2,147,483,647；乘數 48,271、69,621、65,539；偏移量 1、104,729、130,363。",
-      "path": "AuditCore/ValidationProcedures.cs；Domain/ProjectDocument.cs",
-      "origin": "程式設計"
+      "item": "抽樣方式",
+      "details": [
+        "隨機抽樣：抽樣的順序由案件的隨機種子序號決定。",
+        "重新執行：隨機種子序號在建立案件時產生一次，之後不變；同一份資料、同樣的抽樣筆數重新執行，抽到同一批分錄。"
+      ],
+      "path": "AuditCore/ValidationProcedures.cs；Domain/ProjectDocument.cs"
     },
     {
       "id": 3,
       "item": "金額精度",
-      "content": "金額乘以 10,000 後以整數儲存，精度至小數第 4 位；第 5 位四捨五入。",
-      "path": "Domain/ProjectDocument.cs；Domain/Primitives/MoneyScaling.cs",
-      "origin": "程式設計"
+      "details": [
+        "精度：金額保留到小數第 4 位。",
+        "進位方式：小數第 5 位四捨五入，負數依絕對值四捨五入。\n例：0.00005 算成 0.0001，-0.00005 算成 -0.0001。"
+      ],
+      "path": "Domain/ProjectDocument.cs；Domain/Primitives/MoneyScaling.cs"
     },
     {
       "id": 4,
       "item": "金額文字",
-      "content": "括號內的數字視為負數；僅有一個半形減號時視為 0。",
-      "path": "Domain/Primitives/MoneyScaling.cs",
-      "origin": "會計慣例"
+      "details": [
+        "負數的寫法：括號內的數字是負數。\n例：(1,000) 是 -1,000。",
+        "算成 0 的寫法：金額空白，或只有一個減號。",
+        "不是有效的金額：這一列列為錯誤並說明原因。\n例：儲存格是「#N/A」。"
+      ],
+      "path": "Domain/Primitives/MoneyScaling.cs；Domain/Rules/MappedAmountCell.cs"
     },
     {
       "id": 5,
       "item": "借貸別",
-      "content": "金額大於或等於 0 為借方，小於 0 為貸方。",
-      "path": "Domain/Rules/GlRowProjector.cs",
-      "origin": "查核需求"
+      "details": [
+        "金額大於或等於 0 為借方，小於 0 為貸方。"
+      ],
+      "path": "Domain/Rules/GlRowProjector.cs"
     },
     {
       "id": 6,
-      "item": "TB 年度變動金額",
-      "content": "依欄位配對方式擇一計算：年度變動金額欄；借方金額減貸方金額；期末餘額減期初餘額；（期末借方餘額減期末貸方餘額）減（期初借方餘額減期初貸方餘額）。",
-      "path": "Domain/Rules/TbRowProjector.cs",
-      "origin": "會計慣例"
+      "item": "試算表（TB）年度變動金額",
+      "details": [
+        "「設定年度變動金額」：取該欄的值。",
+        "「設定借方與貸方金額」：借方減貸方。",
+        "期初與期末：「設定期初與期末金額」是期末減期初；「設定借方貸方之期初期末金額」是（期末借方減期末貸方）減（期初借方減期初貸方）。"
+      ],
+      "path": "Domain/Rules/TbRowProjector.cs"
     },
     {
       "id": 7,
       "item": "納入測試的分錄範圍",
-      "content": "總帳日期空白、早於查核起始日或晚於查核截止日的分錄不納入測試；起始日與截止日當日納入。已配對過帳狀態時，狀態不在使用者指定清單內的分錄亦不納入。兩者同時成立時，未納入原因以日期為準。",
-      "path": "AuditCore/GlExcludedPopulation.cs",
-      "origin": "查核需求"
+      "details": [
+        "日期的邊界：查核起始日與截止日當天的分錄納入。",
+        "過帳狀態的寫法：英文大小寫不同或前後多了空白，仍算同一個代碼。\n例：指定的代碼是「Y」時，過帳狀態「 y 」的分錄納入。"
+      ],
+      "path": "AuditCore/GlExcludedPopulation.cs"
     },
     {
       "id": 8,
       "item": "借貸不平測試",
-      "content": "同一傳票號碼的分錄金額合計不為 0 即列為借貸不平，不設容許誤差。",
-      "path": "AuditCore/ValidationProcedures.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "容許誤差：0；同一傳票號碼的分錄金額合計不為 0 就列為借貸不平。\n例：相差 0.0001 的傳票也列出。"
+      ],
+      "path": "AuditCore/ValidationProcedures.cs"
     },
     {
       "id": 9,
       "item": "資料驗證報告的借貸淨額",
-      "content": "借貸淨額取絕對值；不超過 0.01 時顯示為 0。",
-      "path": "Infrastructure/Export/LegacyReportWriter.Validation.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "顯示方式：借貸淨額取絕對值，不超過 0.01 時顯示為 0。"
+      ],
+      "path": "AuditCore/ValidationProcedures.cs"
     },
     {
       "id": 10,
       "item": "完整性測試的科目差異",
-      "content": "同一科目的 TB 年度變動金額與 GL 金額合計不相等即列為差異，不設容許誤差。",
-      "path": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "容許誤差：0；同一科目的 TB 年度變動金額與 GL 金額合計不相等就列為差異。"
+      ],
+      "path": "AuditCore/ValidationProcedures.cs"
     },
     {
       "id": 11,
       "item": "核准日不在期間",
-      "content": "傳票核准日空白、早於查核起始日或晚於查核截止日。",
-      "path": "AuditCore/FilterCompilation.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "條件：傳票核准日空白、早於查核起始日或晚於查核截止日。",
+        "邊界：查核起始日與截止日當天屬於期間內。"
+      ],
+      "path": "AuditCore/FilterCompilation.cs"
     },
     {
       "id": 12,
       "item": "報告明細列數上限",
-      "content": "空白科目編號、空白傳票號碼、空白摘要、核准日不在期間：各 10,000 列。借貸不平測試、預篩選：各 9,999 列。超過時僅輸出摘要。",
-      "path": "AuditCore/ValidationReportProgram.cs；AuditCore/PrescreenReportProgram.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "資料驗證報告：空白科目編號、空白傳票號碼、空白摘要與核准日不在期間的明細，各 10,000 列。",
+        "借貸不平測試與預篩選的明細：各 9,999 列。",
+        "超過上限時：只輸出摘要；預篩選報告在摘要註明明細資料不匯出。"
+      ],
+      "path": "AuditCore/ValidationReportProgram.cs；AuditCore/PrescreenReportProgram.cs"
     },
     {
       "id": 13,
       "item": "期末財報準備日起核准之分錄",
-      "content": "傳票核准日為期末財報準備日當日或之後。",
-      "path": "AuditCore/GlRulePredicates.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "條件：傳票核准日在期末財報準備日當天或之後。",
+        "空白：傳票核准日空白的分錄不命中。"
+      ],
+      "path": "AuditCore/GlRulePredicates.cs"
     },
     {
       "id": 14,
       "item": "分錄摘要出現特定描述",
-      "content": "預設關鍵字 24 個：英文 6 個、繁體中文 9 個、簡體中文 9 個；摘要包含任一關鍵字即符合。預篩選固定使用此清單；進階條件篩選可由使用者增刪。",
-      "path": "Domain/Rules/PrescreenRules.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "預設關鍵字共 24 個：英文 ADJ、REV、RECLASS、SUSPENSE、ERROR、WRONG；繁體中文 調整、迴轉、沖銷、重分類、避險、重編、錯誤、計畫外、預算外；簡體中文 调整、回转、冲销、重分类、避险、重编、错误、计画外、预算外。",
+        "比對方式：摘要包含任一關鍵字就命中，不分英文大小寫。\n例：摘要「年底調整」包含「調整」，命中。",
+        "使用的關鍵字：預篩選固定使用預設關鍵字；進階條件篩選帶入預設關鍵字，使用者可以增刪。"
+      ],
+      "path": "Domain/Rules/PrescreenRules.cs"
     },
     {
       "id": 15,
       "item": "未預期出現之特定借貸組合",
-      "content": "收入科目的貸方分錄，且同一傳票內有金額大於 0 的分錄，其科目均非應收款項、現金或預收款。",
-      "path": "AuditCore/GlRulePredicates.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "命中的分錄：收入科目的貸方分錄。",
+        "同一張傳票的條件：傳票內有金額大於 0 的分錄，而且這些分錄的科目都不是應收款項、現金或預收款。",
+        "科目分類：科目屬於哪一類，依使用者匯入的科目配對。"
+      ],
+      "path": "AuditCore/GlRulePredicates.cs"
     },
     {
       "id": 16,
       "item": "分錄金額中有連續 0 的尾數",
-      "content": "以 GL 借方金額合計除以 GL 分錄筆數得平均；0 的個數為平均的整數位數減 1，下限 1 個、上限 12 個。",
-      "path": "Domain/Rules/PrescreenRules.cs",
-      "origin": "舊版 JET"
+      "details": [
+        "0 的個數由 GL 決定：GL 借方金額的平均，整數部分有幾位數，0 的個數就是位數減 1，最少 1 個、最多 12 個。\n例：平均 12,345.67 時，0 的個數是 4。",
+        "命中：金額整數部分的尾數連續 0 達到這個個數就命中，不看正負號。"
+      ],
+      "path": "Domain/Rules/PrescreenRules.cs"
     },
     {
       "id": 17,
       "item": "非營業日",
-      "content": "每週休息日預設為週六與週日。非營業日為每週休息日或國定假日，補班日除外。",
-      "path": "Domain/Primitives/NonWorkingDays.cs；AuditCore/GlRulePredicates.Values.cs",
-      "origin": "查核需求"
+      "details": [
+        "每週休息日：預設為週六與週日。",
+        "非營業日：每週休息日或使用者匯入的國定假日。",
+        "補班日：使用者匯入的補班日不算非營業日。"
+      ],
+      "path": "Domain/Primitives/NonWorkingDays.cs；AuditCore/GlRulePredicates.Values.cs"
     },
     {
       "id": 18,
       "item": "季底",
-      "content": "季底為 3 月 31 日、6 月 30 日、9 月 30 日與 12 月 31 日；查核截止日比照季底。前推天數可設為 1 至 92 天，含季底當日。",
-      "path": "Domain/Rules/QuarterEndWindows.cs",
-      "origin": "查核需求"
+      "details": [
+        "季底：3 月 31 日、6 月 30 日、9 月 30 日、12 月 31 日。",
+        "前推天數：1 至 92 天，含季底當天。\n例：前推 3 天時，12 月 29 日至 31 日屬於季底期間。",
+        "查核截止日：查核截止日以同樣的前推天數往前推，也屬於季底期間。\n例：查核截止日是 11 月 30 日、前推 3 天時，11 月 28 日至 30 日屬於季底期間。"
+      ],
+      "path": "Domain/Rules/QuarterEndWindows.cs"
     },
     {
       "id": 19,
       "item": "篩選上限",
-      "content": "每項清單條件上限 100 個值；每個案件上限 10 個篩選情境。",
-      "path": "Domain/Rules/FilterScenario.cs",
-      "origin": "程式設計"
+      "details": [
+        "清單條件：每條最多 100 個值，超過時儲存時擋下並說明原因。",
+        "篩選情境：每個案件最多儲存 10 個，超過時儲存時擋下並說明原因。"
+      ],
+      "path": "Domain/Rules/FilterScenario.cs"
     },
     {
       "id": 20,
       "item": "日期換算",
-      "content": "西元日期寫成 yyyy-MM-dd、yyyy/M/d、yyyy.M.d 或 8 位數字時依字面解讀。民國年日期限民國 100 至 199 年，年份加 1911 換算為西元年；7 位數字依民國年月日解讀。Excel 日期格式的儲存格與其他寫法的西元日期，年份限 1900 至 2100 年。其餘純數字及年份不足 4 位的寫法不視為日期。",
-      "path": "Domain/Primitives/DateNormalizer.cs",
-      "origin": "查核需求"
+      "details": [
+        "可辨識的寫法：西元與民國年的寫法都換成西元日期，民國年加 1911。\n例：2025/6/11、20250611、114/6/11 與 1140611 都是 2025-06-11。",
+        "無法辨識的寫法：只有年份、缺日、月日不存在等寫法。\n例：「2025」「2025.12」「114/13/1」。"
+      ],
+      "path": "Domain/Primitives/DateNormalizer.cs"
+    }
+  ],
+  "caseSource": {
+    "file": "tests/JET.Tests/Fixtures/audit-logic-cases.json",
+    "testFile": "tests/JET.Tests/Application/AuditLogicCaseTests.cs",
+    "testClass": "AuditLogicCaseTests",
+    "order": [
+      "納入測試的分錄範圍",
+      "完整性測試",
+      "借貸不平測試",
+      "資料可靠性測試",
+      "預篩選",
+      "進階條件篩選"
+    ],
+    "sha256": "403092fa4003f6516afacd3af49712f04fa77c9216301147be5b57cf3555bc2c"
+  },
+  "cases": [
+    {
+      "id": "POP-01",
+      "logic": "納入測試的分錄範圍",
+      "group": "查核期間",
+      "name": "查核期間的起始日與截止日當日納入"
+    },
+    {
+      "id": "POP-02",
+      "logic": "納入測試的分錄範圍",
+      "group": "查核期間",
+      "name": "總帳日期空白或無法辨識的分錄不納入"
+    },
+    {
+      "id": "POP-03",
+      "logic": "納入測試的分錄範圍",
+      "group": "過帳狀態",
+      "name": "過帳狀態不是採用的代碼時不納入"
+    },
+    {
+      "id": "POP-04",
+      "logic": "納入測試的分錄範圍",
+      "group": "過帳狀態",
+      "name": "日期與過帳狀態都不符時記為日期原因"
+    },
+    {
+      "id": "POP-05",
+      "logic": "納入測試的分錄範圍",
+      "group": "過帳狀態",
+      "name": "選擇納入空白時，過帳狀態空白的分錄納入"
+    },
+    {
+      "id": "POP-06",
+      "logic": "納入測試的分錄範圍",
+      "group": "日期寫法",
+      "name": "西元與民國年的各種日期寫法都讀成同一天"
+    },
+    {
+      "id": "POP-07",
+      "logic": "納入測試的分錄範圍",
+      "group": "日期寫法",
+      "name": "純數字、缺年份或缺日的寫法不當成日期"
+    },
+    {
+      "id": "POP-08",
+      "logic": "納入測試的分錄範圍",
+      "group": "資料驗證的輔助檢視",
+      "name": "核准日不在期間"
+    },
+    {
+      "id": "CMP-01",
+      "logic": "完整性測試",
+      "group": "科目差異",
+      "name": "GL 與 TB 各科目金額相符"
+    },
+    {
+      "id": "CMP-02",
+      "logic": "完整性測試",
+      "group": "科目差異",
+      "name": "GL 少一個月的分錄時，相關科目都列為差異"
+    },
+    {
+      "id": "CMP-03",
+      "logic": "完整性測試",
+      "group": "科目差異",
+      "name": "科目只在 GL、不在 TB 時列為差異"
+    },
+    {
+      "id": "CMP-04",
+      "logic": "完整性測試",
+      "group": "科目差異",
+      "name": "科目只在 TB、不在 GL 時列為差異"
+    },
+    {
+      "id": "CMP-05",
+      "logic": "完整性測試",
+      "group": "科目差異",
+      "name": "未納入測試的分錄不計入 GL 合計"
+    },
+    {
+      "id": "CMP-06",
+      "logic": "完整性測試",
+      "group": "TB 年度變動金額的算法",
+      "name": "TB 提供借方與貸方金額時，年度變動金額是借方減貸方"
+    },
+    {
+      "id": "CMP-07",
+      "logic": "完整性測試",
+      "group": "TB 年度變動金額的算法",
+      "name": "TB 提供期初與期末金額時，年度變動金額是期末減期初"
+    },
+    {
+      "id": "CMP-08",
+      "logic": "完整性測試",
+      "group": "TB 年度變動金額的算法",
+      "name": "TB 分別提供期初、期末的借方與貸方金額時的年度變動金額"
+    },
+    {
+      "id": "BAL-01",
+      "logic": "借貸不平測試",
+      "group": "傳票的借貸合計",
+      "name": "借貸相等的傳票不列出"
+    },
+    {
+      "id": "BAL-02",
+      "logic": "借貸不平測試",
+      "group": "傳票的借貸合計",
+      "name": "借貸不相等的傳票列出"
+    },
+    {
+      "id": "BAL-03",
+      "logic": "借貸不平測試",
+      "group": "傳票的借貸合計",
+      "name": "借貸只差 0.01 也列出"
+    },
+    {
+      "id": "BAL-04",
+      "logic": "借貸不平測試",
+      "group": "傳票的借貸合計",
+      "name": "傳票號碼空白的分錄不合成一張傳票"
+    },
+    {
+      "id": "BAL-05",
+      "logic": "借貸不平測試",
+      "group": "傳票的借貸合計",
+      "name": "整張傳票未納入測試時不列為借貸不平"
+    },
+    {
+      "id": "BAL-06",
+      "logic": "借貸不平測試",
+      "group": "傳票的借貸合計",
+      "name": "傳票有一筆分錄未納入測試時，以納入的分錄判斷"
+    },
+    {
+      "id": "BAL-07",
+      "logic": "借貸不平測試",
+      "group": "金額精度",
+      "name": "金額保留到小數第 4 位，第 5 位四捨五入"
+    },
+    {
+      "id": "INF-01",
+      "logic": "資料可靠性測試",
+      "group": "抽樣",
+      "name": "預設抽 59 筆，納入測試的分錄不足時全部抽出"
+    },
+    {
+      "id": "INF-02",
+      "logic": "資料可靠性測試",
+      "group": "抽樣",
+      "name": "指定抽樣筆數，重新執行時抽到相同的樣本"
+    },
+    {
+      "id": "PRE-01",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "期末財報準備日起核准之分錄"
+    },
+    {
+      "id": "PRE-02",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "分錄摘要出現特定描述"
+    },
+    {
+      "id": "PRE-03",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "未預期出現之特定借貸組合"
+    },
+    {
+      "id": "PRE-04",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "分錄金額中有連續 0 的尾數"
+    },
+    {
+      "id": "PRE-05",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "週末過帳"
+    },
+    {
+      "id": "PRE-06",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "假日過帳"
+    },
+    {
+      "id": "PRE-07",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "空白摘要"
+    },
+    {
+      "id": "PRE-08",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "週末核准"
+    },
+    {
+      "id": "PRE-09",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "假日核准"
+    },
+    {
+      "id": "PRE-10",
+      "logic": "預篩選",
+      "group": "逐筆標記分錄的規則",
+      "name": "非授權編製人員"
+    },
+    {
+      "id": "PRE-11",
+      "logic": "預篩選",
+      "group": "彙總",
+      "name": "依分錄編製者彙總"
+    },
+    {
+      "id": "PRE-12",
+      "logic": "預篩選",
+      "group": "彙總",
+      "name": "較少使用之科目"
+    },
+    {
+      "id": "FLT-12",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_特定日期1"
+    },
+    {
+      "id": "FLT-13",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_特定日期2"
+    },
+    {
+      "id": "FLT-01",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_日期區間"
+    },
+    {
+      "id": "FLT-14",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_日期早於"
+    },
+    {
+      "id": "FLT-15",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_日期早於含當日"
+    },
+    {
+      "id": "FLT-16",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_日期晚於"
+    },
+    {
+      "id": "FLT-17",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_日期晚於含當日"
+    },
+    {
+      "id": "FLT-18",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_每月指定日"
+    },
+    {
+      "id": "FLT-19",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_月初x天"
+    },
+    {
+      "id": "FLT-20",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_月底x天"
+    },
+    {
+      "id": "FLT-21",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_期末x天"
+    },
+    {
+      "id": "FLT-22",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_周末"
+    },
+    {
+      "id": "FLT-23",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_國定假日"
+    },
+    {
+      "id": "FLT-02",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_符合_補班日"
+    },
+    {
+      "id": "FLT-24",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_特定日期1"
+    },
+    {
+      "id": "FLT-25",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_特定日期2"
+    },
+    {
+      "id": "FLT-26",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_日期區間"
+    },
+    {
+      "id": "FLT-27",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_每月指定日"
+    },
+    {
+      "id": "FLT-28",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_月初x天"
+    },
+    {
+      "id": "FLT-29",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_月底x天"
+    },
+    {
+      "id": "FLT-30",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_期末x天"
+    },
+    {
+      "id": "FLT-31",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_周末"
+    },
+    {
+      "id": "FLT-32",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_國定假日"
+    },
+    {
+      "id": "FLT-33",
+      "logic": "進階條件篩選",
+      "group": "總帳日期",
+      "name": "總帳日_排除_補班日"
+    },
+    {
+      "id": "FLT-34",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_特定日期1"
+    },
+    {
+      "id": "FLT-35",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_特定日期2"
+    },
+    {
+      "id": "FLT-36",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_日期區間"
+    },
+    {
+      "id": "FLT-37",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_日期早於"
+    },
+    {
+      "id": "FLT-38",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_日期早於含當日"
+    },
+    {
+      "id": "FLT-39",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_日期晚於"
+    },
+    {
+      "id": "FLT-03",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_日期晚於含當日"
+    },
+    {
+      "id": "FLT-40",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_每月指定日"
+    },
+    {
+      "id": "FLT-41",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_月初x天"
+    },
+    {
+      "id": "FLT-42",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_月底x天"
+    },
+    {
+      "id": "FLT-43",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_期末x天"
+    },
+    {
+      "id": "FLT-44",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_周末"
+    },
+    {
+      "id": "FLT-45",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_國定假日"
+    },
+    {
+      "id": "FLT-46",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_符合_補班日"
+    },
+    {
+      "id": "FLT-47",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_特定日期1"
+    },
+    {
+      "id": "FLT-48",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_特定日期2"
+    },
+    {
+      "id": "FLT-49",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_日期區間"
+    },
+    {
+      "id": "FLT-50",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_每月指定日"
+    },
+    {
+      "id": "FLT-51",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_月初x天"
+    },
+    {
+      "id": "FLT-52",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_月底x天"
+    },
+    {
+      "id": "FLT-53",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_期末x天"
+    },
+    {
+      "id": "FLT-54",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_周末"
+    },
+    {
+      "id": "FLT-55",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_國定假日"
+    },
+    {
+      "id": "FLT-56",
+      "logic": "進階條件篩選",
+      "group": "傳票核准日",
+      "name": "核准日_排除_補班日"
+    },
+    {
+      "id": "FLT-57",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_絕對值"
+    },
+    {
+      "id": "FLT-04",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_絕對值區間"
+    },
+    {
+      "id": "FLT-58",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_大於"
+    },
+    {
+      "id": "FLT-59",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_大於等於"
+    },
+    {
+      "id": "FLT-60",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_小於"
+    },
+    {
+      "id": "FLT-61",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_小於等於"
+    },
+    {
+      "id": "FLT-05",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_整數尾數符合x"
+    },
+    {
+      "id": "FLT-62",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_符合_尾數連續0"
+    },
+    {
+      "id": "FLT-63",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_排除_指定金額"
+    },
+    {
+      "id": "FLT-64",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_排除_區間金額"
+    },
+    {
+      "id": "FLT-65",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_排除_整數尾數符合x"
+    },
+    {
+      "id": "FLT-66",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_排除_尾數連續0"
+    },
+    {
+      "id": "FLT-67",
+      "logic": "進階條件篩選",
+      "group": "金額",
+      "name": "金額_整數部分包含特定數字"
+    },
+    {
+      "id": "FLT-06",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-68",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_符合_指定任一文字"
+    },
+    {
+      "id": "FLT-156",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_符合_指定任一文字（關鍵字帶空白與小寫）"
+    },
+    {
+      "id": "FLT-69",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_符合_開頭符合X"
+    },
+    {
+      "id": "FLT-70",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_符合_結尾符合X"
+    },
+    {
+      "id": "FLT-07",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_包含任一文字（空白也列入）"
+    },
+    {
+      "id": "FLT-08",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_包含任一文字（空白不列入）"
+    },
+    {
+      "id": "FLT-157",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_包含任一文字（關鍵字帶空白與小寫）"
+    },
+    {
+      "id": "FLT-71",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_指定任一文字（空白也列入）"
+    },
+    {
+      "id": "FLT-72",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_指定任一文字（空白不列入）"
+    },
+    {
+      "id": "FLT-158",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_指定任一文字（關鍵字帶空白與小寫）"
+    },
+    {
+      "id": "FLT-73",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_開頭符合X"
+    },
+    {
+      "id": "FLT-74",
+      "logic": "進階條件篩選",
+      "group": "傳票摘要",
+      "name": "摘要_排除_結尾符合X"
+    },
+    {
+      "id": "FLT-75",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-76",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_符合_指定文字"
+    },
+    {
+      "id": "FLT-77",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_符合_開頭符合X"
+    },
+    {
+      "id": "FLT-78",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_符合_結尾符合X"
+    },
+    {
+      "id": "FLT-79",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_排除_包含任一文字"
+    },
+    {
+      "id": "FLT-80",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_排除_指定文字"
+    },
+    {
+      "id": "FLT-81",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_排除_開頭符合X"
+    },
+    {
+      "id": "FLT-82",
+      "logic": "進階條件篩選",
+      "group": "會計科目編號",
+      "name": "科目編號_排除_結尾符合X"
+    },
+    {
+      "id": "FLT-83",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-84",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_符合_指定文字"
+    },
+    {
+      "id": "FLT-85",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_符合_開頭符合X"
+    },
+    {
+      "id": "FLT-86",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_符合_結尾符合X"
+    },
+    {
+      "id": "FLT-87",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_排除_包含任一文字"
+    },
+    {
+      "id": "FLT-88",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_排除_指定文字"
+    },
+    {
+      "id": "FLT-89",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_排除_開頭符合X"
+    },
+    {
+      "id": "FLT-90",
+      "logic": "進階條件篩選",
+      "group": "會計科目名稱",
+      "name": "科目名稱_排除_結尾符合X"
+    },
+    {
+      "id": "FLT-09",
+      "logic": "進階條件篩選",
+      "group": "借貸別",
+      "name": "借方"
+    },
+    {
+      "id": "FLT-130",
+      "logic": "進階條件篩選",
+      "group": "借貸別",
+      "name": "貸方"
+    },
+    {
+      "id": "FLT-10",
+      "logic": "進階條件篩選",
+      "group": "人工/自動分錄",
+      "name": "人工分錄"
+    },
+    {
+      "id": "FLT-131",
+      "logic": "進階條件篩選",
+      "group": "人工/自動分錄",
+      "name": "自動分錄"
+    },
+    {
+      "id": "FLT-132",
+      "logic": "進階條件篩選",
+      "group": "人工/自動分錄",
+      "name": "只指定人工代碼時的人工分錄"
+    },
+    {
+      "id": "FLT-133",
+      "logic": "進階條件篩選",
+      "group": "人工/自動分錄",
+      "name": "只指定人工代碼時的自動分錄"
+    },
+    {
+      "id": "FLT-134",
+      "logic": "進階條件篩選",
+      "group": "人工/自動分錄",
+      "name": "只指定自動代碼、空白當成人工時的人工分錄"
+    },
+    {
+      "id": "FLT-91",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-11",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_符合_指定文字"
+    },
+    {
+      "id": "FLT-92",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_符合_開頭符合X"
+    },
+    {
+      "id": "FLT-93",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_符合_結尾符合X"
+    },
+    {
+      "id": "FLT-94",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_排除_包含任一文字"
+    },
+    {
+      "id": "FLT-95",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_排除_指定文字"
+    },
+    {
+      "id": "FLT-96",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_排除_開頭符合X"
+    },
+    {
+      "id": "FLT-97",
+      "logic": "進階條件篩選",
+      "group": "傳票建立人員",
+      "name": "傳票建立人員_排除_結尾符合X"
+    },
+    {
+      "id": "FLT-98",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-99",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_符合_指定文字"
+    },
+    {
+      "id": "FLT-100",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_符合_開頭為X"
+    },
+    {
+      "id": "FLT-101",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_符合_結尾為X"
+    },
+    {
+      "id": "FLT-102",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_排除_包含任一文字"
+    },
+    {
+      "id": "FLT-103",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_排除_指定文字"
+    },
+    {
+      "id": "FLT-104",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_排除_開頭為X"
+    },
+    {
+      "id": "FLT-105",
+      "logic": "進階條件篩選",
+      "group": "傳票核准人員",
+      "name": "核准人員_排除_結尾為X"
+    },
+    {
+      "id": "FLT-106",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-107",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_符合_指定文字"
+    },
+    {
+      "id": "FLT-108",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_符合_開頭為X"
+    },
+    {
+      "id": "FLT-109",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_符合_結尾為X"
+    },
+    {
+      "id": "FLT-110",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_排除_包含任一文字"
+    },
+    {
+      "id": "FLT-111",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_排除_指定文字"
+    },
+    {
+      "id": "FLT-112",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_排除_開頭為X"
+    },
+    {
+      "id": "FLT-113",
+      "logic": "進階條件篩選",
+      "group": "傳票號碼",
+      "name": "傳票號碼_排除_結尾為X"
+    },
+    {
+      "id": "FLT-114",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-115",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_符合_指定文字"
+    },
+    {
+      "id": "FLT-116",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_符合_開頭為X"
+    },
+    {
+      "id": "FLT-117",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_符合_結尾為X"
+    },
+    {
+      "id": "FLT-118",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_排除_包含任一文字"
+    },
+    {
+      "id": "FLT-119",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_排除_指定文字"
+    },
+    {
+      "id": "FLT-120",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_排除_開頭為X"
+    },
+    {
+      "id": "FLT-121",
+      "logic": "進階條件篩選",
+      "group": "分錄來源模組",
+      "name": "分錄來源模組_排除_結尾為X"
+    },
+    {
+      "id": "FLT-122",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_符合_包含任一文字"
+    },
+    {
+      "id": "FLT-123",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_符合_指定文字"
+    },
+    {
+      "id": "FLT-124",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_符合_開頭為X"
+    },
+    {
+      "id": "FLT-125",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_符合_結尾為X"
+    },
+    {
+      "id": "FLT-126",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_排除_包含任一文字"
+    },
+    {
+      "id": "FLT-127",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_排除_指定文字"
+    },
+    {
+      "id": "FLT-128",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_排除_開頭為X"
+    },
+    {
+      "id": "FLT-129",
+      "logic": "進階條件篩選",
+      "group": "修改人員",
+      "name": "修改人員_排除_結尾為X"
+    },
+    {
+      "id": "FLT-135",
+      "logic": "進階條件篩選",
+      "group": "科目分類",
+      "name": "科目分類_符合_指定類別"
+    },
+    {
+      "id": "FLT-136",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "在該季度前 X 天借記收入的會計分錄"
+    },
+    {
+      "id": "FLT-137",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "在該季度前 X 天借記收入的會計分錄（查核截止日不是季底）"
+    },
+    {
+      "id": "FLT-138",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "借貸科目組合：借方是 A 且貸方是 B"
+    },
+    {
+      "id": "FLT-139",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "貸方為收入但借方非一般對方科目之分錄"
+    },
+    {
+      "id": "FLT-140",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "收入之人工分錄"
+    },
+    {
+      "id": "FLT-141",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "編製人員與核准人員相同"
+    },
+    {
+      "id": "FLT-142",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "非營業日之分錄"
+    },
+    {
+      "id": "FLT-143",
+      "logic": "進階條件篩選",
+      "group": "常用篩選條件",
+      "name": "空白摘要"
+    },
+    {
+      "id": "FLT-144",
+      "logic": "進階條件篩選",
+      "group": "預篩選條件",
+      "name": "把預篩選規則當成條件：週末過帳"
+    },
+    {
+      "id": "FLT-145",
+      "logic": "進階條件篩選",
+      "group": "預篩選條件",
+      "name": "把預篩選規則當成條件：未預期借貸組合"
+    },
+    {
+      "id": "FLT-146",
+      "logic": "進階條件篩選",
+      "group": "條件組合",
+      "name": "兩個條件用 AND 連接"
+    },
+    {
+      "id": "FLT-147",
+      "logic": "進階條件篩選",
+      "group": "條件組合",
+      "name": "AND 與 OR 混用時由左到右計算"
+    },
+    {
+      "id": "FLT-148",
+      "logic": "進階條件篩選",
+      "group": "整張傳票條件",
+      "name": "整張傳票條件：至少一筆符合"
+    },
+    {
+      "id": "FLT-149",
+      "logic": "進階條件篩選",
+      "group": "整張傳票條件",
+      "name": "整張傳票條件：不存在符合"
+    },
+    {
+      "id": "FLT-150",
+      "logic": "進階條件篩選",
+      "group": "科目與人員統計",
+      "name": "科目與人員統計：較少使用的科目"
+    },
+    {
+      "id": "FLT-151",
+      "logic": "進階條件篩選",
+      "group": "篩選上限",
+      "name": "一條條件 100 個值可以儲存"
+    },
+    {
+      "id": "FLT-152",
+      "logic": "進階條件篩選",
+      "group": "篩選上限",
+      "name": "一條條件 101 個值不能儲存"
+    },
+    {
+      "id": "FLT-153",
+      "logic": "進階條件篩選",
+      "group": "篩選上限",
+      "name": "一次儲存 10 個情境可以儲存"
+    },
+    {
+      "id": "FLT-154",
+      "logic": "進階條件篩選",
+      "group": "篩選上限",
+      "name": "一次儲存 11 個情境不能儲存"
     }
   ]
 }

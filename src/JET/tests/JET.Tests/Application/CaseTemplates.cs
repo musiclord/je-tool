@@ -81,6 +81,7 @@ internal static class CaseTemplates
         {
             try
             {
+                ProjectJsonEdits.ReleaseAllUnder(root);
                 Directory.Delete(root, recursive: true);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

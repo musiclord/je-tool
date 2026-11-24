@@ -38,8 +38,8 @@
     busy: false,
     busyLabel: null,           // 進行中作業的顯示標籤（取自 Ui.run 的 label；純 UI，不 bump、不持久化、不進後端 payload）
     busyDetail: null,          // 長作業進度事件的輕量顯示文字；不承載權威結果
-    activeRequestId: null,     // 目前 Ui.run 的 bridge requestId，只供 operation.cancel
-    cancellationRequested: false,
+    activeRequestId: null,     // 取消鈕對準的 bridge requestId：正在進行、可以取消的那個請求；它結束後是 null，只供 operation.cancel
+    cancellationRequested: false, // 這項作業已按過取消；對準的請求換成另一個時重設，作業結束時清掉
     projects: [],              // picker 最近接受的本機清單 snapshot
     pickerFeedback: null,      // picker 就地錯誤（訊息面板在 workflow app-body 內，picker 期間不可見）
     pickerFeedbackContext: null, // { projectId, errorCode, correlationId, devExportedPath }；只供 Debug 組建的 DEV 診斷日誌匯出
@@ -52,6 +52,9 @@
     // 不持久化、不進後端 payload；任何 Ui.run 開始、換步驟、開案、換案與回案件清單時清掉。
     operationFailure: null,
     project: null,             // 當前專案 metadata（project.load / create 回傳）
+    // project.load 回傳的抽樣筆數預設值與上限 infSampling { defaultSampleSize, maximumSampleSize }，
+    // 以及摘要的預設關鍵字 suspiciousKeywordDefaults；還沒收到 project.load 之前是 null，畫面不另存一份。
+    ruleDefaults: { infSampling: null, suspiciousKeywordDefaults: null },
     importState: {
       gl: null,                // { batchId, rowCount, columns, fileName, sources: [...] }
       tb: null,
@@ -62,7 +65,8 @@
       calendar: null           // { holidayCount, makeupDayCount, calendarImported, nonWorkingDays, nonWorkingDaysConfigured }
     },
     // committed = 已提交快照 { projectedRowCount, committedUtc, mapping, mode }（resume 時 projectedRowCount 可為 null）；
-    // GL 另帶 options 與後端算好的 availableGlFields（第五步依它停用用到未配對欄位的入口）。
+    // GL 另帶 options 與後端算好的 availableGlFields（第五步依它停用用到未配對欄位的入口），
+    // 以及 neverBlankGlFields（GL 中每一筆都有值的欄位，第五步不替它們提供「空白」的選項）。
     // invalidatedByImport = 來源變更使配對失效（顯示說明橫幅，重新提交後解除）。
     // droppedFields = 來源變更後，草稿裡被拿掉的欄位（新資料沒有那個來源欄），提示審計員重新選。
     //   由底稿匯入欄位時對不上的欄位也放這裡，標 fromReport，只列在第三步上方的托盤。
@@ -408,9 +412,13 @@
       notify();
     },
 
+    // 取消鈕對準的請求。換成另一個請求時，上一個請求按過的取消不沿用，新的請求可以再按一次取消。
+    // 請求結束時傳 null 只清掉對象：「已要求取消」留到整項作業結束，串接的作業才能在下一段開始前停下來。
     setBusyRequest: function (requestId) {
       if (!state.busy) { return; }
-      state.activeRequestId = requestId || null;
+      var next = requestId || null;
+      if (next && next !== state.activeRequestId) { state.cancellationRequested = false; }
+      state.activeRequestId = next;
       notify();
     },
 
@@ -449,6 +457,14 @@
     setPickerSupportLogPath: function (filePath) {
       state.pickerSupportLogPath = filePath || null;
       notify();
+    },
+
+    setRuleDefaults: function (defaults) {
+      state.ruleDefaults = {
+        infSampling: defaults && defaults.infSampling || null,
+        suspiciousKeywordDefaults: defaults && Array.isArray(defaults.suspiciousKeywordDefaults) ? defaults.suspiciousKeywordDefaults.slice() : null
+      };
+      bump();
     },
 
     setProject: function (project) {

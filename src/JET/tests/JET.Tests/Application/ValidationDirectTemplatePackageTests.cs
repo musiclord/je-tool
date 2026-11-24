@@ -602,7 +602,8 @@ public sealed class ValidationDirectTemplatePackageTests
             new InfReportContext(
                 Context().Project,
                 "inf-run",
-                new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero)),
+                new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
+                123_456_789),
             ReportWriterTestSupport.SyntheticMetadata(),
             [],
             CancellationToken.None);
@@ -663,7 +664,8 @@ public sealed class ValidationDirectTemplatePackageTests
             new InfReportContext(
                 Context().Project,
                 "inf-run",
-                new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero)),
+                new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
+                123_456_789),
             ReportWriterTestSupport.SyntheticMetadata(),
             [],
             CancellationToken.None);
@@ -762,7 +764,8 @@ public sealed class ValidationDirectTemplatePackageTests
             new InfReportContext(
                 Context().Project,
                 "inf-run",
-                new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero)),
+                new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
+                123_456_789),
             ReportWriterTestSupport.SyntheticMetadata(),
             [],
             CancellationToken.None);

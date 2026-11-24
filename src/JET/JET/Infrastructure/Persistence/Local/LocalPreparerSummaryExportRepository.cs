@@ -24,8 +24,8 @@ public sealed class LocalPreparerSummaryExportRepository(ILocalProjectDatabase d
         // 編製者彙總與 prescreen.run 共用有效分錄母體。
         await using var command = connection.CreateCommand();
         // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與預篩選編製者彙總同口徑）。
-        var person = LocalPrescreenRunRepository.PersonKey(database.Dialect);
-        var personKey = database.Dialect.Upper(person);
+        var person = PersonIdentity.PreparerDisplay(database.Dialect);
+        var personKey = PersonIdentity.GroupKey(database.Dialect, person);
         command.CommandText =
             $"""
             WITH grouped AS (

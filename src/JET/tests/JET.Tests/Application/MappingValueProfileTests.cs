@@ -133,7 +133,7 @@ public sealed class MappingValueProfileTests
     private static async Task CreateAsync(HandlerTestHost host, string provider) =>
         _ = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            projectName = "第6批合成值概況", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "值概況合成案件",periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
 
     private static Task<JsonElement> ProfileAsync(HandlerTestHost host, object payload) =>

@@ -146,7 +146,11 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
                 DayType,
                 filePath,
                 File.Exists(filePath),
-                extension));
+                extension)
+            {
+                // 清單的日期照這個案件讀 GL 日期的方式讀，民國年開關也一樣。
+                DateOptions = document.DateParseOptions
+            });
 
         // 欄名固定在第 2 列，畫面不能改欄名列；找不到欄名時照舊說工作表是空的。
         // 有公式、卻沒有存計算結果的格數，匯入完成後寫進提醒；第 1 列的標題不計。
@@ -239,7 +243,7 @@ public sealed class ImportMakeupDayFromFileHandler : ImportCalendarFromFileHandl
 
 /// <summary>
 /// calendar.setNonWorkingDays：設定這個案件一週哪幾天是休息日，用 .NET DayOfWeek 的數字，週日是 0、週六是 6，
-/// 預設週六與週日。設定存在 project.json，會影響週末過帳、週末核准兩條預篩選規則與週末的篩選條件。
+/// 預設週六與週日。設定記在案件資料庫，同時寫進設定檔，作業以資料庫為準；它會影響週末過帳、週末核准兩條預篩選規則與週末的篩選條件。
 /// Payload 是 `{ days: [int, …] }`；值要在 0 到 6 之間，否則回 invalid_payload。
 /// </summary>
 public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
@@ -275,17 +279,26 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
                 document.NonWorkingDays,
                 requested));
 
-        // 先清掉依休息日算出的結果，再存新設定。清除失敗時設定還是舊值，重試會再清一次；
-        // 順序反過來的話，設定已經存好，重試時因為新舊值相同而跳過清除，舊的命中就留下來了。
-        if (plan.ShouldExecute)
-        {
-            await repositories.ReferenceDataFacts.ExecuteAsync(plan, cancellationToken);
-        }
-
+        // 設定檔與案件資料庫無法共用交易，所以把存檔放進清除結果的交易裡：先清掉依休息日算出的結果、
+        // 在資料庫記下新的休息日，存好設定檔後才提交。存檔失敗時交易回復，結果與舊的休息日都還在，重送即可；
+        // 提交失敗時把舊設定寫回，不留下新休息日搭配舊命中的狀態。
         var result = JetAuditProgram.Finalize(plan);
         if (plan.ShouldExecute)
         {
-            await projectStore.SaveAsync(document with { NonWorkingDays = result.NormalizedDays }, cancellationToken);
+            var settingsSaved = false;
+            try
+            {
+                await repositories.ReferenceDataFacts.ExecuteAsync(plan, async token =>
+                {
+                    await projectStore.SaveAsync(document with { NonWorkingDays = result.NormalizedDays }, token);
+                    settingsSaved = true;
+                }, cancellationToken);
+            }
+            catch when (settingsSaved)
+            {
+                await projectStore.SaveAsync(document, CancellationToken.None);
+                throw;
+            }
         }
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(

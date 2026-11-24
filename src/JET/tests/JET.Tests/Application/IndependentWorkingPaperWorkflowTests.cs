@@ -53,10 +53,14 @@ public sealed class IndependentWorkingPaperWorkflowTests
         Assert.False(report.GetProperty("stale").GetBoolean());
         var folder = Path.Combine(host.ProjectsRoot, setup.ProjectId);
         Assert.Empty(Directory.GetFiles(folder, "*CriteriaSelectionReport*.xlsx"));
-        Assert.Empty(Directory.GetFiles(folder, "*PrescreeningReport*.xlsx"));
+        Assert.Empty(Directory.GetFiles(folder, "*Pre-screeningReport*.xlsx"));
         using var book = new XLWorkbook(Path.Combine(folder, report.GetProperty("fileName").GetString()!));
         Assert.True(book.Worksheet(WorkingPaperSheetCatalog.Step41).RowsUsed().Count() > 1);
         var after = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = setup.ProjectId }));
+        // 報告清單也沒有這兩種報告；這一項不看檔名。
+        Assert.DoesNotContain(
+            after.GetProperty("reports").EnumerateArray(),
+            listed => listed.GetProperty("kind").GetString() is "prescreenReport" or "criteriaSelectionReport");
         Assert.False(after.GetProperty("staleState").GetProperty("filter").GetBoolean());
         Assert.Single(after.GetProperty("filterScenarios").EnumerateArray());
     }

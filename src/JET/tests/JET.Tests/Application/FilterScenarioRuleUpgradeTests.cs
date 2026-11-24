@@ -87,6 +87,38 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.NotEmpty(problem.Messages);
     }
 
+    // 已存情境對金額選了「空白」：金額來源空白時存成 0，這種條件一定是 0 筆。開案時用正式的檢查環境列出來，
+    // 原因寫出改法；同一批裡對金額選「非空白」的情境不改變結果，不列。
+    [Fact]
+    public void SavedBlankAmountCondition_IsListedOnLoadWithWhatToUseInstead()
+    {
+        var project = new ProjectDocument("never-blank", "", "", "test", "2025-01-01", "2025-12-31", null,
+            100, "AwayFromZero", DateTimeOffset.UnixEpoch, 5, ProjectDocument.CurrentSchemaVersion);
+        var mapping = new CommittedMapping(DatasetKind.Gl, new Dictionary<string, string>
+        {
+            ["voucherNumber"] = "Voucher", ["glDate"] = "Date", ["accountNumber"] = "Account",
+            ["accountName"] = "Name", ["description"] = "Description", ["amount"] = "Amount"
+        }, "signed", "gl-batch", DateTimeOffset.UnixEpoch,
+            GlOptions: new GlMappingOptions("unmapped", null, new GlManualAutoPolicy([], []), []));
+        var context = FilterValidationContextFactory.Create(project, mapping, null, false, GlPopulationScope.AuditPeriod);
+        const string blankAmount = """{"join":"AND","type":"fieldValue","field":"amount","operator":"isBlank","amountBasis":"absolute","includeBlank":false}""";
+        const string notBlankAmount = """{"join":"AND","type":"fieldValue","field":"amount","operator":"isNotBlank","amountBasis":"absolute","includeBlank":false}""";
+
+        var result = FilterScenarioRuleUpgrade.Evaluate(
+            [
+                Saved(1, Definition(RuleLogicVersions.Filter, rule: notBlankAmount)),
+                Saved(2, Definition(RuleLogicVersions.Filter, rule: blankAmount))
+            ],
+            context, moneyScale: 100, NowUtc);
+
+        Assert.Equal(FilterScenarioUpgradeStatus.NeedsEdit, result.Status);
+        var problem = Assert.Single(result.Problems);
+        Assert.Equal(2, problem.Position);
+        Assert.Equal(
+            ["第 1 組第 1 條：GL 中的金額不會空白，來源空白的金額已當成 0；要找 0 元的分錄，請改用「指定金額」填 0"],
+            problem.Messages);
+    }
+
     [Fact]
     public void CurrentValidBatch_StaysCurrentWithoutNewVersions()
     {

@@ -268,5 +268,5 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         manifest.Procedures.Single(verdict =>
             string.Equals(verdict.Definition.Slug, slug, StringComparison.Ordinal));
 
-    private static decimal ToDisplay(long scaled, int moneyScale) => (decimal)scaled / moneyScale;
+    private static decimal ToDisplay(long scaled, int moneyScale) => MoneyScaling.FromScaled(scaled, moneyScale);
 }

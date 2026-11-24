@@ -46,13 +46,6 @@ public sealed class SensitiveDataPolicyTests
     }
 
     [Fact]
-    public void TrackedAppearanceSnapshots_UseTheClosedValueBlindSchemaWhenPresent()
-    {
-        SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.SolutionRoot);
-    }
-
-    [Fact]
     public void TrackedSensitivePath_IsRejectedWithActualPath()
     {
         using var directory = new TemporaryGuardDirectory();

@@ -5,6 +5,7 @@ using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
@@ -83,6 +84,7 @@ public sealed class FilterScenarioSaveBranchTests
         using var host = new HandlerTestHost();
         var projectId = await PrepareAsync(host, provider);
         var before = await SnapshotAsync(host, projectId, provider);
+        ProjectJsonEdits.ReleaseReadOnly(ProjectJsonPath(host, projectId));
         File.Delete(ProjectJsonPath(host, projectId));
 
         var error = await Assert.ThrowsAsync<JetActionException>(() => SaveAsync(host, null, null, Scenario("情境甲", "debit")));
@@ -468,7 +470,7 @@ public sealed class FilterScenarioSaveBranchTests
     {
         var document = JsonNode.Parse(await File.ReadAllTextAsync(projectPath))!.AsObject();
         document["currentStep"] = step;
-        await File.WriteAllTextAsync(projectPath, document.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(projectPath, document.ToJsonString());
     }
 
     private static async Task<int> StepAsync(string projectPath) =>

@@ -294,15 +294,43 @@ public interface IImportRepository
 
 public interface IProjectDatabaseInitializer
 {
-    /// <summary>建案時呼叫：沒有資料庫就建立，已經建好的只檢查版本。</summary>
+    /// <summary>
+    /// 沒有資料庫就建立資料表，已經建好的只檢查版本。不寫入以案件資料庫為準的案件設定，
+    /// 只給直接讀寫資料表、不經過開案的程式用；建案用另一個多傳設定的多載。
+    /// </summary>
     Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// 建案時呼叫：沒有資料庫就建立，建表的同一個交易裡寫入 <paramref name="settings"/>，
+    /// 讓建好的案件資料庫一定有案件設定；已經建好的只檢查版本。
+    /// </summary>
+    Task EnsureCreatedAsync(string projectId, ProtectedProjectSettings settings, CancellationToken cancellationToken);
+
+    /// <summary>
     /// 開啟既有案件時呼叫：資料庫一定要已經建好而且是現行版本，不建立新的資料庫。
-    /// 沒有另外實作的資料庫照舊用 <see cref="EnsureCreatedAsync"/>。
+    /// 沒有另外實作的資料庫照舊用 <see cref="EnsureCreatedAsync(string, CancellationToken)"/>。
     /// </summary>
     Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
         EnsureCreatedAsync(projectId, cancellationToken);
+
+    /// <summary>
+    /// 開案時呼叫，和不傳設定的多載相同；只有上一次建案在建好資料庫之前中斷，要在這裡把資料庫建完時，
+    /// 才呼叫 <paramref name="settingsIfCreating"/> 取得案件設定，在建表的同一個交易裡寫入。
+    /// </summary>
+    Task EnsureExistingAsync(
+        string projectId,
+        Func<CancellationToken, Task<ProtectedProjectSettings>> settingsIfCreating,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// 讀案件資料庫記的案件設定（見 <see cref="ProtectedProjectSettings"/>）。期末財報準備日與每週休息日的修改，
+/// 由清除相依結果的同一個交易寫入，不經過這個介面。
+/// </summary>
+public interface IProjectSettingStore
+{
+    /// <summary>資料庫沒有這一列設定，或記的值不合法時，回資料庫損壞的訊息，不從設定檔補造。</summary>
+    Task<ProtectedProjectSettings> ReadAsync(string projectId, CancellationToken cancellationToken);
 }
 
 /// <summary>

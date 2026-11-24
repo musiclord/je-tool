@@ -66,13 +66,14 @@ internal static partial class GuiScenarios
         await Click("[data-action=cancel-operation]");
         await WaitForFixtureEventAsync(ownedRun, process, "delay-export-progress-once", "delay.cancelled", ct);
         // 遮罩收起、主畫面不再鎖住，仍在第四步；訊息寫出已要求取消與已取消，不另外顯示失敗提示框。
+        // 審計員自己取消不算產生失敗：範本區塊回到按下前的樣子。開案後第一次建立，按下前沒有任何狀態，所以區塊裡沒有狀態列。
         await Check("state.project && state.project.projectId===" + JsonSerializer.Serialize(readyId) +
             " && state.currentStepIndex===3 && !state.activeRequestId && !state.operationFailure" +
             " && document.querySelector('[data-bind=busy-overlay]').hidden && !document.querySelector('[data-jet-root]').inert" +
             " && document.querySelector('[data-action=cancel-operation]').hidden" +
             " && state.messages.some(m=>m.text.startsWith('已要求取消「建立科目配對範本」'))" +
             " && state.messages.some(m=>m.text.startsWith('建立科目配對範本已取消（'))" +
-            " && !!state.validationOutput.template && state.validationOutput.template.status==='failed'" +
+            " && state.validationOutput.template===null && !document.querySelector('[data-validation-output=template]')" +
             " && !!document.querySelector('[data-action=ensure-account-mapping-template]:not(:disabled)')");
         var templatePath = Path.Combine(projectsRoot, readyId, templateName);
         if (File.Exists(templatePath))

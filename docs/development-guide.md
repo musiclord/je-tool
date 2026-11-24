@@ -76,17 +76,17 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug
 ## 驗證
 
 所有正式驗證從 `tools/verify.ps1` 進入，日常改動用 `Focused`，整批改動用 `Public`，改過文件跑 `Documentation`。
-命令清單、參數、結束碼與較重的路線（`Package`、`Gui`、`Excel`、`PrivateCase`、`ReleaseCandidate`）
+命令清單、參數、結束碼與較重的路線（`Package`、`Gui`、`Excel`、`ReleaseCandidate`）
 都在 [`../tools/README.md`](../tools/README.md)，這裡不重複。每次回報只能涵蓋實際執行的命令；舊專案的建置、測試或
 資料庫結果不能當成 `je-tool` 的驗證結果。
 
 要找哪些程式沒有被測試執行到時，先建置 Debug，清掉 `tools/harness/lanes.json` 的 `environmentVariablesToRemove` 列出的環境變數，
-再直接執行建置出來的測試程式並收集涵蓋率。下面的命令排除私人案件與大資料量兩類測試，和 `Public` 相同：
+再直接執行建置出來的測試程式並收集涵蓋率。下面的命令排除大資料量的測試，和 `Public` 相同：
 
 ```powershell
 src\JET\tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-directory <暫存資料夾> --coverage `
   --coverage-output-format cobertura --coverage-output jet.cobertura.xml `
-  --filter-not-trait TestProfile=PrivateCase TestProfile=Scale
+  --filter-not-trait TestProfile=Scale
 ```
 
 這是找缺口用的量法，不是正式驗證，也不產生收據。
@@ -105,7 +105,7 @@ src\JET\tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-direct
 寫新測試時，只讀 `src/JET` 裡的檔案就放在測試專案，用 `TestRepositoryPaths.SolutionRoot` 找位置，它指向 `JET.slnx` 所在的資料夾。
 要讀外面的檔案就寫在 `tools/harness/development-repository-tests/`，用 `TestRepositoryPaths.RepositoryRoot` 找位置，同時加上這個標記。
 同一個資料夾的 `SolutionFolderSelfContainedTests` 會掃 `src/JET`，裡面提到只有開發儲存庫才有的東西就失敗，
-例如 `AGENTS.md`、`tools/harness`、`RepositoryRoot`、`DevelopmentRepository`，以及真實案件驗收程式與舊版輸出比對程式的名稱。
+例如 `AGENTS.md`、`tools/harness`、`RepositoryRoot` 與 `DevelopmentRepository`。
 
 本機設定、秘密、連線字串、案件資料夾、建置輸出與 WebView2 使用者資料都不得加入原始碼樹。
 

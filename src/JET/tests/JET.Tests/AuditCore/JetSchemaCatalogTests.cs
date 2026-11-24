@@ -131,6 +131,7 @@ public sealed class JetSchemaCatalogTests
     [InlineData("gl_rde_field", "GL_RDE_FIELD", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("gl_control_total", "GL_CONTROL_TOTAL", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("result_stale_state", "RESULT_STALE_STATE", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("project_setting", "PROJECT_SETTING", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("message_log", "MESSAGE_LOG", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("operation_log", "OPERATION_LOG", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("schema_info", "SCHEMA_INFO", SchemaLayer.System, SchemaAudience.Hidden)]
@@ -160,7 +161,7 @@ public sealed class JetSchemaCatalogTests
             "tb", "validation_result", "prescreen_result", "filter_hit", "filter_hit_condition",
             "inf_sample", "field_mapping", "field_mapping_previous",
             "account_category", "account_category_path",
-            "filter_scenario", "gl_rde_field", "result_stale_state",
+            "filter_scenario", "gl_rde_field", "result_stale_state", "project_setting",
             "import_batch", "import_batch_source", "field_info", "gl_control_total", "message_log",
             "operation_log",
             "schema_info", "pbc_account_mapping", "pbc_authorized_preparer",

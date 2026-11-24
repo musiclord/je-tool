@@ -129,29 +129,8 @@ public static class TbRowProjector
         TbMappingSpec spec,
         string key,
         out decimal value,
-        out RowProjectionError? error)
-    {
-        value = 0m;
-        error = null;
-
-        var raw = GetMappedValue(row, spec, key);
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return true;
-        }
-
-        if (MoneyScaling.TryParseAmount(raw, out value))
-        {
-            return true;
-        }
-
-        error = new RowProjectionError(
-            row.SourceRowNumber,
-            MappedColumnOrKey(spec, key),
-            raw,
-            ProjectionErrorReasons.AmountInvalid);
-        return false;
-    }
+        out RowProjectionError? error) =>
+        MappedAmountCell.TryParse(row, spec.Mapping, key, out value, out error);
 
     private static string? GetMappedValue(StagingRow row, TbMappingSpec spec, string key)
     {

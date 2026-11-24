@@ -92,6 +92,25 @@ python tools/harness/architecture/package-redraw.py --research-root <研究目�
 圖表自帶的檢查記錄仍有原來的用途。這項檢查不取代 LikeC4 模型檢查、Archify finalize、
 實際看圖或業務流程驗證，也不證明業務結果正確。
 
+## 圖表目錄會交給審查人員
+
+SAT 送審的技術文件指向 `docs/architecture`，這個資料夾會跟著送審文件交給公司內部的審查人員。依使用者 2026-11-23 的要求，
+`docs/architecture` 底下的說明、圖面文字、證據摘錄與來源清單都不提開發用的工具與流程文件，也不放指向 `tools/`、`.agents/`
+或 `docs/specs/` 的維護說明；維護方式只寫在本檔與[分析與繪圖](../../../.agents/harness/architecture-documentation.md)。
+第三方授權檔照原文保留。
+
+- 已核對事實要引用專案文件時，引用 `docs/` 的現行文件，例如系統規格與專案背景，不引用專案的開發指南。
+  摘錄範圍避開談開發工具的那幾行，必要時拆成兩段。
+- 封裝時 `package-redraw.py` 會把快照來源清單裡開發流程文件與開發工具的檔案濾掉，並在清單的 `omittedFromPackagedList` 寫明筆數。
+  證據引用到被濾掉的檔案時，文件檢查會因為來源清單找不到那個檔案而失敗。
+- 2026-11-23 這一次沒有重跑繪圖工具，直接改了圖表目錄裡的檔案並更新 `manifest.json` 的雜湊。改到的是部署圖的一張卡片、
+  LikeC4 模型裡 Windows 工作站的說明、兩項已核對事實的來源與其中一項的說明、來源清單，以及配色檔裡提到封裝腳本的註解。
+  研究目錄的已核對事實與重繪規格還是舊的內容，下一次重繪前要先照這裡改好，否則舊的文字會再被封裝進來。
+  部署圖的 `finalizedHtmlSha256` 與 LikeC4 的 `sourceSha256` 記的是這次修改之前工具輸出的雜湊，沒有更動。
+- 2026-11-24 使用者要求移除測試專案裡由真實案件衍生的內容，測試專案刪掉了從兩個舊版案件輸出抽出的 12 份外觀快照。
+  這一次也沒有重跑繪圖工具：來源清單直接拿掉這 12 筆，`omittedFromPackagedList` 改寫成 69 筆，再更新 `manifest.json` 裡來源清單的雜湊。
+  這 12 份快照還留在刪除之前取的程式快照裡，所以 `package-redraw.py` 也會濾掉這個資料夾，並把筆數寫進 `omittedFromPackagedList`。
+
 ## 只調整閱讀文字時
 
 從交付目錄的 `archify/*/candidate.json` 與 `likec4/jet.c4` 取得來源。保留節點、關係、程式名稱與證據編號，修改標題、說明和卡片後，仍須重新執行 Archify finalize、LikeC4 build 與本工具封裝。

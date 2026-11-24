@@ -41,6 +41,12 @@ internal static class AccountComparisonProcedure
             ? MissingTbImportNote
             : MissingTbMappingNote;
 
+    /// <summary>
+    /// 逐科目比對能不能執行；<paramref name="naReason"/> 是無法執行的原因句，能執行時是 null。
+    /// 無法執行時不讀差異科目：這時只有 GL 的科目都會被算成差異，不能拿來判定有沒有完整性差異。
+    /// </summary>
+    internal static bool IsApplicable(string? naReason) => naReason is null;
+
     internal static AccountComparisonPlan Plan(AccountComparisonRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

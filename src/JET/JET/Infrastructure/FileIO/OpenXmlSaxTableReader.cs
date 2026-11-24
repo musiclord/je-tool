@@ -438,10 +438,14 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     // ---- cell 值萃取 ----
 
-    /// <summary>每個活頁簿只解析一次的三項資料：共用字串表、每個樣式是日期還是時間，以及是否使用 1904 日期系統。</summary>
+    /// <summary>
+    /// 每個活頁簿只解析一次的資料：共用字串表、每個樣式是日期還是時間、哪些樣式的內建格式在繁體中文版只顯示時間，
+    /// 以及是否使用 1904 日期系統。
+    /// </summary>
     private sealed record CellContext(
         IReadOnlyList<string> SharedStrings,
         ExcelNumberKind[] StyleKinds,
+        bool[] TraditionalChineseTimeStyles,
         bool Date1904)
     {
         public static CellContext Create(SpreadsheetDocument document, CancellationToken cancellationToken)
@@ -449,11 +453,16 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             var workbookPart = document.WorkbookPart;
             if (workbookPart is null)
             {
-                return new CellContext([], [], false);
+                return new CellContext([], [], [], false);
             }
 
             var date1904 = workbookPart.Workbook?.WorkbookProperties?.Date1904?.Value ?? false;
-            return new CellContext(ReadSharedStrings(workbookPart, cancellationToken), ReadStyleKinds(workbookPart), date1904);
+            var numberFormatIds = ReadNumberFormatIds(workbookPart);
+            return new CellContext(
+                ReadSharedStrings(workbookPart, cancellationToken),
+                ReadStyleKinds(workbookPart, numberFormatIds),
+                numberFormatIds.Select(ExcelDateFormatDetector.IsTimeInTraditionalChinese).ToArray(),
+                date1904);
         }
     }
 
@@ -509,17 +518,17 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         return builder.ToString();
     }
 
-    private static ExcelNumberKind[] ReadStyleKinds(WorkbookPart workbookPart)
-    {
-        // styles.xml 恆小，DOM 載入；cellXfs 的 numFmtId 為準（不依賴 applyNumberFormat 旗標，
-        // 與 Excel 實際呈現一致）
-        if (workbookPart.WorkbookStylesPart?.Stylesheet is not { } stylesheet)
-        {
-            return [];
-        }
+    // 每個樣式的數字格式編號，依 cellXfs 的順序。styles.xml 恆小，DOM 載入；cellXfs 的 numFmtId 為準
+    // （不依賴 applyNumberFormat 旗標，與 Excel 實際呈現一致）。
+    private static int[] ReadNumberFormatIds(WorkbookPart workbookPart) =>
+        (workbookPart.WorkbookStylesPart?.Stylesheet?.CellFormats?.Elements<CellFormat>() ?? [])
+            .Select(xf => (int)(xf.NumberFormatId?.Value ?? 0))
+            .ToArray();
 
+    private static ExcelNumberKind[] ReadStyleKinds(WorkbookPart workbookPart, int[] numberFormatIds)
+    {
         var customFormats = new Dictionary<int, string>();
-        foreach (var format in stylesheet.NumberingFormats?.Elements<NumberingFormat>() ?? [])
+        foreach (var format in workbookPart.WorkbookStylesPart?.Stylesheet?.NumberingFormats?.Elements<NumberingFormat>() ?? [])
         {
             if (format.NumberFormatId?.Value is { } id && format.FormatCode?.Value is { } code)
             {
@@ -527,8 +536,8 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             }
         }
 
-        return (stylesheet.CellFormats?.Elements<CellFormat>() ?? [])
-            .Select(xf => ExcelDateFormatDetector.Classify((int)(xf.NumberFormatId?.Value ?? 0), customFormats))
+        return numberFormatIds
+            .Select(numberFormatId => ExcelDateFormatDetector.Classify(numberFormatId, customFormats))
             .ToArray();
     }
 
@@ -615,6 +624,15 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
         if (kind == ExcelNumberKind.Date)
         {
+            // 繁體中文版只顯示時間的內建格式，值小於 1 時沒有日期的部分。換成日期只會得到同一個 1900 年 1 月 0 日，
+            // 不同的時間就分不出來，所以交出序列值的文字，確認配對時這個值列為無法辨識的日期。
+            if (!context.Date1904 && number is >= 0 and < 1
+                && cell.StyleIndex?.Value is { } styleIndex && styleIndex < (uint)context.TraditionalChineseTimeStyles.Length
+                && context.TraditionalChineseTimeStyles[styleIndex])
+            {
+                return new ExtractedCellValue(DateNormalizer.ExcelSerialText(number), LegacyFieldKind.Date, DecimalPlaces: null);
+            }
+
             if (TryFormatSerialDate(number, context.Date1904, out var isoDate))
             {
                 return new ExtractedCellValue(isoDate, LegacyFieldKind.Date, DecimalPlaces: null);
@@ -697,24 +715,11 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             : ExcelNumberKind.None;
     }
 
+    // 照 Excel 顯示的年月日換算；Excel 顯示不出日期時，例如負數，呼叫端改交出序列值的文字，確認配對時再判斷。
     private static bool TryFormatSerialDate(double serial, bool date1904, out string isoDate)
     {
-        isoDate = string.Empty;
-
-        // 1904 日期系統的序列值原點晚 1462 天
-        var oaDate = date1904 ? serial + 1462 : serial;
-
-        // 超出 DateTime.FromOADate 能接受的範圍時，例如負數，不轉成日期；呼叫端改交出序列值的文字，確認配對時再判斷。
-        // 上限是 9999-12-31 當天，也就是 Excel 日期的最後一天。
-        if (!double.IsFinite(oaDate) || oaDate is < -657434 or >= 2958466)
-        {
-            return false;
-        }
-
-        var date = DateTime.FromOADate(oaDate);
-        if (!DateNormalizer.IsReadableExcelDate(date)) return false;
-        isoDate = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        return true;
+        isoDate = ExcelSerialDate.ShownDate(serial, date1904) ?? string.Empty;
+        return isoDate.Length > 0;
     }
 
     // ---- 參考解析 ----

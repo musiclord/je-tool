@@ -23,7 +23,7 @@ namespace JET.Infrastructure;
 /// 沒有命中的分錄不在對照表裡，由 handler 補成空陣列。
 ///
 /// 每一頁的第一個查詢都會重算整個情境的命中傳票，適合畫面一次讀一頁。條件篩選報告要讀完整個情境，
-/// 改用 <see cref="StreamAsync"/> 一個查詢讀完，命中傳票只算一次，讀出的分錄與順序和逐頁讀完相同。
+/// 改用 <see cref="StreamAsync"/> 一個查詢讀完，命中傳票只算一次，讀出的分錄和逐頁讀完相同，順序改依傳票號碼。
 /// </summary>
 internal static class HighRiskSummaryRowPageReader
 {
@@ -41,23 +41,7 @@ internal static class HighRiskSummaryRowPageReader
         "SELECT g.voucher_number, g.line_item, g.gl_date, g.approval_date, g.created_by, g.approved_by, " +
         "       g.account_number, g.account_name, g.amount_scaled, g.description, g.entry_id{suffix} " +
         $"FROM {schemaPrefix}gl g " +
-        $"WHERE {populationPredicate} AND {HitVoucherPredicate(schemaPrefix, scenarioPredicate, hitPopulationPredicate)}";
-
-    /// <summary>
-    /// 分錄所屬的傳票是命中傳票：母體裡有分錄命中所選情境、傳票號碼不是空白的傳票。
-    /// <paramref name="populationPredicate"/> 是命中分錄 g2 的母體條件。
-    /// 子查詢不引用外層的 g，整個查詢只算一次命中傳票的集合；分錄層與傳票層都用這一段。
-    /// </summary>
-    internal static string HitVoucherPredicate(
-        string schemaPrefix,
-        string scenarioPredicate,
-        string populationPredicate) =>
-        "g.voucher_number IN ( " +
-        $"    SELECT DISTINCT g2.voucher_number FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
-        $"    JOIN {schemaPrefix}gl g2 ON g2.entry_id = r.entry_id " +
-        $"    WHERE g2.voucher_number IS NOT NULL AND {populationPredicate} " +
-        scenarioPredicate +
-        ") ";
+        $"WHERE {populationPredicate} AND {HitVoucherRows.InSavedScenarioHitVouchers(schemaPrefix, scenarioPredicate, hitPopulationPredicate)}";
 
     private const string PageSqlTail = "";
 
@@ -175,14 +159,14 @@ internal static class HighRiskSummaryRowPageReader
 
     /// <summary>
     /// 條件篩選報告讀一個情境的整張傳票分錄：一個查詢從頭讀到尾，命中傳票的子查詢只執行一次。
-    /// 讀出的分錄與順序，和 <see cref="ReadAsync"/> 只指定這個情境、沒有指定排序時逐頁讀完相同：
-    /// 母體條件與命中傳票的寫法共用同一段 SQL，依 entry_id 升冪。
+    /// 讀出的分錄和 <see cref="ReadAsync"/> 只指定這個情境時逐頁讀完相同：母體條件與命中傳票的寫法共用同一段 SQL。
+    /// 順序照舊版的明細表：依傳票號碼升冪，傳票號碼依字元碼比較；同一張傳票照原本的列順序，也就是 entry_id 升冪。
     /// 第二欄是這筆分錄本身有沒有命中這個情境，和逐頁讀的第二個查詢相同；列出的分錄都已在母體裡。
     /// 結果由只能往前讀的 reader 逐列交出，不像逐頁讀那樣每一頁都重算整個情境的命中傳票。
     ///
-    /// 查詢先從傳票號碼索引取出命中傳票的全部 entry_id 並排好，再依 entry_id 順序回 gl 檢查母體條件與命中。
-    /// 總帳依科目或其他欄位排序匯入時，同一張傳票的分錄散在整張表；直接依傳票號碼逐張讀會到處跳讀，
-    /// 先排好 entry_id 再讀就是依序讀，結果與順序不變。
+    /// 查詢先從傳票號碼索引取出命中傳票的全部 entry_id 並排好，再依 entry_id 順序回 gl 檢查母體條件與命中，
+    /// 最後才依傳票號碼排序。總帳依科目或其他欄位排序匯入時，同一張傳票的分錄散在整張表；
+    /// 直接依傳票號碼逐張讀會到處跳讀，先依 entry_id 依序讀完，再只排序 entry_id、傳票號碼與命中三個值。
     /// </summary>
     public static async IAsyncEnumerable<(long EntryId, bool IsHit)> StreamAsync(
         DbConnection connection,
@@ -199,7 +183,7 @@ internal static class HighRiskSummaryRowPageReader
         command.CommandText =
             "WITH hit_voucher_entry(entry_id) AS MATERIALIZED (" +
             $"    SELECT g.entry_id FROM {schemaPrefix}gl g WHERE " +
-            HitVoucherPredicate(schemaPrefix, scenarioScope.Predicate(), GlPopulationScopeSql.Predicate(context, "g2")) +
+            HitVoucherRows.InSavedScenarioHitVouchers(schemaPrefix, scenarioScope.Predicate(), GlPopulationScopeSql.Predicate(context, "g2")) +
             "    ORDER BY g.entry_id) " +
             "SELECT g.entry_id, EXISTS (" +
             $"    SELECT 1 FROM {schemaPrefix}filter_hit h JOIN {schemaPrefix}filter_scenario hs ON hs.scenario_id = h.scenario_id " +
@@ -208,7 +192,7 @@ internal static class HighRiskSummaryRowPageReader
             ") AS is_hit " +
             $"FROM hit_voucher_entry e CROSS JOIN {schemaPrefix}gl g ON g.entry_id = e.entry_id " +
             $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} " +
-            "ORDER BY e.entry_id;";
+            "ORDER BY g.voucher_number, e.entry_id;";
         command.CommandTimeout = 0;
 
         await using var reader = await command.ExecuteReaderAsync(
@@ -301,12 +285,9 @@ internal static class HighRiskSummaryRowPageReader
                 $"LEFT JOIN {schemaPrefix}pbc_gl raw " +
                 "  ON raw.batch_id = g.batch_id AND raw.row_number = g.source_row_number " +
                 $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} " +
-                "AND (g.voucher_number IN ( " +
-                $"    SELECT DISTINCT g2.voucher_number FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
-                $"    JOIN {schemaPrefix}gl g2 ON g2.entry_id = r.entry_id " +
-                $"    WHERE g2.voucher_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "g2")} " +
-                scenarioScope.Predicate() +
-                ") OR (g.voucher_number IS NULL AND EXISTS (" +
+                "AND (" +
+                HitVoucherRows.InSavedScenarioHitVouchers(schemaPrefix, scenarioScope.Predicate(), GlPopulationScopeSql.Predicate(context, "g2")) +
+                $"OR ({HitVoucherRows.HasNoVoucherNumber("g")} AND EXISTS (" +
                 $"SELECT 1 FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id WHERE r.entry_id = g.entry_id " +
                 scenarioScope.Predicate("fs.position") + "))) " +
                 keyset +

@@ -77,6 +77,7 @@ public sealed class ProjectFolderPortabilityTests
         var sourceProjectDirectory = Path.Combine(sourceRoot.Path, projectId);
         var targetProjectDirectory = Path.Combine(targetRoot.Path, projectId);
         CopyDirectory(sourceProjectDirectory, targetProjectDirectory);
+        ProjectJsonEdits.ReleaseAllUnder(sourceProjectDirectory);
         Directory.Delete(sourceProjectDirectory, recursive: true);
 
         var shell = new RecordingHostShell();

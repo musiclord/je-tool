@@ -111,6 +111,17 @@ public static partial class AppCompositionRoot
         // 操作監看模組從旁記錄長時間的操作、跑太久或沒有正常結束的 SQL 與匯出進度，不改變操作的流程與結果。
         // 它只接在 dispatcher、SQLite 命令、事件發布與進入步驟的紀錄這四個地方。
         var operationMonitor = new OperationMonitor(loggerFactory.CreateLogger<OperationMonitor>(), operationMonitorOptions);
+        // 處理紀錄模組：操作成功後，把處理 GL 與 TB 的經過寫進案件資料夾給審計員追蹤，不改變操作的流程與結果。
+        // 它只接在 dispatcher 與事件發布兩個地方；讀情境的條件與筆數時，執行和畫面相同的唯讀查詢。
+        IReadOnlyDictionary<string, IApplicationActionHandler>? queryHandlers = null;
+        var processingLog = new ProcessingLogRecorder(
+            folder,
+            currentPrincipal.ResolveCreatorNameAsync,
+            (action, payload, cancellationToken) =>
+                queryHandlers is not null && queryHandlers.TryGetValue(action, out var handler)
+                    ? handler.HandleAsync(payload, cancellationToken)
+                    : throw new InvalidOperationException($"處理紀錄只能執行唯讀查詢，沒有 {action}。"),
+            loggerFactory.CreateLogger<ProcessingLogRecorder>());
         // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
         var sqliteDatabase = new SqliteProjectDatabase(
             folder,
@@ -121,6 +132,10 @@ public static partial class AppCompositionRoot
             folder,
             logger: loggerFactory.CreateLogger<ProjectReportStore>());
         var session = new ProjectSession();
+        // 開啟中的案件讀設定時，以案件資料庫記的設定為準。案件清單、建案、開案、刪除案件與刪除前預覽的 handler，
+        // 以及只顯示資料庫種類的開發者資料庫總覽，直接拿設定檔的 store：開案自己比對兩邊並提醒，其他的不靠這些設定作業。
+        IProjectStore protectedProjectStore = new ProtectedSettingsProjectStore(
+            projectStore, new LocalProjectSettingStore(sqliteDatabase));
         // LoggerFactory.Create 不會釋放以執行個體加入的 provider；支援日誌最後才釋放，先寫完排隊中的案件紀錄，
         // 包括放開工作鎖的那一筆。結束 JET 時先關閉目前案件的資料庫連線，再放開案件鎖。
         // 監看模組最先釋放：它另開的唯讀連線要在關閉案件資料庫之前結束，最後寫的紀錄也要在 logger 釋放前寫完。
@@ -142,7 +157,7 @@ public static partial class AppCompositionRoot
             // 從 catalog 選組，不碰 session。catalog 只認得 SQLite，其他種類回 unsupported_provider。
             var repositoryCatalog = CreateProjectRepositoryCatalog(
                 new ProjectRepositoryAssembly(
-                    projectStore,
+                    protectedProjectStore,
                     new ProjectCreateBackendPort(sqliteDatabase),
                     localFileLockService,
                     baseReportStore,
@@ -162,7 +177,7 @@ public static partial class AppCompositionRoot
 #endif
             var hostDialogProjectContext = new HostDialogProjectContext(session, folder);
             // 發給前端的事件照原樣送出後，匯出進度另外交給監看模組寫進日誌。
-            var events = new MonitoredEventPublisher(eventPublisher ?? new NullEventPublisher(), operationMonitor);
+            var events = new MonitoredEventPublisher(eventPublisher ?? new NullEventPublisher(), operationMonitor, processingLog);
             var cancellationRegistry = new RequestCancellationRegistry();
 
             List<IApplicationActionHandler> handlers =
@@ -176,7 +191,7 @@ public static partial class AppCompositionRoot
             new ProjectCreateHandler(
                 projectStore, repositoryCatalog, currentPrincipal, session,
                 supportCaseHistory, loggerFactory.CreateLogger<ProjectCreateHandler>()),
-            new ProjectUpdateHandler(projectStore, session, loggerFactory.CreateLogger<ProjectUpdateHandler>()),
+            new ProjectUpdateHandler(protectedProjectStore, session, loggerFactory.CreateLogger<ProjectUpdateHandler>()),
             new ProjectLoadHandler(
                 projectStore, repositoryCatalog, currentPrincipal, session,
                 loggerFactory.CreateLogger<ProjectLoadHandler>(), supportCaseHistory, sqliteDatabase),
@@ -200,55 +215,55 @@ public static partial class AppCompositionRoot
             new DemoExportAccountMappingFileHandler(demoFileWriter),
             new DemoExportAuthorizedPreparerFileHandler(demoFileWriter),
 #endif
-            new ImportGlFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportGlFromFileHandler>()),
-            new ImportTbFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger<ImportTbFromFileHandler>()),
+            new ImportGlFromFileHandler(fileReader, protectedProjectStore, session, events, loggerFactory.CreateLogger<ImportGlFromFileHandler>()),
+            new ImportTbFromFileHandler(fileReader, protectedProjectStore, session, events, loggerFactory.CreateLogger<ImportTbFromFileHandler>()),
             new ImportAccountMappingFromFileHandler(fileReader, session, loggerFactory.CreateLogger<ImportAccountMappingFromFileHandler>()),
             new ImportAuthorizedPreparerFromFileHandler(fileReader, session, loggerFactory.CreateLogger<ImportAuthorizedPreparerFromFileHandler>()),
             new ImportAuthorizedPreparerClearHandler(session, loggerFactory.CreateLogger<ImportAuthorizedPreparerClearHandler>()),
             new ImportInspectFileHandler(fileReader, loggerFactory.CreateLogger<ImportInspectFileHandler>()),
             new ImportPreviewFileHandler(fileReader),
-            new ImportHolidayHandler(projectStore, session, loggerFactory.CreateLogger<ImportHolidayHandler>()),
-            new ImportMakeupDayHandler(projectStore, session, loggerFactory.CreateLogger<ImportMakeupDayHandler>()),
-            new ImportHolidayFromFileHandler(fileReader, projectStore, session,
+            new ImportHolidayHandler(protectedProjectStore, session, loggerFactory.CreateLogger<ImportHolidayHandler>()),
+            new ImportMakeupDayHandler(protectedProjectStore, session, loggerFactory.CreateLogger<ImportMakeupDayHandler>()),
+            new ImportHolidayFromFileHandler(fileReader, protectedProjectStore, session,
                 loggerFactory.CreateLogger<ImportHolidayFromFileHandler>()),
-            new ImportMakeupDayFromFileHandler(fileReader, projectStore, session,
+            new ImportMakeupDayFromFileHandler(fileReader, protectedProjectStore, session,
                 loggerFactory.CreateLogger<ImportMakeupDayFromFileHandler>()),
             new CalendarSetNonWorkingDaysHandler(
-                projectStore, session, loggerFactory.CreateLogger<CalendarSetNonWorkingDaysHandler>()),
+                protectedProjectStore, session, loggerFactory.CreateLogger<CalendarSetNonWorkingDaysHandler>()),
             new MappingRestoreDraftHandler(mappingMetadataReader, mappingRestoreAuthorizations, session),
             new MappingValueProfileHandler(session),
-            new MappingCommitGlHandler(mappingRestoreAuthorizations, projectStore, session, events, loggerFactory.CreateLogger<MappingCommitGlHandler>()),
-            new MappingCommitTbHandler(projectStore, session, events, loggerFactory.CreateLogger<MappingCommitTbHandler>()),
-            new ValidateRunHandler(projectStore, session, loggerFactory.CreateLogger<ValidateRunHandler>()),
-            new PrescreenRunHandler(projectStore, session, loggerFactory.CreateLogger<PrescreenRunHandler>()),
-            new FilterPreviewHandler(projectStore, session),
-            new FilterCommitHandler(projectStore, session, loggerFactory.CreateLogger<FilterCommitHandler>()),
-            new FilterScenarioSaveHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioSaveHandler>()),
-            new FilterScenarioRemoveHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioRemoveHandler>()),
-            new FilterScenarioRecheckHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioRecheckHandler>()),
-            new ProjectSaveProgressHandler(projectStore, session),
-            new QueryDataPreviewHandler(projectStore, session),
-            new QueryCompletenessDiffPageHandler(projectStore, session),
+            new MappingCommitGlHandler(mappingRestoreAuthorizations, protectedProjectStore, session, events, loggerFactory.CreateLogger<MappingCommitGlHandler>()),
+            new MappingCommitTbHandler(protectedProjectStore, session, events, loggerFactory.CreateLogger<MappingCommitTbHandler>()),
+            new ValidateRunHandler(protectedProjectStore, session, loggerFactory.CreateLogger<ValidateRunHandler>()),
+            new PrescreenRunHandler(protectedProjectStore, session, loggerFactory.CreateLogger<PrescreenRunHandler>()),
+            new FilterPreviewHandler(protectedProjectStore, session),
+            new FilterCommitHandler(protectedProjectStore, session, loggerFactory.CreateLogger<FilterCommitHandler>()),
+            new FilterScenarioSaveHandler(protectedProjectStore, session, loggerFactory.CreateLogger<FilterScenarioSaveHandler>()),
+            new FilterScenarioRemoveHandler(protectedProjectStore, session, loggerFactory.CreateLogger<FilterScenarioRemoveHandler>()),
+            new FilterScenarioRecheckHandler(protectedProjectStore, session, loggerFactory.CreateLogger<FilterScenarioRecheckHandler>()),
+            new ProjectSaveProgressHandler(protectedProjectStore, session),
+            new QueryDataPreviewHandler(protectedProjectStore, session),
+            new QueryCompletenessDiffPageHandler(protectedProjectStore, session),
             new QueryAccountMappingBlankPageHandler(session),
             new QueryAccountMappingDifferencePageHandler(session),
-            new QueryVoucherBalancePageHandler(projectStore, session),
-            new QueryBlankRecordsPageHandler(projectStore, session),
+            new QueryVoucherBalancePageHandler(protectedProjectStore, session),
+            new QueryBlankRecordsPageHandler(protectedProjectStore, session),
             new QuerySourceQualityPageHandler(session),
-            new QueryFilterHitsPageHandler(projectStore, session),
+            new QueryFilterHitsPageHandler(protectedProjectStore, session),
             new QueryFilterVoucherPageHandler(session),
             new QueryFilterVoucherRowsPageHandler(session),
-            new QueryPrescreenPageHandler(projectStore, session),
-            new QueryInfSamplePageHandler(projectStore, session),
-            new QueryHighRiskSummaryScenariosHandler(projectStore, session),
-            new QueryHighRiskSummaryVoucherPageHandler(projectStore, session),
-            new QueryHighRiskSummaryRowPageHandler(projectStore, session),
-            new ExportWorkingPaperStreamHandler(projectStore, session, events),
-            new ExportValidationReportsHandler(projectStore, session, events),
-            new ExportPrescreenReportHandler(projectStore, session, events),
-            new ExportCriteriaSelectionReportHandler(projectStore, session, events),
+            new QueryPrescreenPageHandler(protectedProjectStore, session),
+            new QueryInfSamplePageHandler(protectedProjectStore, session),
+            new QueryHighRiskSummaryScenariosHandler(protectedProjectStore, session),
+            new QueryHighRiskSummaryVoucherPageHandler(protectedProjectStore, session),
+            new QueryHighRiskSummaryRowPageHandler(protectedProjectStore, session),
+            new ExportWorkingPaperStreamHandler(protectedProjectStore, session, events),
+            new ExportValidationReportsHandler(protectedProjectStore, session, events),
+            new ExportPrescreenReportHandler(protectedProjectStore, session, events),
+            new ExportCriteriaSelectionReportHandler(protectedProjectStore, session, events),
             // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。
             new ExportAccountMappingTemplateHandler(
-                accountMappingTemplateWriter, projectStore, folder, new LocalExportOutputFiles(), session, events),
+                accountMappingTemplateWriter, protectedProjectStore, folder, new LocalExportOutputFiles(), session, events),
             new LogAppendHandler(session),
             new LogRecentHandler(session),
             new SupportLogExportHandler(
@@ -285,6 +300,10 @@ public static partial class AppCompositionRoot
                 }
             }
 
+            queryHandlers = handlers
+                .Where(static handler => handler.Action.StartsWith("query.", StringComparison.Ordinal))
+                .ToDictionary(static handler => handler.Action, StringComparer.Ordinal);
+
             // 引擎錯誤映射：辨識 SQLite 強型樣；Bridge 只收 delegate，不依賴 Infrastructure，未知例外維持 bridge_error。
             var dispatcher = new ActionDispatcher(
                 handlers, loggerFactory.CreateLogger<ActionDispatcher>(), session,
@@ -293,7 +312,8 @@ public static partial class AppCompositionRoot
                 actionExecutionGate,
                 // SQLite 案件在變更型作業結束後把記錄檔併回資料庫檔。
                 sqliteDatabase,
-                operationMonitor);
+                operationMonitor,
+                processingLog);
 
             runtime = new JetApplicationRuntime(dispatcher, runtimeResources);
             // 啟動工作在背景執行，視窗照常立即顯示。
@@ -369,10 +389,11 @@ public static partial class AppCompositionRoot
     }
 
     /// <summary>
-    /// 先把事件照原樣交給原本的發布者，再讓監看模組讀匯出進度；監看模組出錯時吞掉，
+    /// 先把事件照原樣交給原本的發布者，再讓監看模組與處理紀錄模組讀匯出進度；它們出錯時吞掉，
     /// 前端收到的事件與發布的結果都不變。
     /// </summary>
-    private sealed class MonitoredEventPublisher(IJetEventPublisher inner, IOperationMonitor monitor) : IJetEventPublisher
+    private sealed class MonitoredEventPublisher(
+        IJetEventPublisher inner, IOperationMonitor monitor, IProcessingLog processingLog) : IJetEventPublisher
     {
         public void Publish(string eventName, object payload)
         {
@@ -384,6 +405,15 @@ public static partial class AppCompositionRoot
             catch (Exception)
             {
                 // 監看只做記錄，不影響事件發布。
+            }
+
+            try
+            {
+                processingLog.ObservePublishedEvent(eventName, payload);
+            }
+            catch (Exception)
+            {
+                // 處理紀錄只做記錄，不影響事件發布。
             }
         }
     }

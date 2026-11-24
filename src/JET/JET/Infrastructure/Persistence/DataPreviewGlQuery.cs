@@ -27,8 +27,8 @@ internal static class DataPreviewGlQuery
         var population = page switch
         {
             DataPreviewGlPage.Gl => GlExcludedPopulation.SqlPredicate(),
-            DataPreviewGlPage.Excluded => "is_excluded = 1",
-            DataPreviewGlPage.ExcludedForOneReason => "is_excluded = 1 AND exclusion_reason = @exclusionReason",
+            DataPreviewGlPage.Excluded => GlExcludedPopulation.ExcludedSqlPredicate(),
+            DataPreviewGlPage.ExcludedForOneReason => GlExcludedPopulation.ExcludedSqlPredicate() + " AND exclusion_reason = @exclusionReason",
             _ => throw new ArgumentOutOfRangeException(nameof(page), page, "未知的資料預覽 GL 頁。")
         };
         var entryColumns = columns
@@ -90,7 +90,7 @@ internal static class DataPreviewGlQuery
     /// 資料預覽固定顯示四位小數，補零與千分位由畫面處理。
     /// </summary>
     internal static string AmountText(long scaled, int moneyScale) =>
-        ((decimal)scaled / moneyScale).ToString(CultureInfo.InvariantCulture);
+        MoneyScaling.FromScaled(scaled, moneyScale).ToString(CultureInfo.InvariantCulture);
 
     private static string? ReadCell(DbDataReader reader, int ordinal, DataPreviewGlColumn column, int moneyScale)
     {

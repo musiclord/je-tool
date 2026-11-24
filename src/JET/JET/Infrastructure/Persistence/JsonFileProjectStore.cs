@@ -60,6 +60,9 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             {
                 throw new ProjectStoreCollisionException(document.ProjectId);
             }
+
+            // 發布之後才設成唯讀，清暫存資料夾時不會碰到唯讀檔。
+            SetReadOnly(folder.GetProjectJsonPath(document.ProjectId));
         }
         finally
         {
@@ -174,7 +177,22 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         var directory = folder.GetProjectDirectory(projectId);
         if (Directory.Exists(directory))
         {
-            Directory.Delete(directory, recursive: true);
+            // Directory.Delete 刪不掉唯讀檔，先取消設定檔的唯讀；刪除失敗時，還在的設定檔設回唯讀。
+            var projectJsonPath = folder.GetProjectJsonPath(projectId);
+            if (File.Exists(projectJsonPath))
+            {
+                ClearReadOnly(projectJsonPath);
+            }
+
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                SetReadOnly(projectJsonPath);
+                throw;
+            }
         }
 
         return Task.CompletedTask;
@@ -301,6 +319,8 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             {
                 if (File.Exists(destinationPath))
                 {
+                    // 唯讀的檔案換不掉，先取消唯讀；換好或換不成，都在 finally 設回唯讀。
+                    ClearReadOnly(destinationPath);
                     File.Replace(temporaryPath, destinationPath, destinationBackupFileName: null);
                 }
                 else
@@ -331,8 +351,39 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             }
             finally
             {
+                SetReadOnly(destinationPath);
                 gate.Release();
             }
+        }
+    }
+
+    /// <summary>
+    /// 案件設定檔記著抽樣種子等設定。JET 寫好設定檔就設成唯讀，審計員用記事本或其他程式改它時存不了檔；
+    /// JET 自己要換檔或刪除案件時才取消唯讀。設不成唯讀時不讓這次建案或儲存失敗，因為設定檔已經寫好，
+    /// 下一次儲存會再設一次；設定檔不在時不做事。
+    /// </summary>
+    private static void SetReadOnly(string path)
+    {
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            if (!attributes.HasFlag(FileAttributes.ReadOnly))
+            {
+                File.SetAttributes(path, attributes | FileAttributes.ReadOnly);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // 設定檔不在、或暫時被其他程式占住時，留待下一次儲存。
+        }
+    }
+
+    private static void ClearReadOnly(string path)
+    {
+        var attributes = File.GetAttributes(path);
+        if (attributes.HasFlag(FileAttributes.ReadOnly))
+        {
+            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
         }
     }
 

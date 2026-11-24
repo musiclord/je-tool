@@ -10,7 +10,7 @@ const vm = require('node:vm');
 // remapAppFixture 的根節點結構和共用模組不同，本檔用自己的一份。
 const { root, settle, plain, treeDom, parsedControlDom, lazyControlDom, validationFixture, stepScreensFixture, validationResultData, validationReportList,
   savedBlankDescription, usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, overviewDialogFixture, remapPaper, remapPrescreen,
-  FILTER_STEP_FILES, FILTER_STEP_PARTS, readFilterStep, filterStepExposure } = require('./support/frontend-fixtures.cjs');
+  FILTER_STEP_FILES, FILTER_STEP_PARTS, readFilterStep, filterStepExposure, LOADED_RULE_DEFAULTS } = require('./support/frontend-fixtures.cjs');
 // 本檔自己組的假後端也包進 contractJetApi，送出的資料與假回應同樣和正式後端的形狀核對。
 const { contractJetApi, unchecked } = require('./support/action-contract.cjs');
 // 上游修改清除篩選情境時的訊息。
@@ -3062,6 +3062,7 @@ function filterEditorsFixture() {
     'Ui.FilterVouchers = { summary: summary, mount: mount, matchStatusHtml: matchStatusHtml };'), context);
   const store = window.JetStore, ui = window.JetUi, api = window.exposedFilter;
   store.setProject({ projectId: 'filter-editors-synthetic', rocDateEnabled: true, periodStart: '2025-01-01', periodEnd: '2025-12-31' });
+  store.setRuleDefaults(LOADED_RULE_DEFAULTS);
   api.syncViewState(store.getState());
   function editor(rule) {
     const state = store.getState(), html = ui.FilterValues.render(rule, state, 'value-editor');
@@ -3357,7 +3358,7 @@ test('unexpected account pair uses the same revenue and any-counterpart prerequi
 for (const entry of JSON.parse(fs.readFileSync(path.join(__dirname, '../JET.Tests/Fixtures/filter-readback-sentences.json'), 'utf8'))) {
   test('shared condition readback sentence: ' + entry.id, () => {
     const f = filterEditorsFixture(), scenario = { name: entry.id, rationale: 'Synthetic shared readback', __preserveJoins: true, ...plain(entry.scenario) };
-    f.store.getState().mapping.gl.committed = { options: { rdeFields: plain(entry.rdeFields) } };
+    f.store.getState().mapping.gl.committed = { options: { rdeFields: plain(entry.rdeFields) }, ...(entry.neverBlankGlFields ? { neverBlankGlFields: plain(entry.neverBlankGlFields) } : {}) };
     f.store.setSavedScenarios([scenario]);
     assert.equal(f.text(f.api.readBackHtml(f.store.getState().filter.savedScenarios[0], false)).replace(/^篩選條件：/, ''), entry.expected);
   });

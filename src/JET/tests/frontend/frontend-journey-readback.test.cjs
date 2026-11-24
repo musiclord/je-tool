@@ -31,9 +31,10 @@ function savedReadbacks(f) {
   });
 }
 
-function reopenedCase(rdeFields, scenarios) {
+function reopenedCase(rdeFields, scenarios, neverBlankGlFields) {
   const f = usageJourneyFixture('filter');
-  f.state.mapping.gl.committed = { options: { rdeFields: plain(rdeFields) } };
+  // 有些句子要帶案件裡一定有值的欄位才寫得出來；夾具沒有這一項的句子照舊不帶。
+  f.state.mapping.gl.committed = { options: { rdeFields: plain(rdeFields) }, ...(neverBlankGlFields ? { neverBlankGlFields: plain(neverBlankGlFields) } : {}) };
   // 開案時不帶回已移除欄位的名稱。
   f.store.setSavedScenarios(scenarios);
   return f;
@@ -43,7 +44,7 @@ for (const entry of entries) {
   test('readback: a reopened saved scenario reads back the shared literal sentence without changing it: ' + entry.id, () => {
     // 已存情境由後端讀回，不帶前端的 __preserveJoins 等暫存鍵；名稱與說明是合成的。
     const scenario = { name: '合成-' + entry.id, rationale: '合成讀回', ...plain(entry.scenario) };
-    const f = reopenedCase(entry.rdeFields, [scenario]);
+    const f = reopenedCase(entry.rdeFields, [scenario], entry.neverBlankGlFields);
     const before = plain(f.state.filter.savedScenarios);
     assert.deepEqual(savedReadbacks(f), [entry.expected]);
     // 畫兩次：讀回不改動已存條件，第二次畫出同一句。

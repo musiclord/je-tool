@@ -135,9 +135,9 @@ internal static class FilterScenarioAutomaticMetadata
             return name;
         }
 
-        var existing = otherNames.Select(other => (other ?? string.Empty).Trim().ToUpperInvariant()).ToHashSet(StringComparer.Ordinal);
+        var existing = otherNames.Select(other => SourceText.ComparisonKey(other ?? string.Empty)).ToHashSet(StringComparer.Ordinal);
         var candidate = name;
-        for (var suffix = 2; existing.Contains(candidate.Trim().ToUpperInvariant()); suffix++)
+        for (var suffix = 2; existing.Contains(SourceText.ComparisonKey(candidate)); suffix++)
         {
             candidate = Take(name, 60) + " " + suffix;
         }
@@ -189,6 +189,9 @@ internal sealed record FilterScenarioMetadataContext(
     string PeriodEnd,
     int? ZerosThreshold = null)
 {
+    /// <summary>GL 中每一筆都有值的欄位；自動名稱與動機裡這些欄位的條件不寫空白怎麼處理，和畫面上自動帶入的文字相同。</summary>
+    internal IReadOnlyList<string>? NeverBlankGlFields { get; init; }
+
     internal static FilterScenarioMetadataContext Create(
         ProjectDocument document,
         CommittedMapping? glMapping,
@@ -199,15 +202,18 @@ internal sealed record FilterScenarioMetadataContext(
             document.LastAccountingPeriodDate,
             document.PeriodStart,
             document.PeriodEnd,
-            TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale));
+            TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale))
+        {
+            NeverBlankGlFields = FilterConditionRenderer.NeverBlankGlFields(glMapping)
+        };
 
     internal string Render(JsonElement scenario, bool compact) =>
         FilterConditionRenderer.Render(scenario, CategoryLabels, RdeFieldLabels, Categories,
-            PreparationDate, PeriodStart, PeriodEnd, compact, zerosThreshold: ZerosThreshold);
+            PreparationDate, PeriodStart, PeriodEnd, compact, zerosThreshold: ZerosThreshold, neverBlankGlFields: NeverBlankGlFields);
 
     internal string RenderCondition(JsonElement rule, bool compact) =>
         FilterConditionRenderer.RenderCondition(rule, CategoryLabels, RdeFieldLabels, Categories,
-            PreparationDate, PeriodStart, PeriodEnd, compact, ZerosThreshold);
+            PreparationDate, PeriodStart, PeriodEnd, compact, ZerosThreshold, NeverBlankGlFields);
 }
 
 /// <summary>

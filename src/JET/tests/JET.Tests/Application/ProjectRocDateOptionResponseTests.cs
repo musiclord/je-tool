@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JET.Domain;
 using JET.Infrastructure;
+using JET.Tests.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -22,8 +23,7 @@ public sealed class ProjectRocDateOptionResponseTests
         }));
         var id = created.GetProperty("projectId").GetString()!;
         var store = new JsonFileProjectStore(new JetProjectFolder(host.ProjectsRoot));
-        var original = (await store.FindAsync(id, CancellationToken.None))!;
-        await store.SaveAsync(original with { RocDateEnabled = rocEnabled }, CancellationToken.None);
+        await ProtectedSettingEdits.ApplyAsync(host.ProjectsRoot, id, original => original with { RocDateEnabled = rocEnabled });
 
         var response = await host.DispatchAsync(action, JsonSerializer.Serialize(new
         {

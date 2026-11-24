@@ -505,10 +505,9 @@ internal sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「自動化工具-科目配對資訊」：表頭是 GL_NUMBER、GL_NAME、STANDARDIZED_ACCOUNT_NAME，下面每個科目一列。
-    /// 在 GL 出現但 TB 沒有的科目，GL_NAME 不寫科目名稱，照舊版 JET 寫固定字串「Not in TB」，
-    /// 讓審計員一眼看出這個科目在 GL 出現卻對不到 TB 餘額。
-    /// 哪些科目算 TB 沒有，由 repository 用完整性測試的同一段 SQL（ValidationProcedures.CompletenessDiffCte）判定；
-    /// 這裡只看每一列的 NotInTb 旗標決定寫什麼。
+    /// GL_NAME 照舊版 JET 寫審計員上傳的科目配對檔的名稱；沒有名稱的科目寫固定字串「Not in TB」，這一欄不留白。
+    /// 科目配對範本在 TB 沒有名稱的科目寫同一個字，所以審計員用沒改過名稱的範本匯回，或在畫面分類，寫出的字都相同。
+    /// 每一列寫什麼由 <see cref="AccountMappingExportRow.GlName"/> 決定。
     /// </summary>
     private async Task EmitAccountMappingSheetAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -530,8 +529,7 @@ internal sealed partial class WorkingPaperWriter
         foreach (var account in mappings)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var glName = account.NotInTb ? AccountMappingExportRow.NotInTbName : account.AccountName ?? string.Empty;
-            widthTracker.Observe([account.AccountNumber, glName, account.Category]);
+            widthTracker.Observe([account.AccountNumber, account.GlName, account.Category]);
         }
         var widths = widthTracker.Widths;
         await EmitContinuedRowsAsync(
@@ -555,15 +553,11 @@ internal sealed partial class WorkingPaperWriter
                 return sheet;
             },
             (sheet, row, account) =>
-            {
-                var glName = account.NotInTb ? AccountMappingExportRow.NotInTbName : account.AccountName ?? string.Empty;
-                return
-                [
-                    sheet.TextCell(row, 1, account.AccountNumber),
-                    sheet.TextCell(row, 2, glName),
-                    sheet.TextCell(row, 3, account.Category)
-                ];
-            },
+            [
+                sheet.TextCell(row, 1, account.AccountNumber),
+                sheet.TextCell(row, 2, account.GlName),
+                sheet.TextCell(row, 3, account.Category)
+            ],
             (sheet, rows, _, ct) =>
             {
                 sheet.Protect();

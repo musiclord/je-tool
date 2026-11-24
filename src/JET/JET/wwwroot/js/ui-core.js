@@ -200,16 +200,18 @@
   // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterCondition 之上，加入時整份深拷貝。
   // 非營業日直接加入一條「總帳日期 在非營業日」（排除補班日），和其他卡片一樣加入目前條件組。
   // legacyOverrides 是較早的寫法，只有這一條的子條件組；只用來認出已儲存情境裡的這張卡，按卡片時不會加入。
-  // 鏡像 Domain SuspiciousKeywordDefaults；常用篩選條件的卡片與欄位條件分頁傳票摘要底下的「含特定字詞」共用同一份預填清單。
-  var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
-    '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外',
-    '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
+  // 摘要的預設關鍵字由 project.load 送來；常用篩選條件的卡片與欄位條件分頁傳票摘要底下的「含特定字詞」都用它預填。
+  // 每次回傳新的陣列，多次加入不共用同一份。開案前是空陣列。
+  function suspiciousKeywordDefaults() {
+    var words = Store.getState().ruleDefaults.suspiciousKeywordDefaults;
+    return words ? words.slice() : [];
+  }
 
   var FILTER_COMMON_PRESETS = [
     { key: 'specificPreparer', label: '特定人員建立之分錄',
       overrides: { type: 'fieldValue', field: 'createdBy', operator: 'in', values: [] } },
     { key: 'specificKeywords', label: '特定摘要',
-      overrides: { type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() } },
+      get overrides() { return { type: 'fieldValue', field: 'description', operator: 'contains', values: suspiciousKeywordDefaults() }; } },
     { key: 'blankDescription', label: '空白摘要',
       overrides: { type: 'fieldValue', field: 'description', operator: 'isBlank' } },
     { key: 'specificTrailingDigits', label: '特定金額尾數',
@@ -266,8 +268,11 @@
     { value: 'prepPeriodApproval', label: '財報準備日起核准', prerequisites: ['gl:approvalDate', 'prepStartDate'],
       description: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。' },
     { value: 'suspiciousKeywords', label: '摘要特定描述', prerequisites: ['gl:description'],
-      // 字詞個數由預設清單算出，不寫死數字，清單改了這裡才會跟著改。
-      description: '摘要包含預設的 ' + SUSPICIOUS_KEYWORD_DEFAULTS.length + ' 個中英文關鍵字之一，包含繁體與簡體文字。要檢視或調整整份清單，到第五步「欄位條件」分頁，按傳票摘要底下的「含特定字詞」。' },
+      // 字詞個數照開案時收到的預設清單；還沒收到時不寫個數。
+      get description() {
+        var count = suspiciousKeywordDefaults().length;
+        return '摘要包含預設的' + (count ? ' ' + count + ' 個' : '') + '中英文關鍵字之一，包含繁體與簡體文字。要檢視或調整整份清單，到第五步「欄位條件」分頁，按傳票摘要底下的「含特定字詞」。';
+      } },
     { value: 'unexpectedAccountPair', label: '未預期借貸組合', prerequisites: ['accountMapping', 'revenueCategory', 'counterpartCategory'],
       description: '貸方為收入的分錄，同張傳票沒有應收款項、現金或預收款借方，但至少有一筆借方金額大於 0 的分錄。第四步與預篩選報告列出這些傳票的全部分錄；在第五步作為條件時，符合的是收入貸方的分錄。需先完成科目配對。' },
     // 標籤是不知道 0 的個數時用的規則名稱；知道個數時 prescreenConditionLabel 寫成「金額尾數連續 N 個 0」。
@@ -466,7 +471,8 @@
         { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '', amountBasis: 'absolute' }] }
     ] },
     { key: 'description', field: 'description', checks: [
-      { key: 'descriptionKeywords', label: '含特定字詞', name: '摘要含特定字詞', conditions: [{ type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() }] },
+      { key: 'descriptionKeywords', label: '含特定字詞', name: '摘要含特定字詞',
+        get conditions() { return [{ type: 'fieldValue', field: 'description', operator: 'contains', values: suspiciousKeywordDefaults() }]; } },
       { key: 'blankDescription', label: '空白', name: '空白摘要', conditions: [{ type: 'fieldValue', field: 'description', operator: 'isBlank' }] }
     ] },
     { key: 'accountNumber', field: 'accountNumber', checks: [
@@ -747,6 +753,8 @@
   // 失敗與取消在括號裡附總耗時，有 busyDetail 時再附最後進度；被擋下與「另一項作業還在進行」沒有開始做事，不附耗時。
   // 失敗與被擋下時一律在目前步驟顯示提示框（見 state.operationFailure），除非 options.inlineError 表示
   // 這個操作已把錯誤寫在自己的就地錯誤框；onError 只是收到錯誤後的處理，不影響提示框。
+  // 審計員自己取消與「另一項作業還在進行」也會呼叫 onError，但都不算失敗（見 isCancelledOrInProgress）：
+  // 這裡只在訊息面板記一則，要把原因寫進錯誤框的呼叫端先用那個函式排除。
   // options.refresh 由呼叫點宣告完成後刷新；refreshWhen 可為 success 或 settled（預設 settled）。
   // refresh 一律等主作業解除 busy 後才執行，且 refresh 失敗只另記訊息，不改寫主作業結果。
   function monotonicNowMilliseconds() {
@@ -788,6 +796,12 @@
   // 「另一項作業還在進行」的唯一寫法。
   var OTHER_OPERATION_RUNNING = '另一項作業還在進行，請等它完成後再試。';
 
+  // 審計員自己取消，或 JET 回覆另一項作業還在進行，都不是這次操作失敗：不寫進錯誤框、不標成失敗，
+  // 畫面留在操作開始前的樣子，訊息面板由 Ui.run 記一則。要不要當成失敗只看這個函式，各處不自己比對錯誤代碼。
+  function isCancelledOrInProgress(error) {
+    return !!error && (error.code === 'operation_cancelled' || error.code === 'operation_in_progress');
+  }
+
   // JavaScript 內建的程式錯誤（TypeError 這類）是程式本身的問題，英文原文不給審計員看，畫面不露出系統用詞。
   // 這時和錯誤沒有訊息時一樣，改寫呼叫端給的說明，沒有就寫後端非預期錯誤的同一句；後端回的錯誤與前端自己寫的說明照原句。
   var UNEXPECTED_ERROR_MESSAGE = '發生非預期的錯誤，此操作未完成。請再試一次。';
@@ -822,15 +836,28 @@
     return !!options.inlineError;
   }
 
+  // 整個畫面同一時間只跑一項作業。已經有作業在跑時，這次的 promiseFactory 不會執行，只記一則訊息，畫面要和按下前一樣。
+  // 所以呼叫端自己的進行中記號、事件訂閱、要拿掉哪些東西的預告，以及清掉上一次錯誤，都寫在 promiseFactory 裡面，
+  // 不寫在呼叫 run 之前：promiseFactory 只在這次作業真的開始時執行，寫在外面的東西被擋下時沒有人收。
+  // 作業開始時只通知忙碌狀態，不重畫中央面板；記號要馬上畫出來時，promiseFactory 自己呼叫 Store.touch()。
+  // 審計員已經改了畫面上的控制項（勾選、下拉選單、輸入框）才呼叫 run 時，用 options.onBlocked 把控制項改回去；
+  // 它只在這次作業沒有開始時呼叫。
   function run(label, promiseFactory, options) {
+    options = options || {};
     if (Store.getState().busy) {
       var current = Store.getState();
       Store.addMessage(
         current.busyLabel ? '「' + current.busyLabel + '」還在進行，請等它完成後再試。' : OTHER_OPERATION_RUNNING,
         'info');
+      if (typeof options.onBlocked === 'function') {
+        try {
+          options.onBlocked();
+        } catch (callbackError) {
+          if (global.console) { global.console.error('JET action blocked callback failed:', callbackError); }
+        }
+      }
       return Promise.resolve();
     }
-    options = options || {};
     var startedAt = monotonicNowMilliseconds();
     // 重試任何操作時，上一次的步驟失敗提示先拿掉。
     Store.clearOperationFailure();
@@ -859,18 +886,16 @@
         var message;
         // 訊息分三級：操作失敗是錯誤；被阻擋與另一項作業進行中是需要注意；使用者自己取消是一般說明。
         var level = 'error';
-        var showInStep = true;
+        var showInStep = !isCancelledOrInProgress(error);
         var lastProgress = progressWithoutElapsed(Store.getState().busyDetail);
         // 另一項作業還在進行與尚無法執行都沒有開始做事，不附耗時；取消與失敗把耗時與最後進度收進括號。
         var timed = false;
         if (error && error.code === 'operation_in_progress') {
           message = trimSentenceEnd(OTHER_OPERATION_RUNNING);
           level = 'warn';
-          showInStep = false;
         } else if (error && error.code === 'operation_cancelled') {
           message = label + (error.completedResultsPreserved ? '已取消，已完成的部分仍保留' : '已取消');
           level = 'info';
-          showInStep = false;
           timed = true;
         } else if (error && (error.code === 'completeness_prerequisite_failed' || error.code === 'no_saved_scenario')) {
           // 沒有已儲存的情境也是前置條件不足，和尚無法執行用同一種寫法。
@@ -1013,6 +1038,14 @@
   function availableGlFields(state) {
     var committed = state && state.mapping && state.mapping.gl ? state.mapping.gl.committed : null;
     return committed && Array.isArray(committed.availableGlFields) ? committed.availableGlFields : null;
+  }
+
+  // 後端算好的、GL 中每一筆都有值的欄位：project.load 與 mapping.commit.gl 回傳的 neverBlankGlFields。
+  // 第五步不替這些欄位提供「空白」的比較方式與「空白也列入」，讀回也不寫空白怎麼處理；清單只在後端算一次。
+  // 沒有已確認的 GL 配對時是 null，和可用欄位一樣不判斷。
+  function neverBlankGlField(state, key) {
+    var committed = state && state.mapping && state.mapping.gl ? state.mapping.gl.committed : null;
+    return !!committed && Array.isArray(committed.neverBlankGlFields) && committed.neverBlankGlFields.indexOf(key) >= 0;
   }
 
   function glFieldAvailable(state, key) {
@@ -1803,6 +1836,14 @@
         unsavedDialogOpen = false;
         resolve(result);
       }
+      // 可以繼續時先執行後續動作再結束；後續動作丟出例外時也照樣結束，否則之後每一次詢問都會被當成對話框還開著。
+      function proceedAndFinish() {
+        try {
+          if (options.proceed) { options.proceed(); }
+        } finally {
+          finish(true);
+        }
+      }
       var dialogEntry = null;
       function close() {
         // 有 app 殼層時從共用的對話框堆疊移除；沒有時（只載入步驟模組的測試）拿掉自己掛的監聽。
@@ -1823,8 +1864,7 @@
         if (choice === 'stay') { returnFocus(); finish(false); return; }
         if (choice === 'continue') {
           returnFocus();
-          if (options.proceed) { options.proceed(); }
-          finish(true);
+          proceedAndFinish();
           return;
         }
         // 儲存失敗或被擋下時留在原畫面，原因由各自的儲存流程顯示。
@@ -1832,8 +1872,8 @@
         try { saving = Promise.resolve(options.save()); } catch (error) { saving = Promise.reject(error); }
         saving.then(function (saved) { return !!saved; }, function () { return false; })
           .then(function (saved) {
-            if (!saved) { returnFocus(); } else if (options.proceed) { options.proceed(); }
-            finish(saved);
+            if (!saved) { returnFocus(); finish(false); return; }
+            proceedAndFinish();
           });
       });
       document.body.appendChild(modal);
@@ -2232,8 +2272,8 @@
   }
 
   function loadProjects() {
-    Store.setPickerFeedback(null);
     return run('讀取案件清單', function () {
+      Store.setPickerFeedback(null);
       var acceptResponse = pickerProjectResponseGuard.issue(function () {
         return Store.getState().view === 'picker';
       });
@@ -2250,7 +2290,10 @@
     }, {
       // 案件清單的錯誤框就是這個操作的就地錯誤框。
       inlineError: true,
-      onError: function (message) { Store.setPickerFeedback(message); }
+      onError: function (message, error) {
+        if (isCancelledOrInProgress(error)) { return; }
+        Store.setPickerFeedback(message);
+      }
     });
   }
 
@@ -2277,29 +2320,37 @@
       return;
     }
 
-    Store.setBusy(true, '回首頁');
-    var save = (state.view === 'workflow' && state.project && global.JetApi.isReady())
-      ? persistProgress(state.currentStepIndex)
-      : Promise.resolve();
+    releaseProjectThenGoBackToPicker(function () {
+      if (!(state.view === 'workflow' && state.project && global.JetApi.isReady())) { return Promise.resolve(); }
+      return persistProgress(state.currentStepIndex).catch(function (error) {
+        Store.addMessage(stepSaveFailureText(error), 'error');
+      });
+    });
+  }
 
-    save.catch(function (error) {
-      Store.addMessage(stepSaveFailureText(error), 'error');
-    }).then(function () {
+  // 離開案件回到案件清單的唯一做法：先請後端放掉案件，放掉了才切回案件清單，回傳的 Promise 以 true 結束；
+  // 放不掉時留在目前畫面、說明原因，以 false 結束。beforeRelease 是放掉之前要先做完的事，沒有就不傳。
+  function releaseProjectThenGoBackToPicker(beforeRelease) {
+    Store.setBusy(true, '回首頁');
+    return (beforeRelease ? beforeRelease() : Promise.resolve()).then(function () {
       return releaseProjectLease();
     }).then(
       function () {
         Store.setBusy(false);
         goBackToPicker();
+        return true;
       },
       function (error) {
         handleProjectDepartureFailure(error, '回首頁');
+        return false;
       });
   }
 
   function openProject(projectId) {
-    pickerProjectResponseGuard.invalidate();
-    Store.setPickerFeedback(null);
     return run('開啟案件', function () {
+      // 真的開始開案才作廢還沒回來的案件清單、清掉清單上方的提示；清單還在讀的時候按下，這次不會開始，清單照常換上。
+      pickerProjectResponseGuard.invalidate();
+      Store.setPickerFeedback(null);
       return global.JetApi.projectLoad({ projectId: projectId }).then(function (data) {
         applyLoadedProject(data);
 
@@ -2313,17 +2364,64 @@
           var recalculated = filterScenarioRecalculatedMessage(data.filterScenarioCheck);
           // 報告已過期、需要時要重新產生，屬於「需要注意」（訊息分三級）。
           if (recalculated) { Store.addMessage(recalculated, 'warn'); }
+          // 設定檔在 JET 以外被改過、已照案件資料庫改回時，同樣屬於「需要注意」。
+          var restored = settingsRestoredMessage(data.settingsRestored);
+          if (restored) { Store.addMessage(restored, 'warn'); }
         });
       });
     }, {
       inlineError: true,
       onError: function (message, error) {
+        if (isCancelledOrInProgress(error)) { return; }
         Store.setPickerFeedback(message, {
           projectId: projectId,
           errorCode: error && error.code,
           correlationId: error && error.correlationId
         });
       }
+    });
+  }
+
+  // 案件已經建立、但沒有開啟時，寫在案件清單上方的說明。審計員自己取消，或 JET 回覆另一項作業還在進行，都不是失敗，不寫原因；
+  // 真的失敗才寫原因，沒有原因時不寫「未知錯誤」。
+  function createdButNotOpenedText(projectId, error) {
+    var nextStep = '請從案件清單開啟這個案件。';
+    if (!error || isCancelledOrInProgress(error)) {
+      return '案件「' + projectId + '」已建立，尚未開啟。' + nextStep;
+    }
+    var reason = trimSentenceEnd(errorText(error, ''));
+    return '案件「' + projectId + '」已建立，但沒有開啟成功' + (reason ? '：' + reason : '') + '。' + nextStep;
+  }
+
+  // 建立案件成功後接著開啟它。後端建立案件時已經把它當成目前開啟的案件，並握著它的案件鎖；沒有開啟成功時畫面上卻沒有案件，
+  // 所以不留在建立表單：照離開案件的做法請後端放掉它，回到案件清單，在清單上方說明案件已經建立，審計員從清單開啟。
+  // 案件已經建立，所以這則說明是琥珀色提示，不是錯誤框。放不掉案件時和按「回首頁」放不掉一樣，留在目前畫面。
+  // 已經有別的作業在進行時這次不會開始，什麼都不做。
+  function openCreatedProject(projectId) {
+    var started = false;
+    var opened = false;
+    var failure = null;
+    return run('開啟案件', function () {
+      started = true;
+      return global.JetApi.projectLoad({ projectId: projectId }).then(function (data) {
+        applyLoadedProject(data);
+        opened = true;
+      });
+    }, {
+      // 原因寫在案件清單上方，不另外在步驟上方顯示。
+      inlineError: true,
+      onError: function (_, error) { failure = error; }
+    }).then(function () {
+      if (!started || opened) { return; }
+      return releaseProjectThenGoBackToPicker().then(function (left) {
+        if (!left) { return; }
+        var failed = !!failure && !isCancelledOrInProgress(failure);
+        Store.setPickerFeedback(createdButNotOpenedText(projectId, failure), failed ? {
+          projectId: projectId,
+          errorCode: failure.code,
+          correlationId: failure.correlationId
+        } : null, 'warning');
+      });
     });
   }
 
@@ -2356,6 +2454,24 @@
       // 確認配對時往下填補空白的欄位；已確認的配對沒有這一項時是空清單。
       fillDownFields: Array.isArray(source.fillDownFields) ? source.fillDownFields.slice() : []
     };
+  }
+
+  // 以案件資料庫為準的設定，照畫面用字列出。
+  var RESTORED_SETTING_LABELS = {
+    periodStart: '查核起始日',
+    periodEnd: '查核截止日',
+    prepStartDate: '期末財報準備日',
+    nonWorkingDays: '每週休息日',
+    operatorId: '建案者',
+    sampleSeed: '隨機種子序號',
+    moneyScale: '金額存放倍率',
+    rocDateEnabled: '民國年選項'
+  };
+
+  function settingsRestoredMessage(items) {
+    if (!Array.isArray(items) || items.length === 0) { return null; }
+    var labels = items.map(function (item) { return RESTORED_SETTING_LABELS[item] || item; });
+    return '案件設定檔裡的' + labels.join('、') + '和案件資料庫記錄的不同，JET 已照案件資料庫改回。';
   }
 
   // project.load.filterScenarioCheck：開案時 JET 用目前規則檢查已儲存情境的結果。
@@ -2404,6 +2520,7 @@
 
   function applyLoadedProject(data, options) {
     Store.setProject(data.project);
+    Store.setRuleDefaults({ infSampling: data.infSampling, suspiciousKeywordDefaults: data.suspiciousKeywordDefaults });
 
     Store.setImportResult('gl', data.importState ? data.importState.gl : null);
     Store.setImportResult('tb', data.importState ? data.importState.tb : null);
@@ -2429,6 +2546,7 @@
         mode: data.mapping.gl.amountMode || 'dual',
         options: glMappingOptionsFrom(data.mapping.gl),
         availableGlFields: data.mapping.gl.availableGlFields || null,
+        neverBlankGlFields: data.mapping.gl.neverBlankGlFields || null,
         // 確認配對時往下填補了幾格，跟著配對保存，重開案件後第三步摘要照樣列出。
         fillDownCount: data.mapping.gl.fillDownCount || 0,
         // 由 GL 借方平均算出的尾數 0 的個數。
@@ -2874,6 +2992,7 @@
     progressInMessage: progressInMessage,
     createLatestResponseGuard: createLatestResponseGuard,
     run: run,
+    isCancelledOrInProgress: isCancelledOrInProgress,
     errorText: errorText,
     UNEXPECTED_ERROR_MESSAGE: UNEXPECTED_ERROR_MESSAGE,
     downstreamResetNoticeHtml: downstreamResetNoticeHtml,
@@ -2881,6 +3000,7 @@
     isRequired: isRequired,
     glFieldLabel: glFieldLabel,
     availableGlFields: availableGlFields,
+    neverBlankGlField: neverBlankGlField,
     glFieldAvailable: glFieldAvailable,
     ruleRequirementNote: ruleRequirementNote,
     rulePrerequisiteMet: rulePrerequisiteMet,
@@ -2925,6 +3045,7 @@
     invalidateProjectListRequests: invalidateProjectListRequests,
     goBackToPicker: goBackToPicker,
     openProject: openProject,
+    openCreatedProject: openCreatedProject,
     applyLoadedProject: applyLoadedProject,
     // 面板片段
     stepFooterHtml: stepFooterHtml,

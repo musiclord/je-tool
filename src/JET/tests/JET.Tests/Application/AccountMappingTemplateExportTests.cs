@@ -41,9 +41,9 @@ public sealed class AccountMappingTemplateExportTests
             host,
             builder => builder
                 .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
-                // 共有科目 1101（GL 側名稱刻意與 TB 不同，證 diff 取 COALESCE(tb, gl) 的 TB 名）。
+                // 共有科目 1101：GL 的名稱刻意和 TB 不同，範本取 TB 的名稱。
                 .AddRow("JV-001", "2025-03-05", "1101", "現金_GL", "借方", "300.00", 1)
-                // GL-only 科目 5101（TB 無）：範本 B 欄必須寫此真實 GL 名，而非「Not in TB」。
+                // 只在 GL 的科目 5101：範本不帶 GL 的名稱，B 欄寫「Not in TB」。
                 .AddRow("JV-001", "2025-03-05", "5101", "薪資費用", "貸方", "300.00", 0),
             databaseProvider: databaseProvider,
             configureTb: tb => tb
@@ -53,7 +53,7 @@ public sealed class AccountMappingTemplateExportTests
     // ================= (a) 母體＝GL∪TB（使用者關切點）=================
 
     [Fact]
-    public async Task FetchTemplateRowsAsync_ReturnsGlUnionTb_AscendingByCode_WithRealGlNameForGlOnly()
+    public async Task FetchTemplateRowsAsync_ReturnsGlUnionTb_AscendingByCode_WithTbNamesOnly()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupGlUnionTbProjectAsync(host);
@@ -64,16 +64,17 @@ public sealed class AccountMappingTemplateExportTests
         // 三科目全列（GL-only 5101、TB-only 2101、共有 1101），依 account_number 升冪。
         Assert.Equal(new[] { "1101", "2101", "5101" }, rows.Select(r => r.AccountNumber).ToArray());
 
-        // GL-only 5101 的 B 欄寫真實 GL 名「薪資費用」（非「Not in TB」）——使用者靠名稱辨識科目才能分類。
+        // 只在 GL 的 5101 不帶 GL 的名稱「薪資費用」，B 欄寫「Not in TB」。
         var glOnly = rows.Single(r => r.AccountNumber == "5101");
-        Assert.Equal("薪資費用", glOnly.AccountName);
+        Assert.Null(glOnly.AccountName);
+        Assert.Equal("Not in TB", glOnly.TemplateName);
 
-        // 共有 1101 取 diff 的 COALESCE(tb, gl) → TB 名「現金」（證聯集鍵與名稱來源正確）。
+        // 共有 1101 取 TB 的名稱「現金」，不取 GL 的「現金_GL」。
         Assert.Equal("現金", rows.Single(r => r.AccountNumber == "1101").AccountName);
 
         // 獨立 recount：diff 基數 == 3（GL∪TB distinct account_number）。
         var diffCount = await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, ValidationProcedures.CompletenessDiffCte + "\nSELECT COUNT(*) FROM diff;",
+            host, projectId, ValidationProcedures.CompletenessDiffCte(SqliteDialect.Instance) + "\nSELECT COUNT(*) FROM diff;",
             ("@periodStart", "2025-01-01"), ("@periodEnd", "2025-12-31"));
         Assert.Equal(3, diffCount);
         Assert.Equal(diffCount, rows.Count);
@@ -88,7 +89,7 @@ public sealed class AccountMappingTemplateExportTests
         {
             new("1101", "現金"),
             new("5101", "薪資費用"),
-            new("9999", null), // 名稱 null → B 欄寫空字串（不炸）
+            new("9999", null), // 沒有科目名稱 → B 欄寫「Not in TB」
         };
 
         using var stream = new MemoryStream();
@@ -113,7 +114,7 @@ public sealed class AccountMappingTemplateExportTests
         Assert.Equal("現金", ws.Cell("B4").GetString());
         Assert.True(ws.Cell("C4").IsEmpty());
         Assert.Equal("9999", ws.Cell("A6").GetString());
-        Assert.True(ws.Cell("B6").IsEmpty()); // null 名稱 → 空
+        Assert.Equal("Not in TB", ws.Cell("B6").GetString());
         Assert.True(ws.Cell("C6").IsEmpty());
 
         // C4 的 DataValidation：list 型、inCellDropdown；List!A1 保留範本靜態標題，
@@ -593,10 +594,10 @@ public sealed class AccountMappingTemplateExportTests
                 .AddRow("JV-001", "2025-03-05", "5101", "薪資費用", "貸方", "500.00", 0),
             databaseProvider: databaseProvider,
             configureTb: tb => tb.AddRow("1101", "現金", 300));
-        var expected = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "薪資費用") };
+        // 範本只看 TB 的名稱：GL 有、TB 沒有的科目，查詢不帶 GL 的名稱「薪資費用」，另外標出不在 TB。
+        var expected = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "") };
 
-        // 範本裡 GL 有、TB 沒有的科目照舊版寫「Not in TB」，不寫 GL 名稱「薪資費用」。
-        // 查詢結果照舊帶 GL 名稱，另外標出不在 TB。
+        // 範本裡 GL 有、TB 沒有的科目照舊版寫「Not in TB」。
         var expectedTemplate = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "Not in TB") };
 
         var rows = await createRepository()
@@ -667,7 +668,7 @@ public sealed class AccountMappingTemplateExportTests
 
             // rowCount == 獨立 recount 的 GL∪TB diff 基數（demo 母體本期）。
             var diffCount = await DemoProjectPipeline.QueryScalarAsync(
-                host, ctx.ProjectId, ValidationProcedures.CompletenessDiffCte + "\nSELECT COUNT(*) FROM diff;",
+                host, ctx.ProjectId, ValidationProcedures.CompletenessDiffCte(SqliteDialect.Instance) + "\nSELECT COUNT(*) FROM diff;",
                 ("@periodStart", "2025-01-01"), ("@periodEnd", "2025-12-31"));
             Assert.True(diffCount > 0, "demo 應有科目母體");
             Assert.Equal(diffCount, data.GetProperty("rowCount").GetInt64());

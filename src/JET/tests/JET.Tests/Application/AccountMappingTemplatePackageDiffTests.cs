@@ -28,7 +28,7 @@ public sealed class AccountMappingTemplatePackageDiffTests
             ReportTemplateCatalog.AccountMapping);
         var beforeBytes = await File.ReadAllBytesAsync(templatePath);
         Assert.Equal(
-            "20A592907609933D837C8A617FABD11BD046C7D271AE55522545AC4CB61444AB",
+            "01A0519FA4FF40CEDF69BACF31836BD71E10B9DA9952396843A1DCE7C0182167",
             Convert.ToHexString(SHA256.HashData(beforeBytes)));
 
         var rows = new AccountMappingTemplateRow[]
@@ -271,7 +271,7 @@ public sealed class AccountMappingTemplatePackageDiffTests
                     cells.Keys.Order(StringComparer.Ordinal).ToArray());
                 Assert.Equal(expectedRows[index].AccountNumber, InlineText(cells[$"A{rowNumber}"]));
                 Assert.Equal(15U, ParseUInt(cells[$"A{rowNumber}"].Attribute("s")));
-                Assert.Equal(expectedRows[index].AccountName ?? string.Empty, InlineText(cells[$"B{rowNumber}"]));
+                Assert.Equal(expectedRows[index].AccountName ?? "Not in TB", InlineText(cells[$"B{rowNumber}"]));
                 Assert.Equal(16U, ParseUInt(cells[$"B{rowNumber}"].Attribute("s")));
                 Assert.Equal(8U, ParseUInt(cells[$"C{rowNumber}"].Attribute("s")));
                 Assert.Null(cells[$"C{rowNumber}"].Element(Spreadsheet + "v"));

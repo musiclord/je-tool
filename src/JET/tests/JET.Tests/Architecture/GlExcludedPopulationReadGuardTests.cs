@@ -7,8 +7,9 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// GL 的範圍只由 <c>GlExcludedPopulation.SqlPredicate</c> 決定。產品原始碼裡每一段讀 gl 的 SQL，
-/// 都要在同一個 C# 陳述句裡帶上 GL 的範圍條件：直接寫 is_excluded、呼叫 GlExcludedPopulation.SqlPredicate 或包裝它的
-/// GlPopulationScopeSql.Predicate，或是經名稱含 population 的參數傳入。刻意讀全部列的查詢列在允許清單並附理由；
+/// 都要在同一個 C# 陳述句裡帶上 GL 的範圍條件：直接寫 is_excluded、呼叫 GlExcludedPopulation.SqlPredicate、
+/// 只看未納入測試分錄的 GlExcludedPopulation.ExcludedSqlPredicate，或包裝 SqlPredicate 的 GlPopulationScopeSql.Predicate，
+/// 或是經名稱含 population 的參數傳入。刻意讀全部列的查詢列在允許清單並附理由；
 /// 清單上的項目找不到對應查詢時也失敗，避免留下過期的例外。
 /// 表名不得當成值傳進讀取查詢：表名從參數傳入時，讀取寫在另一個陳述句，上面的掃描看不到。
 /// 所以另有一項檢查：GL 分錄表名單獨成為字串值的地方只能是不讀資料的用途，列在第二份允許清單。
@@ -67,6 +68,9 @@ public sealed partial class GlExcludedPopulationReadGuardTests
         new("JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
             "CreateBulkRowWriter(connection, transaction, JetSchemaCatalog.GlTableName, TargetColumns)",
             "匯入時批次寫入，不讀資料。"),
+        new("JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+            "DeferIndexesAsync(connection, transaction, JetSchemaCatalog.GlTableName, cancellationToken)",
+            "確認配對時先刪掉 gl 的索引、寫完再建回，只讀資料庫結構表，不讀 gl 的資料。"),
         new("JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
             "DatasetKind.Gl => JetSchemaCatalog.GlTableName",
             "只用在重新匯入前的 DELETE。"),
@@ -193,6 +197,7 @@ public sealed partial class GlExcludedPopulationReadGuardTests
     [Theory]
     [InlineData("command.CommandText = $\"SELECT COUNT(*) FROM gl g WHERE {GlExcludedPopulation.SqlPredicate(\"g\")};\";")]
     [InlineData("var sql = \"SELECT 1 FROM gl WHERE is_excluded = 1;\";")]
+    [InlineData("var sql = $\"SELECT COUNT(*) FROM gl WHERE {GlExcludedPopulation.ExcludedSqlPredicate()};\";")]
     [InlineData("var sql = $\"FROM {prefix}gl g WHERE {GlPopulationScopeSql.Predicate(context, \"g\")}\";")]
     [InlineData("string Set(string p) => $\"SELECT g.voucher_number FROM {schemaPrefix}gl g WHERE {population} AND ({p})\";")]
     [InlineData("var sql = $\"FROM {schemaPrefix}gl g WHERE {populationPredicate} AND ({hitPopulationPredicate})\";")]
@@ -542,7 +547,7 @@ public sealed partial class GlExcludedPopulationReadGuardTests
     [GeneratedRegex(@"DELETE\s+$", RegexOptions.IgnoreCase)]
     private static partial Regex DeleteBefore();
 
-    [GeneratedRegex(@"is_excluded|GlExcludedPopulation\.SqlPredicate\(|GlPopulationScopeSql\.Predicate\(|populationScopePredicate\(|\{(?:hit)?population(?:Predicate(?:Sql)?)?\}")]
+    [GeneratedRegex(@"is_excluded|GlExcludedPopulation\.SqlPredicate\(|GlExcludedPopulation\.ExcludedSqlPredicate\(|GlPopulationScopeSql\.Predicate\(|populationScopePredicate\(|\{(?:hit)?population(?:Predicate(?:Sql)?)?\}")]
     private static partial Regex PopulationPredicate();
 
     [GeneratedRegex(@"\s+")]

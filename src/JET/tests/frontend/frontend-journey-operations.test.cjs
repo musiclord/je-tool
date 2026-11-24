@@ -5,7 +5,16 @@
 //   情境 22　按「執行驗證」與「執行預篩選」看忙碌畫面的經過時間與提示，匯入時沒有那句提示；忙碌中又按了別的按鈕；
 //           開案時按「取消作業」；產生工作底稿途中取消，取消成功、動作剛好做完與取消失敗；
 //           長作業成功與失敗後在訊息面板看到的句子；後端錯誤沒有附原因。另外直接用 Ui.run 走過「完成後重新整理」的規則。
-//   情境 23　有案件時按「複製紀錄」；剪貼簿拒絕；複製途中換成同名的另一個案件；沒有開啟案件時按。
+//           開案載入完成、還在讀訊息紀錄時看取消鈕；按下取消時動作剛好做完；選授權編製人員清單時連續兩個可以取消的請求。
+//           各處的操作被取消，或後端回覆另一項作業還在進行：案件清單上的開案、重新整理、刪除與輸出支援日誌，建立與修改案件，
+//           確認配對，匯入清單重讀來源與重新檢視，授權編製人員清單的來源檔預覽，驗證報告與科目配對範本，第五步儲存情境。
+//           按「開始匯入」後看匯入中的橫幅、收起的按鈕與進度，匯入失敗後按鈕回來。
+//           已經有作業在跑時再按一次：開始匯入，展開來源預覽，改編碼、分隔符或欄名在第幾列，授權編製人員清單換工作表，
+//           勾選每週休息日，案件清單上開啟案件、重新整理與確認刪除，建立與修改案件，移除授權編製人員清單，
+//           開發者面板換頁，確認配對；這些都沒有開始，畫面和按下前一樣。
+//           勾選每週休息日後沒有存進去：送出後被取消、後端回覆另一項作業還在進行、後端回覆失敗，
+//           以及步驟上方還留著失敗提示時再勾選並取消；勾選都回到已存的設定。
+//   情境 23有案件時按「複製紀錄」；剪貼簿拒絕；複製途中換成同名的另一個案件；沒有開啟案件時按。
 //
 // 夾具：
 //   情境 22 用支援模組的 fullAppFixture（經 bootFullApp 開啟，本檔叫 boot）：整個 index.html 的 body 標記與它列出的全部前端腳本（不含 ECharts 函式庫），
@@ -21,7 +30,7 @@
 const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
 const assert = require('node:assert/strict');
-const { settle, plain, messagePanelFixture, remapPrescreen, usageJourneyFixture, savedBlankDescription, flush, bootFullApp: boot } = require('./support/frontend-fixtures.cjs');
+const { settle, plain, messagePanelFixture, remapPrescreen, usageJourneyFixture, savedBlankDescription, flush, bootFullApp: boot, LOADED_RULE_DEFAULTS } = require('./support/frontend-fixtures.cjs');
 const { unchecked } = require('./support/action-contract.cjs');
 
 const CASE = { projectId: '合成案件', databaseProvider: 'sqlite' };
@@ -30,7 +39,7 @@ const CASE = { projectId: '合成案件', databaseProvider: 'sqlite' };
 async function openCaseAtValidation() {
   const f = await boot([CASE]);
   f.click('[data-action="picker-open"]');
-  f.reply('project.load', { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 3 } }); await flush();
+  f.reply('project.load', { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 3 }, ...LOADED_RULE_DEFAULTS }); await flush();
   f.reply('log.recent', { messages: [] }); await flush();
   f.store.setImportResult('gl', { batchId: 'gl-source', columns: ['Doc', 'Amount'], rowCount: 2 });
   f.store.setImportResult('tb', { batchId: 'tb-source', columns: ['Code', 'Amount'], rowCount: 2 });
@@ -296,6 +305,704 @@ test('cancelling records the operation and its progress at that moment, a finish
   f.fail(f.request('export.workingPaperStream'), { code: 'operation_cancelled', message: '合成：已取消' }); await done;
 });
 
+// ---- 情境 22：取消鈕對準哪一個請求；取消與「另一項作業還在進行」不算失敗 ----
+
+// 從案件清單開案到指定的步驟；arrange 用 store 佈置那一步需要的前置狀態。
+async function openCaseAt(stepIndex, arrange) {
+  const f = await boot([CASE]);
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: stepIndex } }); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  if (arrange) { arrange(f); f.store.setStepIndex(stepIndex); await flush(); }
+  return f;
+}
+// 目前步驟的內容；按鈕要先找到、可以按，才按下去。
+function stepBody(f) { const node = f.$('.stepflow-item--current .stepflow-item__body'); assert.ok(node !== null, 'the current step is shown'); return node; }
+function press(f, selector) {
+  const node = stepBody(f).querySelector(selector);
+  assert.ok(node !== null, selector + ' rendered'); assert.equal(node.disabled, false, selector + ' enabled');
+  node.dispatch('click');
+}
+// 瀏覽器的 form 可以用欄位名稱直接取到欄位（form.projectName）；假 DOM 沒有，這裡補上。
+function namedForm(form) {
+  assert.ok(form !== null, 'form rendered');
+  for (const node of form.querySelectorAll('input,select')) { const name = node.getAttribute('name'); if (name) form[name] = node; }
+  return form;
+}
+// 後端用這兩種錯誤代碼回覆時，操作都不算失敗：審計員自己取消，或另一項作業還在進行。
+// 訊息面板各記一則，等級分別是一般說明與需要注意，都不是錯誤。
+const CANCELLED = { code: 'operation_cancelled', message: '合成：已取消' };
+const OTHER_RUNNING = { code: 'operation_in_progress', message: '合成：另一項作業還在進行' };
+const NOT_FAILURES = [{ name: 'cancelled', error: CANCELLED, level: 'info' }, { name: 'another operation running', error: OTHER_RUNNING, level: 'warn' }];
+const noErrorLine = (f, label) => assert.deepEqual(f.messages().filter(m => m.level === 'error'), [], label + ': nothing is logged as an error');
+
+test('the cancel button goes away once the request it cancels has answered, also when cancel was pressed just as it finished', async () => {
+  // 開案先載入案件，再讀訊息紀錄；第二段不能取消，取消鈕收起，不再對準已經結束的載入。
+  let f = await boot([CASE]);
+  f.click('[data-action="picker-open"]');
+  let load = f.request('project.load');
+  assert.deepEqual(f.overlay.cancel(), { text: '取消作業', disabled: false });
+  f.reply(load, { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 0 } }); await flush();
+  assert.equal(f.sent('log.recent').length, 1, 'the message log is being read');
+  assert.equal(f.state().busy, true);
+  assert.equal(f.overlay.cancel(), null, 'no cancel button while only the message log is read');
+  f.reply('log.recent', { messages: [] }); await flush();
+  assert.equal(f.state().busy, false);
+
+  // 按下取消時載入剛好做完：按鈕不停在「取消中…」，訊息照舊說明動作已完成。
+  f = await boot([CASE]);
+  f.click('[data-action="picker-open"]');
+  load = f.request('project.load');
+  f.click('[data-action="cancel-operation"]');
+  assert.deepEqual(f.overlay.cancel(), { text: '取消中…', disabled: true });
+  f.reply(load, { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 0 } }); await flush();
+  assert.equal(f.overlay.cancel(), null, 'the button does not stay at 取消中… for a request that has finished');
+  f.reply('operation.cancel', { requested: false }); await flush();
+  assert.deepEqual(f.messages()[0], { text: '目前的動作已完成，結果已保留；尚未開始的後續作業不會執行。', level: 'info' });
+  f.reply('log.recent', { messages: [] }); await flush();
+  assert.equal(f.state().busy, false);
+  assert.equal(f.state().view, 'workflow', 'the case that finished loading is open');
+});
+
+// 「執行驗證」之後接著產生報告。按下取消時驗證剛好做完，取消鈕收起，但這次按過取消仍然算數：還沒開始的報告不產生。
+test('a cancel pressed just as the validation finishes still stops the reports that have not started', async () => {
+  const f = await openCaseAtValidation();
+  press(f, '[data-action="run-validate"]');
+  const run = f.request('validate.run');
+  f.click('[data-action="cancel-operation"]');
+  f.reply('operation.cancel', { requested: false }); await flush();
+  f.reply(run, validationData()); await flush();
+  assert.equal(f.state().busy, false);
+  assert.equal(f.sent('export.validationReports').length, 0, 'the reports are not started');
+  assert.equal(f.sent('export.accountMappingTemplate').length, 0);
+  assert.ok(f.state().results.validate, 'the finished validation stays');
+  assert.ok(f.messages().some(m => /已取消，已完成的部分仍保留/.test(m.text) && m.level === 'info'), 'the message says what was kept');
+  noErrorLine(f, 'late cancel');
+});
+
+// 選擇授權編製人員清單會連續送出兩個可以取消的請求：先檢視檔案，再讀前 10 列。
+test('when the next cancellable request starts, the cancel button is back to 取消作業 and cancels that request; a cancelled preview is not a read failure', async () => {
+  const f = await openCaseAt(1);
+  press(f, '[data-task-toggle="authorizedPreparer"]'); await flush();
+  press(f, '[data-action="import-authorized-preparer"]');
+  f.reply('host.selectFile', { filePath: 'C:/synthetic/preparers.xlsx', fileName: 'preparers.xlsx' }); await flush();
+  const inspect = f.request('import.inspectFile');
+  f.click('[data-action="cancel-operation"]');
+  const firstCancel = f.request('operation.cancel');
+  assert.deepEqual(plain(firstCancel.payload), { requestId: inspect.requestId });
+  // 取消送到時檢視剛好做完，接著開始讀前 10 列。
+  f.reply(firstCancel, { requested: false }); await flush();
+  f.reply(inspect, { fileType: 'excel', worksheets: [{ name: '合成表', columns: ['Id'], rowCountEstimate: 3 }] }); await flush();
+  const preview = f.request('import.previewFile');
+  assert.deepEqual(f.overlay.cancel(), { text: '取消作業', disabled: false });
+  f.click('[data-action="cancel-operation"]');
+  const secondCancel = f.request('operation.cancel');
+  assert.ok(secondCancel !== firstCancel, 'a cancel is sent for the new request');
+  assert.deepEqual(plain(secondCancel.payload), { requestId: preview.requestId });
+  assert.deepEqual(f.overlay.cancel(), { text: '取消中…', disabled: true });
+  f.reply(secondCancel, { requested: true }); await flush();
+  f.fail(preview, CANCELLED); await flush();
+  assert.equal(f.state().busy, false);
+  // 讀前 10 列被取消不是讀檔失敗：不寫「來源檔預覽失敗」，卡片回到選檔前的樣子，沒有停在載入中的草稿。
+  const card = stepBody(f).querySelector('[data-bind="import-card-authorized-preparer"]');
+  assert.doesNotMatch(card.textContent, /來源檔預覽失敗|載入預覽中/);
+  assert.ok(card.querySelector('[data-bind="authorized-preparer-draft"]') === null, 'no half-read draft is left');
+  noErrorLine(f, 'cancelled preview');
+});
+
+// 換工作表與「重讀來源檔預覽」被取消或遇到另一項作業時，留著原本讀到的預覽。
+test('re-reading the authorised preparer preview keeps the earlier preview when it is cancelled or another operation is running', async () => {
+  const f = await openCaseAt(1);
+  press(f, '[data-task-toggle="authorizedPreparer"]'); await flush();
+  press(f, '[data-action="import-authorized-preparer"]');
+  f.reply('host.selectFile', { filePath: 'C:/synthetic/preparers.xlsx', fileName: 'preparers.xlsx' }); await flush();
+  f.reply('import.inspectFile', { fileType: 'excel', worksheets: [{ name: '合成甲表', columns: ['Id'], rowCountEstimate: 3 }, { name: '合成乙表', columns: ['Name'], rowCountEstimate: 3 }] }); await flush();
+  f.reply('import.previewFile', { columns: ['Id'], sampleRows: [['合成人員甲']], notices: [] }); await flush();
+  const draft = () => stepBody(f).querySelector('[data-bind="authorized-preparer-draft"]');
+  assert.match(draft().textContent, /合成人員甲/);
+  const reads = () => f.sent('import.previewFile').length;
+
+  let before = reads();
+  press(f, '[data-action="retry-authorized-preparer-preview"]');
+  assert.equal(reads(), before + 1);
+  f.fail(f.sent('import.previewFile').at(-1), OTHER_RUNNING); await flush();
+  assert.match(draft().textContent, /合成人員甲/, 'the earlier preview is still shown');
+  assert.doesNotMatch(draft().textContent, /來源檔預覽失敗|載入預覽中/);
+
+  before = reads();
+  const sheet = draft().querySelector('[data-ap-sheet]');
+  sheet.value = '合成乙表'; sheet.dispatch('change');
+  assert.equal(reads(), before + 1);
+  f.fail(f.sent('import.previewFile').at(-1), CANCELLED); await flush();
+  assert.match(draft().textContent, /合成人員甲/, 'the first sheet and its preview are back');
+  assert.doesNotMatch(draft().textContent, /來源檔預覽失敗|載入預覽中/);
+  assert.equal(draft().querySelector('[data-ap-sheet] option[selected]').getAttribute('value'), '合成甲表');
+  noErrorLine(f, 'preparer preview');
+});
+
+test('on the case list, cancelling the open or being told another operation is running shows no error box', async () => {
+  const noBox = (f, label) => assert.ok(f.$('.picker-feedback') === null, label + ': no error box above the case list');
+  for (const { name, error, level } of NOT_FAILURES) {
+    const f = await boot([CASE]);
+    f.click('[data-action="picker-open"]');
+    f.fail(f.request('project.load'), error); await flush();
+    assert.equal(f.state().busy, false, name);
+    assert.equal(f.state().view, 'picker', name + ': still on the case list');
+    noBox(f, name + ', opening');
+    assert.equal(f.messages()[0].level, level, name);
+    noErrorLine(f, name + ', opening');
+  }
+  // 重新整理、刪除與輸出支援日誌都不能取消，只會遇到另一項作業還在進行。
+  const f = await boot([CASE]);
+  f.click('[data-action="picker-refresh-local"]');
+  f.fail(f.sent('project.listLocal').at(-1), OTHER_RUNNING); await flush();
+  noBox(f, 'refreshing');
+  assert.ok(f.$('[data-action="picker-open"]') !== null, 'the listed case is still there');
+  f.click('[data-action="picker-delete"]');
+  f.reply('project.deletePreview', { reportCount: 0, workingPaperCount: 0 }); await flush();
+  const listsBefore = f.sent('project.listLocal').length;
+  f.click('[data-action="modal-confirm"]');
+  f.fail('project.delete', OTHER_RUNNING); await flush();
+  noBox(f, 'deleting');
+  assert.equal(f.sent('project.listLocal').length, listsBefore, 'the list is not reloaded');
+  assert.equal(f.state().pickerFeedbackContext, null, 'no failure is recorded for the case');
+  f.store.setDevToolsEnabled(true); await flush();
+  f.click('[data-action="picker-support-export"]');
+  f.fail('support.log.export', OTHER_RUNNING); await flush();
+  noBox(f, 'exporting the support log');
+  noErrorLine(f, 'case list');
+  assert.deepEqual(f.messages()[0], { text: '另一項作業還在進行，請等它完成後再試。', level: 'warn' });
+
+  // Debug 組建的診斷日誌匯出：開案真的失敗後按它，遇到另一項作業還在進行時，錯誤框裡原本的開案失敗原因照樣留著。
+  const g = await boot([CASE]);
+  g.store.setDevToolsEnabled(true); await flush();
+  g.click('[data-action="picker-open"]');
+  g.fail(g.request('project.load'), { code: 'synthetic', message: '合成：案件資料庫打不開' }); await flush();
+  const openFailure = g.$('.picker-feedback__body').textContent;
+  assert.match(openFailure, /^開啟案件失敗：合成：案件資料庫打不開/);
+  g.click('[data-action="picker-dev-log-export"]');
+  g.fail(g.request('dev.log.exportFile'), OTHER_RUNNING); await flush();
+  assert.equal(g.$('.picker-feedback__body').textContent, openFailure, 'the open failure is still what the error box says');
+});
+
+test('creating a case and saving the case details leave their error boxes empty when cancelled or another operation is running', async () => {
+  for (const { name, error } of NOT_FAILURES) {
+    // 建立案件：案件已建立，接著的開案被取消或遇到另一項作業。JET 放掉這個案件，回到案件清單，清單上方沒有錯誤框。
+    const f = await boot([]);
+    f.click('[data-action="picker-new"]'); await flush();
+    const form = namedForm(stepBody(f).querySelector('[data-bind="create-form"]'));
+    form.projectName.value = '合成新案'; form.periodStart.value = '2025-01-01'; form.periodEnd.value = '2025-12-31';
+    form.dispatch('submit', { target: form });
+    f.reply('project.create', { projectId: '合成新案', warnings: [] }); await flush();
+    f.fail(f.request('project.load'), error); await flush();
+    f.reply('project.releaseLock', {}); await flush();
+    f.reply('project.listLocal', { projects: [{ projectId: '合成新案', databaseProvider: 'sqlite' }] }); await flush();
+    assert.equal(f.state().busy, false, name);
+    assert.equal(f.state().view, 'picker', name + ': back on the case list');
+    assert.ok(f.$('.picker-feedback') === null, name + ': no error box above the case list');
+    noErrorLine(f, name + ', creating');
+  }
+  // 儲存案件資料不能取消，只會遇到另一項作業還在進行。
+  const f = await openCaseAt(0);
+  press(f, '[data-action="edit-project-metadata"]'); await flush();
+  const form = namedForm(stepBody(f).querySelector('[data-bind="project-update-form"]'));
+  form.clientName.value = '合成客戶';
+  form.dispatch('submit', { target: form });
+  f.fail(f.request('project.update'), OTHER_RUNNING); await flush();
+  const box = stepBody(f).querySelector('[data-bind="project-update-error"]');
+  assert.ok(box !== null, 'the edit form is still open');
+  assert.equal(box.hidden, true, 'the edit form shows no error');
+  assert.equal(stepBody(f).querySelector('[data-bind="project-update-form"] [name="clientName"]').value, '合成客戶', 'what was typed is kept');
+  noErrorLine(f, 'saving the case details');
+});
+
+test('confirming the field mapping shows no 配對未完成 error when it is cancelled or another operation is running', async () => {
+  for (const { name, error, level } of NOT_FAILURES) {
+    const f = await openCaseAt(2, f => {
+      f.store.setImportResult('gl', { batchId: 'gl-source', columns: ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Amount', 'Side'], rowCount: 2 });
+      f.store.setMappingMode('gl', 'side');
+      f.store.replaceMappingDraft('gl', { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' });
+    });
+    press(f, '[data-action="commit-gl"]');
+    f.fail(f.request('mapping.commit.gl'), error); await flush();
+    assert.equal(f.state().busy, false, name);
+    assert.ok(stepBody(f).querySelector('[data-bind="mapping-commit-error-gl"]') === null, name + ': no error box in the mapping section');
+    assert.doesNotMatch(stepBody(f).textContent, /配對未完成/, name);
+    assert.equal(stepBody(f).querySelector('[data-action="commit-gl"]').disabled, false, name + ': the mapping can be confirmed again');
+    assert.equal(f.state().mapping.gl.committed, null, name + ': nothing was confirmed');
+    assert.equal(f.messages()[0].level, level, name);
+    noErrorLine(f, name + ', confirming the mapping');
+
+    // 上一次確認真的失敗、原因還在畫面上時再按一次：被取消或遇到另一項作業，原本的原因照樣留著。
+    press(f, '[data-action="commit-gl"]');
+    f.fail(f.request('mapping.commit.gl'), { code: 'synthetic', message: '合成：日期欄無法轉換。' }); await flush();
+    const box = () => stepBody(f).querySelector('[data-bind="mapping-commit-error-gl"]');
+    assert.ok(box() !== null, 'a real failure is shown in the mapping section');
+    assert.match(box().textContent, /配對未完成：合成：日期欄無法轉換。/);
+    press(f, '[data-action="commit-gl"]');
+    f.fail(f.request('mapping.commit.gl'), error); await flush();
+    assert.ok(box() !== null, name + ': the earlier problem is still shown');
+    assert.match(box().textContent, /配對未完成：合成：日期欄無法轉換。/, name);
+    assert.doesNotMatch(box().textContent, /已取消|另一項作業/, name);
+  }
+});
+
+test('re-reading a source in the import list keeps the row ticked and its settings when cancelled or another operation is running', async () => {
+  // 選一個文字檔，檢視成功後這一列預設勾選。
+  async function pickTextFile() {
+    const f = await openCaseAt(1);
+    press(f, '[data-task-toggle="gl"]'); await flush();
+    press(f, '[data-bind="import-card-gl"] [data-action="wizard-replace-gl"]');
+    f.reply('host.selectFiles', { files: [{ filePath: 'C:/synthetic/gl.csv', fileName: 'gl.csv' }] }); await flush();
+    return f;
+  }
+  const row = f => { const node = stepBody(f).querySelector('.pending-row'); assert.ok(node !== null, 'the source row is listed'); return node; };
+  const rowState = f => ({
+    ticked: row(f).querySelector('[data-pending-bind="include"]').checked,
+    failed: /pending-row--error/.test(row(f).className),
+    encoding: row(f).querySelector('[data-pending-bind="encoding"] option[selected]').getAttribute('value')
+  });
+
+  for (const { name, error } of NOT_FAILURES) {
+    const f = await pickTextFile();
+    f.reply('import.inspectFile', { fileType: 'csv', encoding: 'utf-8', delimiter: ',', columns: ['A', 'B'], notices: [] }); await flush();
+    assert.deepEqual(rowState(f), { ticked: true, failed: false, encoding: 'utf-8' });
+    // 改選編碼會重新讀前 10 列。
+    const encoding = row(f).querySelector('[data-pending-bind="encoding"]');
+    encoding.value = 'big5'; encoding.dispatch('change');
+    assert.equal(plain(f.request('import.previewFile').payload).encoding, 'big5');
+    f.fail(f.request('import.previewFile'), error); await flush();
+    assert.equal(f.state().busy, false, name);
+    // 這一列和改選前一樣：仍然勾選、不是讀不出檔案，編碼回到原本讀成功的那一個。
+    assert.deepEqual(rowState(f), { ticked: true, failed: false, encoding: 'utf-8' }, name);
+    assert.doesNotMatch(row(f).textContent, /讀不出這個檔案|載入預覽中/, name);
+    assert.equal(stepBody(f).querySelector('[data-action="wizard-confirm"]').disabled, false, name + ': the source can still be imported');
+    noErrorLine(f, name + ', re-reading');
+  }
+
+  // 已經讀不出的來源按「重新檢視」：被取消或遇到另一項作業時，留著原本的原因，不換成取消的說明。
+  for (const { name, error } of NOT_FAILURES) {
+    const f = await pickTextFile();
+    f.fail(f.request('import.inspectFile'), { code: 'synthetic', message: '合成：編碼無法判斷。' }); await flush();
+    assert.match(row(f).textContent, /讀不出這個檔案：合成：編碼無法判斷。/);
+    press(f, '[data-action="pending-retry"]');
+    f.fail(f.request('import.previewFile'), error); await flush();
+    assert.match(row(f).textContent, /讀不出這個檔案：合成：編碼無法判斷。/, name + ': the earlier reason stays');
+    assert.doesNotMatch(row(f).textContent, /已取消|另一項作業/, name);
+  }
+
+  // 活頁簿走另一條重新檢視的路，也一樣。
+  const f = await openCaseAt(1);
+  press(f, '[data-task-toggle="gl"]'); await flush();
+  press(f, '[data-bind="import-card-gl"] [data-action="wizard-replace-gl"]');
+  f.reply('host.selectFiles', { files: [{ filePath: 'C:/synthetic/gl.xlsx', fileName: 'gl.xlsx' }, { filePath: 'C:/synthetic/gl-2.xlsx', fileName: 'gl-2.xlsx' }] }); await flush();
+  f.fail(f.sent('import.inspectFile').at(-1), { code: 'synthetic', message: '合成：檔案損壞。' }); await flush();
+  // 逐檔檢視時遇到另一項作業還在進行：不把這個檔案列成讀不出，也不再讀後面的檔案。
+  assert.equal(f.sent('import.inspectFile').length, 2);
+  f.fail(f.sent('import.inspectFile').at(-1), OTHER_RUNNING); await flush();
+  assert.equal(f.state().busy, false);
+  assert.equal(stepBody(f).querySelectorAll('.pending-row').length, 1, 'only the file that really failed is listed as unreadable');
+  press(f, '[data-action="pending-retry"]');
+  assert.equal(f.sent('import.inspectFile').length, 3);
+  f.fail(f.sent('import.inspectFile').at(-1), CANCELLED); await flush();
+  assert.match(row(f).textContent, /讀不出這個檔案：合成：檔案損壞。/);
+  assert.doesNotMatch(row(f).textContent, /已取消/);
+});
+
+test('the validation reports and the account mapping template are not marked 尚未產生 when cancelled or another operation is running', async () => {
+  for (const { name, error, level } of NOT_FAILURES) {
+    const f = await openCaseAtValidation();
+    f.store.setResult('validate', validationData()); await flush();
+    press(f, '[data-action="export-validation-reports"]');
+    f.fail(f.request('export.validationReports'), error); await flush();
+    assert.equal(f.state().busy, false, name);
+    assert.ok(stepBody(f).querySelector('[data-validation-output="reports"]') === null, name + ': no status line is left in the report block');
+    assert.doesNotMatch(stepBody(f).textContent, /報告尚未產生：|正在產生報告/, name);
+    assert.equal(f.state().operationFailure, null, name + ': no notice above the step');
+    assert.equal(f.messages()[0].level, level, name);
+
+    // 「建立科目配對範本」在「用 Excel 配對」分頁；回到「在 JET 配對」分頁也沒有留下失敗的狀態。
+    press(f, '[data-action="toggle-account-excel"]'); await flush();
+    press(f, '[data-action="ensure-account-mapping-template"]');
+    f.fail(f.request('export.accountMappingTemplate'), error); await flush();
+    assert.equal(f.state().busy, false, name);
+    assert.ok(stepBody(f).querySelector('[data-validation-output="template"]') === null, name + ': no status line is left in the template block');
+    // 開案後第一次建立範本，按下前這一區沒有任何狀態；取消後回到那個樣子，按鈕可以再按。
+    assert.equal(f.state().validationOutput.template, null, name + ': the template block is back to how it was before the press');
+    assert.equal(stepBody(f).querySelector('[data-action="ensure-account-mapping-template"]').disabled, false, name + ': the template can be built again');
+    press(f, '[data-action="select-account-jet"]'); await flush();
+    assert.ok(stepBody(f).querySelector('[data-account-template-status]') === null, name + ': no template status on the other tab');
+    assert.doesNotMatch(stepBody(f).textContent, /範本尚未產生|科目配對範本尚未準備好|正在建立科目配對範本/, name);
+    noErrorLine(f, name + ', validation outputs');
+  }
+
+  // 執行驗證之後接著產生報告時遇到另一項作業還在進行：驗證結果保留，不說部分檔案尚未產生，也不再送科目配對範本。
+  const f = await openCaseAtValidation();
+  press(f, '[data-action="run-validate"]');
+  f.reply(f.request('validate.run'), validationData()); await flush();
+  f.fail(f.request('export.validationReports'), OTHER_RUNNING); await flush();
+  assert.equal(f.state().busy, false);
+  assert.ok(f.state().results.validate, 'the finished validation stays');
+  assert.equal(f.sent('export.accountMappingTemplate').length, 0);
+  assert.doesNotMatch(stepBody(f).textContent, /報告尚未產生：/);
+  assert.deepEqual(f.messages()[0], { text: '另一項作業還在進行，請等它完成後再試。', level: 'warn' });
+  noErrorLine(f, 'validation then reports');
+});
+
+// ---- 情境 22：已經有作業在跑時再按一次，這次操作沒有開始，畫面維持原樣 ----
+
+// 讓一項合成作業先佔著整個畫面的作業；回傳的函式讓它結束。
+function holdAnotherOperation(f) {
+  const held = f.ui.run('合成第一項作業', () => f.api.systemPing({}));
+  const ping = f.sent('system.ping').at(-1);
+  return async () => { f.reply(ping, {}); await held; await flush(); };
+}
+// 這句的用字已定案；作業名稱是測試自己傳入的合成名稱。
+const HELD_STILL_RUNNING = { text: '「合成第一項作業」還在進行，請等它完成後再試。', level: 'info' };
+
+// 第二步打開 GL 的匯入精靈，選一個文字檔，檢視成功後列在待匯入清單。
+async function glWizardWithTextFile() {
+  const f = await openCaseAt(1);
+  press(f, '[data-task-toggle="gl"]'); await flush();
+  press(f, '[data-bind="import-card-gl"] [data-action="wizard-replace-gl"]');
+  f.reply('host.selectFiles', { files: [{ filePath: 'C:/synthetic/gl.csv', fileName: 'gl.csv' }] }); await flush();
+  f.reply('import.inspectFile', { fileType: 'csv', encoding: 'utf-8', delimiter: ',', columns: ['A', 'B'], notices: [] }); await flush();
+  return f;
+}
+const glWizard = f => { const node = stepBody(f).querySelector('[data-bind="import-card-gl"] .wizard-pane'); assert.ok(node !== null, 'the GL wizard is open'); return node; };
+const WIZARD_ACTIONS = ['wizard-pick', 'wizard-confirm', 'wizard-cancel'];
+const wizardActions = f => WIZARD_ACTIONS.filter(action => glWizard(f).querySelector('[data-action="' + action + '"]') !== null);
+const wizardProgress = f => { const node = glWizard(f).querySelector('[data-bind="wizard-progress"]'); return node.hidden ? null : node.querySelector('[data-bind="wizard-progress-label"]').textContent; };
+const GL_PROGRESS = { kind: 'gl', sourceNo: 1, sourceCount: 1, fileName: 'gl.csv', sheetName: null, rowsRead: 20000 };
+const glImported = { batchId: 'gl-one-file', rowCount: 3, addedRowCount: 3, columns: ['A', 'B'],
+  sources: [{ sourceNo: 1, fileName: 'gl.csv', sheetName: null, encoding: 'utf-8', delimiter: ',', headerRow: null, rowCount: 3, importedUtc: '2026-11-09T08:00:00Z' }],
+  warnings: [], openElsewhereWarnings: [], invalidatedResults: { validation: true, prescreen: true, filter: true, filterScenarios: true },
+  staleState: { validation: true, prescreen: true, filter: false }, reports: [] };
+
+test('while an import runs the wizard says 匯入中 and shows no buttons; a failed import brings the buttons back and stops following the progress', async () => {
+  const f = await glWizardWithTextFile();
+  assert.deepEqual(wizardActions(f), WIZARD_ACTIONS);
+  assert.match(glWizard(f).querySelector('.wizard-pane__hint').textContent, /選擇一個或多個來源檔/);
+
+  press(f, '[data-action="wizard-confirm"]');
+  const request = f.request('import.gl.fromFile');
+  assert.deepEqual(plain(request.payload), { mode: 'replace', sources: [{ filePath: 'C:/synthetic/gl.csv', fileName: 'gl.csv', encoding: 'utf-8', delimiter: ',' }] });
+  // 匯入期間：橫幅換成「匯入中」，選檔、開始匯入與取消都收起。
+  assert.equal(glWizard(f).querySelector('.wizard-pane__hint').textContent, '匯入中…請稍候，完成後會顯示匯入結果。');
+  assert.deepEqual(wizardActions(f), [], 'no button can change the sources while the import runs');
+  assert.equal(wizardProgress(f), null, 'no progress yet');
+  f.emit('import.progress', GL_PROGRESS);
+  assert.match(wizardProgress(f), /gl\.csv.*已寫入 20,000 列/);
+
+  // 匯入失敗：按鈕回來，橫幅回到匯入前的說明，進度收起；之後的進度事件不再畫出來。
+  f.fail(request, { code: 'synthetic', message: '合成：欄位名稱不一致。' }); await flush();
+  assert.equal(f.state().busy, false);
+  assert.deepEqual(wizardActions(f), WIZARD_ACTIONS, 'the sources can be corrected and imported again');
+  assert.match(glWizard(f).querySelector('.wizard-pane__hint').textContent, /選擇一個或多個來源檔/);
+  assert.equal(wizardProgress(f), null);
+  f.emit('import.progress', GL_PROGRESS);
+  f.store.touch(); await flush();
+  assert.equal(wizardProgress(f), null, 'a finished import no longer follows the progress');
+});
+
+test('pressing 開始匯入 while another operation is running starts no import: the wizard keeps its buttons and follows no progress', async () => {
+  const f = await glWizardWithTextFile();
+  const finishHeld = holdAnotherOperation(f);
+  press(f, '[data-action="wizard-confirm"]');
+  assert.equal(f.sent('import.gl.fromFile').length, 0, 'nothing is imported');
+  assert.deepEqual(f.messages()[0], HELD_STILL_RUNNING);
+  // 之後畫面不論何時重畫，精靈都和按下前一樣。
+  f.store.touch(); await flush();
+  assert.deepEqual(wizardActions(f), WIZARD_ACTIONS, 'the wizard still has its buttons');
+  assert.match(glWizard(f).querySelector('.wizard-pane__hint').textContent, /選擇一個或多個來源檔/);
+  assert.doesNotMatch(glWizard(f).textContent, /匯入中/);
+  // 沒有開始的匯入不跟著進度事件畫進度。
+  f.emit('import.progress', GL_PROGRESS);
+  assert.equal(wizardProgress(f), null, 'no progress is drawn for an import that never started');
+  f.store.touch(); await flush();
+  assert.equal(wizardProgress(f), null, 'and none appears on a later redraw');
+
+  // 前一項作業結束後再按一次，照常匯入一次。
+  await finishHeld();
+  press(f, '[data-action="wizard-confirm"]');
+  assert.equal(f.sent('import.gl.fromFile').length, 1);
+  assert.deepEqual(wizardActions(f), []);
+  f.reply('import.gl.fromFile', glImported); await flush();
+  assert.equal(f.state().busy, false);
+  assert.match(stepBody(f).querySelector('[data-bind="import-card-gl"]').textContent, /已匯入 3 列、2 欄（1 個來源）/);
+});
+
+test('expanding a source preview or changing its encoding, delimiter or header row while another operation is running leaves the source row as it was', async () => {
+  const f = await glWizardWithTextFile();
+  const row = () => { const node = stepBody(f).querySelector('.pending-row'); assert.ok(node !== null, 'the source row is listed'); return node; };
+  const control = key => { const node = row().querySelector('[data-pending-bind="' + key + '"]'); assert.ok(node !== null, key + ' is shown'); return node; };
+  const settings = () => ({ encoding: control('encoding').value, delimiter: control('delimiter').value, headerRow: control('headerRow').value });
+  assert.deepEqual(settings(), { encoding: 'utf-8', delimiter: ',', headerRow: '1' });
+  const finishHeld = holdAnotherOperation(f);
+
+  // 展開預覽：沒有開始讀，這一列不停在「載入預覽中」。
+  press(f, '[data-action="pending-preview"]');
+  assert.equal(f.sent('import.previewFile').length, 0, 'the preview is not read');
+  assert.doesNotMatch(row().textContent, /載入預覽中/);
+  assert.equal(row().querySelector('[data-action="pending-preview"]').getAttribute('aria-expanded'), 'false');
+  f.store.touch(); await flush();
+  assert.doesNotMatch(row().textContent, /載入預覽中/, 'nor on a later redraw');
+
+  // 改編碼、分隔符與欄名在第幾列：沒有重新讀取，畫面上的三格都回到原本的值。
+  for (const [key, value] of [['encoding', 'big5'], ['delimiter', ';'], ['headerRow', '3']]) {
+    const node = control(key);
+    node.value = value; node.dispatch('change');
+    assert.equal(f.sent('import.previewFile').length, 0, key + ': the source is not read again');
+    assert.deepEqual(settings(), { encoding: 'utf-8', delimiter: ',', headerRow: '1' }, key + ' goes back to what it was');
+    f.store.touch(); await flush();
+    assert.deepEqual(settings(), { encoding: 'utf-8', delimiter: ',', headerRow: '1' }, key + ' is still unchanged after a redraw');
+  }
+  assert.equal(row().querySelector('[data-pending-bind="include"]').checked, true, 'the row is still ticked');
+  assert.deepEqual(f.messages().slice(0, 4), [HELD_STILL_RUNNING, HELD_STILL_RUNNING, HELD_STILL_RUNNING, HELD_STILL_RUNNING]);
+
+  // 前一項作業結束後匯入，送出的設定就是畫面上的設定。
+  await finishHeld();
+  press(f, '[data-action="wizard-confirm"]');
+  assert.deepEqual(plain(f.request('import.gl.fromFile').payload),
+    { mode: 'replace', sources: [{ filePath: 'C:/synthetic/gl.csv', fileName: 'gl.csv', encoding: 'utf-8', delimiter: ',' }] });
+});
+
+test('changing the worksheet of the authorised preparer list while another operation is running keeps the sheet and its preview', async () => {
+  const f = await openCaseAt(1);
+  press(f, '[data-task-toggle="authorizedPreparer"]'); await flush();
+  press(f, '[data-action="import-authorized-preparer"]');
+  f.reply('host.selectFile', { filePath: 'C:/synthetic/preparers.xlsx', fileName: 'preparers.xlsx' }); await flush();
+  f.reply('import.inspectFile', { fileType: 'excel', worksheets: [{ name: '合成甲表', columns: ['Id'], rowCountEstimate: 3 }, { name: '合成乙表', columns: ['Name'], rowCountEstimate: 3 }] }); await flush();
+  f.reply('import.previewFile', { columns: ['Id'], sampleRows: [['合成人員甲']], notices: [] }); await flush();
+  const draft = () => { const node = stepBody(f).querySelector('[data-bind="authorized-preparer-draft"]'); assert.ok(node !== null, 'the draft is shown'); return node; };
+  const shown = () => ({ sheet: draft().querySelector('[data-ap-sheet]').value,
+    columns: draft().querySelectorAll('[data-ap-column] option').map(option => option.getAttribute('value')) });
+  assert.deepEqual(shown(), { sheet: '合成甲表', columns: ['', 'Id'] });
+  const reads = f.sent('import.previewFile').length;
+
+  const finishHeld = holdAnotherOperation(f);
+  const sheet = draft().querySelector('[data-ap-sheet]');
+  sheet.value = '合成乙表'; sheet.dispatch('change');
+  assert.equal(f.sent('import.previewFile').length, reads, 'the other sheet is not read');
+  assert.deepEqual(f.messages()[0], HELD_STILL_RUNNING);
+  for (const when of ['at once', 'after a redraw']) {
+    assert.deepEqual(shown(), { sheet: '合成甲表', columns: ['', 'Id'] }, when + ': the first sheet and its columns are still chosen');
+    assert.match(draft().textContent, /合成人員甲/, when + ': its preview is still shown');
+    assert.doesNotMatch(draft().textContent, /載入預覽中|來源檔預覽失敗/, when);
+    f.store.touch(); await flush();
+  }
+  await finishHeld();
+});
+
+test('ticking a weekly rest day keeps the boxes equal to the saved setting when the change does not go through', async () => {
+  const f = await openCaseAt(1);
+  press(f, '[data-task-toggle="calendar"]'); await flush();
+  const box = day => { const node = stepBody(f).querySelector('[data-bind="nonworking-days"] input[data-weekday="' + day + '"]'); assert.ok(node !== null, 'weekday ' + day); return node; };
+  const ticked = () => stepBody(f).querySelectorAll('[data-bind="nonworking-days"] input[data-weekday]').filter(node => node.checked).map(node => node.getAttribute('data-weekday'));
+  assert.deepEqual(ticked(), ['6', '0'], 'Saturday and Sunday by default');
+
+  // 已經有作業在跑時勾選星期一：沒有送出，勾選回到已存的設定。
+  const finishHeld = holdAnotherOperation(f);
+  box(1).checked = true; box(1).dispatch('change');
+  assert.equal(f.sent('calendar.setNonWorkingDays').length, 0, 'nothing is saved');
+  assert.deepEqual(f.messages()[0], HELD_STILL_RUNNING);
+  assert.deepEqual(ticked(), ['6', '0'], 'the boxes show the saved setting again');
+  await finishHeld();
+
+  // 送出後被取消，或後端回覆另一項作業還在進行：一樣沒有存，勾選回到已存的設定。
+  for (const { name, error } of NOT_FAILURES) {
+    box(1).checked = true; box(1).dispatch('change');
+    const save = f.request('calendar.setNonWorkingDays');
+    assert.deepEqual(plain(save.payload), { days: [1, 6, 0] });
+    f.fail(save, error); await flush();
+    assert.equal(f.state().busy, false, name);
+    assert.deepEqual(ticked(), ['6', '0'], name + ': the boxes show the saved setting again');
+    assert.equal(f.state().importState.calendar, null, name + ': nothing was saved');
+  }
+  noErrorLine(f, 'weekly rest days');
+
+  // 後端回覆一般失敗：沒有存，勾選回到已存的設定，步驟上方寫出原因（作業名稱只比對意思）。
+  const notice = () => { const node = f.$('.stepflow-item__failure'); return node === null ? null : node.textContent; };
+  box(1).checked = true; box(1).dispatch('change');
+  const failed = f.request('calendar.setNonWorkingDays');
+  assert.deepEqual(plain(failed.payload), { days: [1, 6, 0] });
+  f.fail(failed, { code: 'synthetic', message: '合成：每週休息日存不進去。' }); await flush();
+  assert.equal(f.state().busy, false);
+  assert.equal(f.state().importState.calendar, null, 'a real failure: nothing was saved');
+  assert.match(f.messages()[0].text, /每週休息日.*失敗：合成：每週休息日存不進去/);
+  assert.equal(f.messages()[0].level, 'error');
+  for (const when of ['at once', 'after a redraw']) {
+    assert.deepEqual(ticked(), ['6', '0'], 'a real failure, ' + when + ': the boxes show the saved setting again');
+    assert.match(notice(), /失敗：合成：每週休息日存不進去。$/, when + ': the step says why');
+    f.store.touch(); await flush();
+  }
+
+  // 步驟失敗提示還在畫面上時再勾選星期一，送出後被取消：提示拿掉，沒有存，勾選回到已存的設定。
+  const saves = f.sent('calendar.setNonWorkingDays').length;
+  box(1).checked = true; box(1).dispatch('change');
+  assert.equal(f.sent('calendar.setNonWorkingDays').length, saves + 1, 'the change is sent');
+  const cancelled = f.request('calendar.setNonWorkingDays');
+  assert.deepEqual(plain(cancelled.payload), { days: [1, 6, 0] });
+  assert.equal(notice(), null, 'sending takes the earlier step notice away');
+  f.fail(cancelled, CANCELLED); await flush();
+  assert.equal(f.state().busy, false);
+  assert.equal(f.state().importState.calendar, null, 'cancelled after a failure: nothing was saved');
+  for (const when of ['at once', 'after a redraw']) {
+    assert.deepEqual(ticked(), ['6', '0'], 'cancelled after a failure, ' + when + ': the boxes show the saved setting again');
+    assert.equal(notice(), null, when + ': a cancelled change leaves no step notice');
+    f.store.touch(); await flush();
+  }
+
+  // 存成功時勾選照送出的樣子留著。
+  box(1).checked = true; box(1).dispatch('change');
+  f.reply('calendar.setNonWorkingDays', { nonWorkingDays: [0, 1, 6] }); await flush();
+  assert.deepEqual(ticked(), ['1', '6', '0']);
+});
+
+test('on the case list, opening a case while the list is still loading does not throw away the list that is on its way', async () => {
+  const OTHER = { projectId: '合成另一案', databaseProvider: 'sqlite' };
+  // 清單還在讀的時候按了開啟案件：沒有開案，稍後回來的清單照樣換上。
+  const f = await boot([CASE]);
+  f.click('[data-action="picker-refresh-local"]');
+  const list = f.request('project.listLocal');
+  f.$('[data-action="picker-open"]').dispatch('click');
+  assert.equal(f.sent('project.load').length, 0);
+  f.reply(list, { projects: [CASE, OTHER] }); await flush();
+  assert.equal(f.state().busy, false);
+  assert.deepEqual(plain(f.state().projects.map(p => p.projectId)), ['合成案件', '合成另一案'], 'the refreshed list is shown');
+});
+
+// 開案真的失敗、原因還在清單上方時，別的作業進行中又按了開啟案件、重新整理或確認刪除：都沒有開始，原因照樣留著。
+test('on the case list, a press that starts nothing because another operation is running leaves the error box and the row to delete alone', async () => {
+  for (const pressed of ['picker-open', 'picker-refresh-local', 'modal-confirm']) {
+    const f = await boot([CASE]);
+    f.click('[data-action="picker-open"]');
+    f.fail(f.request('project.load'), { code: 'synthetic', message: '合成：案件資料庫打不開' }); await flush();
+    const openFailure = f.$('.picker-feedback__body').textContent;
+    assert.match(openFailure, /^開啟案件失敗：合成：案件資料庫打不開/);
+    if (pressed === 'modal-confirm') {
+      f.click('[data-action="picker-delete"]');
+      f.reply('project.deletePreview', { reportCount: 0, workingPaperCount: 0 }); await flush();
+    }
+    // 刪除時先記下要拿掉哪一列，等清單重新讀回才收起；沒有開始刪除就不該記。
+    const removals = [];
+    const removing = f.window.JetMotion.removing;
+    f.window.JetMotion.removing = intent => { removals.push(plain(intent)); return removing(intent); };
+    const finishHeld = holdAnotherOperation(f);
+    const sent = () => f.posted.filter(r => ['project.load', 'project.listLocal', 'project.delete'].includes(r.action)).length;
+    const before = sent();
+    f.$('[data-action="' + pressed + '"]').dispatch('click');
+    await flush();
+    assert.equal(sent(), before, pressed + ': nothing is sent');
+    assert.ok(f.$('.picker-feedback__body') !== null, pressed + ': the error box is still there');
+    assert.equal(f.$('.picker-feedback__body').textContent, openFailure, pressed + ': and still says why the open failed');
+    assert.deepEqual(removals, [], pressed + ': no row is marked as being removed');
+    await finishHeld();
+  }
+});
+
+test('submitting the create form or the case details while another operation is running keeps the error that is shown', async () => {
+  // 建立案件真的失敗、原因還在表單上時，別的作業進行中又送出一次：沒有建立，原因照樣留著。
+  const f = await boot([]);
+  f.click('[data-action="picker-new"]'); await flush();
+  const form = namedForm(stepBody(f).querySelector('[data-bind="create-form"]'));
+  form.projectName.value = '合成新案'; form.periodStart.value = '2025-01-01'; form.periodEnd.value = '2025-12-31';
+  form.dispatch('submit', { target: form });
+  f.fail(f.request('project.create'), { code: 'synthetic', message: '合成：案件名稱已經存在。' }); await flush();
+  const box = () => stepBody(f).querySelector('[data-bind="create-error"]');
+  assert.equal(box().hidden, false, 'the real failure is shown on the form');
+  assert.match(box().textContent, /合成：案件名稱已經存在。/);
+  let finishHeld = holdAnotherOperation(f);
+  form.dispatch('submit', { target: form });
+  assert.equal(f.sent('project.create').length, 1, 'no second create is sent');
+  assert.equal(box().hidden, false, 'the reason is still on the form');
+  assert.match(box().textContent, /合成：案件名稱已經存在。/);
+  await finishHeld();
+
+  // 修改案件資料也一樣；之後重畫表單，原因還在。
+  const g = await openCaseAt(0);
+  press(g, '[data-action="edit-project-metadata"]'); await flush();
+  const edit = namedForm(stepBody(g).querySelector('[data-bind="project-update-form"]'));
+  edit.clientName.value = '合成客戶';
+  edit.dispatch('submit', { target: edit });
+  g.fail(g.request('project.update'), { code: 'synthetic', message: '合成：案件資料存不進去。' }); await flush();
+  const editBox = () => stepBody(g).querySelector('[data-bind="project-update-error"]');
+  assert.equal(editBox().hidden, false, 'the real failure is shown on the edit form');
+  finishHeld = holdAnotherOperation(g);
+  edit.dispatch('submit', { target: edit });
+  assert.equal(g.sent('project.update').length, 1, 'no second save is sent');
+  for (const when of ['at once', 'after a redraw']) {
+    assert.equal(editBox().hidden, false, when + ': the reason is still on the edit form');
+    assert.match(editBox().textContent, /合成：案件資料存不進去。/, when);
+    g.store.touch(); await flush();
+  }
+  await finishHeld();
+});
+
+test('removing the authorised preparer list while another operation is running marks nothing as being removed', async () => {
+  const f = await openCaseAt(1, f => f.store.setAuthorizedPreparerState({ rowCount: 2, sourceColumn: 'Id', sourceRowCount: 2, blankRowCount: 0, duplicateRowCount: 0, matchedPreparerCount: 1 }));
+  press(f, '[data-task-toggle="authorizedPreparer"]'); await flush();
+  // 移除時先記下要拿掉的摘要與兩個鈕，等後端回來重畫時才收起；沒有開始移除就不該記。
+  const removals = [];
+  const removing = f.window.JetMotion.removing;
+  f.window.JetMotion.removing = intent => { removals.push(plain(intent.keys)); return removing(intent); };
+  const finishHeld = holdAnotherOperation(f);
+  press(f, '[data-action="clear-authorized-preparer"]');
+  assert.equal(f.sent('import.authorizedPreparer.clear').length, 0, 'nothing is removed');
+  assert.deepEqual(removals, [], 'nothing is marked as being removed');
+  await finishHeld();
+  // 真的開始移除時照樣先記下。
+  press(f, '[data-action="clear-authorized-preparer"]');
+  assert.equal(f.sent('import.authorizedPreparer.clear').length, 1);
+  assert.deepEqual(removals, [['preparer-summary', 'preparer-preview-action', 'preparer-clear-action']]);
+});
+
+// 開發者面板的資料庫檢視：換頁沒有開始時，頁次停在原本那一頁，之後按下一頁讀的是緊接著的那一頁。
+test('DEV database view: paging while another operation is running does not skip a page', async () => {
+  const f = await openCaseAt(1);
+  f.$('[data-action="dev-refresh"]').dispatch('click');
+  f.reply('dev.db.overview', { databasePath: '合成/case.db', databaseProvider: 'sqlite', engineVersion: '3.0', fileSizeBytes: 2048,
+    tables: [{ name: 'synthetic_first', rowCount: 900 }, { name: 'synthetic_second', rowCount: 5 }] }); await flush();
+  const select = f.$('[data-bind="dev-table-select"]');
+  select.value = 'synthetic_first';
+  f.$('[data-action="dev-query"]').dispatch('click');
+  const first = f.request('dev.db.tableData');
+  assert.deepEqual(plain(first.payload), { tableName: 'synthetic_first', limit: 200, offset: 0 });
+  f.reply(first, { tableName: 'synthetic_first', columns: ['a'], rows: [['1']], limit: 200, offset: 0, totalCount: 900 }); await flush();
+
+  const finishHeld = holdAnotherOperation(f);
+  // 換了下拉選單的資料表又按兩次下一頁，都沒有開始。
+  select.value = 'synthetic_second';
+  f.$('[data-action="dev-next"]').dispatch('click');
+  f.$('[data-action="dev-next"]').dispatch('click');
+  assert.equal(f.sent('dev.db.tableData').length, 1, 'nothing is queried');
+  await finishHeld();
+  select.value = 'synthetic_first';
+  f.$('[data-action="dev-next"]').dispatch('click');
+  assert.deepEqual(plain(f.request('dev.db.tableData').payload), { tableName: 'synthetic_first', limit: 200, offset: 200 });
+});
+
+test('confirming the field mapping while another operation is running keeps the problem left by the last confirmation', async () => {
+  const f = await openCaseAt(2, f => {
+    f.store.setImportResult('gl', { batchId: 'gl-source', columns: ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Amount', 'Side'], rowCount: 2 });
+    f.store.setMappingMode('gl', 'side');
+    f.store.replaceMappingDraft('gl', { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' });
+  });
+  press(f, '[data-action="commit-gl"]');
+  f.fail(f.request('mapping.commit.gl'), { code: 'synthetic', message: '合成：日期欄無法轉換。' }); await flush();
+  const box = () => stepBody(f).querySelector('[data-bind="mapping-commit-error-gl"]');
+  assert.ok(box() !== null, 'a real failure is shown in the mapping section');
+  const commits = f.sent('mapping.commit.gl').length;
+
+  const finishHeld = holdAnotherOperation(f);
+  press(f, '[data-action="commit-gl"]');
+  assert.equal(f.sent('mapping.commit.gl').length, commits, 'nothing is confirmed');
+  f.store.touch(); await flush();
+  assert.ok(box() !== null, 'the earlier problem is still shown after a redraw');
+  assert.match(box().textContent, /配對未完成：合成：日期欄無法轉換。/);
+  await finishHeld();
+});
+
 // 耗時接在訊息後面，成功時只留一則。
 test('a long operation leaves one completion line with minutes and seconds, a failure adds the elapsed time and last progress, and each line appears while still busy', async () => {
   const f = await boot([CASE]);
@@ -531,4 +1238,22 @@ test('step 5 messages: a preview logs the confirmed count line with the elapsed 
   f.click('[data-action="export-criteria-report"]'); await settle();
   f.request('exportCriteriaSelectionReport').reject(new Error('合成報告失敗。')); await settle(); await settle();
   assertFailureLine(f, '合成報告失敗', /條件篩選報告/);
+});
+
+// 儲存情境被取消或遇到另一項作業還在進行，不是儲存失敗：儲存鈕上方不寫原因，草稿照舊。
+test('step 5: saving a scenario shows no failure above the save button when it is cancelled or another operation is running', async () => {
+  for (const [code, level] of [['operation_cancelled', 'info'], ['operation_in_progress', 'warn']]) {
+    const f = filterStepFixture();
+    f.click('[data-common-card="blankDescription"]');
+    f.click('[data-action="save-scenario"]'); await settle();
+    f.request('filterScenarioSave').reject(Object.assign(new Error('合成：沒有儲存'), { code })); await settle(); await settle();
+    const notice = f.$('[data-bind="scenario-notice"]');
+    assert.ok(notice !== null, 'the save panel is still shown');
+    assert.equal(notice.hidden, true, code + ': nothing is written above the save button');
+    assert.equal(notice.textContent, '', code);
+    assert.equal(f.store.getState().filter.draft.groups[0].conditions.length, 1, code + ': the draft is kept');
+    assert.equal(f.store.getState().filter.savedScenarios.length, 0, code + ': nothing was saved');
+    assert.equal(panelMessages(f)[0].level, level, code);
+    assert.deepEqual(panelMessages(f).filter(m => m.level === 'error'), [], code + ': nothing is logged as an error');
+  }
 });

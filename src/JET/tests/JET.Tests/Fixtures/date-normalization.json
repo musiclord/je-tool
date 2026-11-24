@@ -96,6 +96,11 @@
     { "group": "短年份與年份在後", "raw": "1.2.2025 12:00:00", "rocEnabled": null, "rocDisabled": null },
     { "group": "短年份與年份在後", "raw": "01/02/25 12:00:00", "rocEnabled": null, "rocDisabled": null },
 
+    { "group": "全形數字", "raw": "２０２５/０６/１１", "rocEnabled": null, "rocDisabled": null, "note": "全形數字不是常見的日期寫法" },
+    { "group": "全形數字", "raw": "２０２５０６１１", "rocEnabled": null, "rocDisabled": null },
+    { "group": "全形數字", "raw": "１１４/０６/１１", "rocEnabled": null, "rocDisabled": null },
+    { "group": "全形數字", "raw": "2025/０６/11", "rocEnabled": null, "rocDisabled": null, "note": "半形與全形混用也一樣" },
+
     { "group": "寬鬆寫法", "raw": "June 11, 2025", "rocEnabled": "2025-06-11", "rocDisabled": "2025-06-11", "frontend": "passThrough" },
     { "group": "寬鬆寫法", "raw": "11 June 2025", "rocEnabled": "2025-06-11", "rocDisabled": "2025-06-11", "frontend": "passThrough" },
     { "group": "寬鬆寫法", "raw": "11-Jun-2025", "rocEnabled": "2025-06-11", "rocDisabled": "2025-06-11", "frontend": "passThrough" },

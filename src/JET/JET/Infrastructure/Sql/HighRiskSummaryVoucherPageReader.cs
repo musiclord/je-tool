@@ -30,8 +30,8 @@ internal static class HighRiskSummaryVoucherPageReader
         "SELECT g.voucher_number AS voucher_number, MIN(g.gl_date) AS first_gl_date, MIN(g.created_by) AS first_created_by, " +
         "       COALESCE(SUM(g.debit_amount_scaled), 0) AS voucher_total " +
         $"FROM {schemaPrefix}gl g " +
-        $"WHERE {populationPredicate} AND g.voucher_number IS NOT NULL " +
-        $"  AND {HighRiskSummaryRowPageReader.HitVoucherPredicate(schemaPrefix, scenarioPredicate, hitPopulationPredicate)}";
+        $"WHERE {populationPredicate} AND {HitVoucherRows.HasVoucherNumber("g")} " +
+        $"  AND {HitVoucherRows.InSavedScenarioHitVouchers(schemaPrefix, scenarioPredicate, hitPopulationPredicate)}";
 
     private const string PageSqlTail =
         "GROUP BY g.voucher_number";
@@ -111,7 +111,7 @@ internal static class HighRiskSummaryVoucherPageReader
                 "SELECT DISTINCT g.voucher_number, fs.position " +
                 $"FROM {schemaPrefix}filter_hit r JOIN {schemaPrefix}filter_scenario fs ON fs.scenario_id = r.scenario_id " +
                 $"JOIN {schemaPrefix}gl g ON g.entry_id = r.entry_id " +
-                $"WHERE g.voucher_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "g")} " +
+                $"WHERE {HitVoucherRows.HasVoucherNumber("g")} AND {GlPopulationScopeSql.Predicate(context, "g")} " +
                 scenarioScope.Predicate() +
                 $"AND g.voucher_number IN ({string.Join(", ", docParameters)}) " +
                 "ORDER BY g.voucher_number, fs.position;";

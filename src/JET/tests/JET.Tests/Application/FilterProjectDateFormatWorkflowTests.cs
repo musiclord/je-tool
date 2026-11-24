@@ -67,9 +67,7 @@ public sealed class FilterProjectDateFormatWorkflowTests
         Assert.True(File.Exists(report.GetProperty("publishedReport").GetProperty("fullPath").GetString()));
 
         // Synthetic project metadata selects the same date option used by GL import; it does not change source rows.
-        var store = new JsonFileProjectStore(folder);
-        var project = (await store.FindAsync(id, CancellationToken.None))!;
-        await store.SaveAsync(project with { RocDateEnabled = false }, CancellationToken.None);
+        await ProtectedSettingEdits.ApplyAsync(host.ProjectsRoot, id, project => project with { RocDateEnabled = false });
         var disabled = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario })));
         Assert.Equal(JetErrorCodes.InvalidScenario, disabled.Code);
         await AssertPreviewAsync(host, DateScenario("2025/6/11"), ["D1"]);

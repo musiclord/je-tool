@@ -199,6 +199,7 @@
 
   function render(container, state) {
     syncViewState(state); // 專案切換／已存清單替換時對齊檢視狀態（先於任何讀取 viewState 的 HTML 生成）
+    FilterStep.shownContainer = container;
 
     if (!state.project) {
       container.innerHTML = Ui.noProjectPanel('進階條件篩選');
@@ -226,6 +227,8 @@
           '</div></aside><div class="filter-current">' + scenarioBuilderHtml(draft) + previewPaneHtml(state.filter.preview) + '</div></div>' +
         '</section>' +
         '<section data-filter-pane="saved" id="filter-pane-saved" role="tabpanel" aria-labelledby="filter-tab-saved" data-motion-pane data-motion-key="filter-pane-saved"' + (FilterStep.viewState.workspacePane === 'saved' ? '' : ' hidden') + '>' +
+          // 在這個分頁出現的儲存提示（例如選了「儲存並編輯」）寫在這裡，句子和儲存鈕上方那一個相同（見 drawSaveNotice）。
+          '<p class="form-notice" data-bind="scenario-notice-saved-pane" data-collapsible role="alert" hidden></p>' +
           savedScenariosHtml(state) + highRiskSummaryHtml(state) + criteriaReportHtml(state) + '</section>' +
         Ui.stepFooterHtml(state) + '</div>';
 
@@ -233,32 +236,11 @@
     restoreViewState(container);
   }
 
-  // 後端 FilterScenarioLimits 的就近 UI 鏡像；只檢查 wire 陣列長度，不截斷、不 trim、
-  // 不做任何命中語意。preview/save 仍會由後端以同一上限與完整 SQL plan 預算驗證。
-  function hasOversizedTextSet(draft) {
-    return draft.groups.some(function (group) {
-      return group.conditions.some(function (rule) {
-        return rule.type === 'textSet' && Array.isArray(rule.values) &&
-          rule.values.length > Ui.TEXT_SET_MAX_VALUES;
-      });
-    });
-  }
-
   // 尚未選欄位或比較方式的攸關資料元素條件：先在畫面擋下，避免送出必被拒絕的形狀。
   function hasIncompleteTypedRule(draft) {
     return draft.groups.some(function (group) {
       return group.conditions.some(function (rule) {
         return rule.type === 'typed' && (!rule.fieldId || !rule.operator);
-      });
-    });
-  }
-
-  // 攸關資料元素條件的值清單上限（與後端相同，1 到 100）；後端仍是權威。
-  function hasOversizedTypedSet(draft) {
-    return draft.groups.some(function (group) {
-      return group.conditions.some(function (rule) {
-        return rule.type === 'typed' && Array.isArray(rule.values) &&
-          rule.values.length > Ui.TYPED_SET_MAX_VALUES;
       });
     });
   }
@@ -338,24 +320,16 @@
       .filter(function (control) { return control.closest('.rule-row') === row; }).find(visible) || null;
   }
 
-  // 預覽／保存前的前端引導：條件未補齊或名稱重複時，於欄位旁（紅框＋紅字）
-  // 與按鈕上方（form-notice）就近提示並不送出。純呈現——後端 invalid_scenario 仍是權威。
+  // 預覽或儲存前還缺什麼，寫成提示框的句子；沒有缺項、名稱也沒有重複時 text 是空字串。權威驗證仍在後端。
   // 名稱與動機不必填：留白時後端補上依條件自動帶入的文字。
-  function scenarioGate(container, includeSavedScenarios, skipDuplicateName) {
-    var draft = Store.getState().filter.draft;
-    var nameInput = container.querySelector('[data-bind="scenario-name"]');
-    var rationaleInput = container.querySelector('[data-bind="scenario-rationale"]');
-    var notice = container.querySelector('[data-bind="scenario-notice"]');
-
-    var nameError = '';
+  function incompleteCheck(draft, includeSavedScenarios, skipDuplicateName) {
     var noCondition = (draft.groups.length === 0 ||
       draft.groups.every(function (g) { return g.conditions.length === 0; }));
-    var incompleteTyped = hasIncompleteTypedRule(draft);
 
     // 每條缺值都寫出第幾組第幾條與條件名稱，審計員不必逐條找。
     var problems = draftRuleProblems(draft).map(function (item) { return item.text; });
     if (noCondition) { problems.push('至少一條篩選條件'); }
-    if (incompleteTyped) {
+    if (hasIncompleteTypedRule(draft)) {
       problems.push('攸關資料元素欄位條件需選定欄位與比較方式');
     }
 
@@ -363,25 +337,180 @@
     // 「另存為新情境」時名稱會另附「（副本）」，不在這裡比對。
     var duplicate = includeSavedScenarios && !skipDuplicateName ? duplicateScenarioName(draft) : '';
     var duplicateText = duplicate ? '已有同名情境「' + duplicate + '」，請改用其他名稱。' : '';
-    if (duplicate) { nameError = duplicateText; }
+    return {
+      text: (problems.length ? '尚需補齊：' + problems.join('、') + (duplicate ? '。' : '') : '') + duplicateText,
+      duplicateText: duplicateText
+    };
+  }
+
+  /* ---- 送出之後要留在畫面上的東西：條件列的錯誤，以及儲存鈕上方的提示 ----
+     兩者都記在 FilterStep.viewState（ruleErrors、saveNotice），畫面由 drawRuleErrors 與 drawSaveNotice 照記下的內容畫上去：
+     每次重畫之後畫一次，內容有變動時再畫一次。後端的回應回來時，畫的對象是這一步現在畫在上面的那一塊畫面
+     （FilterStep.shownContainer），不是送出當時的那一塊：等待回應的期間中央面板可能已經重畫，原本那一塊不在畫面上了。 */
+
+  // 一條條件送給後端的樣子。後端回報的錯誤說的是這個樣子，條件改了就不再適用。
+  function sentRuleKey(rule) { return JSON.stringify(nestedWireRule(rule)); }
+
+  // 把後端 invalid_scenario 的 details（第幾組、第幾條、原因）記到草稿的條件上，回傳記下幾則；上一次記的先清掉。
+  // 沒有 details 的錯誤不記，維持 Ui.run 的整段訊息。這只是呈現，判定權威仍在後端。
+  // 後端的組號是送出後的順序；送出時略過空組，所以先換回草稿裡有條件的組。
+  // targetPosition 是這次儲存的情境在清單上的位置；細節標明屬於別的情境時不記在目前草稿上。
+  function recordRuleErrors(error, targetPosition) {
+    var errors = [];
+    if (error && Array.isArray(error.details)) {
+      var sentGroups = Store.getState().filter.draft.groups.filter(function (group) { return (group.conditions || []).length; });
+      error.details.forEach(function (detail) {
+        if (!detail || typeof detail.group !== 'number' || typeof detail.rule !== 'number') { return; }
+        if (!belongsToTarget(detail, targetPosition)) { return; }
+        var group = sentGroups[detail.group - 1];
+        var rule = group ? group.conditions[detail.rule - 1] : null;
+        if (!rule) { return; }
+        errors.push({ rule: rule, message: detail.message, sent: sentRuleKey(rule) });
+      });
+    }
+    FilterStep.viewState.ruleErrors = errors;
+    return errors.length;
+  }
+
+  // 現在仍適用的條件錯誤：條件還在草稿裡，內容也和送出時相同。不再適用的從記錄拿掉，之後不會再出現。
+  function currentRuleErrors() {
+    var groups = Store.getState().filter.draft.groups || [];
+    FilterStep.viewState.ruleErrors = FilterStep.viewState.ruleErrors.filter(function (item) {
+      return groups.some(function (group) { return (group.conditions || []).indexOf(item.rule) >= 0; }) &&
+        sentRuleKey(item.rule) === item.sent;
+    });
+    return FilterStep.viewState.ruleErrors;
+  }
+
+  // 把記下的條件錯誤畫到條件列：有錯的列標紅、在列的下面寫原因，已經不適用的拿掉。回傳第一個標紅的列，沒有時是 null。
+  // animate：錯誤剛出現或剛收起時，說明長出來、收回去（出現與消失都要有動態）；重畫之後照原樣畫回去時不重播。
+  function drawRuleErrors(container, animate) {
+    if (!container) { return null; }
+    var groups = Store.getState().filter.draft.groups || [];
+    var wanted = [];
+    currentRuleErrors().forEach(function (item) {
+      var gi = groups.findIndex(function (group) { return (group.conditions || []).indexOf(item.rule) >= 0; });
+      var row = container.querySelector('.rule-row[data-gi="' + gi + '"][data-ri="' + groups[gi].conditions.indexOf(item.rule) + '"]');
+      if (!row) { return; }
+      var entry = wanted.filter(function (found) { return found.row === row; })[0];
+      if (!entry) { entry = { row: row, messages: [], drawn: false }; wanted.push(entry); }
+      entry.messages.push(item.message);
+    });
+    container.querySelectorAll('.rule-row--invalid').forEach(function (row) {
+      // 正在收起的舊畫面複本不動，它會自己淡掉。
+      if (row.closest('[data-motion-leaving]')) { return; }
+      var notes = Array.prototype.filter.call(row.querySelectorAll('[data-rule-error]:not([data-motion-folding])'),
+        function (note) { return note.parentNode === row; });
+      var entry = wanted.filter(function (found) { return found.row === row; })[0];
+      if (entry && notes.map(function (note) { return note.textContent; }).join('\n') === entry.messages.join('\n')) {
+        entry.drawn = true;
+        return;
+      }
+      row.classList.remove('rule-row--invalid');
+      notes.forEach(function (old) {
+        if (animate && global.JetMotion && typeof global.JetMotion.fold === 'function') { global.JetMotion.fold(old, function () { old.remove(); }); } else { old.remove(); }
+      });
+    });
+    wanted.forEach(function (entry) {
+      if (entry.drawn) { return; }
+      entry.row.classList.add('rule-row--invalid');
+      entry.messages.forEach(function (message) {
+        var note = document.createElement('p');
+        note.className = 'rule-row__error'; note.setAttribute('data-rule-error', ''); note.setAttribute('role', 'alert');
+        note.textContent = message;
+        entry.row.appendChild(note);
+        if (animate && global.JetMotion && typeof global.JetMotion.enter === 'function') { global.JetMotion.enter(note); }
+      });
+    });
+    return wanted.length ? wanted[0].row : null;
+  }
+
+  // 儲存鈕上方的提示框一次只寫一種提示，記在 viewState.saveNotice（kind、text、warning、pane）。每一種有自己的收起時機：
+  //   incomplete  按下預覽或儲存時還有要補的，或名稱重複；同一份檢查通過就收起。
+  //   listChanged 這次沒有送出：編輯中的情境所在的清單已經換掉；草稿不再接在舊清單上就收起。
+  //   listFull    這次沒有送出：已經存滿；清單有空位就收起。
+  //   failed      後端沒有存成，原因又對不到條件列；原因說的是送出的那一份草稿，草稿改了就收起。
+  // 再按一次預覽或儲存、或換成另一份草稿時，不論哪一種都先收起。
+  // pane 是提示出現時審計員所在的分頁：在「已儲存情境」分頁出現的提示（例如選了「儲存並編輯」），
+  // 同一句也寫在那個分頁的最上面，不只寫在另一個分頁的儲存鈕上方。
+  function raiseSaveNotice(notice) {
+    notice.pane = FilterStep.viewState.workspacePane;
+    FilterStep.viewState.saveNotice = notice;
+  }
+
+  // 現在仍適用的提示；情況已經不在的從記錄拿掉。rewrite 為真時，尚需補齊的句子照目前還缺的重寫。
+  function currentSaveNotice(rewrite) {
+    var notice = FilterStep.viewState.saveNotice;
+    if (!notice) { return null; }
+    var state = Store.getState(), draft = state.filter.draft, saved = state.filter.savedScenarios;
+    var holds;
+    if (notice.kind === 'incomplete') {
+      var text = incompleteCheck(draft, notice.includeSaved, notice.skipDuplicate).text;
+      holds = !!text;
+      if (holds && rewrite) { notice.text = text; }
+    } else if (notice.kind === 'listChanged') {
+      holds = typeof draft.__editingIndex === 'number' && draft.__editingSavedRef !== saved;
+    } else if (notice.kind === 'listFull') {
+      holds = saved.length >= Ui.FILTER_MAX_SAVED_SCENARIOS;
+    } else {
+      holds = draftContentKey(draft) === notice.sent;
+    }
+    if (!holds) { FilterStep.viewState.saveNotice = null; }
+    return FilterStep.viewState.saveNotice;
+  }
+
+  // 把記下的提示畫到提示框：儲存鈕上方那一個，以及「已儲存情境」分頁最上面那一個（提示是在那個分頁出現時）。
+  // 提示收起時字留著，跟著一起收回去，不會先變成一個空框。
+  // typing：審計員正在輸入時只收起已經不適用的提示，不改寫句子，免得打字途中跳出新的缺項。
+  function drawSaveNotice(container, typing) {
+    if (!container) { return; }
+    var notice = currentSaveNotice(!typing);
+    [[container.querySelector('[data-bind="scenario-notice"]'), !!notice],
+      [container.querySelector('[data-bind="scenario-notice-saved-pane"]'), !!notice && notice.pane === 'saved']].forEach(function (target) {
+      var box = target[0];
+      if (!box) { return; }
+      if (target[1]) {
+        box.textContent = notice.text;
+        // 清單已變更與已存滿只是需要注意，用琥珀色；尚需補齊與儲存失敗用紅色（訊息分三級）。
+        if (notice.warning) { box.classList.add('form-notice--warning'); } else { box.classList.remove('form-notice--warning'); }
+      }
+      box.hidden = !target[1];
+    });
+  }
+
+  // 預覽／保存前的前端引導：條件未補齊或名稱重複時，於欄位旁（紅框＋紅字）
+  // 與按鈕上方（form-notice）就近提示並不送出。純呈現——後端 invalid_scenario 仍是權威。
+  function scenarioGate(container, includeSavedScenarios, skipDuplicateName) {
+    var draft = Store.getState().filter.draft;
+    var nameInput = container.querySelector('[data-bind="scenario-name"]');
+    var rationaleInput = container.querySelector('[data-bind="scenario-rationale"]');
+    var check = incompleteCheck(draft, includeSavedScenarios, skipDuplicateName);
+
     // 已經顯示的錯誤說明直接換字，不先收起再長出來；補齊的才收回去。
-    if (nameError) { setFieldError(nameInput, nameError); } else { clearFieldError(nameInput); }
+    if (check.duplicateText) { setFieldError(nameInput, check.duplicateText); } else { clearFieldError(nameInput); }
     clearFieldError(rationaleInput);
 
-    // 提示收起時字留著，跟著一起收回去，不會先變成一個空框。
-    if (problems.length === 0 && !duplicate) {
-      if (notice) { notice.hidden = true; }
-      return true;
+    if (check.text) {
+      raiseSaveNotice({ kind: 'incomplete', text: check.text, warning: false,
+        includeSaved: !!includeSavedScenarios, skipDuplicate: !!skipDuplicateName });
+    } else if (FilterStep.viewState.saveNotice && FilterStep.viewState.saveNotice.kind === 'incomplete') {
+      // 檢查通過只收起尚需補齊；上一次沒有送出或儲存失敗的提示，等這一次真的開始送出才收起。
+      FilterStep.viewState.saveNotice = null;
     }
-    if (notice) {
-      notice.textContent = (problems.length ? '尚需補齊：' + problems.join('、') + (duplicate ? '。' : '') : '') + duplicateText;
-      // 同一個提示框也用來寫琥珀色的提醒（見 showSaveNotice）；尚需補齊維持原本的紅色。
-      notice.classList.remove('form-notice--warning');
-      notice.hidden = false;
-    }
+    drawSaveNotice(container);
+    if (!check.text) { return true; }
+    revealSaveNotice(container);
     // 名稱重複時聚焦名稱；只缺條件時不搶焦點。
-    if (duplicate) { nameInput.focus(); }
+    if (check.duplicateText) { nameInput.focus(); }
     return false;
+  }
+
+  // 提示剛出現在「已儲存情境」分頁時，把它捲到看得見的地方；儲存鈕上方那一個就在按下的按鈕旁邊，不必捲。
+  function revealSaveNotice(container) {
+    var notice = FilterStep.viewState.saveNotice;
+    var box = container && notice && notice.pane === 'saved'
+      ? container.querySelector('[data-bind="scenario-notice-saved-pane"]') : null;
+    if (box && typeof box.scrollIntoView === 'function') { box.scrollIntoView({ block: 'nearest', behavior: smoothScroll() }); }
   }
 
   // 和後端相同：去掉前後空白後逐字比對。編輯中的情境不和自己比。
@@ -394,8 +523,8 @@
     return hit ? name : '';
   }
 
-  // 使用者輸入時放寬（不在打字途中跳出新錯誤）——只清除已補齊欄位的錯誤、
-  // 全部補齊時收起按鈕旁提示；不在此新增任何錯誤。
+  // 使用者輸入時放寬（不在打字途中跳出新錯誤）——只清除已補齊欄位的錯誤；
+  // 儲存鈕上方的提示與條件列的錯誤，各自的情況不在了才收起（見 drawSaveNotice、drawRuleErrors）。不在此新增任何錯誤。
   function softRefreshGate(container) {
     var draft = Store.getState().filter.draft;
     var feedback = container.querySelector('[data-bind="save-feedback"]');
@@ -404,17 +533,13 @@
     else if (feedback) { feedback.hidden = true; }
     var nameInput = container.querySelector('[data-bind="scenario-name"]');
     var rationaleInput = container.querySelector('[data-bind="scenario-rationale"]');
-    var notice = container.querySelector('[data-bind="scenario-notice"]');
 
     var duplicate = duplicateScenarioName(draft);
     if (!duplicate) { clearFieldError(nameInput); }
     clearFieldError(rationaleInput);
 
-    var noCondition = (draft.groups.length === 0 ||
-      draft.groups.every(function (g) { return g.conditions.length === 0; }));
-    var oversizedTextSet = hasOversizedTextSet(draft);
-    var stillMissing = noCondition || oversizedTextSet || hasOversizedTypedSet(draft) || hasIncompleteTypedRule(draft) || !!duplicate;
-    if (!stillMissing && notice) { notice.hidden = true; }
+    drawSaveNotice(container, true);
+    drawRuleErrors(container, true);
   }
 
   // 規則「值編輯」後即時刷新藍色 read-back：值編輯走 patchFilterCondition（只 notify、不重建面板以保住輸入
@@ -462,12 +587,38 @@
       softRefreshGate(container);
     });
 
+    // 真的開始送出時，上一次留下的條件錯誤與提示先收起。回傳收起前的內容：這一次被取消或另一項作業還在進行時，
+    // 畫面要回到送出前的樣子，交給 restoreSubmissionProblems 放回去。
+    function clearSubmissionProblems() {
+      var earlier = { ruleErrors: FilterStep.viewState.ruleErrors, saveNotice: FilterStep.viewState.saveNotice };
+      FilterStep.viewState.ruleErrors = [];
+      FilterStep.viewState.saveNotice = null;
+      drawSubmissionProblems();
+      return earlier;
+    }
+    function restoreSubmissionProblems(earlier) {
+      FilterStep.viewState.ruleErrors = earlier.ruleErrors;
+      FilterStep.viewState.saveNotice = earlier.saveNotice;
+      drawSubmissionProblems();
+    }
+    // 條件錯誤或提示有變動時畫到現在的畫面上，回傳第一個標紅的條件列。
+    function drawSubmissionProblems() {
+      drawSaveNotice(FilterStep.shownContainer);
+      return drawRuleErrors(FilterStep.shownContainer, true);
+    }
+    // 後端剛回報條件錯誤：畫上去，並把第一個標紅的列捲到看得見的地方。
+    function revealRuleErrors() {
+      var first = drawSubmissionProblems();
+      if (first) { first.scrollIntoView({ block: 'center', behavior: smoothScroll() }); }
+    }
+
     container.querySelector('[data-action="preview-scenario"]').addEventListener('click', function () {
       if (!scenarioGate(container, false)) { return; }
       // 預覽失敗時，只有把原因標到條件列才算就地顯示；沒有標到時在步驟上方顯示提示框。
       var previewMarked = 0;
       Ui.run('查看符合的傳票', function () {
         previewMarked = 0;
+        var earlierProblems = clearSubmissionProblems();
         var previewState = Store.getState();
         var draft = previewState.filter.draft;
         var populationScope = selectedPopulationScope(previewState);
@@ -497,56 +648,27 @@
           Store.setFilterPreview(data.scenario);
           if (global.JetFocus) { global.JetFocus.defer(function () { return document.querySelector('.filter-workspace [data-preview-title]'); }); }
           return data.scenario;
-        }).catch(function (error) { if (!acceptResponse()) { return; } previewMarked = markRuleErrors(container, error); throw error; });
+        }).catch(function (error) {
+          if (!acceptResponse()) { return; }
+          // 取消與另一項作業還在進行不是預覽失敗：送出前畫面上的錯誤與提示照原樣放回來。
+          if (Ui.isCancelledOrInProgress(error)) { restoreSubmissionProblems(earlierProblems); throw error; }
+          previewMarked = recordRuleErrors(error);
+          revealRuleErrors();
+          throw error;
+        });
       }, { inlineError: function () { return previewMarked > 0; }, completionMessage: function (scenario) {
         // 訊息句子維持原句；分錄數用和預覽摘要同一個 summaryRowCount。
         return scenario ? '情境預覽：符合條件 ' + Ui.countText(scenario.summaryRowCount) + ' 筆分錄，' + Ui.countText(scenario.voucherCount) + ' 張傳票。' : '';
       } });
     });
 
-    // 後端 invalid_scenario 帶 details（第幾組、第幾條、原因）時，把該列標紅、就地寫原因並捲到第一列；
-    // 沒有 details 的錯誤維持 Ui.run 的整段訊息。這只是呈現，判定權威仍在後端。回傳標紅的列數。
-    // 後端的組號是送出後的順序；送出時略過空組，所以先換回畫面上的組位置。
-    // targetPosition 是這次儲存的情境在清單上的位置；細節標明屬於別的情境時不標在目前草稿上。
-    function markRuleErrors(root, error, targetPosition) {
-      root.querySelectorAll('.rule-row--invalid').forEach(function (row) {
-        row.classList.remove('rule-row--invalid');
-        var old = row.querySelector('[data-rule-error]:not([data-motion-folding])');
-        if (!old) { return; }
-        // 舊的說明收回去再拿掉，新的從條件下面長出來（出現與消失都要有動態）。
-        if (global.JetMotion && typeof global.JetMotion.fold === 'function') { global.JetMotion.fold(old, function () { old.remove(); }); } else { old.remove(); }
-      });
-      if (!error || !Array.isArray(error.details)) { return 0; }
-      var sentGroups = [];
-      Store.getState().filter.draft.groups.forEach(function (group, gi) { if ((group.conditions || []).length) { sentGroups.push(gi); } });
-      var first = null, marked = 0;
-      error.details.forEach(function (detail) {
-        if (!detail || typeof detail.group !== 'number' || typeof detail.rule !== 'number') { return; }
-        if (!belongsToTarget(detail, targetPosition)) { return; }
-        var draftGi = sentGroups[detail.group - 1];
-        if (typeof draftGi !== 'number') { return; }
-        var row = root.querySelector('.rule-row[data-gi="' + draftGi + '"][data-ri="' + (detail.rule - 1) + '"]');
-        if (!row) { return; }
-        marked++;
-        row.classList.add('rule-row--invalid');
-        var note = document.createElement('p');
-        note.className = 'rule-row__error'; note.setAttribute('data-rule-error', ''); note.setAttribute('role', 'alert');
-        note.textContent = detail.message;
-        row.appendChild(note);
-        if (global.JetMotion && typeof global.JetMotion.enter === 'function') { global.JetMotion.enter(note); }
-        if (!first) { first = row; }
-      });
-      if (first) { first.scrollIntoView({ block: 'center', behavior: smoothScroll() }); }
-      return marked;
-    }
-
-    // 儲存沒有送出或失敗時，原因寫在儲存按鈕上方，不只留在訊息紀錄。
-    // 清單已變更與已滿 10 個只是需要注意，用琥珀色；儲存失敗用紅色（訊息分三級）。
-    function showSaveNotice(text, warning) {
-      var notice = container.querySelector('[data-bind="scenario-notice"]');
-      if (!notice) { return; }
-      if (text) { notice.textContent = text; notice.classList.toggle('form-notice--warning', !!warning); }
-      notice.hidden = !text;
+    // 儲存沒有送出時，原因寫在儲存按鈕上方，不只留在訊息紀錄；訊息面板與提示用同一句。
+    // 清單已變更與已存滿只是需要注意，用琥珀色（訊息分三級）。
+    function blockSave(kind, text) {
+      Store.addMessage(text, 'warn');
+      raiseSaveNotice({ kind: kind, text: text, warning: true });
+      drawSubmissionProblems();
+      revealSaveNotice(FilterStep.shownContainer);
     }
     // 前端擋下、沒有送出的儲存不記「儲存篩選情境完成」。
     var SAVE_NOT_SENT = { notSent: true };
@@ -557,7 +679,11 @@
     function saveScenario(asCopy) {
       syncSuggestedMetadata(container);
       if (!scenarioGate(container, true, asCopy)) { return Promise.resolve(SAVE_NOT_SENT); }
+      // 儲存失敗時，原因有沒有寫在審計員現在看得到的地方；沒有的話改在步驟上方顯示提示框。
+      var failureShown = false;
       return Ui.run('儲存篩選情境', function () {
+        failureShown = false;
+        var earlierProblems = clearSubmissionProblems();
         var commitState = Store.getState();
         var current = commitState.filter;
         var populationScope = selectedPopulationScope(commitState);
@@ -576,17 +702,14 @@
         var position = null;
         if (typeof editingIndex === 'number') {
           if (current.draft.__editingSavedRef !== current.savedScenarios) {
-            // 訊息面板與儲存鈕上方的提示用同一句。
-            var staleText = '已儲存的情境清單已變更，請重新選擇要編輯的情境；目前的草稿仍保留。';
-            Store.addMessage(staleText, 'warn'); showSaveNotice(staleText, true);
+            blockSave('listChanged', '已儲存的情境清單已變更，請重新選擇要編輯的情境；目前的草稿仍保留。');
             return Promise.resolve(SAVE_NOT_SENT);
           }
           scenarios[editingIndex] = authored;
           position = editingIndex + 1;
         } else { scenarios.push(authored); }
         if (scenarios.length > Ui.FILTER_MAX_SAVED_SCENARIOS) {
-          var limitText = '最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。';
-          Store.addMessage(limitText, 'warn'); showSaveNotice(limitText, true);
+          blockSave('listFull', '最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。');
           return Promise.resolve(SAVE_NOT_SENT);
         }
         // 新增或另存時加在最後，和後端的算法相同；修改時後端用 expectedName 確認畫面清單和資料庫是同一個情境。
@@ -599,15 +722,29 @@
           return completeScenarioSave(saveSnapshot, data, data.position - 1, authored) ? data : null;
         }).catch(function (error) {
           if (!acceptsFilterCommit(saveSnapshot)) { return; }
-          if (Store.getState().filter.draft === saveSnapshot.draft && Store.getFilterDraftRev() === saveSnapshot.revision) {
+          var sameDraft = Store.getState().filter.draft === saveSnapshot.draft && Store.getFilterDraftRev() === saveSnapshot.revision;
+          if (Ui.isCancelledOrInProgress(error)) {
+            // 取消與另一項作業還在進行不是儲存失敗，不標條件列，也不在儲存按鈕上方寫原因；送出前畫面上的錯誤與提示照原樣放回來。
+            if (sameDraft) { restoreSubmissionProblems(earlierProblems); }
+          } else if (sameDraft) {
             // 能對到條件列的錯誤就地標紅；重名這類沒有位置的錯誤寫在儲存按鈕上方。
-            if (!markRuleErrors(container, error, targetPosition)) { showSaveNotice(saveFailureText(error, targetPosition)); }
+            if (recordRuleErrors(error, targetPosition)) {
+              // 條件列只畫在「篩選與檢視」分頁；審計員在另一個分頁時看不到，原因改在步驟上方顯示。
+              failureShown = FilterStep.viewState.workspacePane === 'filter';
+              revealRuleErrors();
+            } else {
+              raiseSaveNotice({ kind: 'failed', text: saveFailureText(error, targetPosition), warning: false,
+                sent: draftContentKey(saveSnapshot.draft) });
+              failureShown = true;
+              drawSubmissionProblems();
+              revealSaveNotice(FilterStep.shownContainer);
+            }
           }
           throw error;
         });
       }, {
-        // 儲存失敗時，原因已經就地寫在條件列或儲存按鈕上方，不再另外在步驟上方顯示。
-        inlineError: true,
+        // 儲存失敗的原因已經寫在條件列或儲存按鈕上方時，不再另外在步驟上方顯示；條件在等待期間改過、原因沒有地方寫時才顯示。
+        inlineError: function () { return failureShown; },
         completionMessage: function (data) {
           return data && data !== SAVE_NOT_SENT ? '已儲存篩選情境（' + data.savedCount + ' / 10）。' : '';
         }
@@ -633,6 +770,9 @@
     bindConditionRows(container);
     bindSubmission(container);
     bindSavedScenarios(container);
+    // 重畫之後，照記下的內容把條件列的錯誤與儲存鈕上方的提示畫回去。
+    drawRuleErrors(container, false);
+    drawSaveNotice(container);
   }
 
   // 掛到共用的 FilterStep，供其他檔案與測試取用。
@@ -645,13 +785,20 @@
   FilterStep.toWireDraft = toWireDraft;
   FilterStep.previewPaneHtml = previewPaneHtml;
   FilterStep.render = render;
-  FilterStep.hasOversizedTextSet = hasOversizedTextSet;
   FilterStep.hasIncompleteTypedRule = hasIncompleteTypedRule;
-  FilterStep.hasOversizedTypedSet = hasOversizedTypedSet;
   FilterStep.conditionPositionText = conditionPositionText;
   FilterStep.ruleProblem = ruleProblem;
   FilterStep.draftRuleProblems = draftRuleProblems;
   FilterStep.ruleValueControl = ruleValueControl;
+  FilterStep.incompleteCheck = incompleteCheck;
+  FilterStep.sentRuleKey = sentRuleKey;
+  FilterStep.recordRuleErrors = recordRuleErrors;
+  FilterStep.currentRuleErrors = currentRuleErrors;
+  FilterStep.drawRuleErrors = drawRuleErrors;
+  FilterStep.raiseSaveNotice = raiseSaveNotice;
+  FilterStep.currentSaveNotice = currentSaveNotice;
+  FilterStep.drawSaveNotice = drawSaveNotice;
+  FilterStep.revealSaveNotice = revealSaveNotice;
   FilterStep.scenarioGate = scenarioGate;
   FilterStep.duplicateScenarioName = duplicateScenarioName;
   FilterStep.softRefreshGate = softRefreshGate;

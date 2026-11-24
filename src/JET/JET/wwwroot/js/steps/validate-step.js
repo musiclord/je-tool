@@ -1,6 +1,6 @@
 /*
   第四步：資料驗證與測試，四項資料驗證與預篩選在同一步。
-  規則名稱對齊後端 RuleCatalog（V/R 代號已退役）；
+  規則名稱對齊後端 RuleCatalog，畫面不顯示 V、R 開頭的舊代號；
   標題與說明只是 presentation，權威規則一律在後端 SQL。
   規則無法執行時只顯示後端寫的一句原因，句子已寫出缺什麼、到哪裡補，畫面不另接補救文字。
 */
@@ -97,7 +97,10 @@
     return view;
   }
 
-  function detailRunKind(scope) { return scope === 'p' || scope === 'ps' ? 'prescreen' : 'validate'; }
+  // 明細的範圍字串由畫出清單的地方給：'v' 是資料驗證卡片；預篩選卡片有三張清單，'pa' 是兩項彙總，'ps' 是篩選結果，
+  // 'pn' 是資料缺漏輔助檢視。資料缺漏輔助檢視雖然畫在預篩選卡片，資料來自驗證；預篩選卡片其餘的清單來自預篩選。
+  // 展開狀態跟著資料來源的那一份結果：重跑哪一種，只收起那一種的明細。
+  function detailRunKind(scope) { return scope === 'v' || scope === 'pn' ? 'validate' : 'prescreen'; }
 
   function detailPageState(runKind, key) {
     var view = detailView(runKind);
@@ -658,7 +661,8 @@
     },
     {
       title: '分錄摘要出現特定描述',
-      desc: Ui.prescreenConditionDescription('suspiciousKeywords'),
+      // 說明裡的字詞個數照開案時收到的預設清單，每次畫面重繪時再讀。
+      get desc() { return Ui.prescreenConditionDescription('suspiciousKeywords'); },
       status: function (p) { return p ? hitCountStatus(p.suspiciousKeywords) : null; },
       detail: function (p) {
         if (!p) { return null; }
@@ -970,14 +974,19 @@
         '到「用 Excel 配對」重試</button></p>';
   }
 
-  var sampleDraftProject = null, sampleDraftResult = null, sampleDraftValue = '59';
+  // 抽樣筆數的預設值與上限照開案時後端送來的 infSampling；還沒收到時輸入框與「執行驗證」都不能按。
+  var sampleDraftProject = null, sampleDraftResult = null, sampleDraftSampling = null, sampleDraftValue = '';
   function validationCardHtml(v, ready, state) {
     var resultId = v && v.resultRef && v.resultRef.resultId;
-    if (sampleDraftProject !== state.project || sampleDraftResult !== resultId) {
+    var sampling = state.ruleDefaults.infSampling;
+    if (sampleDraftProject !== state.project || sampleDraftResult !== resultId || sampleDraftSampling !== sampling) {
       sampleDraftProject = state.project;
       sampleDraftResult = resultId;
-      sampleDraftValue = String(v && v.infSamplingTest && v.infSamplingTest.requestedSampleSize || 59);
+      sampleDraftSampling = sampling;
+      var requested = v && v.infSamplingTest && v.infSamplingTest.requestedSampleSize || (sampling && sampling.defaultSampleSize);
+      sampleDraftValue = requested ? String(requested) : '';
     }
+    ready = ready && !!sampling;
     return (
       '<section class="rule-card">' +
         '<div class="rule-card__head">' +
@@ -989,9 +998,10 @@
             '>' + (v ? '重新執行驗證' : '執行驗證') + '</button>' +
         '</div>' +
         '<div class="form__field validation-sample-size"><label class="form__label" for="inf-sample-size">資料可靠性測試抽樣筆數</label>' +
-          '<input class="form__input" id="inf-sample-size" data-focus-key="inf-sample-size" type="number" min="1" max="1048524" step="1" required value="' +
+          '<input class="form__input" id="inf-sample-size" data-focus-key="inf-sample-size" type="number" min="1"' +
+          (sampling ? ' max="' + sampling.maximumSampleSize + '"' : '') + ' step="1" required value="' +
           Ui.esc(sampleDraftValue) + '"' + (ready ? '' : ' disabled') + '>' +
-          '<p class="form__hint">預設 59 筆。分錄不足時全部抽出。</p></div>' +
+          '<p class="form__hint">' + (sampling ? '預設 ' + sampling.defaultSampleSize + ' 筆。' : '') + '分錄不足時全部抽出。</p></div>' +
         lastRunLineHtml(v) +
         ruleListHtml(VALIDATION_ITEMS, v, 'v') +
         validationReportsHtml(state, v) +
@@ -1640,6 +1650,7 @@
     var start = Store.getState(), project = start.project, generation = start.dataGeneration;
     var projectId = project.projectId;
     requireValidationOutputActive(projectId, resultId, kind !== 'template');
+    var earlier = start.validationOutput[kind];
     var pending = { resultId: resultId, status: 'pending', message: kind === 'template' ? '正在建立科目配對範本…' : '正在產生報告與抽樣清單…' };
     Store.setValidationOutput(kind, pending);
     function active() {
@@ -1653,11 +1664,15 @@
       Store.setValidationOutput(kind, { resultId: resultId, status: 'ready', message: onSuccess(data) });
       return data;
     }).catch(function (error) {
-      if (active()) {
+      if (!active()) { return null; }
+      if (Ui.isCancelledOrInProgress(error)) {
+        // 取消與另一項作業還在進行不是產生失敗：這一區的狀態回到開始前的樣子，不寫「尚未產生」。
+        Store.setValidationOutput(kind, earlier);
+      } else {
         Store.setValidationOutput(kind, { resultId: resultId, status: 'failed',
           reason: Ui.errorText(error, ''),
           message: (kind === 'template' ? '範本尚未產生：' : '報告尚未產生：') + Ui.errorText(error) + ' 可使用此區按鈕重試。' });
-      } else { return null; }
+      }
       throw error;
     });
   }
@@ -1689,7 +1704,8 @@
     }
     function preserveFailure(error) {
       // 走到這裡時資料驗證已完成並保存；產生報告時被取消，訊息也要說已完成的部分仍保留。
-      if (error && error.code === 'operation_cancelled') {
+      // 遇到另一項作業還在進行時同樣原樣交出去，不算成有檔案尚未產生，也不接著送下一個檔案。
+      if (Ui.isCancelledOrInProgress(error)) {
         error.completedResultsPreserved = true;
         throw error;
       }
@@ -2158,8 +2174,11 @@
     container.querySelector('[data-action="run-validate"]').addEventListener('click', function () {
       var sampleInput = container.querySelector('#inf-sample-size');
       var sampleSize = Number(sampleInput.value);
-      if (!Number.isInteger(sampleSize) || sampleSize < 1 || sampleSize > 1048524) {
-        Store.addMessage('抽樣筆數請填入 1 到 1048524 的整數。', 'warn');
+      var sampling = Store.getState().ruleDefaults.infSampling;
+      if (!sampling) { return; }
+      var maximum = sampling.maximumSampleSize;
+      if (!Number.isInteger(sampleSize) || sampleSize < 1 || sampleSize > maximum) {
+        Store.addMessage('抽樣筆數請填入 1 到 ' + maximum + ' 的整數。', 'warn');
         sampleInput.focus();
         return;
       }

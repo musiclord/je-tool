@@ -2,10 +2,9 @@ namespace JET.Domain;
 
 /// <summary>
 /// 科目配對匯出列(匯出底稿「自動化工具-科目配對資訊」sheet 15):
-/// GL_NUMBER=AccountNumber、GL_NAME、STANDARDIZED_ACCOUNT_NAME=Category。
-/// <see cref="NotInTb"/> 為真代表「該科目在 GL 有、TB 無」(完整性 not-in-tb 集合);
-/// 此時 sheet 的 GL_NAME 欄寫字面「Not in TB」而非 <see cref="AccountName"/>——
-/// 由 emitter 依此旗標渲染(data-structure 對映,非逐列特判)。
+/// GL_NUMBER=AccountNumber、GL_NAME=<see cref="GlName"/>、STANDARDIZED_ACCOUNT_NAME=Category。
+/// <see cref="AccountName"/> 是已儲存的科目配對的名稱，沒有名稱時是 null。
+/// <see cref="NotInTb"/> 為真代表「該科目在 GL 有、TB 無」(完整性 not-in-tb 集合)；GL_NAME 寫什麼不看這個旗標。
 /// </summary>
 public sealed record AccountMappingExportRow(
     string AccountNumber,
@@ -13,15 +12,24 @@ public sealed record AccountMappingExportRow(
     string Category,
     bool NotInTb)
 {
-    /// <summary>GL 有、TB 沒有的科目在 GL_NAME 寫的字。匯入科目配對時遇到它當成沒有科目名稱。</summary>
+    /// <summary>沒有 TB 名稱可寫的科目在 GL_NAME 寫的字。匯入科目配對時遇到它當成沒有科目名稱。</summary>
     public const string NotInTbName = "Not in TB";
+
+    /// <summary>
+    /// GL_NAME 欄實際寫的字。已儲存的科目配對有名稱時寫這個名稱，科目只在 GL 出現也一樣；
+    /// 沒有名稱（沒有值、空字串、只有空白字元）時寫「Not in TB」，這一欄不留白。
+    /// 科目配對範本在 TB 沒有名稱的科目寫「Not in TB」，匯入時當成沒有名稱；在畫面分類時同樣只存 TB 的名稱。
+    /// 所以這裡寫回的字和審計員上傳的範本一致，審計員在範本自己填的名稱照樣寫出。
+    /// </summary>
+    public string GlName => string.IsNullOrWhiteSpace(AccountName) ? NotInTbName : AccountName;
 }
 
 /// <summary>
 /// 科目配對範本列，供審計員填分類。使用有效 GL 與 TB 聯集的可配對科目母體，排除空白科目編號。
-/// A=<see cref="AccountNumber"/>(population.account_number)、B=<see cref="TemplateName"/>：
-/// <see cref="NotInTb"/> 為真(GL 有、TB 沒有,完整性 not_in_tb 集合)時照舊版寫字面「Not in TB」,
-/// 和匯出底稿 sheet 15 用同一個旗標;其他科目寫 <see cref="AccountName"/>(TB 名稱,TB 沒寫時用 GL 名稱)。
+/// A=<see cref="AccountNumber"/>(population.account_number)、B=<see cref="TemplateName"/>。
+/// <see cref="AccountName"/> 是 TB 的科目名稱；TB 沒有名稱或科目只在 GL 出現時是 null，範本不帶 GL 的名稱。
+/// B 欄在 TB 有名稱時寫名稱，其餘照舊版寫字面「Not in TB」：舊版範本只看 TB 的名稱有沒有內容，名稱是空的就寫這個字。
+/// <see cref="NotInTb"/> 為真代表科目在 GL 有、TB 沒有(完整性 not_in_tb 集合)，和匯出底稿 sheet 15 用同一個旗標。
 /// 匯回範本時「Not in TB」當成沒有科目名稱。
 /// C 欄(分類)由 writer 留空 + 下拉,不在此 model(範本產出前尚未配對)。
 /// </summary>
@@ -30,8 +38,9 @@ public sealed record AccountMappingTemplateRow(
     string? AccountName,
     bool NotInTb = false)
 {
-    /// <summary>範本 B 欄實際寫的字。</summary>
-    public string? TemplateName => NotInTb ? AccountMappingExportRow.NotInTbName : AccountName;
+    /// <summary>範本 B 欄實際寫的字。科目只在 GL 出現，或 TB 沒有科目名稱（沒有值、空字串、只有空白字元）時是「Not in TB」。</summary>
+    public string TemplateName =>
+        NotInTb || string.IsNullOrWhiteSpace(AccountName) ? AccountMappingExportRow.NotInTbName : AccountName;
 }
 
 /// <summary>

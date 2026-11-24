@@ -2566,6 +2566,10 @@
               "voucherNumber": "string"
             }
           },
+          "neverBlankGlFields": {
+            "kind": "array",
+            "items": "string"
+          },
           "ok": "boolean",
           "postingStatusPolicy": {
             "kind": "null|object",
@@ -3533,6 +3537,13 @@
               }
             }
           },
+          "infSampling": {
+            "kind": "object",
+            "fields": {
+              "defaultSampleSize": "number",
+              "maximumSampleSize": "number"
+            }
+          },
           "mapping": {
             "kind": "object",
             "fields": {
@@ -3607,6 +3618,10 @@
                       "sourceModule": "string",
                       "voucherNumber": "string"
                     }
+                  },
+                  "neverBlankGlFields": {
+                    "kind": "array",
+                    "items": "string"
                   },
                   "postingStatusPolicy": {
                     "kind": "null|object",
@@ -3897,6 +3912,10 @@
               }
             }
           },
+          "settingsRestored": {
+            "kind": "array",
+            "items": "string"
+          },
           "staleState": {
             "kind": "object",
             "fields": {
@@ -3904,6 +3923,10 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          },
+          "suspiciousKeywordDefaults": {
+            "kind": "array",
+            "items": "string"
           },
           "validationResult": {
             "kind": "null|object",

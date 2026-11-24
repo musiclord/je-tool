@@ -62,7 +62,7 @@ public sealed class PrescreenRunLoggingTests
         Assert.NotEmpty(sql);
         Assert.All(sql, e => Assert.Equal(expectedProvider, e.Fields["provider"]?.ToString()));
         Assert.All(sql, e => Assert.True(Convert.ToInt64(e.Fields["duration_ms"]) >= 0));
-        // S2b：FullInput 的 13 條 row-tag 述詞各自只跑一次，同一 query 同時回命中行與
+        // FullPlan 的每一條 row-tag 述詞各自只跑一次，同一 query 同時回命中行與
         // 非 null voucher_number 的去重傳票數；每條都只消費同一 is_excluded 母體。
         var pairedRuleCounts = sql
             .Where(e =>

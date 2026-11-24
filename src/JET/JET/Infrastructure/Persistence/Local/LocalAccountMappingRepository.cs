@@ -228,8 +228,12 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
+        var counterpartRoles = GlRulePredicates.RevenueCounterpartRoles;
+        var counterpartParameters = string.Join(
+            ", ",
+            Enumerable.Range(0, counterpartRoles.Count).Select(static index => "@counterpart" + index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         command.CommandText =
-            """
+            $"""
             SELECT b.batch_id,
                    CASE WHEN b.source_file_name = @editorName THEN (SELECT COUNT(*) FROM account_mapping) ELSE b.row_count END,
                    b.source_file_name, b.imported_utc,
@@ -243,7 +247,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
                            FROM account_mapping m
                            JOIN account_category t
                              ON t.category_id = m.category_id
-                           WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance)),
+                           WHERE t.semantic_role IN ({counterpartParameters})),
                    (SELECT COUNT(*) FROM account_mapping m WHERE m.classification_explicit = 0)
             FROM import_batch b
             WHERE b.dataset_kind = @kind
@@ -253,9 +257,12 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         command.AddWithValue("@kind", DatasetKind.AccountMapping.ToStorageName());
         command.AddWithValue("@editorName", AccountMappingEditorRepository.EditorSourceName);
         command.AddWithValue("@revenue", AccountCategoryBuiltIns.RevenueRole);
-        command.AddWithValue("@receivables", AccountCategoryBuiltIns.ReceivablesRole);
-        command.AddWithValue("@cash", AccountCategoryBuiltIns.CashRole);
-        command.AddWithValue("@receiptInAdvance", AccountCategoryBuiltIns.ReceiptInAdvanceRole);
+        for (var index = 0; index < counterpartRoles.Count; index++)
+        {
+            command.AddWithValue(
+                "@counterpart" + index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                counterpartRoles[index]);
+        }
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))

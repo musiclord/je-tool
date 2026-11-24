@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 條件篩選報告「#Criteria Select n」的整張傳票明細跨很多批時：
-/// 寫出的分錄依 entry_id 升冪、Final_TAG 只標直接符合的分錄；每個情境的命中傳票只算一次，
+/// 寫出的分錄依傳票號碼排列、同一張傳票照原本的列順序，Final_TAG 只標直接符合的分錄；每個情境的命中傳票只算一次，
 /// 讀明細的資料庫工作量跟著明細列數成比例增加，不隨批數重複計算整個情境。
 ///
 /// 合成資料每張傳票一借一貸。先依傳票號碼由大到小寫完全部借方列，再由小到大寫貸方列，
@@ -39,7 +39,7 @@ public sealed class CriteriaSelectionReportDetailReadTests(ITestOutputHelper tes
     ];
 
     [Fact]
-    public async Task WholeVoucherDetail_AcrossSeveralBatches_KeepsEntryOrderAndMarksOnlyMatchedRows()
+    public async Task WholeVoucherDetail_AcrossSeveralBatches_ListsVouchersByNumberAndMarksOnlyMatchedRows()
     {
         const int vouchers = 300;
         using var host = new HandlerTestHost();
@@ -63,18 +63,18 @@ public sealed class CriteriaSelectionReportDetailReadTests(ITestOutputHelper tes
         Assert.Equal(vouchers, summary.Cell("C6").GetValue<long>());
         Assert.Equal(vouchers, summary.Cell("D6").GetValue<long>());
 
-        // 情境 1：前一半傳票的借方列照寫入順序（傳票號碼由大到小）在前，貸方列（由小到大）在後；只有借方列直接符合。
+        // 情境 1：前一半傳票依傳票號碼由小到大列出；同一張傳票照寫入順序，借方列在前、貸方列在後。只有借方列直接符合。
         var half = vouchers / 2;
         AssertDetail(
             workbook.Worksheet("#Criteria Select 1"),
-            Enumerable.Range(1, half).Reverse().Select(v => (Voucher(v), DebitDescription(v, vouchers), "Y"))
-                .Concat(Enumerable.Range(1, half).Select(v => (Voucher(v), CreditDescription(v), "")))
+            Enumerable.Range(1, half)
+                .SelectMany(v => new[] { (Voucher(v), DebitDescription(v, vouchers), "Y"), (Voucher(v), CreditDescription(v), "") })
                 .ToArray());
-        // 情境 2：全部借方列在前、都不符合；全部貸方列在後、都符合。
+        // 情境 2：全部傳票依傳票號碼由小到大列出；每張傳票的借方列不符合，貸方列符合。
         AssertDetail(
             workbook.Worksheet("#Criteria Select 2"),
-            Enumerable.Range(1, vouchers).Reverse().Select(v => (Voucher(v), DebitDescription(v, vouchers), ""))
-                .Concat(Enumerable.Range(1, vouchers).Select(v => (Voucher(v), CreditDescription(v), "Y")))
+            Enumerable.Range(1, vouchers)
+                .SelectMany(v => new[] { (Voucher(v), DebitDescription(v, vouchers), ""), (Voucher(v), CreditDescription(v), "Y") })
                 .ToArray());
     }
 

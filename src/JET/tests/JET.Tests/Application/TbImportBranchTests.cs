@@ -639,7 +639,7 @@ public sealed class TbImportBranchTests
     {
         var document = JsonNode.Parse(await File.ReadAllTextAsync(projectPath))!.AsObject();
         document["currentStep"] = step;
-        await File.WriteAllTextAsync(projectPath, document.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(projectPath, document.ToJsonString());
     }
 
     private static async Task<int> StepAsync(string projectPath) =>

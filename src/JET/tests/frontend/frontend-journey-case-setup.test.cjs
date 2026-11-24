@@ -4,6 +4,10 @@
 // 審計員的操作：
 //   情境 2　填表建立案件；後端指出某一欄、沒指出欄位、指出不在白名單的欄位時各失敗一次；修改案件資料時失敗；
 //           填表到一半 Windows 身分才送到；表單剛打開就點進欄位；建好以後在頁首與案件清單看到案件名稱與客戶名稱。
+//           表單填到一半時別的作業失敗、步驟上方出現失敗提示，接著送出表單（建立案件與修改案件資料各一次）；
+//           案件建好以後接著開啟它時失敗或被取消，回到案件清單從清單開啟；JET 放不掉這個案件時再按一次「建立案件」；
+//           Debug 組建在開啟失敗後回到的案件清單按頁尾的「輸出診斷日誌」。
+//           這兩段在檔案最後，用整個 JET 畫面的 bootFullApp，原因寫在各段的開頭。
 //   情境 4　選 GL 與 TB 來源檔；匯入 0 筆的假日檔與補班檔；把整週都設成工作日；重存同一組非工作日但順序不同或重複；改成不同的非工作日。
 // 夾具：support/frontend-fixtures.cjs 的 usageJourneyFixture（正式 state、ui-core、各步驟腳本，可訂閱重繪）
 // 與 remapAppFixture（另加上 app.js 的頁首、案件清單與中欄重繪）。這裡用 usageJourneyFixture 的假 DOM 畫正式的表單，
@@ -17,7 +21,7 @@
 // 斷言的失敗值一律不是假 DOM 節點（節點只用 === 轉成布林）；預期值一律寫死；action payload 用 deepEqual 精確比對，並確認沒有 `__` 鍵。
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { usageJourneyFixture, remapAppFixture, settle, plain, readWwwroot, noDunderKeys } = require('./support/frontend-fixtures.cjs');
+const { usageJourneyFixture, remapAppFixture, settle, plain, readWwwroot, noDunderKeys, bootFullApp, flush } = require('./support/frontend-fixtures.cjs');
 
 // 瀏覽器的 form 可以用欄位名稱直接取到欄位（form.projectName）；create-step.js 送出時這樣讀，假 DOM 沒有，這裡補上。
 function namedForm(form) {
@@ -608,4 +612,255 @@ test('a holiday or make-up day list held open by Excel shows its reminder in the
 
   await importList('import-holiday', 'importHolidayFromFile', '合成國定假日.xlsx', []);
   assert.deepEqual(notices(), [held('合成補班日.xlsx')]);
+});
+
+// =====================================================================================================
+// 情境 2 補充　建立與修改案件的表單在中央面板重畫之後
+// =====================================================================================================
+//
+// 審計員的操作：建立案件的表單填到一半，別的作業失敗，步驟上方出現失敗提示；接著送出表單，後端指出某一欄有問題；
+// 修正後回首頁，再按「新增案件」。修改案件資料時，步驟上方還留著失敗提示就按儲存，後端回報存不進去。
+// 這兩個測試用整個 JET 畫面（共用夾具 bootFullApp）：中央面板由正式的 app.js 重畫，步驟上方的失敗提示出現與拿掉時
+// 表單整塊換掉，所以看得出已填的值與錯誤框是不是還在換上來的那一張表單上。
+
+// 目前步驟畫在畫面上的那一塊；每次都重新找，不留著舊的。
+function shownStep(f) { const node = f.$('.stepflow-item--current .stepflow-item__body'); assert.ok(node !== null, 'the current step is shown'); return node; }
+// 讓一項合成作業失敗：目前步驟的標題下方出現步驟失敗提示。
+async function leaveStepFailure(f) {
+  const done = f.ui.run('合成作業', () => f.api.systemPing({}));
+  f.fail(f.sent('system.ping').at(-1), { code: 'synthetic', message: '合成作業原因。' }); await done; await flush();
+  assert.ok(f.$('.stepflow-item__failure') !== null, 'a step failure notice is showing');
+}
+// 和瀏覽器一樣，改了欄位的值就送出會冒泡的 input 事件。
+function typeInto(field, value) { field.value = value; field.dispatch('input'); }
+
+test('the create form keeps what was typed and its error through redraws, and shows a failure on the form that is on screen', async () => {
+  const f = await bootFullApp([]);
+  f.click('[data-action="picker-new"]'); await flush();
+  const form = () => namedForm(shownStep(f).querySelector('[data-bind="create-form"]'));
+  const typed = { projectName: '合成新案', projectCode: 'SYN-09', clientName: '合成客戶股份有限公司',
+    periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2027-06-30' };
+  const values = () => Object.fromEntries(Object.keys(typed).map(name => [name, form()[name].value]));
+  const warning = () => { const node = form().querySelector('[data-bind="preparation-date-warning"]'); return node.hidden ? '' : node.textContent; };
+  const box = () => { const node = form().querySelector('[data-bind="create-error"]'); return node.hidden ? '' : node.textContent; };
+  const invalid = () => form().querySelectorAll('[aria-invalid="true"]').map(node => node.getAttribute('name'));
+  for (const [name, value] of Object.entries(typed)) typeInto(form()[name], value);
+  // 期末財報準備日晚於查核截止日超過一年：提醒顯示（只比對意思）。
+  assert.match(warning(), /確認年份/);
+
+  // 別的作業失敗，步驟上方出現失敗提示，表單整塊重畫：已填的值與提醒都還在。
+  await leaveStepFailure(f);
+  assert.deepEqual(values(), typed, 'what was typed is still on the form after the step was redrawn');
+  assert.match(warning(), /確認年份/, 'the reminder is drawn again');
+
+  // 送出：上一次的步驟失敗提示先拿掉（表單又重畫一次），後端指出案件名稱。原因寫在現在這張表單上，焦點到那一欄。
+  form().dispatch('submit', { target: form() });
+  const create = f.request('project.create');
+  assert.deepEqual(plain(create.payload), typed);
+  assert.ok(f.$('.stepflow-item__failure') === null, 'sending takes the earlier step notice away, which redraws the form');
+  f.fail(create, { code: 'invalid_payload', field: 'projectName', message: '合成：案件名稱已經存在。' }); await flush();
+  assert.equal(box(), '合成：案件名稱已經存在。', 'the reason is on the form that is on screen');
+  assert.deepEqual(invalid(), ['projectName']);
+  assert.equal(f.state().operationFailure, null, 'the reason is on the form, so there is no step notice');
+  f.timers.run();
+  assert.ok(f.dom.document.activeElement === form().projectName, 'the focus goes to the field on screen');
+  // 又重畫一次：原因、標示與已填的值都還在。
+  f.store.touch(); await flush();
+  assert.equal(box(), '合成：案件名稱已經存在。', 'the reason is still there after a redraw');
+  assert.deepEqual(invalid(), ['projectName']);
+  assert.deepEqual(values(), typed);
+
+  // 重新輸入：原因收起，重畫也不回來；新打的值留著。
+  typeInto(form().projectName, '合成新案二');
+  assert.equal(box(), '');
+  f.store.touch(); await flush();
+  assert.equal(box(), '', 'a redraw does not bring the cleared reason back');
+  assert.equal(form().projectName.value, '合成新案二');
+
+  // 送出前就看得出的問題（查核起始日晚於截止日）也一樣留到重畫之後。
+  typeInto(form().periodStart, '2026-01-01');
+  form().dispatch('submit', { target: form() });
+  assert.equal(f.sent('project.create').length, 1, 'nothing more is sent');
+  assert.match(box(), /查核起始日.*晚於.*截止日/);
+  f.store.touch(); await flush();
+  assert.match(box(), /查核起始日.*晚於.*截止日/, 'the problem is still shown after a redraw');
+  assert.deepEqual(invalid(), ['periodStart']);
+
+  // 回首頁再按「新增案件」：是一張空白的新表單，沒有上一次填的值與原因。
+  f.click('[data-action="app-back-picker"]'); await flush();
+  f.reply('project.releaseLock', {}); await flush();
+  f.reply('project.listLocal', { projects: [] }); await flush();
+  f.click('[data-action="picker-new"]'); await flush();
+  assert.deepEqual(values(), { projectName: '', projectCode: '', clientName: '', periodStart: '', periodEnd: '', prepStartDate: '' });
+  assert.equal(box(), '');
+  assert.equal(warning(), '');
+});
+
+test('a failed save of the case details is shown on the edit form that is on screen', async () => {
+  const CASE = { projectId: '合成案件', databaseProvider: 'sqlite' };
+  const f = await bootFullApp([CASE]);
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', { project: { ...CASE, clientName: '合成客戶', periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 0 } }); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  const form = () => namedForm(shownStep(f).querySelector('[data-bind="project-update-form"]'));
+  const box = () => { const node = form().querySelector('[data-bind="project-update-error"]'); return node.hidden ? '' : node.textContent; };
+  f.click('[data-action="edit-project-metadata"]'); await flush();
+  typeInto(form().clientName, '新合成客戶');
+  await leaveStepFailure(f);
+  assert.equal(form().clientName.value, '新合成客戶', 'what was typed is still on the form after the step was redrawn');
+  form().dispatch('submit', { target: form() });
+  const update = f.request('project.update');
+  assert.ok(f.$('.stepflow-item__failure') === null, 'sending takes the earlier step notice away, which redraws the form');
+  f.fail(update, { code: 'synthetic', message: '合成：案件資料存不進去。' }); await flush();
+  assert.equal(box(), '合成：案件資料存不進去。', 'the reason is on the form that is on screen');
+  assert.equal(form().clientName.value, '新合成客戶');
+  assert.equal(f.state().operationFailure, null, 'the reason is on the form, so there is no step notice');
+});
+
+// =====================================================================================================
+// 情境 2 補充　案件建立成功，接著的開啟沒有成功
+// =====================================================================================================
+//
+// 審計員的操作：填表按「建立案件」，案件建好了，接著開啟它時失敗，或審計員按了「取消作業」。
+// 畫面回到案件清單，清單上方說明案件已經建立，審計員從清單開啟它。JET 放不掉這個案件時留在原畫面，審計員再按一次「建立案件」。
+// 用整個 JET 畫面（共用夾具 bootFullApp）：建立、開啟、放掉案件與重讀案件清單的請求都由正式的 jet-api.js 送出，看得到先後順序。
+
+const NEW_CASE = { projectId: '合成新案', databaseProvider: 'sqlite' };
+const NEW_CASE_LOADED = { project: { ...NEW_CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 0 } };
+
+// 填表建立「合成新案」，後端回覆已建立；回傳時開啟這個案件的請求已經送出、還沒回覆。
+async function createCaseAwaitingOpen() {
+  const f = await bootFullApp([]);
+  f.click('[data-action="picker-new"]'); await flush();
+  const form = namedForm(shownStep(f).querySelector('[data-bind="create-form"]'));
+  for (const [name, value] of Object.entries({ projectName: '合成新案', periodStart: '2025-01-01', periodEnd: '2025-12-31' })) typeInto(form[name], value);
+  form.dispatch('submit', { target: form });
+  f.reply('project.create', { projectId: '合成新案', warnings: [] }); await flush();
+  assert.deepEqual(plain(f.request('project.load').payload), { projectId: '合成新案' });
+  return f;
+}
+// 案件清單上方的琥珀色提示，沒有時是 null；紅色錯誤框是另一個元素。
+function listNotice(f) { const node = f.$('.picker-feedback--warning'); return node === null ? null : { text: node.textContent, role: node.getAttribute('role') }; }
+function caseActions(f) { return f.posted.map(request => request.action).filter(action => action.startsWith('project.')); }
+function onCaseList(f) { return f.state().view === 'picker' && f.$('[data-bind="project-picker"]').hidden === false && f.$('[data-bind="app-body"]').hidden === true; }
+function listedCases(f) { return f.$('[data-bind="project-picker"]').querySelectorAll('[data-action="picker-open"]').map(node => node.getAttribute('data-project-id')); }
+
+test('a case that was created but failed to open is released and listed, and the case list says it can be opened from there', async () => {
+  const f = await createCaseAwaitingOpen();
+  f.fail('project.load', { code: 'synthetic', message: '合成：案件資料庫打不開。' }, 'open-after-create'); await flush();
+
+  // JET 先放掉這個案件，放掉以後才回到案件清單重讀清單。
+  assert.deepEqual(plain(f.request('project.releaseLock').payload), {});
+  assert.equal(f.sent('project.listLocal').length, 1, 'the case list is not reloaded before the case is released');
+  f.reply('project.releaseLock', {}); await flush();
+  assert.equal(onCaseList(f), true, 'the screen is the case list, not the create form');
+  f.reply('project.listLocal', { projects: [NEW_CASE] }); await flush();
+  assert.equal(f.state().busy, false);
+  assert.deepEqual(caseActions(f), ['project.listLocal', 'project.create', 'project.load', 'project.releaseLock', 'project.listLocal']);
+  assert.deepEqual(listedCases(f), ['合成新案'], 'the new case is in the list');
+
+  // 提示寫案件已經建立、為什麼沒有開啟，以及接下來能做什麼；它不是紅色的錯誤框。
+  assert.deepEqual(listNotice(f), { text: '案件「合成新案」已建立，但沒有開啟成功：合成：案件資料庫打不開。請從案件清單開啟這個案件。', role: 'status' });
+  assert.ok(f.$('.picker-feedback') === null, 'no error box: the case was created');
+  assert.deepEqual(plain(f.state().pickerFeedbackContext),
+    { projectId: '合成新案', errorCode: 'synthetic', correlationId: 'open-after-create', devExportedPath: null });
+  // 訊息面板：建立是成功的，失敗的是開啟。
+  assert.ok(f.messages().some(m => m.text === '案件「合成新案」已建立。' && m.level === 'info'), 'the creation is logged as done');
+  assert.deepEqual(f.messages().filter(m => m.level === 'error').map(m => /^[^：]*開啟[^：]*失敗：合成：案件資料庫打不開（/.test(m.text)), [true]);
+  assert.deepEqual(f.messages().filter(m => /建立[^：]*失敗/.test(m.text)), [], 'nothing says the creation failed');
+
+  // 從清單開啟：只送開啟，不再建立一次；提示拿掉。
+  f.click('[data-action="picker-open"]');
+  assert.deepEqual(plain(f.request('project.load').payload), { projectId: '合成新案' });
+  assert.equal(f.sent('project.load').length, 2);
+  assert.equal(f.sent('project.create').length, 1, 'the case is not created a second time');
+  assert.equal(listNotice(f), null);
+  f.reply('project.load', NEW_CASE_LOADED); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  assert.equal(f.state().view, 'workflow');
+  assert.equal(f.state().project.projectId, '合成新案');
+});
+
+test('exporting the diagnostic log for a created case that failed to open leaves the case list notice as it was', async () => {
+  const f = await createCaseAwaitingOpen();
+  // Debug 組建才有頁尾的「輸出診斷日誌」。
+  f.store.setDevToolsEnabled(true); await flush();
+  f.fail('project.load', { code: 'synthetic', message: '合成：案件資料庫打不開。' }); await flush();
+  f.reply('project.releaseLock', {}); await flush();
+  f.reply('project.listLocal', { projects: [NEW_CASE] }); await flush();
+  const notice = { text: '案件「合成新案」已建立，但沒有開啟成功：合成：案件資料庫打不開。請從案件清單開啟這個案件。', role: 'status' };
+  assert.deepEqual(listNotice(f), notice);
+
+  f.click('[data-action="picker-dev-log-export"]');
+  assert.deepEqual(plain(f.request('dev.log.exportFile').payload), { projectId: '合成新案', correlationId: null });
+  f.reply('dev.log.exportFile', { filePath: 'C:/synthetic/合成新案/dev-log.txt', lineCount: 3, source: 'fileSink' }); await flush();
+
+  // 匯出成功只在頁尾多寫檔案位置；清單上方仍是同一句琥珀色提示，不變成紅色的錯誤框。
+  assert.equal(f.state().busy, false);
+  assert.equal(f.$('.picker-footer__result').textContent, '診斷日誌已輸出：C:/synthetic/合成新案/dev-log.txt');
+  assert.ok(f.$('.picker-feedback') === null, 'no error box: the case was created');
+  assert.deepEqual(listNotice(f), notice, 'the notice is still the amber one');
+  assert.ok(f.$('[data-action="picker-dev-log-export"]') !== null, 'the log can be exported again');
+
+  // 從清單開啟又失敗時是紅色的錯誤框；這時匯出成功，錯誤框與裡面的原因也照樣留著。
+  f.click('[data-action="picker-open"]');
+  f.fail('project.load', { code: 'synthetic', message: '合成：案件資料庫打不開。' }); await flush();
+  assert.equal(listNotice(f), null);
+  const reason = f.$('.picker-feedback__body').textContent;
+  assert.match(reason, /^開啟案件失敗：合成：案件資料庫打不開/);
+  f.click('[data-action="picker-dev-log-export"]');
+  f.reply('dev.log.exportFile', { filePath: 'C:/synthetic/合成新案/dev-log-2.txt', lineCount: 5, source: 'fileSink' }); await flush();
+  assert.equal(f.$('.picker-footer__result').textContent, '診斷日誌已輸出：C:/synthetic/合成新案/dev-log-2.txt');
+  assert.equal(f.$('.picker-feedback__body').textContent, reason, 'the error box still gives the reason');
+  assert.equal(listNotice(f), null, 'the error box is not turned into a notice');
+});
+
+test('a case that was created but whose opening was cancelled, or met another running operation, is listed without any error', async () => {
+  for (const [name, error] of [['cancelled', { code: 'operation_cancelled', message: '合成：已取消' }],
+    ['another operation running', { code: 'operation_in_progress', message: '合成：另一項作業還在進行' }]]) {
+    const f = await createCaseAwaitingOpen();
+    f.fail('project.load', error); await flush();
+    f.reply('project.releaseLock', {}); await flush();
+    f.reply('project.listLocal', { projects: [NEW_CASE] }); await flush();
+
+    assert.equal(onCaseList(f), true, name + ': the screen is the case list');
+    assert.equal(f.state().busy, false, name);
+    assert.deepEqual(listedCases(f), ['合成新案'], name);
+    assert.deepEqual(listNotice(f), { text: '案件「合成新案」已建立，尚未開啟。請從案件清單開啟這個案件。', role: 'status' }, name);
+    assert.ok(f.$('.picker-feedback') === null, name + ': no error box');
+    assert.equal(f.state().pickerFeedbackContext, null, name + ': no failure is recorded for the case');
+    assert.deepEqual(f.messages().filter(m => m.level === 'error'), [], name + ': nothing is logged as an error');
+    assert.equal(f.sent('project.create').length, 1, name);
+    assert.equal(f.sent('project.releaseLock').length, 1, name);
+  }
+});
+
+test('when the created case cannot be released the screen stays, and pressing create again opens that case instead of creating another', async () => {
+  const f = await createCaseAwaitingOpen();
+  f.fail('project.load', { code: 'synthetic', message: '合成：案件資料庫打不開。' }); await flush();
+  f.fail('project.releaseLock', { code: 'synthetic', message: '合成：案件鎖沒有釋放' }); await flush();
+
+  // 和按「回首頁」放不掉案件時一樣：留在原畫面，訊息面板寫無法離開。
+  assert.equal(f.state().view, 'workflow');
+  assert.equal(f.state().busy, false);
+  assert.deepEqual(f.messages()[0], { text: '無法離開案件，已保留目前畫面：合成：案件鎖沒有釋放', level: 'error' });
+  assert.equal(f.sent('project.listLocal').length, 1, 'the case list is not reloaded');
+  assert.equal(f.state().pickerFeedback, null, 'nothing is written for a case list that is not shown');
+
+  const pressCreate = () => { const form = namedForm(shownStep(f).querySelector('[data-bind="create-form"]')); form.dispatch('submit', { target: form }); };
+  // 別的作業還在進行時按「建立案件」：這次不會開始，不開啟、不放掉案件，也不離開畫面。
+  const held = f.ui.run('合成作業', () => f.api.systemPing({}));
+  pressCreate(); await flush();
+  assert.deepEqual(caseActions(f), ['project.listLocal', 'project.create', 'project.load', 'project.releaseLock'], 'nothing more is sent while another operation runs');
+  assert.equal(f.state().view, 'workflow');
+  f.reply(f.sent('system.ping').at(-1), { devToolsEnabled: false }); await held; await flush();
+
+  // 再按一次「建立案件」：案件已經建好，只再開啟一次，不送出第二次建立。
+  pressCreate();
+  assert.equal(f.sent('project.create').length, 1, 'the case is not created a second time');
+  assert.equal(f.sent('project.load').length, 2, 'the created case is opened again');
+  assert.deepEqual(plain(f.request('project.load').payload), { projectId: '合成新案' });
+  f.reply('project.load', NEW_CASE_LOADED); await flush();
+  assert.equal(f.state().project.projectId, '合成新案');
+  assert.ok(shownStep(f).querySelector('[data-bind="create-form"]') === null, 'the form is replaced by the case summary');
 });

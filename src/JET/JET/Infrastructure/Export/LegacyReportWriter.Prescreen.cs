@@ -220,13 +220,13 @@ internal sealed partial class LegacyReportWriter
             (part, ct) =>
             {
                 var worksheet = part.RequiredWorksheet();
-                AppendPrescreenSummaryRows(worksheet);
+                // 摘要頁照範本的列：第 8 到 13 列是六項預先篩選程序，第 14 列是空白摘要。
+                // 每一列只寫狀態、結果、傳票數量與分錄筆數；程序名稱是範本印好的文字，說明只補第 8 列的日期與第 11 列的位數。
                 var allowed = new List<string>
                 {
-                    "E1", "E2", "E4", "E5", "C8", "C11",
-                    "B14", "C14", "B15", "C15", "B16", "C16"
+                    "E1", "E2", "E4", "E5", "C8", "C11"
                 };
-                for (var row = 8; row <= 17; row++)
+                for (var row = 8; row <= 14; row++)
                 {
                     allowed.Add($"A{row}");
                     allowed.Add($"D{row}");
@@ -301,24 +301,9 @@ internal sealed partial class LegacyReportWriter
                     projection.RareAccounts,
                     "R6",
                     notApplicableMessage: null);
-                SetRetiredPrescreenSummaryRow(
-                    cells,
-                    14,
-                    "A2",
-                    "自訂特定摘要（移至 Step 4）");
-                SetRetiredPrescreenSummaryRow(
-                    cells,
-                    15,
-                    "A3",
-                    "自訂科目借貸組合（移至 Step 4）");
-                SetRetiredPrescreenSummaryRow(
-                    cells,
-                    16,
-                    "A4",
-                    "自訂特定尾數（移至 Step 4）");
                 SetPrescreenHitSummaryRow(
                     cells,
-                    17,
+                    14,
                     "R7",
                     projection.BlankDescription,
                     plan.RequireDetail(
@@ -329,44 +314,6 @@ internal sealed partial class LegacyReportWriter
                 ct.ThrowIfCancellationRequested();
             },
             cancellationToken);
-    }
-
-    private static void AppendPrescreenSummaryRows(Worksheet worksheet)
-    {
-        var sheetData = worksheet.GetFirstChild<SheetData>()
-            ?? throw new InvalidDataException(
-                "Pre-screening template has no sheetData.");
-        if (sheetData.Elements<Row>().Any(row =>
-                row.RowIndex?.Value is >= 15 and <= 17))
-        {
-            throw new InvalidDataException(
-                "Pre-screening template unexpectedly already contains rows 15–17.");
-        }
-
-        var source = sheetData.Elements<Row>()
-            .Single(row => row.RowIndex?.Value == 14);
-        foreach (var targetRowIndex in new uint[] { 15, 16, 17 })
-        {
-            var clone = (Row)source.CloneNode(true);
-            clone.RowIndex = targetRowIndex;
-            foreach (var cell in clone.Elements<Cell>())
-            {
-                var reference = cell.CellReference?.Value
-                    ?? throw new InvalidDataException(
-                        "Pre-screening row 14 has a cell without reference.");
-                var column = new string(reference
-                    .TakeWhile(character => !char.IsDigit(character))
-                    .ToArray());
-                cell.CellReference = $"{column}{targetRowIndex}";
-            }
-            sheetData.Append(clone);
-        }
-
-        var dimension = worksheet.GetFirstChild<SheetDimension>();
-        if (dimension is not null)
-        {
-            dimension.Reference = "A1:F17";
-        }
     }
 
     private static void SetPrescreenHitSummaryRow(
@@ -429,22 +376,6 @@ internal sealed partial class LegacyReportWriter
         && string.Equals(detail.NaReason, ApprovalDateUnavailableReason, StringComparison.Ordinal)
             ? PrescreenApprovalDateNotMappedMessage
             : $"N/A（{detail.NaReason ?? "前置條件不足，未執行"}）";
-
-    private static void SetRetiredPrescreenSummaryRow(
-        DirectTemplateCellEditor cells,
-        int row,
-        string code,
-        string description)
-    {
-        cells.SetInlineString($"A{row}", "N/A");
-        cells.SetInlineString($"B{row}", code);
-        cells.SetInlineString($"C{row}", description);
-        cells.SetInlineString(
-            $"D{row}",
-            "N/A（現行 JET 已移至 Step 4）");
-        cells.SetInlineString($"E{row}", "N/A");
-        cells.SetInlineString($"F{row}", "N/A");
-    }
 
     // 範本缺了要讀的儲存格或共用字串時丟 InvalidDataException，匯出會回報無法填入內附的範本。
     internal static string ReadTemplateCellText(

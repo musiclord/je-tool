@@ -70,8 +70,11 @@ internal sealed class ReferenceDataFactsPort(
 
     public Task ExecuteAsync(
         NonWorkingDaysPlan plan,
+        Func<CancellationToken, Task> saveSettings,
         CancellationToken cancellationToken) =>
         calendarStore.InvalidateDependentResultsAsync(
             plan.ProjectId,
+            plan.NormalizedDays,
+            saveSettings,
             cancellationToken);
 }

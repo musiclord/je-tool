@@ -313,6 +313,21 @@ test('flush waits several settle rounds and noDunderKeys rejects payloads carryi
   assert.equal(support.noDunderKeys({ name: '合成', nested: [{ __draftId: 'x' }] }), false);
 });
 
+// app.js 用 typeof 檢查 JetApi 有沒有 onRequestStarted 與 onRequestFinished 再訂閱。假後端沒有提供時要讀到 undefined，
+// 有提供時原樣交出；兩者都不是 action，不能被當成沒有紀錄的 action 包起來。
+test('the contract wrapper hands back the request tracking members of jet-api.js as they are, not as actions', () => {
+  const { contractJetApi } = require('./support/action-contract.cjs');
+  const bare = contractJetApi({}, []);
+  assert.equal(bare.onRequestStarted, undefined);
+  assert.equal(bare.onRequestFinished, undefined);
+  const seen = [];
+  const tracking = contractJetApi({ onRequestStarted(fn) { seen.push(['started', fn]); }, onRequestFinished(fn) { seen.push(['finished', fn]); } }, []);
+  const handler = () => {};
+  tracking.onRequestStarted(handler); tracking.onRequestFinished(handler);
+  assert.deepEqual(seen.map(entry => entry[0]), ['started', 'finished']);
+  assert.ok(seen.every(entry => entry[1] === handler), 'the handler is passed through untouched');
+});
+
 test('full app fixture runs init() through the real jet-api.js and boot stops at the local case list', async () => {
   const f = await support.bootFullApp([{ projectId: '合成甲案', clientName: '合成客戶甲', databaseProvider: 'sqlite' }]);
   // 啟動時不查 SQL Server 設定。

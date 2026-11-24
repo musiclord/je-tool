@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JET.Domain;
 using JET.Tests.Infrastructure;
 using Xunit;
 using static JET.Tests.Application.TaiwanSmeScenarioSupport;
@@ -75,9 +76,10 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         // 總帳日期條件放寬到 2024-12-01 至 2026-01-31，仍只會選到 GL 內的 P2、P3、P6 共 6 列。
         var wideDate = OneRule("寬鬆日期區間",
             """{"type":"fieldValue","field":"glDate","operator":"between","from":"2024-12-01","to":"2026-01-31"}""");
-        // 總帳日期空白的列不在 GL，所以「總帳日期空白」條件在 GL 中是 0 筆。
+        // 總帳日期空白的列不在 GL，所以「總帳日期空白」條件一定是 0 筆，預覽時直接請審計員移除。
         var blankDate = OneRule("總帳日期空白", """{"type":"fieldValue","field":"glDate","operator":"isBlank"}""");
-        Assert.Equal((0L, 0L), await PreviewAsync(host, blankDate));
+        var blankDateRejected = await Assert.ThrowsAsync<JetActionException>(() => PreviewAsync(host, blankDate));
+        Assert.Equal("第 1 組第 1 條：GL 中的總帳日期不會空白，請移除這條條件", blankDateRejected.Message);
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("摘要含調整", """{"type":"fieldValue","field":"description","operator":"contains","values":["調整"]}"""), wideDate);
         // 「調整」只在 GL 的 P2、P3 命中，P5 不在 GL。

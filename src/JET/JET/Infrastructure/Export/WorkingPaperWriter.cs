@@ -216,36 +216,54 @@ internal sealed partial class WorkingPaperWriter(
             ReportTemplateCatalog.WorkingPaper,
             output,
             WorkingPaperDirectTemplateSheets,
-            async (editor, ct) =>
-            {
-                var workbookPart = editor.Document.WorkbookPart
-                    ?? throw new InvalidDataException("WorkingPaper 範本缺少 workbook part。");
-                var stylesPart = workbookPart.WorkbookStylesPart
-                    ?? throw new InvalidDataException("WorkingPaper 範本缺少 styles part。");
-                var styles = WorkbookStyleMap.Append(stylesPart, WorkingPaperStyles.Build());
-                var session = new WorkingPaperWriteSession(
-                    editor,
-                    styles,
-                    editor.StylePatcher,
-                    useFinalStep41Schema: true,
-                    ct);
-                var sheetStats = await EmitDirectAsync(
-                    session,
-                    context,
-                    plan,
-                    ct,
-                    progress);
-                session.Complete();
-                if (plan.Request.WorkbookMetadata is { } workbookMetadata)
-                {
-                    ReportWorkbookMetadataWorksheet.Append(
-                        editor.Document,
-                        workbookMetadata,
-                        ct);
-                }
-                return sheetStats;
-            },
+            (editor, ct) => FillTemplateAsync(editor, context, plan, ct, progress),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// 把整份底稿寫進已經開啟的範本活頁簿。不論寫完、失敗或取消，結束前都放掉最後開啟的工作表。
+    /// </summary>
+    // 測試直接呼叫它，核對失敗或取消之後工作表已經放掉；正式程式只由匯出呼叫。
+    internal async Task<IReadOnlyList<SheetStat>> FillTemplateAsync(
+        DirectTemplateWorkbookEditor editor,
+        WorkingPaperContext context,
+        WorkingPaperPlan plan,
+        CancellationToken cancellationToken,
+        Action<WorkingPaperProgress>? progress)
+    {
+        var workbookPart = editor.Document.WorkbookPart
+            ?? throw new InvalidDataException("WorkingPaper 範本缺少 workbook part。");
+        var stylesPart = workbookPart.WorkbookStylesPart
+            ?? throw new InvalidDataException("WorkingPaper 範本缺少 styles part。");
+        var styles = WorkbookStyleMap.Append(stylesPart, WorkingPaperStyles.Build());
+        var session = new WorkingPaperWriteSession(
+            editor,
+            styles,
+            editor.StylePatcher,
+            useFinalStep41Schema: true,
+            cancellationToken);
+        try
+        {
+            var sheetStats = await EmitDirectAsync(
+                session,
+                context,
+                plan,
+                cancellationToken,
+                progress);
+            session.Complete();
+            if (plan.Request.WorkbookMetadata is { } workbookMetadata)
+            {
+                ReportWorkbookMetadataWorksheet.Append(
+                    editor.Document,
+                    workbookMetadata,
+                    cancellationToken);
+            }
+            return sheetStats;
+        }
+        finally
+        {
+            session.ReleaseLastOpenedSheet();
+        }
     }
 
     private async Task<IReadOnlyList<SheetStat>> EmitDirectAsync(
@@ -477,7 +495,7 @@ internal sealed partial class WorkingPaperWriter(
         ]);
 
     private static decimal Display(long scaled, int moneyScale) =>
-        moneyScale <= 0 ? scaled : (decimal)scaled / moneyScale;
+        moneyScale <= 0 ? scaled : MoneyScaling.FromScaled(scaled, moneyScale);
 
     /// <summary>
     /// 高風險情境的欄集 data structure。把「step4 用全部所選 position」
@@ -561,9 +579,7 @@ internal sealed partial class WorkingPaperWriter(
                         $"WorkingPaperPlan 缺少情境 position {position}。"))
                 .ToArray();
             var hitVoucherPositions = plan.Scenarios
-                .Where(scenario =>
-                    scenario.RowHitCount > 0
-                    && scenario.TagScope == WorkingPaperScenarioTagScope.HitVoucherRows)
+                .Where(scenario => scenario.TagsWholeHitVouchers)
                 .Select(scenario => scenario.Position)
                 .ToArray();
 
@@ -625,8 +641,8 @@ internal sealed partial class WorkingPaperWriter(
     }
 
     /// <summary>
-    /// 行事曆日期顯示:儲存格式 yyyy-MM-dd → 顯示形式 yyyy/MM/dd。
-    /// 非該格式者原樣返回(不臆造/不竄改;CalendarDayProjector 已保證匯入為 yyyy-MM-dd,此為防禦)。
+    /// 國定假日與補班日的日期顯示：資料庫存 yyyy-MM-dd，底稿寫成 yyyy/MM/dd。
+    /// 匯入時已經把日期整理成 yyyy-MM-dd；讀到其他寫法時照原樣寫出，不猜也不改。
     /// </summary>
     private static string DisplayDate(string isoDate)
     {
@@ -640,7 +656,7 @@ internal sealed partial class WorkingPaperWriter(
     /// 單張 worksheet 的串流寫出器(SAX 低階原語)。封裝 OpenXmlPartWriter + 元素順序約束:
     /// 構造時開 worksheet → sheetData(forward-only);WriteRow/WriteFixedRow 即時串流寫列;
     /// AddMerge 累積合併範圍(數量有界、屬版面);<see cref="CloseAndSummarize"/> 關 sheetData →
-    /// 寫 mergeCells（schema 要求在 sheetData 之後）→ 關 worksheet。
+    /// 寫 mergeCells（schema 要求在 sheetData 之後）→ 關 worksheet。沒有呼叫它就釋放時，只放掉資源、不補結尾。
     /// 資料列計入 RowsWritten;固定文字/表頭列不計(對齊 SheetStat 語意)。
     /// 供資料表 emitter 以 keyset 迴圈逐列呼叫 WriteRow（串流、不全載入）。
     /// </summary>
@@ -677,7 +693,6 @@ internal sealed partial class WorkingPaperWriter(
         private long _dataRows;
         private bool _protect;
         private bool _sheetDataStarted;
-        private bool _closed;
         private bool _faulted;
         private bool _disposed;
 
@@ -715,9 +730,18 @@ internal sealed partial class WorkingPaperWriter(
             if (part is not null && overlay is null)
             {
                 _content = FormalWorkbookArchive.OpenWorksheetContent(part);
-                _writer = OpenXmlWriter.Create(_content);
-                _writer.WriteStartDocument();
-                _writer.WriteStartElement(new Worksheet());
+                try
+                {
+                    _writer = OpenXmlWriter.Create(_content);
+                    _writer.WriteStartDocument();
+                    _writer.WriteStartElement(new Worksheet());
+                }
+                catch
+                {
+                    // 建構失敗時呼叫端拿不到這個寫入器，已經開啟的項目要在這裡放掉。
+                    ExportResources.ReleaseAll(_writer, _content);
+                    throw;
+                }
             }
         }
 
@@ -1025,7 +1049,7 @@ internal sealed partial class WorkingPaperWriter(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var stat = new SheetStat(_name, _dataRows);
-            Dispose();
+            Close();
             return stat;
         }
 
@@ -1034,10 +1058,35 @@ internal sealed partial class WorkingPaperWriter(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var stat = new SheetStat(_name, dataRows);
-            Dispose();
+            Close();
             return stat;
         }
 
+        /// <summary>
+        /// 寫完結尾並關閉這張工作表。寫結尾、把緩衝寫出去或關閉壓縮檔項目失敗時往外丟，因為這時失敗代表工作表不完整。
+        /// 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，所以那之後不補結尾。
+        /// </summary>
+        private void Close()
+        {
+            try
+            {
+                if (!_disposed && !_faulted)
+                {
+                    CloseElements();
+                    _writer?.Dispose();
+                    _content?.Dispose();
+                }
+            }
+            finally
+            {
+                Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 只放掉資源，不補寫結尾，也不丟出例外。沒有先關閉就釋放，表示匯出已經失敗或取消，這張工作表的內容不要了；
+        /// 補寫結尾還要把範本剩下的列讀完，取消時會再丟一次取消，後面的資源就放不掉。
+        /// </summary>
         public void Dispose()
         {
             if (_disposed)
@@ -1045,16 +1094,8 @@ internal sealed partial class WorkingPaperWriter(
                 return;
             }
 
-            // 例外路徑也要釋放 writer；不是寫列時丟出的例外還要關掉開啟的元素，否則 part 留半截 XML。
-            // 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因，所以這時不關元素。
-            if (!_faulted)
-            {
-                CloseElements();
-            }
-            _writer?.Dispose();
-            _content?.Dispose();
-            _overlay?.Dispose();
             _disposed = true;
+            ExportResources.ReleaseAll(_writer, _content, _overlay);
         }
 
         /// <summary>
@@ -1167,12 +1208,6 @@ internal sealed partial class WorkingPaperWriter(
 
         private void CloseElements()
         {
-            if (_closed)
-            {
-                return;
-            }
-
-            _closed = true;
             EnsureSheetDataStarted();
 
             if (_preserveTemplate)

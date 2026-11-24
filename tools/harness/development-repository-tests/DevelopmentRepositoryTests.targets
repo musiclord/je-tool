@@ -1,6 +1,6 @@
 <Project>
   <!--
-    只有開發儲存庫才跑得了的測試：用真實案件與舊版輸出比對的程式，以及要讀 docs、tools、data、legacy 或 Git 資訊的檢查。
+    只有開發儲存庫才跑得了的測試：要讀 docs、tools、data、legacy 或 Git 資訊的檢查。
     驗證框架建置 src/JET/JET.slnx 時用 /p:CustomBeforeMicrosoftCommonTargets 帶入這個檔案，
     把這個資料夾底下的 .cs 編進同一個 JET.Tests，類別名稱與命名空間和放在 src/JET 時相同。
     測試專案本身不引用這裡的檔案，所以只有 src/JET 時照樣建置得起來。

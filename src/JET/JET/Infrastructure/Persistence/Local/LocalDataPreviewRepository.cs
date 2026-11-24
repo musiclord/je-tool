@@ -126,7 +126,8 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
     }
 
     /// <summary>
-    /// 已存科目配對的預覽，一次只讀一頁。直接讀存好的科目配對，不重新解讀當初匯入的檔案。
+    /// 已存科目配對的預覽，一次只讀一頁。直接讀存好的科目配對，不重新解讀當初匯入的檔案；
+    /// 沒有存名稱的科目，名稱照全科目表的取法顯示。
     /// </summary>
     private Task<DataPreviewResult> AccountMappingsPreviewAsync(
         DbConnection connection, int limit, CancellationToken cancellationToken, int offset = 0) =>
@@ -314,7 +315,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         {
             await using var statsQuery = connection.CreateCommand();
             statsQuery.CommandText =
-                """
+                $"""
                 SELECT COUNT(*),
                        COUNT(CASE WHEN exclusion_reason = @blankGlDateReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @unrecognizedGlDateReason THEN 1 END),
@@ -322,7 +323,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
                        COUNT(CASE WHEN exclusion_reason = @afterPeriodReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 END)
                 FROM gl
-                WHERE is_excluded = 1;
+                WHERE {GlExcludedPopulation.ExcludedSqlPredicate()};
                 """;
             statsQuery.AddWithValue("@blankGlDateReason", GlExcludedPopulation.BlankGlDateStorageReason);
             statsQuery.AddWithValue("@unrecognizedGlDateReason", GlExcludedPopulation.UnrecognizedGlDateStorageReason);
@@ -436,6 +437,6 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
     private static decimal ToDisplayAmount(long scaled, int moneyScale)
     {
-        return (decimal)scaled / moneyScale;
+        return MoneyScaling.FromScaled(scaled, moneyScale);
     }
 }

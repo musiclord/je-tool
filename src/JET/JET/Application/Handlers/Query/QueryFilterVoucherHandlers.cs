@@ -155,7 +155,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             return $"第 {position.Group} 組條件 {position.Rule}："
             + FilterConditionRenderer.Render(JsonSerializer.SerializeToElement(new { groups = new[] { new { conditions = new[] {
                 scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("conditions")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd,
-                zerosThreshold: context.ZerosThreshold);
+                zerosThreshold: context.ZerosThreshold, neverBlankGlFields: validation.NeverBlankGlFields);
         }
         string Describe(FilterVoucherDetail row)
         {
@@ -171,7 +171,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             {
                 voucherNumber = row.VoucherNumber, lineItem = row.LineItem, glDate = row.GlDate,
                 approvalDate = row.ApprovalDate, accountNumber = row.AccountNumber, accountName = row.AccountName,
-                description = row.Description, amount = (decimal)row.AmountScaled / project.MoneyScale, drCr = row.DrCr,
+                description = row.Description, amount = MoneyScaling.FromScaled(row.AmountScaled, project.MoneyScale), drCr = row.DrCr,
                 isHit = row.IsHit || wholeVoucher,
                 primaryConditions = row.PrimaryConditions,
                 voucherConditions = row.VoucherConditions,
@@ -180,11 +180,11 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             }).ToArray()
             : page.Vouchers.Select(row => (object)new { voucherNumber = row.VoucherNumber, glDate = row.GlDate,
                 hitRowCount = row.HitRowCount, totalRowCount = row.TotalRowCount,
-                voucherTotal = (decimal)row.VoucherTotalScaled / project.MoneyScale }).ToArray();
+                voucherTotal = MoneyScaling.FromScaled(row.VoucherTotalScaled, project.MoneyScale) }).ToArray();
         var columns = columnPlan.Columns.Select(column => new { key = column.Key, label = column.Label,
             valueType = column.ValueType, isCustom = column.IsCustom }).ToArray();
         var conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd,
-            zerosThreshold: context.ZerosThreshold);
+            zerosThreshold: context.ZerosThreshold, neverBlankGlFields: validation.NeverBlankGlFields);
         var nextCursor = page.NextKey is null ? null : PageCursor.Encode(JsonSerializer.Serialize(new VoucherCursor(queryRevision, voucherNumber, page.NextKey)));
         // 資料庫條件式只跟著傳票清單的第一頁回傳：值很多的清單會讓這段文字很長，換頁與展開分錄時不必重送。
         var conditionSql = detail || cursor is not null

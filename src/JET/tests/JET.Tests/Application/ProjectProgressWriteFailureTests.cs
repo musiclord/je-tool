@@ -45,7 +45,7 @@ public sealed class ProjectProgressWriteFailureTests
         var projectPath = new JetProjectFolder(host.ProjectsRoot).GetProjectJsonPath(prepared.Id);
         var document = JsonNode.Parse(await File.ReadAllTextAsync(projectPath))!.AsObject();
         document["currentStep"] = 1;
-        await File.WriteAllTextAsync(projectPath, document.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(projectPath, document.ToJsonString());
         var logCount = host.DiagnosticLog!.Snapshot().Count;
         JsonElement result;
         try

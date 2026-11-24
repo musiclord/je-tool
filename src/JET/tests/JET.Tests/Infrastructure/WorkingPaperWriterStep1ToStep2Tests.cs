@@ -68,14 +68,15 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.True(sheet.Cell("T53").IsEmpty());
     }
 
-    // step2 樣本以上的說明、測試程序、三則註與欄標都是內嵌範本的原字，JET 不另外寫。
-    // Demo 沒有配對傳票核准人員，所以 L51 也是範本原字。
+    // step2 樣本以上的說明、測試程序、三則註與欄標都是內嵌範本的原字，JET 不另外寫；
+    // A4 只在範本原句後接上這批樣本實際使用的隨機種子序號。Demo 沒有配對傳票核准人員，所以 L51 也是範本原字。
     [Fact]
     public async Task Step2_TextAndMergesAboveTheSamples_MatchTheEmbeddedTemplate()
     {
         using var host = new HandlerTestHost();
         var ctx = await DemoProjectPipeline.SetupAsync(host);
-        await host.DispatchAsync("validate.run");
+        var validation = await host.DispatchAsync("validate.run");
+        var seed = validation.GetProperty("infSamplingTest").GetProperty("seed").GetInt64();
 
         using var template = new XLWorkbook(
             Path.Combine(AppContext.BaseDirectory, "Templates", "WorkingPaper.xlsx"));
@@ -89,10 +90,16 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         {
             for (var column = 1; column <= 20; column++)
             {
-                if (Text(expected.Cell(row, column)) != Text(actual.Cell(row, column)))
+                var expectedText = Text(expected.Cell(row, column));
+                if (row == 4 && column == 1)
+                {
+                    expectedText += "，本次抽樣所使用之隨機種子序號為:" + seed.ToString(CultureInfo.InvariantCulture);
+                }
+
+                if (expectedText != Text(actual.Cell(row, column)))
                 {
                     different.Add(
-                        $"{actual.Cell(row, column).Address}：範本「{Text(expected.Cell(row, column))}」，底稿「{Text(actual.Cell(row, column))}」");
+                        $"{actual.Cell(row, column).Address}：範本「{expectedText}」，底稿「{Text(actual.Cell(row, column))}」");
                 }
             }
         }

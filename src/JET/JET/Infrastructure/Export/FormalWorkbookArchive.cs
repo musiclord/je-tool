@@ -10,13 +10,16 @@ namespace JET.Infrastructure;
 /// OpenXML SDK 開啟可寫的活頁簿時，會把每個改過的項目整份未壓縮地留在記憶體，等關閉時才壓縮寫出，
 /// 單一項目超過 2 GB 還會失敗，所以大量資料不經過它。
 /// 壓縮檔同時只能寫一個項目，每個項目只能寫一次，寫過的內容也不能讀回；工作表要一張寫完、關閉後才能開下一張。
+/// 寫完時由 <see cref="Complete"/> 關閉壓縮檔；失敗或取消而沒有寫完時，由 <see cref="Dispose"/> 關閉。
 /// </summary>
-internal sealed class FormalWorkbookArchive
+internal sealed class FormalWorkbookArchive : IDisposable
 {
     private readonly ZipArchive _archive;
     private readonly HashSet<string> _writtenEntries = new(StringComparer.OrdinalIgnoreCase);
     private string? _openEntry;
+    private Stream? _openContent;
     private bool _completed;
+    private bool _disposed;
 
     internal FormalWorkbookArchive(Stream output)
     {
@@ -110,12 +113,36 @@ internal sealed class FormalWorkbookArchive
         }
 
         var entry = _archive.CreateEntry(name, CompressionLevel.Optimal);
+        var content = new EntryContentStream(
+            entry.Open(),
+            () =>
+            {
+                _openEntry = null;
+                _openContent = null;
+            });
         _openEntry = name;
-        return new EntryContentStream(entry.Open(), () => _openEntry = null);
+        _openContent = content;
+        return content;
+    }
+
+    /// <summary>
+    /// 放掉還開著的工作表項目並關閉壓縮檔，不丟出例外。已經寫完的壓縮檔在 <see cref="Complete"/> 就關閉了，這裡不再做事。
+    /// 沒有寫完就關閉時，壓縮檔仍會把目錄補寫到輸出；這份輸出少了活頁簿其餘的項目，呼叫端不會留用，寫不進去也不往外丟。
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        ExportResources.ReleaseAll(_openContent, _archive);
     }
 
     private void EnsureWritable()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_completed)
         {
             throw new InvalidOperationException("正式輸出檔已經寫完，不能再寫入。");

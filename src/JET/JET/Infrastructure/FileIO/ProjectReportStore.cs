@@ -333,6 +333,8 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
                 }
 
                 // 工作底稿每次都是新檔；其他報告覆蓋同名檔，清單只留最新一筆。
+                // 這次的檔名和清單記的不同時，例如查核期間改了，或那一筆是用之前的檔名規則匯出的，
+                // 之前的檔案留在案件資料夾，不改名也不刪除。
                 var publishedNames = published
                     .Select(report => report.RelativeFileName)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -809,12 +811,13 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
         return candidate;
     }
 
+    // 審計員在案件資料夾看到的檔名結尾。資料可靠性抽樣清單與預篩選報告的結尾和內附範本的檔名不同。
     private static string GetReportFileSuffix(ReportKind kind) => kind switch
     {
         ReportKind.ValidationReport => "ValidationReport",
         ReportKind.AccountMapping => ProjectFileNames.AccountMappingTemplateSuffix,
-        ReportKind.InfReport => "INFReport",
-        ReportKind.PrescreenReport => "PrescreeningReport",
+        ReportKind.InfReport => "INF_Report",
+        ReportKind.PrescreenReport => "Pre-screeningReport",
         ReportKind.CriteriaSelectionReport => "CriteriaSelectionReport",
         ReportKind.WorkingPaper => "WorkingPaper",
         _ => throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "report_kind_invalid")

@@ -36,6 +36,12 @@ public static class ExcelDateFormatDetector
             : ExcelNumberKind.None;
     }
 
+    /// <summary>
+    /// 內建格式 32 到 35、52、53、55、56 在繁體中文版 Excel 只顯示時間，例如「13時30分」；日文版與韓文版的同一個編號有幾個是日期。
+    /// 檔案只記編號，讀的時候分不出是哪一種，所以 <see cref="Classify"/> 仍算日期。
+    /// </summary>
+    public static bool IsTimeInTraditionalChinese(int numFmtId) => numFmtId is >= 32 and <= 35 or 52 or 53 or 55 or 56;
+
     public static ExcelNumberKind ClassifyFormatCode(string formatCode)
     {
         var hasYearOrDay = false;

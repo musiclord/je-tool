@@ -91,6 +91,7 @@ public static partial class AppCompositionRoot
                 assembly.ProjectStore,
                 assembly.ProjectCreateBackend,
                 assembly.LocalFileLock),
+            ProjectSettings = new LocalProjectSettingStore(database),
             Imports = imports,
             Gl = gl,
             Tb = tb,

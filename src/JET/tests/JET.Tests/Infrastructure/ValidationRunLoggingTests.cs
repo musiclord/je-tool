@@ -26,7 +26,8 @@ public sealed class ValidationRunLoggingTests
     // 核准日空白照舊版也算成不在期間；這個情境有配對核准日，所以沒有出現核准日不可用時的 `(1 = 0)`。
     // 第 10 條命令的空值明細在旗標後面多讀傳票核准日 `, approval_date`。
     // 第 12 條命令是傳票號碼跨日重用的檢查，「不是空白」的片段走 AuditCore 的 SqlBlankText。
-    private const string SqliteSnapshotDigest = "2A953F50151DBCCD698948F0CEA56B618AC2623BEB0874F613CE9608EB99623A";
+    // 第 3、4 條命令是完整性測試的逐科目比對，總帳與試算表的科目名稱走 AuditCore 的 ValidationProcedures.AccountNamePerAccount。
+    private const string SqliteSnapshotDigest = "90D793C78BC346F42A5809411EFB0800AB565C25624CE44F85F10407649A93E2";
 
     // 只填 NOT NULL + 少數欄，entry_id 為自增。
     private static string SeedThreeGlRows(string schemaPrefix = "") =>

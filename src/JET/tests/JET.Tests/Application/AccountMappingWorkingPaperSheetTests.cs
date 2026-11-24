@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ClosedXML.Excel;
 using JET.Domain;
+using JET.Infrastructure;
 using JET.Tests.Infrastructure;
 using Xunit;
 
@@ -8,8 +9,8 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 第四步「用 Excel 配對」也能匯入工作底稿的「自動化工具-科目配對資訊」工作表。
-/// 底稿的第一個工作表不是科目配對，審計員選了工作表後帶 sheetName 匯入；GL 有、TB 沒有的科目在底稿寫「Not in TB」，
-/// 匯入時當成沒有科目名稱，不存成名稱。
+/// 底稿的第一個工作表不是科目配對，審計員選了工作表後帶 sheetName 匯入；沒有名稱的科目在底稿寫「Not in TB」，
+/// 匯入時當成沒有科目名稱，不存成名稱。資料預覽在沒有存名稱的科目照全科目表的取法顯示名稱。
 /// </summary>
 public sealed class AccountMappingWorkingPaperSheetTests
 {
@@ -18,7 +19,7 @@ public sealed class AccountMappingWorkingPaperSheetTests
     public async Task WorkingPaperSheet_ImportsTheChosenSheet_AndNotInTbIsNotStoredAsAName(string provider)
     {
         using var host = new HandlerTestHost();
-        await InlineWorkbookProject.SetupAsync(host, builder => builder
+        var projectId = await InlineWorkbookProject.SetupAsync(host, builder => builder
             .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
             .AddRow("V-1", "2025-01-01", "c", "Cash", "Synthetic", 100, 1)
             .AddRow("V-1", "2025-01-01", "g", "GL only", "Synthetic", 100, 0), databaseProvider: provider,
@@ -50,7 +51,11 @@ public sealed class AccountMappingWorkingPaperSheetTests
                     ? null
                     : row[columns.IndexOf("accountName")].GetString());
         Assert.Equal("Cash", names["c"]);
-        Assert.Null(names["g"]);
+        // g 沒有存名稱，資料預覽顯示試算表的名稱，不是「Not in TB」。
+        Assert.Equal("GL only", names["g"]);
+        var saved = await new LocalAccountMappingExportRepository(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)))
+            .FetchAllAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
+        Assert.Null(saved.Single(row => row.AccountNumber == "g").AccountName);
     }
 
     // 文字檔沒有工作表，帶 sheetName 時和其他匯入一樣以 sheet_name_not_applicable 拒絕。

@@ -1,10 +1,9 @@
 @startuml
-' JE Tool 1.0.0.0 元件圖。範圍：執行時的元件、元件之間的介面與主要相依關係；外部元件僅列執行時載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。
-' 表示法：UML 元件圖。圓形為介面，實線接到提供介面的元件，虛線箭頭由使用端指向介面或被相依的元件；介面名稱第二行是定義該介面的模組。
-title JE Tool 元件圖
+' 範圍：執行時的元件、元件之間的介面與主要相依關係；外部元件僅列執行時載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。
+title 元件圖
 
 component "Host\nJET/Program.cs、Form1.cs、AppCompositionRoot.cs\n建立視窗與 WebView2，組裝各層物件" as host
-component "Excel 範本\nJET/Templates\n共 8 份，隨 JET 發布" as templates <<資源檔>>
+component "Excel 範本\nJET/Templates\n8 份 Excel 檔" as templates <<資源檔>>
 
 package "Presentation Layer" {
   component "前端\nJET/wwwroot\nUI（HTML、CSS、JavaScript）" as frontend
@@ -16,15 +15,15 @@ package "Application Layer" {
 }
 
 package "Domain Layer" {
-  component "AuditCore\nJET/AuditCore\n查核邏輯：程序可否執行、SQL 片段與結果判定" as auditcore
+  component "AuditCore\nJET/AuditCore\n查核邏輯的判定與計算" as auditcore
   component "Domain\nJET/Domain\ndata contract、基本型別、規則定義與資料存取介面" as domain
 }
 
 package "Infrastructure Layer" {
   component "案件資料存取\nJET/Infrastructure/Persistence、Infrastructure/Sql\n執行 SQL，讀寫 jet.db 與 project.json" as persistence
-  component "檔案存取\nJET/Infrastructure/FileIO\n讀取 Excel、文字檔與 Access 來源檔；儲存報告檔" as fileio
+  component "檔案存取\nJET/Infrastructure/FileIO\n讀取 Excel、文字檔與 Access 資料表；寫入輸出檔" as fileio
   component "報告與工作底稿輸出\nJET/Infrastructure/Export\n依範本輸出 Excel 報告與工作底稿" as export
-  component "支援日誌\nJET/Infrastructure/Diagnostics\n記錄支援日誌，並寫入案件資料夾" as diagnostics
+  component "支援日誌、操作監看與處理紀錄\nJET/Infrastructure/Diagnostics、Infrastructure/ProcessingLog\n寫入支援日誌與 GL、TB 處理紀錄" as diagnostics
 }
 
 package "外部元件" {
@@ -34,7 +33,7 @@ package "外部元件" {
   component "Windows ADSI（WinNT 提供者）" as adsi
 }
 
-interface "Web 訊息通道" as WebMessageChannel
+interface "Web message" as WebMessageChannel
 interface "IApplicationActionHandler\n（Application 定義）" as IApplicationActionHandler
 interface "IHostShell\n（Application 定義）" as IHostShell
 interface "IJetEventPublisher\n（Application 定義）" as IJetEventPublisher
@@ -42,6 +41,7 @@ interface "IValidationFactsPort、IProjectStore 等\n（AuditCore、Domain 定�
 interface "ITabularFileReader、IReportStore 等\n（Domain 定義）" as FileAccessInterfaces
 interface "IWorkingPaperPlanWriter 等\n（AuditCore 定義）" as ReportOutputInterfaces
 interface "ISupportDiagnosticLogStore\n（Domain 定義）" as ISupportDiagnosticLogStore
+interface "IOperationMonitor、IProcessingLog\n（Domain 定義）" as OperationLogInterfaces
 interface "ISqlDialect\n（AuditCore 定義）" as ISqlDialect
 
 bridge - WebMessageChannel
@@ -55,23 +55,25 @@ application ..> IJetEventPublisher : 進度事件
 persistence - CaseDataInterfaces
 application ..> CaseDataInterfaces : 讀寫案件資料
 fileio - FileAccessInterfaces
-application ..> FileAccessInterfaces : 讀取來源檔、儲存報告檔
+application ..> FileAccessInterfaces : 讀取來源檔、寫入輸出檔
 export - ReportOutputInterfaces
 application ..> ReportOutputInterfaces : 輸出報告與工作底稿
 diagnostics - ISupportDiagnosticLogStore
 application ..> ISupportDiagnosticLogStore : 輸出支援日誌
+diagnostics - OperationLogInterfaces
+bridge ..> OperationLogInterfaces : 作業的開始、結束與結果
 persistence - ISqlDialect
 auditcore ..> ISqlDialect : SQL 方言
 
 host ..> frontend : 載入本機頁面
 host ..> webview2 : 建立瀏覽器環境
-bridge ..> webview2 : 收發訊息
+bridge ..> webview2 : 收發 JSON 訊息
 host ..> adsi : 查詢使用者全名
 application ..> auditcore : JetAuditProgram.Plan、Finalize
 application ..> domain : data contract
 auditcore ..> domain : data contract
-persistence ..> auditcore : 使用 SQL 片段
-export ..> auditcore : 工作底稿計畫與報告計畫
+persistence ..> auditcore : 使用 SQL 條件
+export ..> auditcore : WorkingPaperPlan 等
 fileio ..> auditcore : JetSchemaCatalog
 persistence ..> sqlite : Microsoft.Data.Sqlite
 fileio ..> ace : OLE DB
@@ -83,8 +85,6 @@ note bottom of host
   並以建構子注入。
 end note
 note left of domain
-  Bridge 與 Infrastructure Layer 各元件
-  也引用 Domain 的 data contract；
-  Infrastructure Layer 各元件之間也互相引用。
+  data contract 指各層之間傳遞資料的型別。
 end note
 @enduml

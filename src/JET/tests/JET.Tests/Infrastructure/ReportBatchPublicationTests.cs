@@ -52,7 +52,7 @@ public sealed class ReportBatchPublicationTests
     {
         using var root = new TempProjectRoot();
         var (store, directory) = Create(root);
-        var blocked = Path.Combine(directory, "publication_INFReport.xlsx");
+        var blocked = Path.Combine(directory, "publication_INF_Report.xlsx");
         Directory.CreateDirectory(blocked);
 
         var error = await Assert.ThrowsAsync<JetActionException>(() => store.WriteBatchAsync(
@@ -78,7 +78,7 @@ public sealed class ReportBatchPublicationTests
         var failingStore = new ProjectReportStore(new JetProjectFolder(root.Path), (source, destination, overwrite) =>
         {
             if (source.EndsWith(".tmp", StringComparison.Ordinal)
-                && destination.EndsWith("_INFReport.xlsx", StringComparison.Ordinal))
+                && destination.EndsWith("_INF_Report.xlsx", StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Synthetic second publication failure.");
             if (Path.GetFileName(source).StartsWith(".report-backup-", StringComparison.Ordinal)
                 && destination.EndsWith("_ValidationReport.xlsx", StringComparison.Ordinal))
@@ -113,7 +113,7 @@ public sealed class ReportBatchPublicationTests
         var failingStore = new ProjectReportStore(new JetProjectFolder(root.Path), (source, destination, overwrite) =>
         {
             if (source.EndsWith(".tmp", StringComparison.Ordinal)
-                && destination.EndsWith("_INFReport.xlsx", StringComparison.Ordinal)) throw failure;
+                && destination.EndsWith("_INF_Report.xlsx", StringComparison.Ordinal)) throw failure;
             File.Move(source, destination, overwrite);
         });
 
@@ -143,7 +143,7 @@ public sealed class ReportBatchPublicationTests
         var failingStore = new ProjectReportStore(new JetProjectFolder(root.Path), (source, destination, overwrite) =>
         {
             if (source.EndsWith(".tmp", StringComparison.Ordinal)
-                && destination.EndsWith("_INFReport.xlsx", StringComparison.Ordinal)) throw publicationFailure;
+                && destination.EndsWith("_INF_Report.xlsx", StringComparison.Ordinal)) throw publicationFailure;
             if (Path.GetFileName(source).StartsWith(".report-backup-", StringComparison.Ordinal)
                 && destination.EndsWith("_ValidationReport.xlsx", StringComparison.Ordinal)) throw restoreFailure;
             File.Move(source, destination, overwrite);

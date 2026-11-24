@@ -184,8 +184,7 @@ function Read-JetTrxResult {
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
         [Parameter(Mandatory = $true)] [string] $RunDirectory,
         [Parameter(Mandatory = $true)] [string] $TrxPath,
-        [Parameter(Mandatory = $true)] [string] $SummaryPath,
-        [switch] $WithholdFailureMessages
+        [Parameter(Mandatory = $true)] [string] $SummaryPath
     )
 
     if (-not (Test-JetDescendantPath -Root $RunDirectory -Candidate $TrxPath) -or
@@ -263,7 +262,7 @@ function Read-JetTrxResult {
             $skipReasonHash = Get-JetTextSha256 -Value (Normalize-JetSkipReason -Reason $message)
         }
 
-        # 失敗訊息不進 summary 與 records，只用來組出收據裡的第一個失敗；私人案件路線會整個保留不寫。
+        # 失敗訊息不進 summary 與 records，只用來組出收據裡的第一個失敗。
         $failureMessage = $null
         if ($outcome -ceq 'Failed') {
             $failureMessage = [string]$result.SelectSingleNode('t:Output/t:ErrorInfo/t:Message', $namespace)?.InnerText
@@ -326,7 +325,7 @@ function Read-JetTrxResult {
     $firstFailedRecord = @($recordArray | Where-Object outcome -CEQ 'Failed' | Select-Object -First 1)
     if ($firstFailedRecord.Count -gt 0) {
         $firstIdentity = [string]$firstFailedRecord[0].identity
-        $firstMessage = if ($WithholdFailureMessages -or -not $failureMessages.ContainsKey($firstIdentity)) {
+        $firstMessage = if (-not $failureMessages.ContainsKey($firstIdentity)) {
             $null
         }
         else {
@@ -335,7 +334,6 @@ function Read-JetTrxResult {
         $firstFailure = [ordered]@{
             fqn = [string]$firstFailedRecord[0].fqn
             message = $firstMessage
-            messageWithheld = [bool]$WithholdFailureMessages
         }
     }
 

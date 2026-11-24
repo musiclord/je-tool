@@ -293,7 +293,7 @@ public sealed class SupportCaseHistoryTests
     {
         using var root = new TempProjectRoot();
         var id = await CreateOldCaseAsync(root.Path, "Synthetic history broken old case");
-        await File.WriteAllTextAsync(Path.Combine(root.Path, id, "project.json"), "{\"clientName\":");
+        await ProjectJsonEdits.WriteAllTextAsync(Path.Combine(root.Path, id, "project.json"), "{\"clientName\":");
         var directory = Path.Combine(root.Path, id, SupportCaseHistoryStore.DirectoryName);
 
         using (var host = new HandlerTestHost(enableDevTools: false, projectsRootPath: root.Path))

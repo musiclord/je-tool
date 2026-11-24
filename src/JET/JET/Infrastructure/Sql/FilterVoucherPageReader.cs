@@ -80,9 +80,8 @@ internal static class FilterVoucherPageReader
         command.AddWithValue("@scenarioId", scenarioId);
         var cte = "WITH evaluated AS (SELECT g.*, CASE WHEN h.entry_id IS NULL THEN 0 ELSE 1 END AS is_hit "
             + $"FROM {prefix}gl g LEFT JOIN {prefix}filter_hit h ON h.scenario_id = @scenarioId AND h.entry_id = g.entry_id "
-            + $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} AND g.voucher_number IN ("
-            + $"SELECT hg.voucher_number FROM {prefix}filter_hit hh JOIN {prefix}gl hg ON hg.entry_id = hh.entry_id "
-            + $"WHERE hh.scenario_id = @scenarioId AND hg.voucher_number IS NOT NULL AND {GlPopulationScopeSql.Predicate(context, "hg")})"
+            + $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} AND "
+            + HitVoucherRows.InOneSavedScenarioHitVouchers("g", prefix, GlPopulationScopeSql.Predicate(context, "hg"))
             + (voucherNumber is null ? "" : " AND g.voucher_number = @document") + ") ";
         if (voucherNumber is null)
         {
@@ -133,7 +132,7 @@ internal static class FilterVoucherPageReader
         command.CommandText = cte + "SELECT voucher_number, first_gl_date, hit_rows, total_rows, voucher_total" + paging.SelectSuffix + " FROM ("
             + "SELECT voucher_number, MIN(gl_date) AS first_gl_date, " + hitRows + " AS hit_rows, COUNT(*) AS total_rows, "
             + "CAST(COALESCE(SUM(debit_amount_scaled), 0) AS BIGINT) AS voucher_total "
-            + "FROM evaluated WHERE voucher_number IS NOT NULL GROUP BY voucher_number HAVING MAX(is_hit) = 1) v "
+            + $"FROM evaluated WHERE {HitVoucherRows.HasVoucherNumber()} GROUP BY voucher_number HAVING {HitVoucherRows.GroupHasHit("is_hit")}) v "
             + "WHERE 1 = 1" + paging.Predicate + " " + paging.OrderBy + " " + dialect.LimitClause("@pageSize");
         var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, ct, cte);
         var buffer = new KeysetPageBuffer<FilterVoucherSummary>();
@@ -165,12 +164,12 @@ internal static class FilterVoucherPageReader
             + "e.account_number,e.account_name,e.description,e.amount_scaled,e.dr_cr,e.is_hit"
             + extraColumns + " "
             + "FROM evaluated e WHERE e.voucher_number = @document AND e.entry_id > @afterId "
-            + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = @document AND hit.is_hit = 1) "
+            + "AND " + HitVoucherRows.VoucherHasHit("evaluated", "@document") + " "
             + "ORDER BY e.entry_id " + dialect.LimitClause("@pageSize");
         var detailCount = await PageTotalCount.ReadAsync(command, request, cte
             + "SELECT COUNT(*) "
             + "FROM evaluated e WHERE e.voucher_number = @document "
-            + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = @document AND hit.is_hit = 1)", ct);
+            + "AND " + HitVoucherRows.VoucherHasHit("evaluated", "@document"), ct);
         var details = new List<FilterVoucherDetail>();
         await using (var reader = await command.ExecuteReaderAsync(ct))
         {

@@ -1,5 +1,5 @@
-commit 待填
-Author: 待填
-Date:   待填
+commit XXX
+Author: 待填寫
+Date:   yyyy-MM-dd
 
     首次提交：JET 1.0.0.0

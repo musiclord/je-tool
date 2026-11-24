@@ -135,7 +135,7 @@ internal static class AccountCategoryDraftTestSupport
     {
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            projectName = "第5批合成分類",
+            projectName = "科目分類合成案件",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",
             databaseProvider = provider

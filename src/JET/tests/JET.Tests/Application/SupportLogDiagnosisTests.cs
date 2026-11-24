@@ -3,6 +3,7 @@ using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
@@ -82,7 +83,7 @@ public sealed class SupportLogDiagnosisTests
         using var host = new HandlerTestHost(enableDevTools: false);
         var id = await CreateAsync(host, provider, "Synthetic support load");
         await host.DispatchAsync("project.releaseLock");
-        await File.WriteAllTextAsync(Path.Combine(host.ProjectsRoot, id, "project.json"),
+        await ProjectJsonEdits.WriteAllTextAsync(Path.Combine(host.ProjectsRoot, id, "project.json"),
             "{\"clientName\":\"PRIVATE_ENTITY\",\"periodStart\":");
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load",
             JsonSerializer.Serialize(new { projectId = id }), correlationId: "load-corrupt"));

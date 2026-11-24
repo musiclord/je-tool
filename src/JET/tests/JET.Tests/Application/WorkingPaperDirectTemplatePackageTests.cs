@@ -201,6 +201,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
                 "2025-12-31",
                 ProjectDocument.DefaultMoneyScale,
                 validation.GetProperty("resultRef").GetProperty("resultId").GetString()!,
+                123_456_789,
                 committed.GetProperty("resultRef").GetProperty("revision").GetString()!,
                 [1]);
             await using var output = new MemoryStream();

@@ -38,9 +38,9 @@ public sealed class QueryVoucherBalancePageHandler(
             rows = page.Rows.Select(r => (object)new
             {
                 voucherNumber = r.VoucherNumber,
-                debit = (decimal)r.DebitScaled / scale,
-                credit = (decimal)r.CreditScaled / scale,
-                diff = (decimal)r.DiffScaled / scale
+                debit = MoneyScaling.FromScaled(r.DebitScaled, scale),
+                credit = MoneyScaling.FromScaled(r.CreditScaled, scale),
+                diff = MoneyScaling.FromScaled(r.DiffScaled, scale)
             }).ToArray(),
             totalCount = page.TotalCount,
             nextCursor = page.NextCursor

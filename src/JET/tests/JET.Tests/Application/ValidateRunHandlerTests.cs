@@ -4,6 +4,7 @@ using JET.Application;
 using JET.AuditCore;
 using JET.Domain;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
@@ -292,7 +293,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         node.Remove("sampleSeed");
         node.Remove("sampleSeedVersion");
         node["schemaVersion"] = 1;
-        await File.WriteAllTextAsync(path, node.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
 
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("validate.run"));
@@ -321,7 +322,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         node["sampleSeed"] = seed;
         node["sampleSeedVersion"] = version;
-        await File.WriteAllTextAsync(path, node.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
 
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("validate.run"));
@@ -346,7 +347,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         node.Remove("sampleSeed");
         node["sampleSeedVersion"] = JetAuditProgram.CurrentInfSamplingAlgorithmVersion;
-        await File.WriteAllTextAsync(path, node.ToJsonString());
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
 
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("validate.run"));

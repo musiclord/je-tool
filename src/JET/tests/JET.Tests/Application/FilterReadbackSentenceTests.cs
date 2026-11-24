@@ -8,19 +8,21 @@ namespace JET.Tests.Application;
 
 public sealed class FilterReadbackSentenceTests
 {
-    public static TheoryData<string, string, string, string> LiteralSentences()
+    public static TheoryData<string, string, string, string, string?> LiteralSentences()
     {
         using var file = JsonDocument.Parse(File.ReadAllText(TestRepositoryPaths.Fixture("filter-readback-sentences.json")));
-        var data = new TheoryData<string, string, string, string>();
+        var data = new TheoryData<string, string, string, string, string?>();
         foreach (var item in file.RootElement.EnumerateArray())
             data.Add(item.GetProperty("id").GetString()!, item.GetProperty("scenario").GetRawText(),
-                item.GetProperty("rdeFields").GetRawText(), item.GetProperty("expected").GetString()!);
+                item.GetProperty("rdeFields").GetRawText(), item.GetProperty("expected").GetString()!,
+                // 有些句子要帶案件裡一定有值的欄位才寫得出來；沒有這一項的句子照舊不帶。
+                item.TryGetProperty("neverBlankGlFields", out var neverBlank) ? neverBlank.GetRawText() : null);
         return data;
     }
 
     [Theory]
     [MemberData(nameof(LiteralSentences))]
-    public void BackendReadback_EqualsTheSharedLiteralSentence(string id, string json, string fieldsJson, string expected)
+    public void BackendReadback_EqualsTheSharedLiteralSentence(string id, string json, string fieldsJson, string expected, string? neverBlankJson)
     {
         Assert.NotEmpty(id);
         using var scenario = JsonDocument.Parse(json);
@@ -30,7 +32,8 @@ public sealed class FilterReadbackSentenceTests
         // 夾具裡非營業日兩句寫「非營業日」「在非營業日」。
         // 夾具裡兩句科目分類不寫「（包含下層分類）」：選的分類都沒有下層時讀回不寫選取依據，
         // 夾具沒有分類設上層。
-        Assert.Equal(expected, FilterConditionRenderer.Render(scenario.RootElement, null, labels));
+        var neverBlankGlFields = neverBlankJson is null ? null : JsonSerializer.Deserialize<string[]>(neverBlankJson);
+        Assert.Equal(expected, FilterConditionRenderer.Render(scenario.RootElement, null, labels, neverBlankGlFields: neverBlankGlFields));
     }
 
 }

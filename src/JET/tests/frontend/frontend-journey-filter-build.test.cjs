@@ -9,7 +9,8 @@ require('./support/resource-guard.cjs');
 // 看前置不足的停用原因，並從分頁加入「未預期借貸組合」後查看傳票數量與分錄筆數。
 // 情境 11「第五步自訂條件與條件組」：審計員在欄位條件分頁從各家族各加一條、組成兩組，看組內條件的組合方式，
 // 移除一條，用「加入到」的組號換加入的組，切換 AND 與 OR 並加整張傳票條件，加借貸科目組合並切換五種查找方式，
-// 在分類清單勾選分類，最後預覽，預覽的錯誤標在條件列上。
+// 在分類清單勾選分類，最後預覽，預覽的錯誤標在條件列上。另有兩段看科目樹的讀取晚到：科目還沒讀回來就把條件換成沒有科目樹的比較方式，
+// 或換到第四步（這一段用整個 JET 畫面的夾具 bootFullApp）。
 //
 // 每個測試都執行正式的 state.js、ui-core.js、filter-values.js、filter-vouchers.js 與第五步的五個檔案（steps/filter-step-*.js 與 filter-step.js），
 // 在假 DOM 上畫出第五步並用點擊與選單操作；合成資料只控制邊界。
@@ -35,7 +36,7 @@ function buildFixture(options = {}) {
   // 沒有國定假日清單時，第五步的假日條件停用並寫原因；補班日清單也比照。
   // 這個夾具代表兩份清單都已上傳的案件，預設帶 3 天國定假日與 1 天補班日；要看沒有清單的畫面時傳 calendar: null 或只帶其中一份。
   // features 是這個版本隱藏的功能開關（Ui.FEATURES），在第一次畫出第五步之前設定；沒給時照正式程式的預設。
-  const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], accountCategory = null, saved = [], availableGlFields = null, zerosThreshold = 4,
+  const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], accountCategory = null, saved = [], availableGlFields = null, neverBlankGlFields = null, zerosThreshold = 4,
     calendar = { holidayCount: 3, makeupDayCount: 1 }, features = {},
     project = { projectId: 'filter-build-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-01' } } = options;
   const dom = treeDom(), requests = [];
@@ -54,8 +55,9 @@ function buildFixture(options = {}) {
   store.setProject(project);
   store.setAccountMappingState(accountMapping);
   if (calendar) store.setCalendarState(calendar);
-  if (glMapping || rdeFields.length || availableGlFields) store.setMappingCommitted('gl', { mapping: glMapping || {}, mode: 'signed', options: { rdeFields },
-    zerosThreshold, ...(availableGlFields ? { availableGlFields } : {}) });
+  // neverBlankGlFields 是後端回傳的、GL 中每一筆都有值的欄位；沒給時畫面不判斷，和沒有可用欄位清單時相同。
+  if (glMapping || rdeFields.length || availableGlFields || neverBlankGlFields) store.setMappingCommitted('gl', { mapping: glMapping || {}, mode: 'signed', options: { rdeFields },
+    zerosThreshold, ...(availableGlFields ? { availableGlFields } : {}), ...(neverBlankGlFields ? { neverBlankGlFields } : {}) });
   if (accountCategory) store.setCategory(accountCategory);
   store.setSavedScenarios(saved);
   let version = -1;
@@ -913,6 +915,135 @@ test('date and amount ranges say beside the two inputs that both ends are includ
   assert.equal(mentions(1, '含上下限'), 0, 'a one-sided amount comparison has no range note');
 });
 
+// 換篩選方式時，已填的值只在新方式下意思相同才留著。下面三個測試共用這組操作：
+// 在第一條條件選篩選方式、在單一值那一格打字，讀條件物件、輸入框與條件列要審計員補的事。
+function comparisonSwitcher(f) {
+  const ui = f.window.JetUi;
+  const at = '.rule-row[data-gi="0"][data-ri="0"] ';
+  const rule = () => f.draft().groups[0].conditions[0];
+  const enter = (key, text) => { const input = f.$(at + '[data-value-key="' + key + '"]'); assert.ok(input, 'missing input ' + key); input.value = text; input.fire('input'); };
+  return { rule, at,
+    kind: key => f.choose(at + '[data-value-kind]', key),
+    type: text => enter('value', text), enter,
+    box: key => f.$(at + '[data-value-key="' + (key || 'value') + '"]'),
+    single: () => plain([rule().operator, rule().value]),
+    list: () => plain([rule().operator, rule().values]),
+    problem: () => ui.FilterValues.problem(rule(), f.store.getState()),
+    sent: () => plain(ui.FilterValues.wire(rule(), f.store.getState())) };
+}
+
+// 金額條件的單一值那一格，在不同篩選方式下裝的東西不一樣：金額本身、逗號分隔的數字串，或 0 的個數。
+// 審計員加入金額，選「大於或等於」填 300000，換成「大於」時 300000 留著；換成「整數部分的特定尾數」時那一格清空，
+// 不把 300000 當成尾數，條件列請審計員填值。尾數填 000,999 後換成「整數部分的特定數字」留著，兩種都是數字串；
+// 換成「大於」清空，不把 000,999 讀成金額 999。金額填 5 後換成「尾數連續多個 0」，個數帶本案由 GL 算出的 4，不沿用 5；
+// 改成「排除」個數留著；再換成「整數部分的特定尾數」或「小於」都清空。中間經過「金額區間」也一樣不沿用。
+test('an amount typed for one comparison is kept only while it still means the same thing', () => {
+  // 0 的個數跟著已確認的 GL 配對帶回，夾具帶 4。
+  const f = fieldPane({ glMapping: {} });
+  const s = comparisonSwitcher(f);
+  f.click('[data-add-field="amount"]');
+  s.kind('greaterThanOrEqual'); s.type('300000');
+  s.kind('above');
+  assert.deepEqual(s.single(), ['greaterThan', '300000'], 'another one-sided comparison keeps the amount');
+  assert.equal(s.box().value, '300000');
+
+  s.kind('tails');
+  assert.deepEqual(s.single(), ['endsWithDigits', ''], 'the amount is not reused as a tail');
+  assert.equal(s.box().value, '');
+  assert.equal(s.problem(), '金額請填好條件值');
+  s.type('000,999');
+  s.kind('digits');
+  assert.deepEqual(s.single(), ['containsDigits', '000,999'], 'tails and digits are both digit strings');
+  assert.equal(s.sent().value, '000,999');
+
+  s.kind('above');
+  assert.deepEqual(s.single(), ['greaterThan', ''], 'digit strings are not read as an amount');
+  assert.equal(s.problem(), '金額請填好條件值');
+  s.type('5');
+  s.kind('zeros');
+  assert.deepEqual(s.single(), ['endsWithZeros', '4'], 'the zero count starts from the case default, not from the amount');
+  f.choose(s.at + '[data-value-polarity]', 'exclude');
+  assert.deepEqual(s.single(), ['notEndsWithZeros', '4'], 'excluding keeps the count');
+  s.kind('tails');
+  assert.deepEqual(s.single(), ['notEndsWithDigits', ''], 'the zero count is not reused as a tail');
+  s.kind('zeros'); s.type('6');
+  s.kind('below');
+  assert.deepEqual(s.single(), ['lessThan', ''], 'the zero count is not reused as an amount');
+
+  s.type('1000');
+  s.kind('range');
+  s.kind('tails');
+  assert.deepEqual(s.single(), ['endsWithDigits', ''], 'passing through a range does not bring the amount back as a tail');
+});
+
+// 日期條件的單一值那一格裝的是日期或每月天數，值清單裝的是日期或每月幾日。
+// 審計員加入總帳日期，選「每月月初幾天」填 5，換成「每月月底幾天」時 5 留著；換成「早於」時清空，
+// 日期框是空的，條件列請審計員填值，不寫「日期「5」無法辨識」。填 2025-03-01 後換成「當日或以後」留著，
+// 再換成「每月月初幾天」回到預設的 2 天。天數填 7 後經過「日期區間」再選「晚於」，也不沿用。
+// 「指定日期」貼上兩個日期後換成「每月幾日」，清單清空；填 28,31 後改成「排除」留著，換回「指定日期」清空。
+test('a date condition keeps a typed value only while it still means the same thing', () => {
+  const f = fieldPane();
+  const s = comparisonSwitcher(f);
+  f.click('[data-add-field="glDate"]');
+  s.kind('monthStart');
+  assert.deepEqual(s.single(), ['monthStartDays', '2']);
+  s.type('5');
+  s.kind('monthEnd');
+  assert.deepEqual(s.single(), ['monthEndDays', '5'], 'month start and month end both count days');
+
+  s.kind('before');
+  assert.deepEqual(s.single(), ['before', ''], 'a day count is not reused as a date');
+  assert.equal(s.problem(), '總帳日期請填好條件值');
+  assert.equal(s.sent().value, '');
+  s.type('2025-03-01');
+  s.kind('onOrAfter');
+  assert.deepEqual(s.single(), ['onOrAfter', '2025-03-01'], 'another one-sided comparison keeps the date');
+  s.kind('monthStart');
+  assert.deepEqual(s.single(), ['monthStartDays', '2'], 'a date is not reused as a day count');
+  s.type('7');
+  s.kind('range');
+  s.kind('after');
+  assert.deepEqual(s.single(), ['after', ''], 'passing through a range does not bring the day count back as a date');
+
+  s.kind('dates');
+  s.enter('values', '2025-01-05\n2025-01-31');
+  assert.deepEqual(s.list(), ['in', ['2025-01-05', '2025-01-31']]);
+  s.kind('monthDays');
+  assert.deepEqual(s.list(), ['dayOfMonthIn', []], 'chosen dates are not reused as days of the month');
+  assert.equal(s.box('daysOfMonth').value, '');
+  s.enter('daysOfMonth', '28,31');
+  f.choose(s.at + '[data-value-polarity]', 'exclude');
+  assert.deepEqual(s.list(), ['dayOfMonthNotIn', ['28', '31']], 'excluding keeps the days');
+  s.kind('dates');
+  assert.deepEqual(s.list(), ['notIn', []], 'days of the month are not reused as dates');
+  assert.equal(f.$(s.at + '[data-selected-dates]').querySelectorAll('[data-date-remove]').length, 0, 'no date chip is left');
+});
+
+// 文字條件的值清單在各篩選方式下都是文字本身，換方式時照樣留著：關鍵字換成「開頭符合」「完整內容相同」都帶過去。
+// 區間的起點與終點只有區間用得到，換到別的方式再換回來仍在。這個測試守住沒有改動的沿用。
+test('text values and range bounds carry over between comparisons that read them the same way', () => {
+  const f = fieldPane();
+  const s = comparisonSwitcher(f);
+  f.click('[data-add-field="description"]');
+  s.enter('values', '合成甲\n合成乙');
+  s.kind('starts');
+  assert.deepEqual(s.list(), ['startsWith', ['合成甲', '合成乙']]);
+  s.kind('exact');
+  assert.deepEqual(s.list(), ['in', ['合成甲', '合成乙']]);
+  s.kind('contains');
+  assert.deepEqual(s.sent().values, ['合成甲', '合成乙']);
+
+  const g = fieldPane();
+  const t = comparisonSwitcher(g);
+  g.click('[data-add-field="amount"]');
+  t.kind('range');
+  t.enter('from', '100'); t.enter('to', '900');
+  t.kind('greaterThanOrEqual');
+  assert.deepEqual(Object.keys(t.sent()).filter(key => key === 'from' || key === 'to'), [], 'a one-sided comparison does not send the range bounds');
+  t.kind('range');
+  assert.deepEqual(plain([t.rule().from, t.rule().to, t.box('from').value, t.box('to').value]), ['100', '900', '100', '900']);
+});
+
 // 內建的大額入口都含門檻：金額的常用查法「大額」，以及範例「指定借貸科目組合的大額分錄」「特定人員的大額分錄」，
 // 帶入的金額條件都是大於或等於，篩選方式選單停在「大於或等於」。
 // 「特定人員的大額分錄」的動機寫金額達到門檻，和帶入的比較方式一致。
@@ -963,6 +1094,78 @@ test('an extra amount field added from the overview or inside a sub-condition gr
   const child = f.draft().groups[0].conditions[1].conditions[0];
   assert.equal(child.fieldId, 'rde.money');
   assert.equal(ui.FilterValues.wire(child, f.store.getState()).amountBasis, 'absolute');
+});
+
+// GL 中每一筆都有值的欄位沒有空白可篩：金額來源空白時存成 0，總帳日期空白的分錄不納入 GL，
+// 傳票文件項次自動編號、傳票核准日沿用總帳日期時也一定有值。哪些欄位屬於這一類由後端算好帶回。
+// 這些欄位的篩選方式不列「空白」，也沒有「空白也列入」的勾選框，讀回不寫空白怎麼處理；
+// 有來源欄的文字欄位與攸關資料元素的金額欄位照舊。
+test('fields that always have a value offer no blank choice, no include-blank box and no blank note, while other fields keep them', () => {
+  const f = fieldPane({ neverBlankGlFields: ['lineItem', 'glDate', 'amount'],
+    rdeFields: [{ fieldId: 'rde.money', sourceColumn: 'Synthetic', label: '合成金額', valueType: 'amount' }] });
+  const ui = f.window.JetUi;
+  const at = index => '.rule-row[data-gi="0"][data-ri="' + index + '"] ';
+  const rule = index => f.draft().groups[0].conditions[index];
+  const kinds = index => f.$(at(index) + '[data-value-kind]').querySelectorAll('option').map(option => option.getAttribute('value'));
+  const blank = index => f.$(at(index) + 'input[data-value-key="includeBlank"]');
+  const summary = index => ui.FilterValues.summary(rule(index), f.store.getState());
+  const sent = index => ui.FilterValues.wire(rule(index), f.store.getState()).includeBlank;
+
+  f.click('[data-add-field="amount"]');
+  f.choose(at(0) + '[data-value-kind]', 'above');
+  rule(0).value = '1000';
+  assert.equal(kinds(0).includes('blank'), false, 'the amount offers no blank choice');
+  assert.equal(blank(0), null, 'the amount has no include-blank box');
+  assert.equal(summary(0), '金額絕對值 大於「1000」');
+
+  f.click('[data-add-field="glDate"]');
+  assert.equal(kinds(1).includes('blank'), false, 'the GL date offers no blank choice');
+  assert.equal(blank(1), null);
+
+  // 自動編號的傳票文件項次是文字欄位；改成「排除」時不會暗中帶上「空白也列入」。
+  f.click('[data-add-field="lineItem"]');
+  f.choose(at(2) + '[data-value-kind]', 'exact');
+  f.choose(at(2) + '[data-value-polarity]', 'exclude');
+  rule(2).values = ['1'];
+  assert.equal(kinds(2).includes('blank'), false, 'an auto-numbered line item offers no blank choice');
+  assert.equal(blank(2), null);
+  assert.deepEqual(plain([rule(2).operator, sent(2), summary(2)]), ['notIn', false, '傳票文件項次 不在清單中「1」']);
+
+  f.click('[data-add-field="description"]');
+  assert.equal(kinds(3).includes('blank'), true, 'a text field read from a source column keeps the blank choice');
+  assert.ok(blank(3), 'and keeps the include-blank box');
+
+  f.click('[data-add-field="rde.money"]');
+  assert.equal(kinds(4).includes('blank'), true, 'a relevant data element amount keeps the blank choice');
+  assert.ok(blank(4));
+  assert.match(summary(4), /；空白不列入$/);
+});
+
+// 已存的情境可能留著對金額選「空白」的條件，畫面已不提供這個選項。這種條件一定是 0 筆，畫面照樣顯示選的是哪一項，
+// 並寫出原因與改法；「非空白」不改變結果，不提示。
+test('a saved blank choice on a field that always has a value stays visible and says what to do instead', () => {
+  const blankRule = (field, operator) => ({ type: 'fieldValue', join: 'AND', field, operator, includeBlank: false, ...(field === 'amount' ? { amountBasis: 'absolute' } : {}) });
+  const f = fieldPane({ neverBlankGlFields: ['glDate', 'amount'] });
+  const ui = f.window.JetUi;
+  const state = f.store.getState();
+  assert.equal(ui.FilterValues.problem(blankRule('amount', 'isBlank'), state), 'GL 中的金額不會空白，來源空白的金額已當成 0；要找 0 元的分錄，請改用「指定金額」填 0');
+  assert.equal(ui.FilterValues.problem(blankRule('glDate', 'isBlank'), state), 'GL 中的總帳日期不會空白，請移除這條條件');
+  assert.equal(ui.FilterValues.problem(blankRule('amount', 'isNotBlank'), state), '');
+  assert.equal(ui.FilterValues.problem(blankRule('description', 'isBlank'), state), '');
+
+  const host = f.dom.document.createElement('div');
+  host.innerHTML = ui.FilterValues.render(blankRule('amount', 'isBlank'), state, 'synthetic');
+  const selected = host.querySelector('[data-value-kind]').querySelectorAll('option')
+    .filter(option => option.hasAttribute('selected')).map(option => option.getAttribute('value'));
+  assert.deepEqual(selected, ['blank'], 'the saved choice is still shown as the selected item');
+});
+
+// 還沒有帶回清單時，畫面不判斷哪些欄位一定有值，選項照舊。
+test('without the list from the backend the blank choices stay as they were', () => {
+  const f = fieldPane();
+  f.click('[data-add-field="amount"]');
+  const kinds = f.$('.rule-row[data-gi="0"][data-ri="0"] [data-value-kind]').querySelectorAll('option').map(option => option.getAttribute('value'));
+  assert.equal(kinds.includes('blank'), true);
 });
 
 // 文字欄位的否定比較，例如「不包含」「不在清單中」，照舊版預設把欄位空白的分錄也列入，審計員可以取消；日期欄位不列入。
@@ -1022,6 +1225,88 @@ test('with flat categories the category list leaves no chevron slots and the acc
   assert.equal(category().querySelector('[data-rule-bind="categorySelection"]'), null, 'the selection menu stays hidden while the switch is off');
   assert.match(tree().textContent, /勾選此分類的科目（包含下層分類）/);
   assert.match(tree().textContent, /選分類時包含下層分類的科目/);
+});
+
+// 科目樹的讀取還沒回來，審計員就把這條條件的比較方式換成沒有科目樹的那一種，回應在這段時間回來。
+// 換回「完整內容相同」後，科目樹回到還沒讀取的樣子，不會一直寫「正在載入科目…」，也沒有把晚到的科目列出來；再選一次分類照常讀取。
+test('an account-tree answer that returns while the condition has no tree leaves no loading text behind', async () => {
+  const f = fieldPane({ accountCategory: ACCOUNT_CATEGORIES });
+  f.window.JetApi.queryAccountMappingPage = payload => new Promise((resolve, reject) => f.requests.push({ action: 'queryAccountMappingPage', payload, resolve, reject }));
+  f.click('[data-add-field="accountNumber"]');
+  const at = '.rule-row[data-gi="0"][data-ri="0"] ';
+  const status = () => f.$(at + '[data-account-tree-status]').textContent;
+  assert.equal(status(), '先選分類，或搜尋本案科目。');
+  f.click(at + '[data-account-tree-category="builtin.cash"]');
+  const read = f.requests.filter(request => request.action === 'queryAccountMappingPage').at(-1);
+  assert.ok(read, 'the account list is asked for');
+  assert.equal(status(), '正在載入科目…');
+  f.choose(at + '[data-value-kind]', 'contains');
+  assert.ok(f.$(at + '[data-account-tree]') === null, 'a keyword comparison has no account tree');
+  read.resolve({ rows: [{ accountNumber: '1101', accountName: '合成現金', categoryId: 'builtin.cash' }], nextCursor: null }); await settle();
+  f.choose(at + '[data-value-kind]', 'exact');
+  assert.ok(f.$(at + '[data-account-tree]') !== null, 'the account tree is back');
+  assert.equal(status(), '先選分類，或搜尋本案科目。', 'the tree no longer says it is loading');
+  assert.ok(f.$(at + '[data-account-tree-code="1101"]') === null, 'the late accounts are not listed');
+  assert.deepEqual(plain(f.draft().groups[0].conditions[0].values), []);
+  // 再選一次同一個分類：照常讀取並列出科目。
+  f.click(at + '[data-account-tree-category="builtin.cash"]');
+  f.requests.filter(request => request.action === 'queryAccountMappingPage').at(-1)
+    .resolve({ rows: [{ accountNumber: '1101', accountName: '合成現金', categoryId: 'builtin.cash' }], nextCursor: null }); await settle();
+  assert.ok(f.$(at + '[data-account-tree-code="1101"]') !== null, 'asking again lists the accounts');
+});
+
+// 審計員勾了「勾選此分類的科目」，科目還沒讀回來就換到第四步。回應在第四步回來：不改第五步的條件，也不重畫第四步。
+// 回到第五步時科目樹不寫「正在載入科目…」，條件仍是空的；再勾一次就照常選入。
+test('an account-tree answer that returns after the auditor left step five changes no condition and redraws nothing', async () => {
+  const CASE = { projectId: '合成科目樹案', databaseProvider: 'sqlite' };
+  const f = await bootFullApp([CASE]);
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', { project: { ...CASE, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 1 } }); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  for (const kind of ['gl', 'tb']) {
+    f.store.setImportResult(kind, { batchId: kind + '-source', columns: ['Account'], rowCount: 2 });
+    f.store.setMappingCommitted(kind, { mode: kind === 'gl' ? 'signed' : 'direct', mapping: {} });
+  }
+  // 這個測試會畫出第四步，所以驗證結果帶齊第四步每一項要讀的欄位。
+  f.store.setResult('validate', { resultRef: { resultId: 'v1', generatedUtc: '2026-01-01T00:00:00Z' },
+    stats: { glRowCount: 2, voucherCount: 1, totalDebit: 10, totalCredit: 10, net: 0, periodStart: '2025-01-01', periodEnd: '2025-12-31' },
+    completenessTest: { diffAccountCount: 0, diffAccounts: [], storedTotals: { rowCountMatch: true, amountMatch: true }, naReason: null,
+      eligibility: { isEligible: true, reason: null, warning: null } },
+    voucherBalanceTest: { unbalancedVoucherCount: 0 }, infSamplingTest: { sampleSize: 1 },
+    blankRecordsTest: { blankVoucherNumberCount: 0, blankAccountNumberCount: 0, blankDescriptionCount: 0, approvalDateNotInPeriodCount: 0, blankRows: [] },
+    sourceQuality: { findingCount: 0, sampleRows: [] } });
+  f.store.setAccountMappingState(ALL_MAPPED);
+  f.store.setCategory(ACCOUNT_CATEGORIES);
+  f.store.setStepIndex(4); await flush();
+  f.click('[data-condition-source="field"]'); await flush();
+  f.click('[data-add-field="accountNumber"]'); await flush();
+  const shown = selector => f.$('.stepflow-item--current .stepflow-item__body ' + selector);
+  const values = () => plain(f.state().filter.draft.groups[0].conditions[0].values);
+  const tickCash = () => { const box = shown('[data-account-tree-select-category="builtin.cash"]'); assert.ok(box !== null, 'the category tick is shown');
+    box.checked = true; box.dispatch('change'); };
+  const cashAccounts = { rows: [{ accountNumber: '1101', accountName: '合成現金', categoryId: 'builtin.cash' }], nextCursor: null };
+
+  tickCash();
+  const read = f.request('query.accountMappingPage');
+  assert.equal(read.payload.categoryId, 'builtin.cash');
+  assert.equal(shown('[data-account-tree-status]').textContent, '正在載入科目…');
+  f.store.setStepIndex(3); await flush();
+  assert.equal(f.state().currentStepIndex, 3);
+  const drawn = f.state().contentVersion, draftRevision = f.store.getFilterDraftRev();
+  f.reply(read, cashAccounts); await flush();
+  assert.deepEqual(values(), [], 'the condition is not filled in while the auditor is on another step');
+  assert.equal(f.store.getFilterDraftRev(), draftRevision, 'the draft is not touched');
+  assert.equal(f.state().contentVersion, drawn, 'step four is not redrawn');
+
+  f.store.setStepIndex(4); await flush();
+  assert.equal(shown('[data-account-tree-status]').textContent, '先選分類，或搜尋本案科目。');
+  assert.equal(shown('[data-account-tree-select-category="builtin.cash"]').checked, false);
+  assert.deepEqual(values(), []);
+  tickCash();
+  const again = f.request('query.accountMappingPage');
+  assert.ok(again !== read, 'ticking again asks again');
+  f.reply(again, cashAccounts); await flush();
+  assert.deepEqual(values(), ['1101'], 'the accounts are chosen once the answer comes back on step five');
 });
 
 // 預覽送出的 payload：精確比對、不帶 `__` 鍵、空的組不送；錯誤標在畫面上對應的條件列（不比對原因句子）。

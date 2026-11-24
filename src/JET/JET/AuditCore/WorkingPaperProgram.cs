@@ -60,7 +60,12 @@ internal sealed record WorkingPaperScenarioPlan(
     long VoucherHitCount,
     long RowHitCount,
     WorkingPaperScenarioTagScope TagScope,
-    string? ConditionLogic = null);
+    string? ConditionLogic = null)
+{
+    /// <summary>這個情境有命中的分錄，而且以整張命中傳票標記：命中傳票的每一筆分錄都標上這個情境。</summary>
+    internal bool TagsWholeHitVouchers =>
+        RowHitCount > 0 && TagScope == WorkingPaperScenarioTagScope.HitVoucherRows;
+}
 
 /// <summary>
 /// 一張工作表的計畫：要不要產生、要不要附例外表、用哪些情境，以及表上的說明文字。

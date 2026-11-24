@@ -74,7 +74,7 @@ public sealed class UsageScenarioJourneyTests
                 {
                     sheet.Cell(1, 1).Value = "Synthetic calendar";
                     sheet.Cell(2, 1).Value = "Date_of_Holiday"; sheet.Cell(2, 2).Value = "Holiday_Name"; sheet.Cell(2, 3).Value = "IS_Holiday";
-                    sheet.Cell(3, 1).Value = "2025/01/01"; sheet.Cell(3, 2).Value = "合成假日"; sheet.Cell(3, 3).Value = "Y";
+                    sheet.Cell(3, 1).Value = "2025/13/01"; sheet.Cell(3, 2).Value = "合成假日"; sheet.Cell(3, 3).Value = "Y";
                 });
                 action = "import.holiday.fromFile"; payload = JsonSerializer.Serialize(new { filePath = file }); code = "projection_failed"; break;
             case "authorized":

@@ -1,6 +1,8 @@
 """Set print-only OOXML properties not exposed by the workbook authoring API, and neutral package metadata."""
 from pathlib import Path
-import zipfile,io,re
+import zipfile,io,re,sys
+# An optional argument names the one workbook to set up, for example "Code Review/Code review"; the others are left as they are.
+ONLY=sys.argv[1] if len(sys.argv)>1 else None
 from lxml import etree as E
 SAT=Path(__file__).resolve().parents[3]/'docs'/'SAT'
 N='http://schemas.openxmlformats.org/spreadsheetml/2006/main'
@@ -16,14 +18,23 @@ def insert(root,node):
 # Workbook key -> path under docs/SAT. The keys are used by the print rules below.
 BOOKS={'Code review':'Code Review/Code review','Unit test Report':'Code Review/Unit test Report','版本更新紀錄':'版本更新紀錄'}
 # Sheet name -> last printed column. A sheet that is not listed here stops the script, so a renamed sheet cannot print with the wrong range.
-LAST={'複核紀錄':'D','複核範圍':'E','固定值與規則':'G','測試結果':'F','核心查核邏輯':'E','程式碼涵蓋率':'D','版本更新紀錄':'C'}
-# Landscape sheets, and sheets that must fit on one page. Every other sheet is one page wide and as many pages tall as it needs.
+LAST={'複核紀錄':'D','複核範圍':'F','固定值與規則':'F','測試結果':'F','核心查核邏輯':'E','案例清單':'C','程式碼涵蓋率':'D','版本更新紀錄':'C'}
+# Landscape sheets. Every sheet is one page wide and as many pages tall as it needs.
 WIDE=['複核範圍','固定值與規則']
-ONE_PAGE=['複核範圍']
 # Sheet name -> text in column A of the heading row that repeats at the top of every printed page.
-TITLE_ROW={'固定值與規則':'編號','複核紀錄':'複核規則'}
-# Sheet name -> text in column A; the first row with that text starts a new printed page, so no table is cut at an arbitrary row.
-BREAK_BEFORE={'複核紀錄':'4. Supporting Review Rules'}
+# 複核紀錄 has no such row: it holds two tables and the decision, and the heading of the checks would print above the findings.
+TITLE_ROW={'複核範圍':'查核邏輯','固定值與規則':'編號','案例清單':'案例編號'}
+# Sheet name -> texts in column A of its table headings. The page breaks of these sheets are placed between groups of rows,
+# so a group whose cells are merged over several rows is not cut by a page. A table heading, a section band and an empty row
+# stay on the page of the row that follows them.
+KEEP_GROUPS={'複核紀錄':['複核規則','編號'],'複核範圍':['查核邏輯'],'固定值與規則':['編號'],'案例清單':['案例編號']}
+# Sheet name -> text in column A from which the rest of the sheet stays on one page: the findings and the decision of a review.
+KEEP_REST={'複核紀錄':'編號'}
+# Sheets whose rows under a band stay together up to the next band: a group of cases under its heading is not cut by a page
+# when it fits on one; a longer group breaks between its cases.
+KEEP_RUNS=['案例清單']
+# A4 in points, and the share of a page the rows may fill: Excel's own measure of a row differs a little from the stored height.
+PAPER=(595.3,841.9);FILL=0.9;POINTS_PER_PIXEL=0.75
 # Sheet name -> columns whose text is indented one step from the heading row down, so it does not touch the text of the column before it.
 INDENT={'固定值與規則':['D']}
 # Page footer of every sheet, centred, with the same wording, font and colour as the footer of the Word documents.
@@ -58,6 +69,60 @@ def row_of(texts,wanted,sheet):
  rows=sorted(r for r,t in texts.items() if t==wanted)
  if not rows:raise RuntimeError('Row not found on '+sheet+': '+wanted)
  return rows[0]
+def group_breaks(sheet,root,last,end,title,wide,headings,rest,runs):
+ # Rows that start a printed page. Rows joined by a merged cell form one group; a group that does not fit on the
+ # rest of a page starts the next one. The page height is read at the scale Excel uses to fit the columns to the page width.
+ cell=lambda ref:(re.match(r'[A-Z]+',ref)[0],int(re.search(r'\d+',ref)[0]))
+ width=sum(float(c.get('width'))*(int(c.get('max'))-int(c.get('min'))+1) for c in root.findall('s:cols/s:col',ns)
+  if int(c.get('min'))<=ord(last)-64)*FONT_DIGIT*POINTS_PER_PIXEL
+ paper_w,paper_h=(PAPER[1],PAPER[0]) if wide else PAPER
+ scale=min(1,int((paper_w-0.6*72)/width*100)/100)
+ room=(paper_h-0.85*72)/scale*FILL
+ fmt=root.find('s:sheetFormatPr',ns);default=float(fmt.get('defaultRowHeight')) if fmt is not None else 15
+ height={r:default for r in range(1,end+1)}
+ for row in root.findall('s:sheetData/s:row',ns):
+  if row.get('ht') and int(row.get('r'))<=end:height[int(row.get('r'))]=float(row.get('ht'))
+ filled={int(re.search(r'\d+',c.get('r'))[0]) for c in root.findall('s:sheetData/s:row/s:c',ns) if any(E.QName(ch).localname in ['v','is','f'] for ch in c)}
+ merges,bands=[],set()
+ for m in root.findall('s:mergeCells/s:mergeCell',ns):
+  a,b=m.get('ref').split(':');(ca,ra),(cb,rb)=cell(a),cell(b)
+  merges.append((ra,rb))
+  if ra==rb and ca=='A' and cb==last:bands.add(ra)
+ joined=list(headings)+[r for r in range(1,end) if r not in filled]+sorted(bands)
+ if rest:joined+=range(rest,end)
+ def partition(joined):
+  owner=list(range(end+2))
+  def find(r):
+   while owner[r]!=r:r=owner[r]
+   return r
+  for ra,rb in merges:
+   for r in range(ra,min(rb,end)):owner[find(r+1)]=find(ra)
+  for r in joined:
+   if r<end:owner[find(r+1)]=find(r)
+  groups=[]
+  for r in range(1,end+1):
+   if groups and find(r)==find(groups[-1][0]):groups[-1].append(r)
+   else:groups.append([r])
+  return groups
+ need=lambda g:sum(height[r] for r in g)
+ # A page after the first also holds the heading row that repeats at its top.
+ limit=lambda g:room-(height[title] if title and title<g[0] else 0)
+ groups=partition(joined)
+ if runs:
+  # Rows under a band stay together up to the next band. A run taller than a page breaks between its own groups,
+  # so the pages after it still start at a band.
+  pieces=[]
+  for run in partition(joined+[r for r in range(1,end) if r+1 not in bands]):
+   pieces+=[run] if need(run)<=limit(run) else [g for g in groups if run[0]<=g[0]<=run[-1]]
+  groups=pieces
+ for g in groups:
+  if need(g)>limit(g):raise RuntimeError('Rows '+str(g[0])+' to '+str(g[-1])+' do not fit on one page of '+sheet)
+ breaks,used=[],0
+ for g in groups:
+  if used and used+need(g)>room:
+   breaks.append(g[0]);used=(height[title] if title and title<g[0] else 0)+need(g)
+  else:used+=need(g)
+ return breaks
 def indented(styles,made,index):
  # Index of a cell format equal to the given one plus a left indent of one step; each format is copied once.
  if index not in made:
@@ -69,6 +134,7 @@ def indented(styles,made,index):
   formats.append(copy);formats.set('count',str(len(formats)));made[index]=len(formats)-1
  return made[index]
 for name,relative in BOOKS.items():
+ if ONLY and relative!=ONLY:continue
  p=SAT/(relative+'.xlsx')
  with zipfile.ZipFile(p) as z: infos=z.infolist();data={i.filename:z.read(i) for i in infos}
  strings=[''.join(si.itertext()) for si in E.fromstring(data['xl/sharedStrings.xml']).findall('s:si',ns)] if 'xl/sharedStrings.xml' in data else []
@@ -113,7 +179,7 @@ for name,relative in BOOKS.items():
    views=E.Element('{'+N+'}sheetViews');E.SubElement(views,'{'+N+'}sheetView',workbookViewId='0');insert(root,views)
   # The bottom margin leaves room for the page footer below the last printed row.
   insert(root,E.Element('{'+N+'}pageMargins',left='0.3',right='0.3',top='0.35',bottom='0.5',header='0.15',footer='0.2'))
-  insert(root,E.Element('{'+N+'}pageSetup',paperSize='9',orientation='landscape' if wide else 'portrait',fitToWidth='1',fitToHeight='1' if sheet in ONE_PAGE else '0'))
+  insert(root,E.Element('{'+N+'}pageSetup',paperSize='9',orientation='landscape' if wide else 'portrait',fitToWidth='1',fitToHeight='0'))
   if rescale:
    for column in root.findall('s:cols/s:col',ns):column.set('width',format(float(column.get('width'))*PACKAGE_DIGIT/FONT_DIGIT,'.4f'))
   footer=E.Element('{'+N+'}headerFooter',scaleWithDoc='0')
@@ -127,11 +193,13 @@ for name,relative in BOOKS.items():
     hit=re.fullmatch(r'([A-Z]+)(\d+)',c.get('r') or '')
     if hit and hit[1]==letter and head<=int(hit[2])<=end:c.set('s',str(indented(styles,made,int(c.get('s','0')))));count+=1
    if count!=end-head+1:raise RuntimeError('Indent column is incomplete on '+sheet+': '+letter)
-  if sheet in BREAK_BEFORE:
-   first=row_of(texts,BREAK_BEFORE[sheet],sheet)
-   breaks=E.Element('{'+N+'}rowBreaks',count='1',manualBreakCount='1')
-   E.SubElement(breaks,'{'+N+'}brk',id=str(first-1),max='16383',man='1')
-   insert(root,breaks)
+  if sheet in KEEP_GROUPS:
+   firsts=group_breaks(sheet,root,last,end,row_of(texts,TITLE_ROW[sheet],sheet) if sheet in TITLE_ROW else None,wide,
+    [row_of(texts,wanted,sheet) for wanted in KEEP_GROUPS[sheet]],row_of(texts,KEEP_REST[sheet],sheet) if sheet in KEEP_REST else None,sheet in KEEP_RUNS)
+   if firsts:
+    breaks=E.Element('{'+N+'}rowBreaks',count=str(len(firsts)),manualBreakCount=str(len(firsts)))
+    for first in firsts:E.SubElement(breaks,'{'+N+'}brk',id=str(first-1),max='16383',man='1')
+    insert(root,breaks)
   sname="'"+sheet.replace("'","''")+"'!"
   E.SubElement(defined,'{'+N+'}definedName',name='_xlnm.Print_Area',localSheetId=str(idx)).text=sname+'$A$1:$'+last+'$'+str(end)
   if sheet in TITLE_ROW:

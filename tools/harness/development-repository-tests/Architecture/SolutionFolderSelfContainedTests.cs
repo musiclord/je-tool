@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 方案資料夾（src/JET）會單獨交出去，所以裡面的程式、測試與設定不能提到只有開發儲存庫才有的東西：
-/// Agent 的指引檔、驗證框架的資料夾與命令、用真實案件驗收與和舊版輸出比對的機制，以及只在開發儲存庫執行的測試。
+/// Agent 的指引檔、驗證框架的資料夾與命令，以及只在開發儲存庫執行的測試。
 /// 這個檢查放在驗證框架底下，被擋的字樣才不會反過來寫進方案資料夾。
 /// </summary>
 public sealed class SolutionFolderSelfContainedTests
@@ -24,9 +24,6 @@ public sealed class SolutionFolderSelfContainedTests
         ("Agent 的指引檔", new Regex(@"AGENTS\.md", RegexOptions.CultureInvariant)),
         ("Gui 測試夾具的資料夾與名稱", new Regex("agent-gui-test|AgentGui", RegexOptions.CultureInvariant)),
         ("開發儲存庫的根目錄", new Regex(@"(?<![A-Za-z])RepositoryRoot(?![A-Za-z])", RegexOptions.CultureInvariant)),
-        ("用真實案件驗收的機制", new Regex("PrivateCase|JET_PRIVATE_CASE", RegexOptions.CultureInvariant)),
-        ("和舊版輸出比對的機制", new Regex(
-            "LegacyAuditParity|LegacyParity|legacy-parity-work|JET_LEGACY_PARITY", RegexOptions.CultureInvariant)),
         ("只在開發儲存庫執行的測試標記", new Regex("DevelopmentRepository", RegexOptions.CultureInvariant)),
         ("驗證框架的命令與資料夾", new Regex(
             @"verify\.ps1|tools[/\\](?:harness|tests)|""tools""|development-repository-tests", RegexOptions.CultureInvariant)),
@@ -71,15 +68,12 @@ public sealed class SolutionFolderSelfContainedTests
     [InlineData("var root = TestRepositoryPaths.RepositoryRoot;", true)]
     [InlineData("&& !(File.Exists(Path.Combine(directory.FullName, \"AGENTS.md\"))", true)]
     [InlineData("TestRepositoryPaths.RepositoryRoot, \"tools\", \"harness\", \"agent-gui-test\", \"AgentGuiTestFixtures.cs\"));", true)]
-    [InlineData("[Trait(TestProfileTraits.Key, \"PrivateCase\")]", true)]
     [InlineData("[Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]", true)]
-    [InlineData("internal sealed record LegacyAuditParityRunSelection(", true)]
-    [InlineData("public const string RelativeRoot = \"data/legacy-parity-work\";", true)]
     [InlineData("while (root is not null && !File.Exists(Path.Combine(root.FullName, \"tools\", \"verify.ps1\"))) root = root.Parent;", true)]
     [InlineData("<Compile Include=\"..\\..\\..\\..\\tools\\harness\\gui-driver\\GuiWorkingPaperInspection.cs\" />", true)]
     [InlineData("// 測試名稱由 GuiScenarioCoverageTests 核對，改名時一起改。", true)]
     [InlineData("var root = TestRepositoryPaths.SolutionRoot;", false)]
-    [InlineData("internal static void ValidateRepositoryInventory(string repositoryRoot)", false)]
+    [InlineData("var root = Path.GetFullPath(repositoryRoot);", false)]
     [InlineData("internal enum LegacyReportKind", false)]
     [InlineData("public sealed class LegacyWorkbookHeaderCatalogTests", false)]
     [InlineData("namespace Jet.Harness.TaiwanSme;", false)]

@@ -23,7 +23,7 @@ internal sealed class WorkingPaperPlanningFactsPort(
         var request = plan.Request;
         var firstRow = new PageRequest(null, 1);
         // 逐科目比對無法執行時不讀差異科目；只有 GL 的科目會被當成差異，不能拿來決定 Step1-3。
-        var accountComparisonApplicable = request.CompletenessNaReason is null;
+        var accountComparisonApplicable = AccountComparisonProcedure.IsApplicable(request.CompletenessNaReason);
         var hasCompletenessDifferences = accountComparisonApplicable
             && (await completenessDiffs.GetPageAsync(
                 request.ProjectId,

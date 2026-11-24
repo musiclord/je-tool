@@ -15,7 +15,7 @@ namespace JET.Tests.Infrastructure;
 ///   A200：TB 300、GL 300，差異 0                 A300：TB 0、GL 0，差異 0，試算表沒有名稱
 ///   B500：TB 0、GL 900，差異 -900，只在總帳     Z900：TB 700、GL 0，差異 700，只在試算表
 ///
-/// 全科目表的名稱只取試算表；差異表在試算表沒有名稱時用總帳的名稱。
+/// 全科目表與差異表的名稱都先取試算表，試算表沒有名稱或科目只在總帳時用總帳的名稱。
 /// </summary>
 public sealed class CompletenessAccountStreamTests
 {
@@ -44,11 +44,11 @@ public sealed class CompletenessAccountStreamTests
     private static readonly CompletenessDiffAccount[] ExpectedAccounts =
     [
         new(string.Empty, "TB 空白科目", 100, 0, 100, false),
-        new(string.Empty, null, 0, 50, -50, true),
+        new(string.Empty, "GL 空白科目", 0, 50, -50, true),
         new("A100", "有差異", 500, 300, 200, false),
         new("A200", "零差異", 300, 300, 0, false),
-        new("A300", null, 0, 0, 0, false),
-        new("B500", null, 0, 900, -900, true),
+        new("A300", "GL 名稱", 0, 0, 0, false),
+        new("B500", "GL 獨有", 0, 900, -900, true),
         new("Z900", "TB 獨有", 700, 0, 700, false)
     ];
 

@@ -1,8 +1,8 @@
 {
-  "title": "JE Tool 活動圖：「資料驗證與測試」的作業流程",
+  "title": "活動圖：「資料驗證與測試」的作業流程",
   "header": [
-    "JE Tool 1.0.0.0 活動圖。範圍：使用者在「資料驗證與測試」步驟執行資料驗證，至進入「進階條件篩選」為止。",
-    "表示法：UML 活動圖。括號內的英文是前端送出的請求名稱（action）。"
+    "範圍：使用者在「資料驗證與測試」步驟執行資料驗證，至進入「進階條件篩選」為止。",
+    "括號內的英文是前端送出的請求名稱（action）。"
   ],
   "sourceRoot": "src/JET/JET",
   "lanes": [
@@ -54,7 +54,11 @@
       "evidence": [
         {
           "file": "wwwroot/js/steps/validate-step.js",
-          "text": "sampleSize < 1 || sampleSize > 1048524"
+          "text": "sampleSize < 1 || sampleSize > maximum"
+        },
+        {
+          "file": "AuditCore/InfSampling.cs",
+          "text": "public const int MaximumSampleSize = 1_048_576 - 52;"
         },
         {
           "file": "Domain/ActionExecutionPolicy.cs",
@@ -80,12 +84,13 @@
               "text": [
                 "顯示原因，不執行資料驗證：",
                 "抽樣筆數非 1 至 1,048,524 的整數、",
-                "另一項作業執行中，或 GL 欄位配對未確認"
+                "另一項作業執行中，",
+                "或總帳（GL）欄位配對未確認"
               ],
               "evidence": [
                 {
                   "file": "wwwroot/js/steps/validate-step.js",
-                  "text": "抽樣筆數請填入 1 到 1048524 的整數。"
+                  "text": "Store.addMessage('抽樣筆數請填入 1 到 ' + maximum + ' 的整數。', 'warn');"
                 },
                 {
                   "file": "Bridge/ActionDispatcher.cs",
@@ -130,8 +135,8 @@
               "id": "tbReady",
               "lane": "jet",
               "text": [
-                "已匯入 TB，且 TB",
-                "欄位配對已確認？"
+                "已匯入試算表（TB），",
+                "且 TB 欄位配對已確認？"
               ],
               "evidence": [
                 {
@@ -491,7 +496,7 @@
       "start": [140, 100],
       "run": [140, 176],
       "precheck": [644, 176],
-      "reject": [950, 176],
+      "reject": [962, 176],
       "population": [644, 276],
       "tbReady": [644, 380],
       "accountComparisonNotRun": [644, 500],

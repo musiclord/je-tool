@@ -34,7 +34,7 @@ public sealed record GlPopulationSummary(
     GlExcludedPopulationTotals Excluded);
 
 /// <summary>完整性測試逐科目比對的一列，同時供全科目報表與差異頁使用。
-/// 全科目報表的 AccountName 只取 TB 名稱，TB 名稱空白或 GL 有、TB 無時保持空白；差異頁仍可由 GL 補值。
+/// AccountName 先取 TB 的名稱，TB 沒有名稱或 GL 有、TB 無時取 GL 的名稱；TB 與 GL 都沒有名稱時是 null。
 /// NotInTb=true 表示該科目「GL 有、TB 無」；false 表示 TB 中有該科目。</summary>
 public sealed record CompletenessDiffAccount(
     string AccountNumber,

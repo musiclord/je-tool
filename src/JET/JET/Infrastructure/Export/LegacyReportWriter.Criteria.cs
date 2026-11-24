@@ -141,7 +141,7 @@ internal sealed partial class LegacyReportWriter
 
     /// <summary>
     /// 一批一批交出這個情境的整張傳票分錄。第一次取批時用一個查詢讀完整個情境，命中傳票只算一次，
-    /// 結果依 entry_id 升冪寫進暫存檔；之後每批從暫存檔接著讀，不再查資料庫。
+    /// 結果依傳票號碼、同一張傳票照原本的列順序寫進暫存檔；之後每批從暫存檔接著讀，不再查資料庫。
     /// </summary>
     private async Task<PageResult<CriteriaVoucherRow>> ReadCriteriaVoucherRowsAsync(
         CriteriaSelectionReportContext context,

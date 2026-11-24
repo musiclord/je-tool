@@ -110,4 +110,86 @@ public sealed class PlainNumberDateWorkflowTests
         }
         finally { File.Delete(path); }
     }
+
+    // 年份多打成五位數以上的日期，例如 99999/02/01，JET 不猜是哪一年，照樣列為無法辨識；
+    // 日期提醒只標出年份那一段，問題種類是年份超過四位數。
+    [Fact]
+    public async Task YearLongerThanFourDigits_IsReportedWithOnlyTheYearMarked()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"jet-long-year-date-{Guid.NewGuid():N}.csv");
+        File.WriteAllText(path,
+            "Document,Date,Account,Name,Description,Amount,Approved\n"
+            + "V1,2025-03-05,A,Synthetic,Normal,1,99999/02/01\n"
+            + "V2,2025-03-05,A,Synthetic,Normal,1,2025-03-06\n", new UTF8Encoding(false));
+        try
+        {
+            using var host = new HandlerTestHost();
+            await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+            { projectName = "Long year dates", periodStart = "2024-01-01", periodEnd = "2025-12-31", databaseProvider = "sqlite" }));
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            var mapping = MappingCaseTemplateFixture.Mapping();
+            mapping["approvalDate"] = "Approved";
+
+            var committed = JsonSerializer.SerializeToElement(await host.DispatchAsync("mapping.commit.gl",
+                JsonSerializer.Serialize(new { mapping, amountMode = "signed", rdeFields = Array.Empty<object>() })));
+
+            Assert.Equal(2, committed.GetProperty("projectedRowCount").GetInt32());
+            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            Assert.Equal("unrecognized", notice.GetProperty("kind").GetString());
+            Assert.Equal("notUsed", notice.GetProperty("handling").GetString());
+            var value = Assert.Single(notice.GetProperty("values").EnumerateArray());
+            Assert.Equal("99999/02/01", value.GetProperty("value").GetString());
+            Assert.Equal("yearTooLong", value.GetProperty("problem").GetString());
+            Assert.Equal(0, value.GetProperty("markStart").GetInt32());
+            Assert.Equal(5, value.GetProperty("markLength").GetInt32());
+        }
+        finally { File.Delete(path); }
+    }
+
+    // 日期欄用全形數字寫，例如 ２０２５/０６/１１，不是常見的日期寫法：確認配對照常完成，
+    // 這些值列為無法辨識的日期，日期提醒照「不是日期」標出整個值。
+    [Fact]
+    public async Task FullWidthDigitDates_AreReportedWithoutFailingTheMapping()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"jet-full-width-date-{Guid.NewGuid():N}.csv");
+        File.WriteAllText(path,
+            "Document,Date,Account,Name,Description,Amount,Approved\n"
+            + "V1,2025-03-05,A,Synthetic,Normal,1,２０２５/０６/１１\n"
+            + "V2,2025-03-05,A,Synthetic,Normal,1,１１４/０６/１１\n"
+            + "V3,2025-03-05,A,Synthetic,Normal,1,２０２５０６１１\n"
+            + "V4,2025-03-05,A,Synthetic,Normal,1,2025-03-06\n", new UTF8Encoding(false));
+        try
+        {
+            using var host = new HandlerTestHost();
+            await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+            { projectName = "Full width dates", periodStart = "2024-01-01", periodEnd = "2025-12-31", databaseProvider = "sqlite" }));
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            var mapping = MappingCaseTemplateFixture.Mapping();
+            mapping["approvalDate"] = "Approved";
+
+            object? response = null;
+            var commitError = await Record.ExceptionAsync(async () => response = await host.DispatchAsync("mapping.commit.gl",
+                JsonSerializer.Serialize(new { mapping, amountMode = "signed", rdeFields = Array.Empty<object>() })));
+
+            Assert.Null(commitError);
+            var committed = JsonSerializer.SerializeToElement(response);
+            Assert.Equal(4, committed.GetProperty("projectedRowCount").GetInt32());
+            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            Assert.Equal("unrecognized", notice.GetProperty("kind").GetString());
+            Assert.Equal("notUsed", notice.GetProperty("handling").GetString());
+            Assert.Equal(3, notice.GetProperty("count").GetInt64());
+            Assert.Equal(
+                ["２０２５/０６/１１|2", "１１４/０６/１１|3", "２０２５０６１１|4"],
+                notice.GetProperty("values").EnumerateArray().Select(value =>
+                    value.GetProperty("value").GetString() + "|"
+                    + string.Join(",", value.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("row").GetInt32()))));
+            foreach (var value in notice.GetProperty("values").EnumerateArray())
+            {
+                Assert.Equal("notDate", value.GetProperty("problem").GetString());
+                Assert.Equal(0, value.GetProperty("markStart").GetInt32());
+                Assert.Equal(value.GetProperty("value").GetString()!.Length, value.GetProperty("markLength").GetInt32());
+            }
+        }
+        finally { File.Delete(path); }
+    }
 }

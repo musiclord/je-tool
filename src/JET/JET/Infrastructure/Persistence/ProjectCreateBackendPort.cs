@@ -22,7 +22,8 @@ internal sealed class ProjectCreateBackendPort(ILocalProjectDatabase sqlite) : I
         {
             ProjectDocument.DefaultDatabaseProvider =>
                 Task.FromResult<IProjectCreateBackendAttempt>(
-                    new LocalProjectCreateBackendAttempt(sqlite, document.ProjectId)),
+                    new LocalProjectCreateBackendAttempt(
+                        sqlite, document.ProjectId, ProtectedProjectSettings.From(document))),
             _ => throw Unsupported(document.DatabaseProvider)
         };
 
@@ -33,7 +34,8 @@ internal sealed class ProjectCreateBackendPort(ILocalProjectDatabase sqlite) : I
 
     private sealed class LocalProjectCreateBackendAttempt(
         ILocalProjectDatabase database,
-        string projectId) : IProjectCreateBackendAttempt
+        string projectId,
+        ProtectedProjectSettings settings) : IProjectCreateBackendAttempt
     {
         private bool prepared;
         private bool completed;
@@ -45,7 +47,8 @@ internal sealed class ProjectCreateBackendPort(ILocalProjectDatabase sqlite) : I
                 throw new InvalidOperationException("Local project.create attempt 不在可準備狀態。");
             }
 
-            await database.EnsureCreatedAsync(projectId, cancellationToken);
+            // 建表與寫入以案件資料庫為準的案件設定在同一個交易裡完成。
+            await database.EnsureCreatedAsync(projectId, settings, cancellationToken);
             prepared = true;
         }
 

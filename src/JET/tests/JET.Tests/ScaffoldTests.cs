@@ -8,8 +8,8 @@ using Xunit;
 namespace JET.Tests;
 
 /// <summary>
-/// 最薄層的傳輸骨架測試：dispatcher 行為與正式的 system.ping round-trip
-/// （provisional __jet.* 與 prototype 組態庫已退役——組態只持久化在 projects/{id}/）。
+/// 最薄層的傳輸骨架測試：dispatcher 行為與正式的 system.ping round-trip。
+/// 沒有註冊的 action 名稱一律丟出 KeyNotFoundException，例子用 __jet. 開頭的名稱。
 /// </summary>
 public sealed class ScaffoldTests
 {

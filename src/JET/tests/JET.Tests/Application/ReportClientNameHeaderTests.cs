@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 /// <summary>合成案件的報告公司表頭、案件資料修改與既有輸出保留。</summary>
 public sealed class ReportClientNameHeaderTests
 {
-    private const string ProjectName = "第4批合成案件";
+    private const string ProjectName = "報告表頭合成案件";
     private const string OriginalEntity = "修改前合成客戶";
     private const string UpdatedEntity = "修改後合成客戶";
     private static readonly string[] ReportKinds =

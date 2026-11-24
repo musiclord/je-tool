@@ -30,18 +30,13 @@ public sealed class ProjectRepositorySelectionTests
         using var host = new HandlerTestHost(projectsRootPath: root.Path);
         await host.DispatchAsync("project.create", CreatePayload(activeCase, ProjectDocument.DefaultDatabaseProvider));
 
-        // 唯讀的 project.json 讓載入在取得工作鎖之後、寫回最近開啟時間時失敗。
+        // 其他程式開著 project.json、不讓 JET 換檔時，載入在取得工作鎖之後、寫回最近開啟時間時失敗。
         var projectJson = Path.Combine(root.Path, sqliteCase, JetProjectFolder.ProjectJsonFileName);
-        File.SetAttributes(projectJson, FileAttributes.ReadOnly);
-        try
+        using (new FileStream(projectJson, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
             var loadError = await Assert.ThrowsAsync<JetActionException>(
                 () => host.DispatchAsync("project.load", LoadPayload(sqliteCase)));
             Assert.Equal(JetErrorCodes.FileReadError, loadError.Code);
-        }
-        finally
-        {
-            File.SetAttributes(projectJson, FileAttributes.Normal);
         }
 
         var overview = await host.DispatchAsync("dev.db.overview");
@@ -140,7 +135,7 @@ public sealed class ProjectRepositorySelectionTests
             .Select(property => property.Key)
             .Single(key => string.Equals(key, "databaseProvider", StringComparison.OrdinalIgnoreCase));
         node[propertyName] = provider;
-        File.WriteAllText(path, node.ToJsonString());
+        ProjectJsonEdits.WriteAllText(path, node.ToJsonString());
     }
 
     private static string DatabaseFileName(string provider) =>

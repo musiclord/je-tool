@@ -23,8 +23,8 @@
 
 </details>
 
-## 修改圖表
+## 圖表來源
 
-LikeC4 來源是 [jet.c4](likec4/jet.c4)。Archify 來源是各圖資料夾的 candidate.json，例如[篩選情境圖](archify/filter-save/candidate.json)。修改來源後，依 `tools/harness/architecture/README.md` 重新產生與封裝。
+LikeC4 來源是 [jet.c4](likec4/jet.c4)。Archify 來源是各圖資料夾的 candidate.json，例如[篩選情境圖](archify/filter-save/candidate.json)。
 
 第三方授權：[Archify](licenses/archify-LICENSE.txt)、[LikeC4](licenses/likec4-LICENSE.txt)。

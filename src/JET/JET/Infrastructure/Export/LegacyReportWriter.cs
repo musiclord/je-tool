@@ -231,10 +231,11 @@ internal sealed partial class LegacyReportWriter(
     private static void AddStat(
         List<SheetStat> stats,
         SheetStat stat,
-        Action<WorkingPaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress,
+        long? markedRows = null)
     {
         stats.Add(stat);
-        progress?.Invoke(new WorkingPaperProgress(stat.SheetName, stats.Count, stat.RowsWritten));
+        progress?.Invoke(new WorkingPaperProgress(stat.SheetName, stats.Count, stat.RowsWritten) { MarkedRows = markedRows });
     }
 
     private void ReportIntermediateRows(
@@ -392,6 +393,9 @@ internal sealed partial class LegacyReportWriter(
 
         var part = 1;
         var rowIndex = 2U;
+        // 這張工作表有幾列寫了符合標記；沒有標記欄的明細表不算，回報 null。
+        long markedRows = 0;
+        long? MarkedRowsOfSheet() => markerColumn is null ? null : markedRows;
         var sheetName = SeriesName(baseName, part);
         ReportSheetWriter? sheet = OpenRawSheet(
             document,
@@ -410,10 +414,11 @@ internal sealed partial class LegacyReportWriter(
                 cancellationToken.ThrowIfCancellationRequested();
                 if (rowIndex > _continuationRowLimit)
                 {
-                    AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
+                    AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress, MarkedRowsOfSheet());
                     sheet.Dispose();
                     part++;
                     rowIndex = 2;
+                    markedRows = 0;
                     sheetName = SeriesName(baseName, part);
                     sheet = OpenRawSheet(
                         document,
@@ -428,6 +433,11 @@ internal sealed partial class LegacyReportWriter(
                 }
 
                 sheet.WriteDataRow(rowIndex, TextCells(sheet, rowIndex, values, bodyStyles));
+                if (markerColumn is not null && !string.IsNullOrEmpty(values[^1]))
+                {
+                    markedRows++;
+                }
+
                 rowIndex++;
                 ReportIntermediateRows(
                     stats,
@@ -436,7 +446,7 @@ internal sealed partial class LegacyReportWriter(
                     progress);
             }
 
-            AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
+            AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress, MarkedRowsOfSheet());
             sheet.Dispose();
             sheet = null;
         }
@@ -677,7 +687,7 @@ internal sealed partial class LegacyReportWriter(
         return result;
     }
 
-    private static decimal Display(long scaled, int moneyScale) => (decimal)scaled / moneyScale;
+    private static decimal Display(long scaled, int moneyScale) => MoneyScaling.FromScaled(scaled, moneyScale);
 
     private static string DisplayPrepStartDate(string? prepStartDate) =>
         string.IsNullOrWhiteSpace(prepStartDate)

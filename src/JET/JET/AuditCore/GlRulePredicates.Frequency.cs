@@ -44,7 +44,7 @@ internal sealed partial class GlRulePredicates
             _ => throw new InvalidOperationException("Unknown frequency comparison.")
         };
         var isPerson = field is JetFieldCatalog.GlCreatedBy or JetFieldCatalog.GlApprovedBy;
-        string Key(string alias) => isPerson ? dialect.Upper(dialect.Trim($"{alias}.{column}")) : dialect.Trim($"{alias}.{column}");
+        string Key(string alias) => isPerson ? PersonIdentity.Key(dialect, $"{alias}.{column}") : dialect.Trim($"{alias}.{column}");
         return $"{Key("g")} IN (SELECT {Key("f")} FROM {schemaPrefix}gl f " +
             $"WHERE {populationScopePredicate(context, "f")} AND {SqlBlankText.IsNotBlank(dialect, $"f.{column}")} " +
             $"GROUP BY {Key("f")} HAVING {comparison})";
