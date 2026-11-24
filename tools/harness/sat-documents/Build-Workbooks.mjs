@@ -206,50 +206,29 @@ async function save(w,name,ranges){
  numbers(g,['B','C','D'],4,ge,'center');
  ranges.push([g.name,'A1:E'+ge]);
 
- // The result of every test case of the six core audit logics. Cases are listed under their logic and, within it, under their group;
- // each logic heading carries the counts for that logic. A result recorded for another version of the case file is shown as not run.
- const cases=review.cases, caseSource=review.caseSource, record=tests.reviewCases;
+ // The test items of the six core audit logics: what is tested, the input conditions and the expected result, as written in Build-ReviewData.py.
+ // Each item shows how many test cases check it and their result. A result recorded for another version of the case file is shown as not run.
+ const items=review.testItems, caseSource=review.caseSource, record=tests.reviewCases;
  const ran=record&&record.definitionSha256===caseSource.sha256?record:{results:{}};
  const outcome=id=>({passed:'通過',failed:'失敗'})[ran.results[id]]||'未執行';
- const tally=list=>{
-  const n=r=>list.filter(c=>outcome(c.id)===r).length;
-  return ['共 '+list.length+' 個案例','通過 '+n('通過')+' 個']
-   .concat(n('失敗')?['失敗 '+n('失敗')+' 個']:[],n('未執行')?['未執行 '+n('未執行')+' 個']:[]).join('，');
- };
- const kw=[160,490,100];
- const logics=[...new Set(cases.map(c=>c.logic))], groups=new Set(cases.map(c=>c.logic+'\n'+c.group));
- const k=base(w,'案例清單','核心查核邏輯各案例的結果',kw,12+cases.length+logics.length+groups.size);
+ const verdict=ids=>ids.some(id=>outcome(id)==='失敗')?'失敗':ids.some(id=>outcome(id)==='未執行')?'未執行':'通過';
+ const every=items.flatMap(x=>x.cases), passed=every.filter(id=>outcome(id)==='通過').length;
+ const kw=[180,300,340,70,70];
+ const k=base(w,'測試案例','核心查核邏輯的測試案例',kw,20+items.length*2);
  let krow=4;
- krow=field(k,krow,'自動化測試',caseSource.testFile,'C');
- krow=field(k,krow,'測試資料與預期結果',caseSource.file,'C');
- krow=field(k,krow,'執行日期',ran.date||'','C');
- krow=field(k,krow,'結果',tally(cases),'C');
- const head=krow+1;
- const kh=k.getRange('A'+head+':C'+head);kh.values=[['案例編號','案例名稱','結果']];kh.format.fill=light;kh.format.font.bold=true;kh.format.rowHeight=30;
- kh.format.horizontalAlignment='center';
- let at=head;
- cases.forEach((c,i)=>{
-  const before=cases[i-1];
-  if(!before||before.logic!==c.logic){
-   at++;block(k,'A'+at+':C'+at,c.logic+'：'+tally(cases.filter(x=>x.logic===c.logic)),band);
-   const r=k.getRange('A'+at+':C'+at);r.format.font={name:'Microsoft JhengHei',size:11,bold:true,color:navy};r.format.rowHeight=30;
-   r.format.borders={top:{style:'thin',color:navy}};
-  }
-  if(!before||before.logic!==c.logic||before.group!==c.group){
-   at++;block(k,'A'+at+':C'+at,c.group);
-   const r=k.getRange('A'+at+':C'+at);r.format.font={name:'Microsoft JhengHei',size:11,bold:true,color:ink};r.format.rowHeight=26;
-   r.format.borders={bottom:{style:'thin',color:'#8FA3B0'}};
-  }
-  at++;
-  const r=k.getRange('A'+at+':C'+at);r.values=[[c.id,c.name,outcome(c.id)]];
-  r.format.rowHeight=Math.max(24,lines(c.name,kw[1])*17+7);
-  const next=cases[i+1];
-  if(next&&next.logic===c.logic&&next.group===c.group)r.format.borders={bottom:{style:'thin',color:'#DBE2E7'}};
-  k.getRange('A'+at).format.horizontalAlignment='center';k.getRange('C'+at).format.horizontalAlignment='center';
-  if(outcome(c.id)==='失敗')k.getRange('C'+at).format.font={name:'Microsoft JhengHei',size:11,bold:true,color:'#B3261E'};
- });
- // The preview image shows the top of the sheet only; the whole list is too tall to draw as one picture.
- ranges.push([k.name,'A1:C'+Math.min(at,head+36)]);
+ krow=field(k,krow,'自動化測試',caseSource.testFile,'E');
+ krow=field(k,krow,'測試資料',caseSource.file,'E');
+ krow=field(k,krow,'執行日期',ran.date||'','E');
+ krow=field(k,krow,'結果','共 '+every.length+' 個測試案例，通過 '+passed+' 個','E');
+ // Each logic is a band across the table; every test item under it is a row of its own, so a page break can fall between items.
+ const sections=[];let logic=null;
+ for(const x of items){
+  if(x.logic!==logic){sections.push({band:x.logic});logic=x.logic;}
+  sections.push({rows:[[x.item,x.input,x.expected,x.cases.length,verdict(x.cases)]]});
+ }
+ const listed=grouped(k,krow+1,['測試項目','輸入條件','預期結果','案例數','結果'],kw,sections,[],44);
+ k.getRange('D'+(krow+1)+':E'+listed.end).format.horizontalAlignment='center';
+ ranges.push([k.name,'A1:E'+listed.end]);
 
  const cw=[340,130,130,130];
  const c=base(w,'程式碼涵蓋率','後端程式碼行涵蓋率',cw);

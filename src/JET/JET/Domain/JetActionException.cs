@@ -131,13 +131,24 @@ public static class ProjectFolderMessages
     /// <summary>刪除案件時，案件清單上的案件資料夾已不在。</summary>
     public static string CannotDelete(string projectName) => Missing(projectName, "刪除");
 
-    /// <summary>案件資料庫的版本值缺漏、讀不出整數，或比目前版本還新。</summary>
+    /// <summary>案件資料庫的版本值缺漏或讀不出整數。</summary>
     public const string UnreadableDatabaseVersion =
         "這個案件資料庫的版本資訊無法辨識，目前版本無法開啟。請從備份還原案件資料夾，或用目前版本重新建立案件，再重新匯入資料。";
 
     /// <summary>
-    /// 較早版本的 JET 建立的案件。案件設定檔、案件資料庫與欄位配對讀到較早版本的內容時都用這一句，下一步是刪除後重建
-    /// （案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。讀不到案件名稱時寫「這個案件」。
+    /// 較新版本的 JET 建立或開啟過的案件：案件設定檔或案件資料庫的版本比目前版本新。讀不到案件名稱時寫「這個案件」。
+    /// </summary>
+    public static string NewerVersionProject(string? projectName = null) =>
+        (string.IsNullOrEmpty(projectName) ? "這個案件" : $"案件「{projectName}」")
+        + "是較新版本的 JET 建立或開啟過的，目前版本無法開啟。請改用較新版本的 JET 開啟這個案件。";
+
+    /// <summary>較早版本建立的案件資料庫升到目前版本時失敗；升版在一個交易裡執行，失敗時資料庫留在原本的版本。</summary>
+    public const string DatabaseUpgradeFailed =
+        "案件資料庫升級到目前版本時發生錯誤，案件資料沒有變更。請關閉其他正在使用這個案件資料夾的程式後再開啟一次；仍然發生時，請輸出支援日誌並回報。";
+
+    /// <summary>
+    /// 較早版本的 JET 建立、目前版本無法升級的案件。案件設定檔、案件資料庫與欄位配對讀到這類內容時都用這一句，
+    /// 下一步是刪除後重建。讀不到案件名稱時寫「這個案件」。
     /// </summary>
     public static string OldVersionProject(string? projectName = null) =>
         (string.IsNullOrEmpty(projectName) ? "這個案件" : $"案件「{projectName}」")

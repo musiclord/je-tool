@@ -6,9 +6,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 本機案件資料庫只接受現行版本：案件資料庫只留現行結構，版本不符時請審計員刪除後重建。
-/// 比現行版本舊的資料庫開啟時回報 invalid_project_schema，訊息寫明刪除後重建，而且在任何寫入之前就擋下，檔案內容保持原狀。
-/// 版本值讀不出整數的資料庫同樣擋下。新資料庫直接建成現行版本。
+/// 首次發布以前的 JET 建立的案件資料庫不升級，請審計員刪除後重建。
+/// 這些資料庫開啟時回報 invalid_project_schema，訊息寫明刪除後重建，而且在任何寫入之前就擋下，檔案內容保持原狀。
+/// 版本值讀不出整數的資料庫同樣擋下。新資料庫直接建成現行版本。首次發布的版本起怎麼升版，見 ProjectSchemaUpgradeTests。
 /// </summary>
 public sealed class LegacySchemaRejectionTests
 {

@@ -446,6 +446,49 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         return await reader.ReadToEndAsync(cancellationToken);
     }
 
+    private static void RejectNewerSchemaVersion(string json, string projectId)
+    {
+        // 不合 JSON 語法時不在這裡回報，交給後面讀取整份設定檔時判斷是哪一部分損壞，例如抽樣設定。
+        JsonDocument parsed;
+        try
+        {
+            parsed = JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        using var raw = parsed;
+        if (raw.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var property in raw.RootElement.EnumerateObject())
+        {
+            // 名稱含無法解讀的字元時略過，由後面讀取整份設定檔時回報設定檔無法讀取。
+            string name;
+            try
+            {
+                name = property.Name;
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
+
+            if (string.Equals(name, "schemaVersion", StringComparison.OrdinalIgnoreCase)
+                && property.Value.ValueKind == JsonValueKind.Number
+                && property.Value.TryGetInt64(out var version)
+                && version > ProjectDocument.CurrentSchemaVersion)
+            {
+                throw new JetActionException(
+                    JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.NewerVersionProject(projectId));
+            }
+        }
+    }
+
     private static bool HasJsonProperty(string json, string propertyName)
     {
         using var raw = JsonDocument.Parse(json);
@@ -481,6 +524,8 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 gate.Release();
             }
 
+            // 較新版本的 JET 可能改了其他欄位的格式，所以先只看設定檔版本，比目前版本新就請使用者改用較新版本。
+            RejectNewerSchemaVersion(json, projectId);
             var document = JsonSerializer.Deserialize<ProjectDocument>(json, JsonOptions)
                 ?? throw ProjectReadError(projectId);
 

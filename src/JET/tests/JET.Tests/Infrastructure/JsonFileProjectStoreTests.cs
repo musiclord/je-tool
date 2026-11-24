@@ -254,6 +254,28 @@ public sealed class JsonFileProjectStoreTests
             exception.Message);
     }
 
+    // 抽樣種子的值寫壞到不合 JSON 語法時，同樣回報抽樣設定已損壞；先看設定檔版本的檢查不改變這個訊息。
+    [Fact]
+    public async Task SampleSeedWithBrokenJsonSyntax_FindReportsExplicitSeedError()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument() with { SampleSeed = 7, SampleSeedVersion = 2 };
+        await store.CreateAsync(document, CancellationToken.None);
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+        var json = await File.ReadAllTextAsync(path);
+        await ProjectJsonEdits.WriteAllTextAsync(path, json.Replace("\"sampleSeed\": 7", "\"sampleSeed\": 7x"));
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            store.FindAsync(document.ProjectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        Assert.Equal(
+            $"案件「{document.ProjectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
+            exception.Message);
+    }
+
     // 較早版本的 JET 建立的案件只看 project.json 的設定檔版本判斷，不從 databaseProvider 缺席或 sampleSeedVersion
     // 缺漏、小於 2 推斷。這則用設定檔版本是第 1 版的案件；那三種欄位的情況由下一則當成設定檔損壞。
     [Theory]
@@ -295,6 +317,105 @@ public sealed class JsonFileProjectStoreTests
 
         var listed = await store.ListAsync(CancellationToken.None);
         Assert.Equal(good.ProjectId, Assert.Single(listed).ProjectId);
+    }
+
+    // 首次發布的設定檔是第 2 版。之後的版本改了設定檔的格式，也要讀得出這一版寫的設定檔，不能請審計員刪除案件。
+    [Fact]
+    public async Task FirstReleasedProjectJson_CanStillBeRead()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        const string projectId = "first-release";
+        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        await ProjectJsonEdits.WriteAllTextAsync(folder.GetProjectJsonPath(projectId), """
+            {
+              "projectId": "first-release",
+              "projectCode": "SYNTHETIC",
+              "clientName": "合成工業股份有限公司",
+              "operatorId": "auditor",
+              "periodStart": "2025-01-01",
+              "periodEnd": "2025-12-31",
+              "lastAccountingPeriodDate": "2026-01-12",
+              "moneyScale": 10000,
+              "roundingMode": "AwayFromZero",
+              "createdUtc": "2026-11-20T06:38:52.1783553+00:00",
+              "currentStep": 4,
+              "schemaVersion": 2,
+              "databaseProvider": "sqlite",
+              "rocDateEnabled": true,
+              "lastOpenedUtc": "2026-11-20T06:39:16.0549379+00:00",
+              "nonWorkingDays": [0, 6],
+              "sampleSeed": 1940292176,
+              "sampleSeedVersion": 2,
+              "calendarImported": true
+            }
+            """);
+
+        var found = await store.FindAsync(projectId, CancellationToken.None);
+
+        Assert.NotNull(found);
+        Assert.Equal("SYNTHETIC", found.ProjectCode);
+        Assert.Equal("合成工業股份有限公司", found.ClientName);
+        Assert.Equal("2025-01-01", found.PeriodStart);
+        Assert.Equal("2025-12-31", found.PeriodEnd);
+        Assert.Equal(10_000, found.MoneyScale);
+        Assert.True(found.RocDateEnabled);
+        Assert.Equal([0, 6], found.NonWorkingDays);
+        Assert.Equal("2026-01-12", found.LastAccountingPeriodDate);
+        Assert.Equal(4, found.CurrentStep);
+        Assert.Equal(1940292176L, found.SampleSeed);
+        Assert.Equal(2, found.SampleSeedVersion);
+        Assert.True(found.CalendarImported);
+    }
+
+    // 設定檔版本比現行版本新，是較新版本的 JET 寫過的案件：訊息請使用者改用較新版本，不叫他刪除案件。
+    [Fact]
+    public async Task NewerProjectJson_IsRejectedWithTheNewerVersionMessage()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var newer = NewDocument();
+        await store.CreateAsync(newer, CancellationToken.None);
+        var path = folder.GetProjectJsonPath(newer.ProjectId);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        node["schemaVersion"] = ProjectDocument.CurrentSchemaVersion + 1;
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
+        var expected =
+            $"案件「{newer.ProjectId}」是較新版本的 JET 建立或開啟過的，目前版本無法開啟。請改用較新版本的 JET 開啟這個案件。";
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            store.FindAsync(newer.ProjectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        Assert.Equal(expected, exception.Message);
+        Assert.DoesNotContain("刪除", exception.Message, StringComparison.Ordinal);
+    }
+
+    // 較新版本的 JET 可能改了欄位的格式。先看設定檔版本再讀其他欄位，訊息才會請使用者改用較新版本，而不是說設定檔損壞。
+    [Fact]
+    public async Task NewerProjectJson_WithAChangedFieldFormat_IsStillRejectedWithTheNewerVersionMessage()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var newer = NewDocument();
+        await store.CreateAsync(newer, CancellationToken.None);
+        var path = folder.GetProjectJsonPath(newer.ProjectId);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        node["schemaVersion"] = ProjectDocument.CurrentSchemaVersion + 1;
+        node["nonWorkingDays"] = "saturday-and-sunday";
+        node["moneyScale"] = "ten-thousand";
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            store.FindAsync(newer.ProjectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
+        Assert.Equal(
+            $"案件「{newer.ProjectId}」是較新版本的 JET 建立或開啟過的，目前版本無法開啟。請改用較新版本的 JET 開啟這個案件。",
+            exception.Message);
     }
 
     // 設定檔版本是現行版本、卻缺了必要欄位或抽樣版本不對，是設定檔損壞：請審計員從備份還原，不當成較早版本的案件。

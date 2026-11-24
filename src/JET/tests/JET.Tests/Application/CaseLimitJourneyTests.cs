@@ -14,7 +14,7 @@ namespace JET.Tests.Application;
 public sealed class CaseLimitJourneyTests
 {
     /// <summary>
-    /// 較新的 JET 建立的案件，用這一版開啟時要被拒絕：寫出無法開啟與接下來能做什麼，
+    /// 較新的 JET 建立的案件，用這一版開啟時要被拒絕：寫出無法開啟，並請使用者改用較新版本的 JET，
     /// 資料庫檔保持原狀，案件照樣可以從清單刪除。
     /// </summary>
     [Theory]
@@ -46,7 +46,7 @@ public sealed class CaseLimitJourneyTests
         var rejected = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = name })));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, rejected.Code);
-        Assert.Equal(ProjectFolderMessages.UnreadableDatabaseVersion, rejected.Message);
+        Assert.Equal(ProjectFolderMessages.NewerVersionProject(), rejected.Message);
         var after = await File.ReadAllBytesAsync(databasePath);
         Assert.True(before.SequenceEqual(after), "被拒絕的資料庫檔不應被改動");
 

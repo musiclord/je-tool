@@ -18,21 +18,21 @@ def insert(root,node):
 # Workbook key -> path under docs/SAT. The keys are used by the print rules below.
 BOOKS={'Code review':'Code Review/Code review','Unit test Report':'Code Review/Unit test Report','版本更新紀錄':'版本更新紀錄'}
 # Sheet name -> last printed column. A sheet that is not listed here stops the script, so a renamed sheet cannot print with the wrong range.
-LAST={'複核紀錄':'D','複核範圍':'F','固定值與規則':'F','測試結果':'F','核心查核邏輯':'E','案例清單':'C','程式碼涵蓋率':'D','版本更新紀錄':'C'}
+LAST={'複核紀錄':'D','複核範圍':'F','固定值與規則':'F','測試結果':'F','核心查核邏輯':'E','測試案例':'E','程式碼涵蓋率':'D','版本更新紀錄':'C'}
 # Landscape sheets. Every sheet is one page wide and as many pages tall as it needs.
 WIDE=['複核範圍','固定值與規則']
 # Sheet name -> text in column A of the heading row that repeats at the top of every printed page.
 # 複核紀錄 has no such row: it holds two tables and the decision, and the heading of the checks would print above the findings.
-TITLE_ROW={'複核範圍':'查核邏輯','固定值與規則':'編號','案例清單':'案例編號'}
+TITLE_ROW={'複核範圍':'查核邏輯','固定值與規則':'編號','測試案例':'測試項目'}
 # Sheet name -> texts in column A of its table headings. The page breaks of these sheets are placed between groups of rows,
 # so a group whose cells are merged over several rows is not cut by a page. A table heading, a section band and an empty row
 # stay on the page of the row that follows them.
-KEEP_GROUPS={'複核紀錄':['複核規則','編號'],'複核範圍':['查核邏輯'],'固定值與規則':['編號'],'案例清單':['案例編號']}
+KEEP_GROUPS={'複核紀錄':['複核規則','編號'],'複核範圍':['查核邏輯'],'固定值與規則':['編號'],'測試案例':['測試項目']}
 # Sheet name -> text in column A from which the rest of the sheet stays on one page: the findings and the decision of a review.
 KEEP_REST={'複核紀錄':'編號'}
 # Sheets whose rows under a band stay together up to the next band: a group of cases under its heading is not cut by a page
 # when it fits on one; a longer group breaks between its cases.
-KEEP_RUNS=['案例清單']
+KEEP_RUNS=[]
 # A4 in points, and the share of a page the rows may fill: Excel's own measure of a row differs a little from the stored height.
 PAPER=(595.3,841.9);FILL=0.9;POINTS_PER_PIXEL=0.75
 # Sheet name -> columns whose text is indented one step from the heading row down, so it does not touch the text of the column before it.

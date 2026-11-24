@@ -14,8 +14,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     : ILocalProjectDatabase
 {
     /// <summary>
-    /// 案件資料庫的現行結構，建成後標成第 21 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
-    /// 不是現行版本就請審計員刪除案件後重建（案件資料庫只留現行結構）。
+    /// 案件資料庫的現行結構，建成後標成第 21 版。只有新資料庫會執行這段；已有資料表的資料庫檢查版本，
+    /// 較早版本建立的案件由 <see cref="ProjectSchemaVersions"/> 的步驟升到現行結構。
+    /// 改這段結構時，現行版本加一並加一步升版，讓已經建立的案件得到同樣的結構。
     /// 匯入暫存表的 row_number 是同一個批次裡只增不減的排序鍵，INF 抽樣以它為準；
     /// source_row_number 是來源檔裡實際的列號，錯誤訊息用它指出是哪一列；source_no 對應 import_batch_source。
     /// </summary>
@@ -553,6 +554,17 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
 
     private readonly LocalSchemaReadiness readiness = new();
 
+    private readonly ProjectSchemaVersions schema = ProjectSchemaVersions.Released;
+
+    /// <summary>指定支援的版本與升版步驟；測試用它確認較早版本的資料庫會逐版升級。</summary>
+    internal SqliteProjectDatabase(
+        JetProjectFolder folder, ProjectSchemaVersions schema, ISqlStatementObserver? statementObserver = null)
+        : this(folder, statementObserver)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        this.schema = schema;
+    }
+
     /// <summary>一律重新檢查版本，新資料庫在這裡建表，不寫入案件設定。只有建案與直接讀寫資料表的程式會建立新的資料庫。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureCreatedAsync(
@@ -624,13 +636,12 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 已經建過表的資料庫只檢查版本：不是現行版本就在任何寫入之前擋下，檔案保持原狀。
+        // 已經建過表的資料庫先檢查版本：不支援的版本在任何寫入之前擋下，檔案保持原狀。
         var existing = await HasSchemaInfoAsync(connection, cancellationToken);
-        if (existing)
-        {
-            LocalSchemaReadiness.RejectUnsupportedSchemaVersion(await ReadVersionAsync(connection, cancellationToken));
-        }
-        else if (!allowCreate)
+        var requiresUpgrade = existing
+            && schema.RequiresUpgrade(
+                await ProjectSchemaVersions.ReadVersionAsync(connection, transaction: null, cancellationToken));
+        if (!existing && !allowCreate)
         {
             // 有檔案但沒有任何資料表，同樣是沒有內容；在任何寫入之前回報，檔案保持原狀。
             throw LocalSchemaReadiness.EmptyDatabase(projectId);
@@ -646,6 +657,12 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
 
         if (existing)
         {
+            // 較早版本建立的案件在這裡逐版升到現行版本，之後的讀寫都面對現行結構。
+            if (requiresUpgrade)
+            {
+                await schema.UpgradeAsync(connection, cancellationToken);
+            }
+
             return;
         }
 
@@ -742,14 +759,6 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     {
         using var connection = new SqliteConnection(PooledConnectionString(databasePath));
         SqliteConnection.ClearPool(connection);
-    }
-
-    private static async Task<string?> ReadVersionAsync(DbConnection connection, CancellationToken cancellationToken)
-    {
-        await using var versionQuery = connection.CreateCommand();
-        versionQuery.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        // 存的不是文字（例如二進位）時回 null，由 RejectUnsupportedSchemaVersion 當成版本資訊無法辨識；直接轉型會丟 InvalidCastException。
-        return await versionQuery.ExecuteScalarAsync(cancellationToken) as string;
     }
 
     /// <summary>資料庫裡是否已經有 schema_info；只讀取，不建立任何資料表。</summary>

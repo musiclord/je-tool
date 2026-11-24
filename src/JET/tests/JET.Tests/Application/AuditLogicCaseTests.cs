@@ -88,7 +88,7 @@ public sealed class AuditLogicCaseTests : IClassFixture<AuditLogicCaseTests.Case
     }
 
     private static readonly string[] CaseKeys =
-        ["id", "logic", "group", "directoryNo", "name", "purpose", "rule", "fixedItems", "dataset", "rows", "action", "expected"];
+        ["id", "logic", "group", "name", "purpose", "rule", "fixedItems", "dataset", "rows", "action", "expected"];
 
     private static readonly string[] DatasetKeys = ["setup", "glFields", "gl", "tbFields", "tb"];
 

@@ -20,9 +20,9 @@
     {
       "name": "public-tests",
       "status": "passed",
-      "total": 5432,
-      "executed": 5432,
-      "passed": 5432,
+      "total": 5448,
+      "executed": 5448,
+      "passed": 5448,
       "failed": 0,
       "skipped": 0
     },
@@ -115,7 +115,7 @@
   "reviewCases": {
     "testClass": "AuditLogicCaseTests",
     "date": "2026-11-24",
-    "definitionSha256": "403092fa4003f6516afacd3af49712f04fa77c9216301147be5b57cf3555bc2c",
+    "definitionSha256": "350f362690573d4835a8eff3021dbca9b18dd9febfc7f30b2da4dda12a1e3992",
     "results": {
       "POP-01": "passed",
       "POP-02": "passed",
@@ -124,7 +124,6 @@
       "POP-05": "passed",
       "POP-06": "passed",
       "POP-07": "passed",
-      "POP-08": "passed",
       "CMP-01": "passed",
       "CMP-02": "passed",
       "CMP-03": "passed",
@@ -154,9 +153,19 @@
       "PRE-10": "passed",
       "PRE-11": "passed",
       "PRE-12": "passed",
+      "FLT-01": "passed",
+      "FLT-02": "passed",
+      "FLT-03": "passed",
+      "FLT-04": "passed",
+      "FLT-05": "passed",
+      "FLT-06": "passed",
+      "FLT-07": "passed",
+      "FLT-08": "passed",
+      "FLT-09": "passed",
+      "FLT-10": "passed",
+      "FLT-11": "passed",
       "FLT-12": "passed",
       "FLT-13": "passed",
-      "FLT-01": "passed",
       "FLT-14": "passed",
       "FLT-15": "passed",
       "FLT-16": "passed",
@@ -167,7 +176,6 @@
       "FLT-21": "passed",
       "FLT-22": "passed",
       "FLT-23": "passed",
-      "FLT-02": "passed",
       "FLT-24": "passed",
       "FLT-25": "passed",
       "FLT-26": "passed",
@@ -184,7 +192,6 @@
       "FLT-37": "passed",
       "FLT-38": "passed",
       "FLT-39": "passed",
-      "FLT-03": "passed",
       "FLT-40": "passed",
       "FLT-41": "passed",
       "FLT-42": "passed",
@@ -203,29 +210,21 @@
       "FLT-55": "passed",
       "FLT-56": "passed",
       "FLT-57": "passed",
-      "FLT-04": "passed",
       "FLT-58": "passed",
       "FLT-59": "passed",
       "FLT-60": "passed",
       "FLT-61": "passed",
-      "FLT-05": "passed",
       "FLT-62": "passed",
       "FLT-63": "passed",
       "FLT-64": "passed",
       "FLT-65": "passed",
       "FLT-66": "passed",
       "FLT-67": "passed",
-      "FLT-06": "passed",
       "FLT-68": "passed",
-      "FLT-156": "passed",
       "FLT-69": "passed",
       "FLT-70": "passed",
-      "FLT-07": "passed",
-      "FLT-08": "passed",
-      "FLT-157": "passed",
       "FLT-71": "passed",
       "FLT-72": "passed",
-      "FLT-158": "passed",
       "FLT-73": "passed",
       "FLT-74": "passed",
       "FLT-75": "passed",
@@ -244,15 +243,7 @@
       "FLT-88": "passed",
       "FLT-89": "passed",
       "FLT-90": "passed",
-      "FLT-09": "passed",
-      "FLT-130": "passed",
-      "FLT-10": "passed",
-      "FLT-131": "passed",
-      "FLT-132": "passed",
-      "FLT-133": "passed",
-      "FLT-134": "passed",
       "FLT-91": "passed",
-      "FLT-11": "passed",
       "FLT-92": "passed",
       "FLT-93": "passed",
       "FLT-94": "passed",
@@ -291,6 +282,11 @@
       "FLT-127": "passed",
       "FLT-128": "passed",
       "FLT-129": "passed",
+      "FLT-130": "passed",
+      "FLT-131": "passed",
+      "FLT-132": "passed",
+      "FLT-133": "passed",
+      "FLT-134": "passed",
       "FLT-135": "passed",
       "FLT-136": "passed",
       "FLT-137": "passed",
@@ -310,12 +306,16 @@
       "FLT-151": "passed",
       "FLT-152": "passed",
       "FLT-153": "passed",
-      "FLT-154": "passed"
+      "FLT-154": "passed",
+      "POP-08": "passed",
+      "FLT-156": "passed",
+      "FLT-157": "passed",
+      "FLT-158": "passed"
     }
   },
   "coverage": {
-    "covered": 44739,
-    "total": 48031,
+    "covered": 44857,
+    "total": 48144,
     "modules": [
       {
         "module": "Application",
@@ -337,15 +337,15 @@
       },
       {
         "module": "Domain",
-        "covered": 5712,
-        "total": 5983,
-        "rate": 0.9547049974928965
+        "covered": 5715,
+        "total": 5988,
+        "rate": 0.9544088176352705
       },
       {
         "module": "Infrastructure",
-        "covered": 23901,
-        "total": 25781,
-        "rate": 0.9270780807571467
+        "covered": 24016,
+        "total": 25889,
+        "rate": 0.9276526710185793
       },
       {
         "module": "Host",
@@ -1383,8 +1383,8 @@
       },
       {
         "path": "src/JET/JET/Domain/JetActionException.cs",
-        "covered": 34,
-        "total": 34,
+        "covered": 36,
+        "total": 36,
         "rate": 1.0
       },
       {
@@ -1479,9 +1479,9 @@
       },
       {
         "path": "src/JET/JET/Domain/ProjectDocument.cs",
-        "covered": 52,
-        "total": 55,
-        "rate": 0.9454545454545454
+        "covered": 53,
+        "total": 58,
+        "rate": 0.9137931034482759
       },
       {
         "path": "src/JET/JET/Domain/ProjectDocumentPeriodIntegrity.cs",
@@ -1767,9 +1767,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/Monitoring/OperationMonitor.cs",
-        "covered": 487,
+        "covered": 489,
         "total": 520,
-        "rate": 0.9365384615384615
+        "rate": 0.9403846153846154
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/Monitoring/OperationMonitorOptions.cs",
@@ -1815,9 +1815,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/SupportFailureFields.cs",
-        "covered": 54,
+        "covered": 56,
         "total": 61,
-        "rate": 0.8852459016393442
+        "rate": 0.9180327868852459
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs",
@@ -2217,9 +2217,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
-        "covered": 332,
-        "total": 349,
-        "rate": 0.9512893982808023
+        "covered": 359,
+        "total": 378,
+        "rate": 0.9497354497354498
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/BestEffortProjectOperationLog.cs",
@@ -2493,9 +2493,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalSchemaReadiness.cs",
-        "covered": 57,
-        "total": 60,
-        "rate": 0.95
+        "covered": 48,
+        "total": 51,
+        "rate": 0.9411764705882353
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalSourceQualityPageRepository.cs",
@@ -2531,6 +2531,12 @@
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalVoucherBalancePageRepository.cs",
         "covered": 56,
         "total": 56,
+        "rate": 1.0
+      },
+      {
+        "path": "src/JET/JET/Infrastructure/Persistence/Local/ProjectSchemaVersions.cs",
+        "covered": 84,
+        "total": 84,
         "rate": 1.0
       },
       {
@@ -2601,9 +2607,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-        "covered": 180,
-        "total": 191,
-        "rate": 0.9424083769633508
+        "covered": 189,
+        "total": 195,
+        "rate": 0.9692307692307692
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/WorkingPaperPlanningFactsPort.cs",
@@ -2792,7 +2798,7 @@
         "rate": 0.55
       }
     ],
-    "measure": "行涵蓋率（line coverage），以 Microsoft.Testing.Extensions.CodeCoverage 量測。"
+    "measure": "行涵蓋率（line coverage），以 Microsoft.Testing.Extensions.CodeCoverage 量測後端的 C# 程式；前端的 JavaScript 未量測涵蓋率。"
   },
   "additionalChecks": []
 }

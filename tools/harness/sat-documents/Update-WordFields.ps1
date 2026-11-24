@@ -21,7 +21,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string[]] $Path = @('Technical Document.docx', 'Design Principle.docx', 'Code Review/Code review rule.docx'),
+    [string[]] $Path = @('Technical Document.docx', 'Design Principle.docx', 'Code Review/Code review rule.docx', 'Code Review/Unit test rule.docx'),
     [string] $Root = (Join-Path $PSScriptRoot '../../../docs/SAT')
 )
 Set-StrictMode -Version Latest

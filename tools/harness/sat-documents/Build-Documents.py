@@ -23,9 +23,11 @@ Tables, code blocks and captions use the same theme fonts at a smaller size, and
 to the line grid, so they stay compact.
 
 Front matter: title (the cover title and the title in the file properties), and optionally
-subtitle, body (the style of plain paragraphs; default Normal), toc: true, and cover: plain.
-cover: plain marks a text that is not ours (the company's review rules): its contents label
-uses the company document's spacing and its file properties carry no product subject.
+subtitle, body (the style of plain paragraphs; default Normal), toc: true, and cover: plain
+or cover: rules. cover: plain marks a text that is not ours (the company's review rules): its
+contents label uses the company document's spacing and its file properties carry no product
+subject. cover: rules is our own rules written in the same layout as the company's review rules:
+the same contents label, and the product subject in the file properties.
 
 Supported Markdown: ## / ### headings, a line that is only **bold** text (Heading 3),
 paragraphs, "- " bullets, "1. " numbered lines, pipe tables, ``` code blocks, ![name](file)
@@ -65,6 +67,7 @@ DOCUMENTS = {
     "Technical Document": "Technical Document.docx",
     "Design Principle": "Design Principle.docx",
     "Code review rule": "Code Review/Code review rule.docx",
+    "Unit test rule": "Code Review/Unit test rule.docx",
 }
 
 # Product and version for the subject in the file properties of our own documents.
@@ -668,7 +671,7 @@ def contents(doc, meta: dict, body_style: str):
     the next page, so the first heading follows it on that page whatever the length of the
     contents.
     """
-    plain = meta.get("cover") == "plain"
+    plain = meta.get("cover") in ("plain", "rules")
     label = doc.add_paragraph(style="Normal" if plain else body_style)
     label.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if plain:

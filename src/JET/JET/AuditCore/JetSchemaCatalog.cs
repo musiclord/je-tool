@@ -145,7 +145,7 @@ internal static class JetSchemaCatalog
         new("operation_log", "OPERATION_LOG", SchemaLayer.System, SchemaAudience.Hidden,
             "會改變或銷毀已保存審計資料之操作的最小 append-only 留痕"),
         new("schema_info", "SCHEMA_INFO", SchemaLayer.System, SchemaAudience.Hidden,
-            "案件的結構版本(開案時核對是不是現行版本，舊版案件請審計員刪除後重建)"),
+            "案件的結構版本(開案時核對，可升級的較早版本升到現行版本，其他版本不開啟)"),
         new("pbc_account_mapping", "ACCOUNT_MAPPING_PBC", SchemaLayer.Staging, SchemaAudience.Hidden,
             "科目配對匯入原貌暫存(實體表不曝光;accountMapping 以固定三欄有界預覽)"),
         new("pbc_authorized_preparer", "AUTHORIZED_PREPARER_PBC", SchemaLayer.Staging, SchemaAudience.Hidden,

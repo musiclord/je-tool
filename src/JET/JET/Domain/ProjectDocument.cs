@@ -4,8 +4,8 @@ namespace JET.Domain;
 /// 專案 metadata，持久化為 projects/{projectId}/project.json。
 /// ProjectCode 和 ClientName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
-/// SchemaVersion 是案件設定檔的格式版本；不是 <see cref="CurrentSchemaVersion"/> 的案件是較早版本的 JET 建立的，讀取時明確拒絕，
-/// 請審計員刪除後重建；案件資料庫只留現行結構。
+/// SchemaVersion 是案件設定檔的格式版本。比 <see cref="CurrentSchemaVersion"/> 舊的案件是發布前的 JET 建立的，讀取時明確拒絕，
+/// 請審計員刪除後重建；比它新的案件由較新版本的 JET 寫過，請使用者改用較新版本開啟。
 /// DatabaseProvider 標示會計資料所在的資料庫；目前版本只支援 "sqlite"，設定檔一定寫明，缺欄位是設定檔損壞。
 /// 標示為 "duckdb" 或 "sqlServer" 的案件，案件清單不列出、JET 也不動它們的資料夾。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；
@@ -38,7 +38,8 @@ public sealed record ProjectDocument(
     public const int DefaultMoneyScale = 10_000;
     public const string DefaultRoundingMode = "AwayFromZero";
     /// <summary>
-    /// 案件設定檔的格式版本。第 1 版是拿掉案件資料庫升版程式之前建立的案件，第 2 版起只用現行結構的資料庫。
+    /// 案件設定檔的格式版本。比它舊的設定檔是發布前的 JET 寫的，不再讀取；
+    /// 之後改了設定檔的格式，仍要讀得出第 2 版的設定檔。
     /// </summary>
     public const int CurrentSchemaVersion = 2;
     public const string DefaultDatabaseProvider = "sqlite";
@@ -50,10 +51,18 @@ public sealed record ProjectDocument(
     [System.Text.Json.Serialization.JsonIgnore]
     public DateParseOptions DateParseOptions => new(RocDateEnabled);
 
-    /// <summary>設定檔版本不是目前版本時，是較早版本的 JET 建立的案件：拒絕開啟，訊息寫明刪除後重建。</summary>
+    /// <summary>
+    /// 設定檔版本比目前版本舊，是發布前的 JET 建立的案件：拒絕開啟，訊息寫明刪除後重建。
+    /// 比目前版本新，是較新版本的 JET 寫過的案件：拒絕開啟，訊息請使用者改用較新版本。
+    /// </summary>
     internal void RequireCurrentSchemaVersion(string projectName)
     {
-        if (SchemaVersion != CurrentSchemaVersion)
+        if (SchemaVersion > CurrentSchemaVersion)
+        {
+            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.NewerVersionProject(projectName));
+        }
+
+        if (SchemaVersion < CurrentSchemaVersion)
         {
             throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.OldVersionProject(projectName));
         }

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Globalization;
 using JET.Domain;
 
 namespace JET.Infrastructure;
@@ -9,7 +8,7 @@ namespace JET.Infrastructure;
 /// <see cref="ILocalProjectDatabase.EnsureReadyAsync"/>，只有第一次會真的開連線檢查，之後只確認檔案仍在。
 /// 建案時呼叫的 <see cref="IProjectDatabaseInitializer.EnsureCreatedAsync(string, ProtectedProjectSettings, CancellationToken)"/> 與開案時呼叫的
 /// <see cref="IProjectDatabaseInitializer.EnsureExistingAsync(string, Func{CancellationToken, Task{ProtectedProjectSettings}}, CancellationToken)"/> 一律重新檢查，
-/// 刪除案件時清掉紀錄，所以程式開著時用舊的備份檔覆蓋已關閉的案件，下次載入會重新檢查版本，版本較舊就拒絕。
+/// 刪除案件時清掉紀錄，所以程式開著時用舊的備份檔覆蓋已關閉的案件，下次載入會重新檢查版本，可以升版的就升版，無法升版的就拒絕。
 /// 只有建案會建立新的資料庫；開案與讀寫遇到資料庫不見或沒有內容時回報，不默默建出空的資料庫。
 /// 同一個檔案的檢查一次只跑一個，避免兩個作業同時建表。
 /// </summary>
@@ -90,27 +89,10 @@ internal sealed class LocalSchemaReadiness
         return file.Exists && file.Length == 0;
     }
 
-    /// <summary>SQLite 案件資料庫的現行結構版本；建表程式直接寫這一版。</summary>
-    internal const int CurrentSchemaVersion = 21;
-
     /// <summary>
-    /// 已經建過表的資料庫只接受現行版本：案件資料庫只留現行結構，版本不符時請審計員刪除後重建。
-    /// 低於現行版本是較早版本的 JET 建立的案件；版本值缺漏、讀不出整數或高於現行版本時無法判斷內容，當成版本資訊無法辨識。
-    /// 呼叫端必須在執行任何寫入之前檢查，讓檔案保持原狀。
+    /// SQLite 案件資料庫的現行結構版本；建表程式直接寫這一版。支援的版本範圍與升版步驟見 <see cref="ProjectSchemaVersions"/>。
     /// </summary>
-    internal static void RejectUnsupportedSchemaVersion(string? existingVersion)
-    {
-        if (!int.TryParse(existingVersion, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version)
-            || version > CurrentSchemaVersion)
-        {
-            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.UnreadableDatabaseVersion);
-        }
-
-        if (version < CurrentSchemaVersion)
-        {
-            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.OldVersionProject());
-        }
-    }
+    internal const int CurrentSchemaVersion = 21;
 
     private bool IsReady(string databasePath) =>
         ready.ContainsKey(databasePath) && File.Exists(databasePath);
