@@ -222,7 +222,6 @@ public sealed class ProjectDeleteReportLeaseTests
         "2025-12-31",
         null,
         ProjectDocument.DefaultMoneyScale,
-        ProjectDocument.DefaultRoundingMode,
         new DateTimeOffset(2026, 7, 11, 0, 0, 0, TimeSpan.Zero),
         1,
         ProjectDocument.CurrentSchemaVersion);

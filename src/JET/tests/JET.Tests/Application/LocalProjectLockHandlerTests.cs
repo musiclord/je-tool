@@ -207,6 +207,60 @@ public sealed class LocalProjectLockHandlerTests
         await contender.DispatchAsync("project.releaseLock");
     }
 
+    [Theory]
+    [InlineData("sqlite")]
+    public async Task Load_AnotherProjectWhileOneIsOpen_ReleasesThePreviousProjectLock(string provider)
+    {
+        // 沒有先離開案件就開另一個案件：前一個案件的鎖要放掉，另一個 JET 視窗才開得了它；新開的案件照常握著鎖。
+        using var root = new TempProjectRoot();
+        using var owner = new HandlerTestHost(projectsRootPath: root.Path);
+        using var contender = new HandlerTestHost(projectsRootPath: root.Path);
+        var first = NewProjectId(provider, "switch-load-first");
+        var second = NewProjectId(provider, "switch-load-second");
+        await owner.DispatchAsync("project.create", CreatePayload(first, provider));
+        await owner.DispatchAsync("project.releaseLock");
+        await owner.DispatchAsync("project.create", CreatePayload(second, provider));
+        await owner.DispatchAsync("project.releaseLock");
+
+        await owner.DispatchAsync("project.load", LoadPayload(first));
+        await owner.DispatchAsync("project.load", LoadPayload(second));
+
+        var secondHeld = await Assert.ThrowsAsync<JetActionException>(
+            () => contender.DispatchAsync("project.load", LoadPayload(second)));
+        Assert.Equal(JetErrorCodes.ProjectLocked, secondHeld.Code);
+        var firstError = await Record.ExceptionAsync(
+            () => contender.DispatchAsync("project.load", LoadPayload(first)));
+        Assert.Null(firstError);
+
+        await contender.DispatchAsync("project.releaseLock");
+        await owner.DispatchAsync("project.releaseLock");
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    public async Task Create_AnotherProjectWhileOneIsOpen_ReleasesThePreviousProjectLock(string provider)
+    {
+        // 建立案件後沒有離開就再建立另一個案件：前一個案件的鎖要放掉，新建的案件照常握著鎖。
+        using var root = new TempProjectRoot();
+        using var owner = new HandlerTestHost(projectsRootPath: root.Path);
+        using var contender = new HandlerTestHost(projectsRootPath: root.Path);
+        var first = NewProjectId(provider, "switch-create-first");
+        var second = NewProjectId(provider, "switch-create-second");
+
+        await owner.DispatchAsync("project.create", CreatePayload(first, provider));
+        await owner.DispatchAsync("project.create", CreatePayload(second, provider));
+
+        var secondHeld = await Assert.ThrowsAsync<JetActionException>(
+            () => contender.DispatchAsync("project.load", LoadPayload(second)));
+        Assert.Equal(JetErrorCodes.ProjectLocked, secondHeld.Code);
+        var firstError = await Record.ExceptionAsync(
+            () => contender.DispatchAsync("project.load", LoadPayload(first)));
+        Assert.Null(firstError);
+
+        await contender.DispatchAsync("project.releaseLock");
+        await owner.DispatchAsync("project.releaseLock");
+    }
+
     private static string NewProjectId(string provider, string scenario) =>
         $"local-lock-{provider}-{scenario}-{Guid.NewGuid():N}";
 

@@ -1,6 +1,6 @@
 # 前端設計模式
 
-更新日期：2026-10-16
+更新日期：2026-11-25
 
 這份文件說明如何在 JET 調整前端、取得畫面證據並選擇驗證。設計方向依
 [jet-frontend-design](../skills/jet-frontend-design/SKILL.md)，已接受的操作與用語依
@@ -90,6 +90,8 @@ try {
    不用「設計模式只能改 CSS」限制必要修正。日期邊界、金額基準、空白、借貸、同分錄或同傳票、AND 或 OR、
    版本失效及報告意義不因版面簡化而改變；要改這些語意，先列出操作前後的差異請使用者裁定。
 3. 用受影響的合成情境看實際畫面。依問題選長標頭、大筆數、空結果、錯誤、窄版、鍵盤焦點與連續操作，不要求每個小改都跑完所有情境。
+   新增或修改畫面文字時，另照 [jet-frontend-design 的「畫面文字」](../skills/jet-frontend-design/SKILL.md#畫面文字)交給沒看過程式的讀者盲讀；
+   這和第 5 步整合時的視覺獨立檢查不同，每次改字都要做。
 4. 先執行受影響的 Focused；前端互動用 `Contract -ContractScenario FrontendMapping`，預覽工具用 `FrontendPreview`，文件用 `Documentation`。
    修正失敗後重跑受影響的檢查；已通過且未再受影響的部分不重複執行。完整 `Public` 留給跨層回歸或整合需要。
 5. 使用者確認版本並要求正式整合時，依驗收範圍執行 Build、Contract、Public、Package、Gui、Excel 與 Documentation。

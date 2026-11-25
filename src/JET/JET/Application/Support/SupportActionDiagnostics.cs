@@ -206,7 +206,7 @@ public static partial class SupportResultRefs
     // 狀態與案件設定：值必須是布林、整數或程式代號。
     private static readonly HashSet<string> StateKeys = new(StringComparer.Ordinal)
     {
-        "databaseProvider", "currentStep", "moneyScale", "roundingMode", "rocDateEnabled", "amountMode", "changeMode",
+        "databaseProvider", "currentStep", "moneyScale", "rocDateEnabled", "amountMode", "changeMode",
         "populationScope", "kind", "fileState", "stale", "status", "filterResultsCurrent",
         "staleState.validation", "staleState.prescreen", "staleState.filter",
     };
@@ -457,7 +457,8 @@ internal static partial class SupportStepDiagnostics
 
 /// <summary>
 /// 建立或載入案件後的支援紀錄：先讓案件紀錄檔可以寫入，再記一筆開啟事件，帶 JET 版本與資料庫種類，
-/// 不記電腦、帳號或路徑，只記啟動代號與版本。都不丟例外，不擋開案。
+/// 不記電腦、帳號或路徑，只記啟動代號與版本。開另一個案件時由後端離開的前一個案件，另記一筆離開事件。
+/// 都不丟例外，不擋開案。
 /// </summary>
 internal static partial class SupportCaseDiagnostics
 {
@@ -506,4 +507,33 @@ internal static partial class SupportCaseDiagnostics
         string informational_version,
         string module_version_id,
         string build_configuration);
+
+    /// <summary>
+    /// 開啟或建立另一個案件時，後端已經放掉前一個案件的工作鎖並離開它：在前一個案件的紀錄記一筆離開事件。
+    /// 這種離開沒有 project.releaseLock，匯出時靠這一筆認出這個程式正常離開了案件。不丟例外，不擋開案。
+    /// </summary>
+    public static void CaseLeft(ILogger? logger, string projectId)
+    {
+        if (logger is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // 這次 action 的範圍標的是要開的案件或當時開著的案件，這一筆另外標上離開的案件，才會寫進它的紀錄。
+            using (logger.BeginScope(new Dictionary<string, object?> { ["support_project_id"] = projectId }))
+            {
+                Left(logger);
+            }
+        }
+        catch (Exception)
+        {
+            // 新的案件已經開成；日誌寫不出來不能擋住它。
+        }
+    }
+
+    [LoggerMessage(EventId = 1007, EventName = SupportEventNames.CaseLeft, Level = LogLevel.Information,
+        Message = "case left before opening another case")]
+    private static partial void Left(ILogger logger);
 }

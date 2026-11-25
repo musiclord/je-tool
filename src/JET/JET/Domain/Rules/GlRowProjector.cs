@@ -25,7 +25,7 @@ public sealed record GlProjectedRow(
     /// <summary>來源的總帳日期有內容卻讀不成日期。<see cref="GlDate"/> 這時是 null，這一列列入 GL(未納入測試)。</summary>
     public bool GlDateUnrecognized { get; init; }
 
-    /// <summary>這一列的日期欄位裡，讀不成日期或年份不在 1900 到 2100 年之間的值；沒有時是空的。</summary>
+    /// <summary>這一列的日期欄位裡，讀不成日期、年份不在 1900 到 2100 年之間，或早於 1900-03-01 的值；沒有時是空的。</summary>
     public IReadOnlyList<GlDateIssue> DateIssues { get; init; } = [];
 }
 
@@ -271,7 +271,8 @@ public static class GlRowProjector
         out RowProjectionError? error) =>
         MappedAmountCell.TryParse(row, spec.Mapping, key, out value, out error);
 
-    // 空白是沒有日期。有內容卻讀不成日期時也回 null，並記下原文；讀得成但年份不在 1900 到 2100 年之間的照樣回日期，也記下來。
+    // 空白是沒有日期。有內容卻讀不成日期時也回 null，並記下原文；讀得成但年份不在 1900 到 2100 年之間，
+    // 或早於 1900-03-01、在底稿寫成文字的日期，照樣回日期，也記下來。
     private static string? ProjectDate(
         StagingRow row,
         GlMappingSpec spec,
@@ -285,10 +286,10 @@ public static class GlRowProjector
         if (DateNormalizer.TryNormalize(raw, dateOptions, out var isoDate))
         {
             unrecognized = false;
-            if (isoDate is not null && DateNormalizer.HasUnusualYear(isoDate))
+            if (isoDate is not null && KeptDateIssue(isoDate) is { } kind)
             {
                 (issues ??= []).Add(new GlDateIssue(
-                    key, label, MappedColumnOrKey(spec, key), raw!, GlDateIssueKind.UnusualYear, isoDate));
+                    key, label, MappedColumnOrKey(spec, key), raw!, kind, isoDate));
             }
 
             return isoDate;
@@ -299,6 +300,12 @@ public static class GlRowProjector
             key, label, MappedColumnOrKey(spec, key), raw ?? string.Empty, GlDateIssueKind.Unrecognized, null));
         return null;
     }
+
+    // 讀得成、照來源資料保留的日期要讓審計員知道的情形。年份早於 1900 的日期也早於 1900-03-01，只記年份不尋常，不重複記。
+    private static GlDateIssueKind? KeptDateIssue(string isoDate) =>
+        DateNormalizer.HasUnusualYear(isoDate) ? GlDateIssueKind.UnusualYear
+        : DateNormalizer.IsBeforeFirstExcelFaithfulDate(isoDate) ? GlDateIssueKind.TextInWorkingPaper
+        : null;
 
     private static string? ProjectApprovalDate(
         StagingRow row,
@@ -442,10 +449,10 @@ public static class GlRowProjector
                         break;
                     }
 
-                    if (DateNormalizer.HasUnusualYear(dateValue!))
+                    if (KeptDateIssue(dateValue!) is { } keptKind)
                     {
                         (dateIssues ??= []).Add(new GlDateIssue(
-                            field.FieldId, field.Label, field.SourceColumn, raw, GlDateIssueKind.UnusualYear, dateValue));
+                            field.FieldId, field.Label, field.SourceColumn, raw, keptKind, dateValue));
                     }
 
                     result?.Add(new GlProjectedRdeValue(

@@ -176,6 +176,9 @@ public static partial class AppCompositionRoot
             var demoFileWriter = new DemoWorkbookWriter();
 #endif
             var hostDialogProjectContext = new HostDialogProjectContext(session, folder);
+            // 建案與開案在進入新案件之前，先離開畫面沒有離開成的前一個案件。
+            var sessionDeparture = new ProjectSessionDeparture(
+                session, currentPrincipal, sqliteDatabase, loggerFactory.CreateLogger<ProjectSessionDeparture>());
             // 發給前端的事件照原樣送出後，匯出進度另外交給監看模組寫進日誌。
             var events = new MonitoredEventPublisher(eventPublisher ?? new NullEventPublisher(), operationMonitor, processingLog);
             var cancellationRegistry = new RequestCancellationRegistry();
@@ -190,11 +193,11 @@ public static partial class AppCompositionRoot
             new ProjectListLocalHandler(projectStore),
             new ProjectCreateHandler(
                 projectStore, repositoryCatalog, currentPrincipal, session,
-                supportCaseHistory, loggerFactory.CreateLogger<ProjectCreateHandler>()),
+                supportCaseHistory, loggerFactory.CreateLogger<ProjectCreateHandler>(), sessionDeparture),
             new ProjectUpdateHandler(protectedProjectStore, session, loggerFactory.CreateLogger<ProjectUpdateHandler>()),
             new ProjectLoadHandler(
                 projectStore, repositoryCatalog, currentPrincipal, session,
-                loggerFactory.CreateLogger<ProjectLoadHandler>(), supportCaseHistory, sqliteDatabase),
+                loggerFactory.CreateLogger<ProjectLoadHandler>(), supportCaseHistory, sqliteDatabase, sessionDeparture),
             new AccountCategorySaveHandler(session, loggerFactory.CreateLogger<AccountCategorySaveHandler>()),
             new QueryAccountMappingPageHandler(session),
             new AccountMappingSaveHandler(session, loggerFactory.CreateLogger<AccountMappingSaveHandler>()),

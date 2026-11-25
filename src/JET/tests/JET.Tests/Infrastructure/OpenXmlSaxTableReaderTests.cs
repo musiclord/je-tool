@@ -346,6 +346,36 @@ public sealed class OpenXmlSaxTableReaderTests
         }
     }
 
+    // 布林儲存格的值只有 1 與 0。其他程式寫進其他值時，這一格的原文就是來源資料，照原文保留，不讀成 false。
+    [Theory]
+    [InlineData("2")]
+    [InlineData("true")]
+    [InlineData("TRUE")]
+    [InlineData("abc")]
+    public async Task BooleanCellWithAValueOtherThanOneOrZero_KeepsTheWrittenText(string written)
+    {
+        var path = new RawXlsxBuilder()
+            .AddSheet("Sheet1",
+                $"""
+                <sheetData>
+                <row r="1"><c r="A1" t="inlineStr"><is><t>b</t></is></c></row>
+                <row r="2"><c r="A2" t="b"><v>{written}</v></c></row>
+                </sheetData>
+                """)
+            .Save();
+
+        try
+        {
+            var row = Assert.Single(await ReadAllRowsAsync(path));
+
+            Assert.Equal(written, row.Values["b"]);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task NumericNormalization_DoubleToDecimalAbsorbsFloatArtifacts()
     {

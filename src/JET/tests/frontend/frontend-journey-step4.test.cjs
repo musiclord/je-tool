@@ -380,9 +380,12 @@ test('running validation shows the backend GL entry count, no population summary
   // 資料可靠性測試的說明寫出先後順序，只是說明，畫面不因此擋下。
   assert.equal(f.$$('.rule-item__desc').length, 0, 'no description is kept under the titles');
   const desc = title => { const item = ruleItem(f, title); assert.ok(item !== null, title + ' listed'); return item.querySelector('.rule-item__title').getAttribute('title'); };
-  assert.equal(desc('完整性測試'),
-    '先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。' +
-    '再比對各科目的總帳本期借貸淨額與年度變動金額。金額不符時，要確認 GL 分錄是否完整。');
+  // 完整性測試的說明只核對資訊：比對 GL 與 TB 年度變動金額；裁定過的判讀句逐字核對。JET 自己的寫入核對不寫在說明裡。
+  const completeness = desc('完整性測試');
+  for (const piece of ['GL', 'TB', '年度變動金額', '金額不符時，要確認 GL 分錄是否完整。']) {
+    assert.ok(completeness.includes(piece), piece + ' in: ' + completeness);
+  }
+  assert.doesNotMatch(completeness, /確認欄位配對時算出|不和來源檔/);
   assert.equal(desc('借貸不平測試'), '依傳票號碼彙總借方與貸方金額，列出不相等的傳票。借貸不平時，要確認傳票號碼與金額欄位是否正確。');
   assert.equal(desc('資料可靠性測試'),
     '抽出分錄樣本，供核對傳票附件，確認摘要、日期等篩選欄位是否正確。需先確認攸關資料元素的可靠性後，再到第五步進階條件篩選。');

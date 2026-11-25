@@ -115,7 +115,6 @@ public sealed class ValidateRunFailureBoundaryTests
             PeriodEnd: "2025-12-31",
             LastAccountingPeriodDate: null,
             MoneyScale: ProjectDocument.DefaultMoneyScale,
-            RoundingMode: ProjectDocument.DefaultRoundingMode,
             CreatedUtc: DateTimeOffset.UnixEpoch,
             CurrentStep: 3,
             SchemaVersion: ProjectDocument.CurrentSchemaVersion,

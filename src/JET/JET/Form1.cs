@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using JET.Application;
 using JET.Bridge;
 using Microsoft.Web.WebView2.Core;
@@ -8,6 +9,12 @@ namespace JET
     internal partial class Form1 : Form, IHostShell, IProjectAwareHostShell
     {
         private const string AppHostName = "app.jet.local";
+
+        // 作業還在進行、不能關閉 JET 時的說明。畫面上的提示與 Windows 關機畫面列出的原因都用這一句。
+        private const string BusyExitMessage = "作業還在進行，請等它完成後再試一次。";
+
+        // Windows 結束關機詢問時送來的訊息；wParam 為 0 表示這次關機被取消。
+        private const int WmEndSession = 0x0016;
 
         private readonly ActionDispatcher _dispatcher;
         private readonly JetApplicationRuntime? _runtime;
@@ -322,7 +329,13 @@ namespace JET
                 {
                     e.Cancel = true;
                     _hostExitRequested = false;
-                    if (_webViewUnusable)
+                    if (e.CloseReason == CloseReason.WindowsShutDown)
+                    {
+                        // Windows 關機或登出時作業還在進行：拒絕關機，把原因登記給 Windows，由關機畫面列出 JET 和這句話。
+                        // 回覆 Windows 之前不跳出對話框，以免對話框擋住這次回覆。
+                        ShutdownBlockReasonCreate(Handle, BusyExitMessage);
+                    }
+                    else if (_webViewUnusable)
                     {
                         MessageBox.Show(this, "JET 正在停止進行中的作業，完成後會關閉視窗。請稍候再重新開啟 JET。", "JET 正在停止作業");
                     }
@@ -337,6 +350,12 @@ namespace JET
 
             try
             {
+                // 已經可以關閉：先前關機時登記給 Windows 的原因撤回；沒有登記過時不影響。
+                if (IsHandleCreated)
+                {
+                    ShutdownBlockReasonDestroy(Handle);
+                }
+
                 _runtime?.Dispose();
             }
             finally
@@ -346,6 +365,30 @@ namespace JET
                 base.OnFormClosing(e);
             }
         }
+
+        /// <summary>
+        /// 關機被取消時，例如使用者在關機畫面按了取消，或別的程式擋下關機，撤回先前登記的不能關機原因。
+        /// 其他訊息照常交給 WinForms 處理。
+        /// </summary>
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WmEndSession && m.WParam == IntPtr.Zero)
+            {
+                ShutdownBlockReasonDestroy(m.HWnd);
+            }
+
+            base.WndProc(ref m);
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ShutdownBlockReasonCreate(IntPtr hWnd, string pwszReason);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ShutdownBlockReasonDestroy(IntPtr hWnd);
 
         private async void RequestFrontendExitAsync()
         {
@@ -386,7 +429,7 @@ namespace JET
         private async void NotifyBusyNativeExitAsync()
         {
             // 和忙碌畫面注入的提示同一句。
-            const string fallbackMessage = "作業還在進行，請等它完成後再試一次。";
+            const string fallbackMessage = BusyExitMessage;
             try
             {
                 if (_webView?.CoreWebView2 is null)

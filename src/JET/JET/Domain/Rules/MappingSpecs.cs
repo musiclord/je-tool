@@ -93,4 +93,12 @@ public interface IMappingStateStore
     /// </summary>
     Task<CommittedMapping?> FindPreviousAsync(string projectId, DatasetKind kind, CancellationToken cancellationToken) =>
         Task.FromResult<CommittedMapping?>(null);
+
+    /// <summary>
+    /// 目前已確認的 GL 配對在確認時存下的日期提醒，和那次確認配對回應的日期提醒相同；重開案件時讓第三步照樣列出。
+    /// 這份提醒和已確認的配對一起寫下、一起在重新匯入 GL 時清掉。沒有存過時回空清單；
+    /// 存下的內容讀不出來時丟 <see cref="System.Text.Json.JsonException"/>。沒有保存這份資料的實作回空清單。
+    /// </summary>
+    Task<IReadOnlyList<GlDateNotice>> FindGlDateNoticesAsync(string projectId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<GlDateNotice>>([]);
 }

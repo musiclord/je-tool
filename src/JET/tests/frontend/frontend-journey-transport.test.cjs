@@ -110,6 +110,27 @@ test('transport: a reload with nothing pending is harmless and replies are match
   assert.equal(a.state, 'fulfilled'); assert.deepEqual(plain(a.value), { which: 'a' });
 });
 
+test('transport: a progress event reaches its subscribers only while the request that sent it is still waiting for its reply', async () => {
+  const f = bridgeFixture();
+  const seen = [];
+  f.api.on('import.progress', data => seen.push(data.rowsRead));
+  const gl = f.track(f.api.importGlFromFile({ mode: 'replace', sources: [] }));
+
+  f.reply({ event: 'import.progress', requestId: gl.requestId, data: { rowsRead: 20000 } });
+  assert.deepEqual(seen, [20000], 'progress for the waiting request is shown');
+
+  f.reply({ requestId: gl.requestId, ok: true, data: {} }); await settle();
+  assert.equal(gl.state, 'fulfilled');
+  // 回應已經到了才送達的進度屬於已經結束的請求，不能蓋過下一項作業的進度；不認得的請求也一樣。
+  f.reply({ event: 'import.progress', requestId: gl.requestId, data: { rowsRead: 40000 } });
+  f.reply({ event: 'import.progress', requestId: 'unknown', data: { rowsRead: 60000 } });
+  assert.deepEqual(seen, [20000], 'late progress of a finished request and progress of an unknown request are dropped');
+
+  // 不屬於任何請求的事件照樣交給訂閱者。
+  f.reply({ event: 'import.progress', data: { rowsRead: 1 } });
+  assert.deepEqual(seen, [20000, 1]);
+});
+
 test('transport: a backend error carries code, correlationId, field and details onto the Error unchanged', async () => {
   const f = bridgeFixture();
   const details = [{ group: 1, rule: 2, message: '合成條件原因' }, { group: 2, rule: 1, message: '第二個合成原因' }];

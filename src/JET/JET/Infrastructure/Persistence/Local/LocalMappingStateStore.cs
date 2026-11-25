@@ -56,12 +56,44 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
     }
 
     /// <summary>
+    /// 確認 GL 配對時存下的日期提醒放在 <c>schema_info</c> 的這一列，值是日期提醒清單的 JSON。
+    /// 日期提醒只是讓審計員回頭看的說明，不參與任何計算，也不寫進報告與底稿，所以不另建資料表、不改資料庫結構。
+    /// </summary>
+    internal const string GlDateNoticesKey = "gl_date_notices";
+
+    /// <summary>
+    /// 在確認 GL 配對的交易裡寫下這次的日期提醒，沒有提醒時寫空清單；之後重新確認配對時整份換掉。
+    /// 值含有來源的原文，所以不經過會把參數值寫進診斷日誌的執行方式。
+    /// </summary>
+    internal static async Task SaveGlDateNoticesWithinAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        IReadOnlyList<GlDateNotice> notices,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(notices);
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            $"""
+            INSERT INTO schema_info (key, value) VALUES ('{GlDateNoticesKey}', @notices)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+            """;
+        command.AddWithValue("@notices", JsonSerializer.Serialize(notices, JsonOptions));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// 重新匯入時，把目前已確認的配對搬到 <c>field_mapping_previous</c> 再刪除，兩步在匯入的同一個交易裡。
     /// 目前沒有已確認的配對時（例如連續匯入兩次都還沒確認）不覆蓋，留著更早那一次確認的配對。
     /// SELECT 帶 WHERE，SQLite 才不會把 ON CONFLICT 讀成 join 的一部分。
+    /// 重新匯入 GL 時，確認配對時存下的日期提醒一起刪掉：提醒說的是舊的 PBC-GL，和已確認的配對同時失效；
+    /// 上次確認的配對當草稿帶回時不帶提醒。
     /// </summary>
     internal const string RetireCommittedMappingSql =
-        """
+        $"""
         INSERT INTO field_mapping_previous
             (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
         SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
@@ -75,7 +107,48 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
             format_version = excluded.format_version,
             options_json = excluded.options_json;
         DELETE FROM field_mapping WHERE dataset_kind = @kind;
+        DELETE FROM schema_info WHERE key = '{GlDateNoticesKey}' AND @kind = 'gl';
         """;
+
+    public async Task<IReadOnlyList<GlDateNotice>> FindGlDateNoticesAsync(
+        string projectId,
+        CancellationToken cancellationToken)
+    {
+        await database.EnsureReadyAsync(projectId, cancellationToken);
+
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT value FROM schema_info WHERE key = '{GlDateNoticesKey}';";
+        var stored = await command.ExecuteScalarAsync(cancellationToken);
+        if (stored is null or DBNull)
+        {
+            // 在保存日期提醒之前就確認過配對的案件沒有這一列，和從來沒有提醒一樣，重新確認配對後才有。
+            return [];
+        }
+
+        return ReadGlDateNotices(Convert.ToString(stored, System.Globalization.CultureInfo.InvariantCulture) ?? "");
+    }
+
+    // 存下的清單缺了欄位、元素是 null 或根本不是清單時，和 JSON 壞掉一樣丟 JsonException，
+    // 呼叫端照讀不出來處理；讀得出來的每一則都和確認配對時回應的形狀相同。
+    private static IReadOnlyList<GlDateNotice> ReadGlDateNotices(string json)
+    {
+        using var document = JetJsonStorage.Parse(json);
+        var notices = document.RootElement.Deserialize<GlDateNotice[]>(JsonOptions);
+        if (notices is null || !notices.All(IsComplete))
+        {
+            throw new JsonException("Stored GL date notices are incomplete.");
+        }
+
+        return notices;
+    }
+
+    private static bool IsComplete(GlDateNotice? notice) =>
+        notice is { Field: not null, Label: not null, SourceColumn: not null, Kind: not null, Handling: not null, Values: not null }
+        && notice.Values.All(static value =>
+            value is { Value: not null, Rows: not null } && value.Rows.All(static row => row is not null));
 
     public Task<CommittedMapping?> FindAsync(
         string projectId,

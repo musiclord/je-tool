@@ -280,6 +280,48 @@ public sealed class GlRowProjectorTests
         Assert.Equal("9999-12-31", issue.IsoDate);
     }
 
+    // 1900-01-01 到 1900-02-28 在 1900 到 2100 年之內，但早於 1900-03-01，底稿寫成文字：日期照樣存下來，另記一筆底稿寫成文字。
+    // 1899-12-31 只記年份不尋常，不重複記；1900-03-01 起不記。傳票核准日與攸關資料元素的日期都一樣。
+    [Theory]
+    [InlineData("1900/1/15", "1900-01-15", GlDateIssueKind.TextInWorkingPaper)]
+    [InlineData("1900/2/28", "1900-02-28", GlDateIssueKind.TextInWorkingPaper)]
+    [InlineData("1899/12/31", "1899-12-31", GlDateIssueKind.UnusualYear)]
+    [InlineData("1900/3/1", "1900-03-01", null)]
+    public void DateProjection_BeforeMarch1900_IsKeptAndReportedAsTextInWorkingPaper(
+        string raw, string expected, GlDateIssueKind? kind)
+    {
+        var mapping = new Dictionary<string, string>
+        {
+            [GlMappingKeys.Amount] = "amt",
+            [GlMappingKeys.GlDate] = "post",
+            [GlMappingKeys.ApprovalDate] = "approved"
+        };
+        var spec = new GlMappingSpec(mapping, GlAmountMode.SignedAmount)
+        {
+            Options = GlMappingOptions.NormalizeLegacy(mapping) with
+            {
+                RdeFields = [new GlRdeFieldMetadata("rde.00000000000000000000000000000005", "due", "Due", "date")]
+            }
+        };
+        var row = new StagingRow(15, new Dictionary<string, string>
+        {
+            ["amt"] = "1",
+            ["post"] = "2025/02/03",
+            ["approved"] = raw,
+            ["due"] = raw
+        });
+
+        Assert.True(GlRowProjector.TryProject(row, spec, Scale, out var projected, out var error));
+        Assert.Null(error);
+        Assert.Equal(expected, projected!.ApprovalDate);
+        Assert.Equal(expected, Assert.Single(projected.RdeValues).DateValue);
+        Assert.Equal(
+            kind is null
+                ? []
+                : new[] { $"{GlMappingKeys.ApprovalDate}|{raw}|{kind}|{expected}", $"rde.00000000000000000000000000000005|{raw}|{kind}|{expected}" },
+            projected.DateIssues.Select(issue => $"{issue.Field}|{issue.RawValue}|{issue.Kind}|{issue.IsoDate}"));
+    }
+
     [Fact]
     public void DateProjection_GarbageFails_MissingIsNull()
     {

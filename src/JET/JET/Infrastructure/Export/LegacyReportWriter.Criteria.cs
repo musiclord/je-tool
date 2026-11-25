@@ -64,7 +64,8 @@ internal sealed partial class LegacyReportWriter
                 operatorId,
                 ct,
                 progress),
-            cancellationToken);
+            cancellationToken,
+            _layout);
 
     private async Task<IReadOnlyList<SheetStat>> FillCriteriaTemplateAsync(
         DirectTemplateWorkbookEditor editor,
@@ -217,14 +218,14 @@ internal sealed partial class LegacyReportWriter
                 var cells = new DirectTemplateCellEditor(
                     worksheet,
                     allowed);
-                cells.SetInlineString(
+                cells.SetText(
                     "C1",
                     $"Client: {context.Project.CompanyName}");
-                cells.SetInlineString(
+                cells.SetText(
                     "C2",
                     $"Year End: {context.Project.PeriodEnd}");
-                cells.SetInlineString("D1", $"Prepared by: {operatorId}");
-                cells.SetInlineString(
+                cells.SetText("D1", $"Prepared by: {operatorId}");
+                cells.SetText(
                     "D2",
                     string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
 
@@ -238,15 +239,12 @@ internal sealed partial class LegacyReportWriter
                 // 條件的分段已經切成放得進一格的長度，其餘是程式固定的文字，所以照原樣寫出、不截斷。
                 void AppendContinuationRow(string label, string text, uint? style)
                 {
-                    sheetData.Append(new Row(
-                        new Cell { CellReference = $"A{nextConditionRow}", DataType = CellValues.InlineString,
-                            StyleIndex = style, InlineString = ExcelText.VerbatimInlineString(label) },
-                        new Cell { CellReference = $"B{nextConditionRow}", DataType = CellValues.InlineString,
-                            StyleIndex = style, InlineString = ExcelText.VerbatimInlineString(text) })
-                        { RowIndex = nextConditionRow });
+                    var labelCell = new Cell { CellReference = $"A{nextConditionRow}", StyleIndex = style };
+                    ExcelText.SetVerbatimText(labelCell, label, part);
+                    var textCell = new Cell { CellReference = $"B{nextConditionRow}", StyleIndex = style };
+                    ExcelText.SetVerbatimText(textCell, text, part);
+                    sheetData.Append(new Row(labelCell, textCell) { RowIndex = nextConditionRow });
                     nextConditionRow++;
-                    var dimension = worksheet.GetFirstChild<SheetDimension>();
-                    if (dimension is not null) dimension.Reference = $"A1:D{nextConditionRow - 1}";
                 }
 
                 for (var position = 1; position <= FilterScenarioLimits.MaxSavedScenarios; position++)
@@ -266,11 +264,11 @@ internal sealed partial class LegacyReportWriter
                     context.ScenarioConditionLogic?.TryGetValue(
                         position,
                         out conditionLogic);
-                    cells.SetInlineString(
+                    cells.SetText(
                         $"A{row}",
                         $"Criteria Selection {position}");
                     var conditionParts = FilterConditionExcelText.Parts(conditionLogic ?? scenario.Name);
-                    cells.SetVerbatimInlineString($"B{row}", conditionParts.Count == 1 ? conditionParts[0]
+                    cells.SetVerbatimText($"B{row}", conditionParts.Count == 1 ? conditionParts[0]
                         : $"完整條件見本頁第 {nextConditionRow} 列起，分段接續列出。");
                     var blankVoucherNumberRows = blankVoucherNumberHitRows.GetValueOrDefault(position);
                     if (conditionParts.Count > 1 || blankVoucherNumberRows > 0)
@@ -317,6 +315,8 @@ internal sealed partial class LegacyReportWriter
                     }
                 }
                 cells.EnsureAllAllowedCellsWereEdited();
+                // 情境列下方多寫的接續列讓範圍往下延伸，欄仍到範本最右邊的格子，所以依寫完的所有格子重算。
+                SheetUsedRange.RefreshDimension(worksheet);
                 ExcelText.SaveWorksheet(part);
                 ct.ThrowIfCancellationRequested();
             },

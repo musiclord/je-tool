@@ -113,7 +113,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         }
         // 傳票摘要頁可排序、可依傳票號碼查看；展開分錄頁固定依分錄順序，不吃 sort 與 search。
         var catalog = ResultPageSorting.FilterVoucher;
-        var pageRequest = new PageRequest(key, Math.Clamp(PayloadReader.GetOptionalInt(payload, "pageSize") ?? 200, 1, 200),
+        var pageRequest = new PageRequest(key, PageRequestReader.ReadPageSize(payload),
             detail ? null : PageRequestReader.ReadSort(payload, catalog), detail ? null : PageRequestReader.ReadSearch(payload, catalog), IncludeTotalCount: key is null);
         // 只用「未預期借貸組合」一個條件時，Criteria Selection 摘要與工作底稿都以整張傳票計算；
         // 這裡的符合分錄數與展開分錄用同一個判斷，畫面才不會和報告不同。

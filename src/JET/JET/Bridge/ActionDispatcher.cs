@@ -368,11 +368,21 @@ public sealed class RequestCancellationRegistry : IOperationCancellationService
         return new RequestCancellationScope(this, requestId, source);
     }
 
+    private static readonly AsyncLocal<string?> CurrentRequest = new();
+
+    /// <summary>
+    /// 正在處理的畫面請求編號，只在 <see cref="RunAsync"/> 執行那個請求的期間有值。
+    /// 它跟著同一個請求的非同步流程走，背景執行緒上送出的進度事件也讀得到，畫面才分得出進度屬於哪一個請求。
+    /// </summary>
+    public static string? CurrentRequestId => CurrentRequest.Value;
+
     public async Task<T> RunAsync<T>(
         string requestId,
         Func<CancellationToken, Task<T>> operation)
     {
         using var scope = Begin(requestId);
+        // 在 async 方法裡設定，方法結束時自動回到呼叫端原本的值，不會留給下一個請求。
+        CurrentRequest.Value = requestId;
         return await operation(scope.Token).ConfigureAwait(false);
     }
 

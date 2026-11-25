@@ -11,6 +11,9 @@ namespace JET.Application;
 /// </summary>
 internal static class PageRequestReader
 {
+    /// <summary>畫面的查詢一頁最多 200 筆。</summary>
+    private const int MaxScreenPageSize = 200;
+
     public static PageRequest Read(JsonElement payload, PageSortCatalog catalog)
     {
         var cursor = PayloadReader.GetOptionalString(payload, "cursor");
@@ -19,10 +22,19 @@ internal static class PageRequestReader
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "cursor_invalid");
         }
 
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
         // 總筆數只在第一頁（沒有游標）計算；換頁沿用第一頁的數字，不再每頁重掃完整查詢範圍。
-        return new PageRequest(cursor, Math.Clamp(pageSize <= 0 ? 200 : pageSize, 1, 200),
+        return new PageRequest(cursor, ReadPageSize(payload),
             ReadSort(payload, catalog), ReadSearch(payload, catalog), IncludeTotalCount: string.IsNullOrEmpty(cursor));
+    }
+
+    /// <summary>
+    /// 一頁要讀幾筆：沒有帶、0 或負數時用 <paramref name="defaultSize"/>，超過畫面一頁的上限時以上限查詢。
+    /// 預覽與開發工具的資料表用 <c>limit</c> 欄位，所以欄名與預設筆數由呼叫端指定。
+    /// </summary>
+    public static int ReadPageSize(JsonElement payload, string name = "pageSize", int defaultSize = PageRequest.DefaultPageSize)
+    {
+        var requested = PayloadReader.GetOptionalInt(payload, name);
+        return requested is > 0 ? Math.Min(requested.Value, MaxScreenPageSize) : defaultSize;
     }
 
     public static PageSort? ReadSort(JsonElement payload, PageSortCatalog catalog)

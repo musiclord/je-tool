@@ -211,6 +211,34 @@ public sealed partial class ProcessingLogTests(ITestOutputHelper testOutput)
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 確認 GL 欄位配對後有日期提醒時，每一則寫一行：欄位、來源欄、筆數、哪一種情形，以及 JET 怎麼處理。
+    /// 讀不成日期、年份不尋常，以及早於 1900-03-01、在底稿寫成文字的日期，各寫各的情形。
+    /// </summary>
+    [Fact]
+    public async Task MappingDateNotices_AreRecordedWithTheirOwnKind()
+    {
+        using var host = new HandlerTestHost(userFullName: Operator);
+        string[] approved = ["2025-03-06", "not-a-date", "1899-12-31", "1900-01-15"];
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            builder =>
+            {
+                builder.WithColumns(GlHeaders);
+                for (var v = 1; v <= approved.Length; v++)
+                {
+                    builder.AddRow($"JV-{v:0000}", "2025-03-05", approved[v - 1], "1101", "現金", $"借方 {v}", "100.00", 1);
+                    builder.AddRow($"JV-{v:0000}", "2025-03-05", approved[v - 1], "4101", "收入", $"貸方 {v}", "100.00", 0);
+                }
+            });
+        var path = Path.Combine(host.ProjectsRoot, projectId, $"{projectId}_GL處理紀錄.txt");
+        var mapping = Entry(Normalize(await File.ReadAllTextAsync(path)), "確認 GL 欄位配對");
+
+        Assert.Contains("日期提醒：傳票核准日（核准日期）有 2 筆讀不成日期，那一格當成沒有日期\n", mapping, StringComparison.Ordinal);
+        Assert.Contains("日期提醒：傳票核准日（核准日期）有 2 筆年份不在 1900 到 2100 年之間，照來源資料保留\n", mapping, StringComparison.Ordinal);
+        Assert.Contains("日期提醒：傳票核准日（核准日期）有 2 筆日期早於 1900-03-01、底稿寫成文字，照來源資料保留\n", mapping, StringComparison.Ordinal);
+    }
+
     /// <summary>失敗或取消的操作沒有改動案件，不寫進處理紀錄；只讀的查詢也不寫。</summary>
     [Fact]
     public async Task FailedActionsAndQueries_AreNotRecorded()

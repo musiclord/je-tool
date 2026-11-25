@@ -740,18 +740,321 @@ public sealed class PrescreenDirectTemplatePackageTests
         var summarySheet = workbookPart.Workbook!.Sheets!.Elements<Sheet>()
             .Single(sheet => sheet.Name?.Value == "Summary Inforamtion");
         var summary = ((WorksheetPart)workbookPart.GetPartById(summarySheet.Id!.Value!)).RequiredWorksheet();
+        var sharedItems = workbookPart.SharedStringTablePart?.SharedStringTable?.Elements<SharedStringItem>().ToArray() ?? [];
+        // 文字可能是 inline string，也可能寫進共用字串表；兩種都讀出放文字的元素。
+        DocumentFormat.OpenXml.OpenXmlElement? TextHolder(Cell cell) =>
+            cell.DataType?.Value == CellValues.InlineString ? cell.InlineString
+            : cell.DataType?.Value == CellValues.SharedString
+                ? sharedItems[int.Parse(cell.CellValue!.Text, System.Globalization.CultureInfo.InvariantCulture)]
+                : null;
 
         var noteRow = Assert.Single(
             summary.Descendants<Row>(),
-            row => row.Elements<Cell>().Any(cell => cell.InlineString?.InnerText == "Criteria Selection 1（說明）"));
+            row => row.Elements<Cell>().Any(cell => TextHolder(cell)?.InnerText == "Criteria Selection 1（說明）"));
         var texts = noteRow.Elements<Cell>()
-            .Where(cell => cell.DataType?.Value == CellValues.InlineString)
-            .Select(cell => Assert.Single(cell.InlineString!.Elements<Text>()))
+            .Where(cell => TextHolder(cell) is not null)
+            .Select(cell => Assert.Single(TextHolder(cell)!.Elements<Text>()))
             .ToArray();
         Assert.Equal(
             ["Criteria Selection 1（說明）", "另有 2 筆分錄的傳票號碼空白，未列入明細表。"],
             texts.Select(text => text.Text));
         Assert.All(texts, text => Assert.Equal(DocumentFormat.OpenXml.SpaceProcessingModeValues.Preserve, text.Space?.Value));
+    }
+
+    // 條件篩選報告每一張工作表的 dimension 都等於實際寫出的格子範圍。摘要頁在情境列下方多寫一列說明，
+    // 範圍跟著往下延伸，欄仍到範本最右邊的 K 欄；明細與隱藏的中繼資料也一樣。
+    [Fact]
+    public async Task Criteria_EveryWorksheet_DeclaresDimensionEqualToWrittenCells()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            builder => builder
+                .WithColumns(OriginalHeaders)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "1101", "現金", "風險摘要 1", "100.00", 1)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "4101", "收入", "一般摘要 1", "100.00", 0)
+                .AddRow("", "2025-03-07", "2025-03-08", "1101", "現金", "風險摘要 空白 1", "50.00", 1)
+                .AddRow("", "2025-03-07", "2025-03-08", "4101", "收入", "風險摘要 空白 2", "50.00", 0),
+            configureTb: tb => tb
+                .AddRow("1101", "現金", 150)
+                .AddRow("4101", "收入", -150));
+        var validation = await host.DispatchAsync("validate.run");
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var committed = await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { KeywordScenario("命中摘要", "風險") } }));
+        var response = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new
+            {
+                validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()
+            }));
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(
+            host.ProjectsRoot, projectId, response.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
+
+        using (var workbook = new XLWorkbook(new MemoryStream(bytes, writable: false)))
+        {
+            var summary = workbook.Worksheet("Summary Inforamtion");
+            Assert.Contains(summary.RowsUsed(), row => row.Cell(1).GetString() == "Criteria Selection 1（說明）");
+            Assert.True(workbook.Worksheets.Contains("#Criteria Select 1"));
+        }
+
+        WorksheetDimensionAssert.EveryWorksheetMatchesWrittenCells(bytes);
+    }
+
+    // 條件篩選報告的文字都寫進共用字串表，和 Excel 存檔時相同：摘要頁改寫的格子、情境下方的說明列與明細都一樣。
+    // 只有 JET 讀回用的 JET_Metadata 照樣寫成 inline string；共用字串表的 count 與 uniqueCount 等於實際的格數與項目數。
+    [Fact]
+    public async Task Criteria_TextCells_ReferToTheSharedStringTable()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            builder => builder
+                .WithColumns(OriginalHeaders)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "1101", "現金", "風險摘要 1", "100.00", 1)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "4101", "收入", "一般摘要 1", "100.00", 0)
+                .AddRow("", "2025-03-07", "2025-03-08", "1101", "現金", "風險摘要 空白 1", "50.00", 1)
+                .AddRow("", "2025-03-07", "2025-03-08", "4101", "收入", "風險摘要 空白 2", "50.00", 0),
+            configureTb: tb => tb
+                .AddRow("1101", "現金", 150)
+                .AddRow("4101", "收入", -150));
+        var validation = await host.DispatchAsync("validate.run");
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var committed = await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { KeywordScenario("命中摘要", "風險") } }));
+        var response = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new
+            {
+                validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()
+            }));
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(
+            host.ProjectsRoot, projectId, response.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
+
+        SharedStringTableAssert.TextCellsReferToTheSharedStringTable(bytes);
+        Assert.Empty(SharedStringTableAssert.RecordCellsNotInline(bytes));
+        using var workbook = new XLWorkbook(new MemoryStream(bytes, writable: false));
+        Assert.Contains(
+            workbook.Worksheet("Summary Inforamtion").RowsUsed(),
+            row => row.Cell(1).GetString() == "Criteria Selection 1（說明）");
+        Assert.Contains(
+            workbook.Worksheet("#Criteria Select 1").RowsUsed(),
+            row => row.Cells().Any(cell => cell.GetString() == "風險摘要 1"));
+    }
+
+    // 預篩選報告每一張工作表的 dimension 都等於實際寫出的格子範圍：摘要頁、R1 明細、R5 與 R6 的續頁與隱藏的中繼資料。
+    // 續頁的列數上限是 17，R5 與 R6 各 17 列，第一頁寫滿 16 列，續頁只有一列。
+    [Fact]
+    public async Task EveryWorksheet_DeclaresDimensionEqualToWrittenCells()
+    {
+        const int rowCount = 17;
+        using var host = new HandlerTestHost();
+        var projectId = await ReportExportFixture.SetupProjectAsync(host);
+        var database = new SqliteProjectDatabase(
+            new JetProjectFolder(host.ProjectsRoot));
+        var preparers = Enumerable.Range(1, rowCount)
+            .Select(index => new PreparerSummaryExportRow($"creator-{index}", index, 10_000, -10_000))
+            .ToArray();
+        var accounts = Enumerable.Range(1, rowCount)
+            .Select(index => new AccountUsageExportRow($"ACCOUNT-{index}", $"account-{index}", index, 10_000, -10_000))
+            .ToArray();
+        var writer = CreateWriter(
+            database,
+            new LocalPrescreenPageRepository(database),
+            new LegacyReportWriterOptions(17),
+            new FixedPreparerSummaryRepository(preparers),
+            new FixedAccountUsageRepository(accounts));
+        var projection = Projection(1);
+        var plan = Plan(projectId, projection, 1);
+        await using var output = new MemoryStream();
+
+        await ((IPrescreenReportWriter)writer).WriteAsync(
+            output,
+            Context(projectId),
+            projection,
+            plan,
+            ReportWriterTestSupport.SyntheticMetadata(),
+            "tester",
+            CancellationToken.None);
+
+        var bytes = output.ToArray();
+        using (var document = SpreadsheetDocument.Open(new MemoryStream(bytes, writable: false), false))
+        {
+            var names = document.WorkbookPart!.RequiredWorkbook().Sheets!.Elements<Sheet>()
+                .Select(sheet => sheet.Name!.Value!)
+                .ToArray();
+            Assert.Subset(
+                new HashSet<string>(names, StringComparer.Ordinal),
+                new HashSet<string>(["Pre-screening_Report", "R1", "R5", "R5 (2)", "R6", "R6 (2)", ReportWorkbookMetadataFormat.WorksheetName], StringComparer.Ordinal));
+            Assert.Empty(new OpenXmlValidator().Validate(document));
+        }
+
+        WorksheetDimensionAssert.EveryWorksheetMatchesWrittenCells(bytes);
+    }
+
+    // 預篩選報告的文字都寫進共用字串表：摘要頁、R1 明細、R5 與 R6 的續頁都一樣。重複的製單人與科目名稱只存一份，
+    // 只有 JET 讀回用的 JET_Metadata 照樣寫成 inline string。
+    [Fact]
+    public async Task TextCells_ReferToTheSharedStringTable()
+    {
+        const int rowCount = 17;
+        using var host = new HandlerTestHost();
+        var projectId = await ReportExportFixture.SetupProjectAsync(host);
+        var database = new SqliteProjectDatabase(
+            new JetProjectFolder(host.ProjectsRoot));
+        var preparers = Enumerable.Range(1, rowCount)
+            .Select(index => new PreparerSummaryExportRow($"creator-{index % 3}", index, 10_000, -10_000))
+            .ToArray();
+        var accounts = Enumerable.Range(1, rowCount)
+            .Select(index => new AccountUsageExportRow($"ACCOUNT-{index}", "account-same", index, 10_000, -10_000))
+            .ToArray();
+        var writer = CreateWriter(
+            database,
+            new LocalPrescreenPageRepository(database),
+            new LegacyReportWriterOptions(17),
+            new FixedPreparerSummaryRepository(preparers),
+            new FixedAccountUsageRepository(accounts));
+        var projection = Projection(1);
+        var plan = Plan(projectId, projection, 1);
+        await using var output = new MemoryStream();
+
+        await ((IPrescreenReportWriter)writer).WriteAsync(
+            output,
+            Context(projectId),
+            projection,
+            plan,
+            ReportWriterTestSupport.SyntheticMetadata(),
+            "tester",
+            CancellationToken.None);
+
+        var bytes = output.ToArray();
+        SharedStringTableAssert.TextCellsReferToTheSharedStringTable(bytes);
+        Assert.Empty(SharedStringTableAssert.RecordCellsNotInline(bytes));
+        using (var document = SpreadsheetDocument.Open(new MemoryStream(bytes, writable: false), false))
+        {
+            Assert.Empty(new OpenXmlValidator().Validate(document));
+        }
+
+        using var workbook = new XLWorkbook(new MemoryStream(bytes, writable: false));
+        var accountNames = new[] { "R6", "R6 (2)" }
+            .SelectMany(name => workbook.Worksheet(name).CellsUsed())
+            .Count(cell => cell.GetString() == "account-same");
+        Assert.Equal(rowCount, accountNames);
+    }
+
+    // 同一份合成資料分別用照原樣寫出的寫法與和 Excel 相同的寫法產生預篩選報告：文字一份是 inline string、一份在共用字串表，
+    // 摘要頁、R1 明細、R5 與 R6 的續頁，儲存格的內容與外觀都相同。製單人有一筆含換行。
+    [Fact]
+    public async Task ExcelLayout_KeepsCellContentAndAppearance()
+    {
+        const int rowCount = 17;
+        using var host = new HandlerTestHost();
+        var projectId = await ReportExportFixture.SetupProjectAsync(host);
+        var database = new SqliteProjectDatabase(
+            new JetProjectFolder(host.ProjectsRoot));
+        var preparers = Enumerable.Range(1, rowCount)
+            .Select(index => new PreparerSummaryExportRow(
+                index == 1 ? "creator\n第二行" : $"creator-{index % 3}", index, 10_000, -10_000))
+            .ToArray();
+        var accounts = Enumerable.Range(1, rowCount)
+            .Select(index => new AccountUsageExportRow($"ACCOUNT-{index}", "account-same", index, 10_000, -10_000))
+            .ToArray();
+        var projection = Projection(1);
+        var plan = Plan(projectId, projection, 1);
+
+        async Task<byte[]> WriteAsync(LegacyReportWriterOptions options)
+        {
+            var writer = CreateWriter(
+                database,
+                new LocalPrescreenPageRepository(database),
+                options,
+                new FixedPreparerSummaryRepository(preparers),
+                new FixedAccountUsageRepository(accounts));
+            await using var output = new MemoryStream();
+            await ((IPrescreenReportWriter)writer).WriteAsync(
+                output,
+                Context(projectId),
+                projection,
+                plan,
+                ReportWriterTestSupport.SyntheticMetadata(),
+                "tester",
+                CancellationToken.None);
+            return output.ToArray();
+        }
+
+        var asWritten = await WriteAsync(new LegacyReportWriterOptions(17) { Layout = FormalWorkbookLayout.AsWritten });
+        var sameAsExcel = await WriteAsync(new LegacyReportWriterOptions(17));
+
+        // 前提：兩份的寫法真的不同，比對才有意義。
+        Assert.NotEqual(0, ExcelPackageLayoutAssert.InlineTextCellCount(asWritten));
+        Assert.Equal(0, ExcelPackageLayoutAssert.InlineTextCellCount(sameAsExcel));
+        // 同一組檢查認得出照原樣寫出的那一份，和 Excel 相同的那一份全部通過。
+        Assert.NotEmpty(ExcelPackageLayoutAssert.Problems(asWritten, ReportTemplateCatalog.Prescreen));
+        Assert.Empty(ExcelPackageLayoutAssert.Problems(sameAsExcel, ReportTemplateCatalog.Prescreen));
+        ExcelPackageLayoutAssert.SameContentAndAppearance(asWritten, sameAsExcel);
+    }
+
+    // 同一份合成資料分別用照原樣寫出的寫法與和 Excel 相同的寫法產生條件篩選報告：摘要頁、情境下方的說明列與明細，
+    // 儲存格的內容與外觀都相同。明細有一筆摘要含換行。
+    [Fact]
+    public async Task Criteria_ExcelLayout_KeepsCellContentAndAppearance()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            builder => builder
+                .WithColumns(OriginalHeaders)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "1101", "現金", "風險摘要\n第二行", "100.00", 1)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "4101", "收入", "一般摘要 1", "100.00", 0)
+                .AddRow("", "2025-03-07", "2025-03-08", "1101", "現金", "風險摘要 空白 1", "50.00", 1)
+                .AddRow("", "2025-03-07", "2025-03-08", "4101", "收入", "風險摘要 空白 2", "50.00", 0),
+            configureTb: tb => tb
+                .AddRow("1101", "現金", 150)
+                .AddRow("4101", "收入", -150));
+        await host.DispatchAsync("validate.run");
+        var committed = await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { KeywordScenario("命中摘要", "風險") } }));
+        var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()!;
+        var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        var scenarios = await new LocalFilterScenarioStore(database).ListAsync(projectId, CancellationToken.None);
+        var context = new CriteriaSelectionReportContext(
+            new ReportDocumentContext(projectId, "範本驗收公司", "2025-01-01", "2025-12-31", null, 10_000),
+            revision,
+            DateOnly.FromDateTime(Assert.Single(scenarios).SavedUtc.UtcDateTime),
+            scenarios,
+            new Dictionary<int, string> { [1] = "摘要包含「風險」" });
+
+        async Task<byte[]> WriteAsync(LegacyReportWriterOptions options)
+        {
+            var writer = CreateWriter(database, new LocalPrescreenPageRepository(database), options);
+            await using var output = new MemoryStream();
+            await ((ICriteriaSelectionReportWriter)writer).WriteAsync(
+                output,
+                context,
+                ReportWriterTestSupport.SyntheticMetadata(),
+                [],
+                "tester",
+                CancellationToken.None);
+            return output.ToArray();
+        }
+
+        var asWritten = await WriteAsync(new LegacyReportWriterOptions() { Layout = FormalWorkbookLayout.AsWritten });
+        var sameAsExcel = await WriteAsync(new LegacyReportWriterOptions());
+
+        // 前提：兩份的寫法真的不同，比對才有意義。
+        Assert.NotEqual(0, ExcelPackageLayoutAssert.InlineTextCellCount(asWritten));
+        Assert.Equal(0, ExcelPackageLayoutAssert.InlineTextCellCount(sameAsExcel));
+        // 同一組檢查認得出照原樣寫出的那一份，和 Excel 相同的那一份全部通過。
+        Assert.NotEmpty(ExcelPackageLayoutAssert.Problems(asWritten, ReportTemplateCatalog.CriteriaSelection));
+        Assert.Empty(ExcelPackageLayoutAssert.Problems(sameAsExcel, ReportTemplateCatalog.CriteriaSelection));
+        ExcelPackageLayoutAssert.SameContentAndAppearance(asWritten, sameAsExcel);
     }
 
     // 固定答案核對整張傳票展開，以及傳票與傳票內各列的順序。

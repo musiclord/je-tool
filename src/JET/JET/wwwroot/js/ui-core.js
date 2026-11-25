@@ -276,8 +276,10 @@
     { value: 'unexpectedAccountPair', label: '未預期借貸組合', prerequisites: ['accountMapping', 'revenueCategory', 'counterpartCategory'],
       description: '貸方為收入的分錄，同張傳票沒有應收款項、現金或預收款借方，但至少有一筆借方金額大於 0 的分錄。第四步與預篩選報告列出這些傳票的全部分錄；在第五步作為條件時，符合的是收入貸方的分錄。需先完成科目配對。' },
     // 標籤是不知道 0 的個數時用的規則名稱；知道個數時 prescreenConditionLabel 寫成「金額尾數連續 N 個 0」。
+    // 算法寫在 calculation：第四步的說明接在 description 後面一起顯示；第五步條件列常駐的小字只寫 description，算法放在滑鼠提示。
     { value: 'trailingZeros', label: '分錄金額中有連續 0 的尾數', prerequisites: ['gl:amount'],
-      description: '依本次測試的分錄，找出金額整數部分尾數連續多個 0 的分錄。借方金額合計除以全部分錄筆數得到平均，0 的個數是平均整數部分的位數減一，例如平均 2,391,281 是 6 個 0，至少 1 個、最多 12 個。不含小數，整數部分為 0 不列入。' },
+      description: '找出分錄金額整數部分以連續多個 0 結尾的分錄。0 的個數由 JET 依 GL 平均金額的位數算出，最少 1 個、最多 12 個。要改用其他個數，到第五步「欄位條件」分頁，按金額底下的「尾數連續多個 0」。',
+      calculation: '算法照 IDEA 版 JET：借方金額合計除以 GL 分錄數（借方、貸方分錄都算）得到平均，取平均整數的位數減一，例如平均 2,391,281 是 7 位數，取 6 個 0。' },
     { value: 'weekendPosting', label: '週末過帳', prerequisites: ['gl:glDate'],
       description: '總帳日期落在第二步設定的每週休息日；補班日仍納入。' },
     { value: 'weekendApproval', label: '週末核准', prerequisites: ['gl:approvalDate'],
@@ -289,10 +291,15 @@
     { value: 'blankDescription', label: '空白摘要', prerequisites: ['gl:description'],
       description: '摘要欄位空白的分錄；可在下一步直接作為篩選條件。' },
     { value: 'nonAuthorizedPreparer', label: '非授權編製人員', prerequisites: ['authorizedPreparer', 'gl:createdBy'],
-      description: '傳票建立人員的識別值非空白，且未列在第二步匯入的授權編製人員清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。' }
+      description: '傳票建立人員不在第二步匯入的授權編製人員清單裡的分錄。有授權的人員也被列出時，回第二步確認清單和 GL 的「傳票建立人員」都用姓名，或都用員工代碼。' }
   ];
   function prescreenRule(key) { return PRESCREEN_RULES.find(function (item) { return item.value === key; }); }
-  function prescreenConditionDescription(key) { var rule = prescreenRule(key); return rule ? rule.description : ''; }
+  function prescreenConditionDescription(key) { var rule = prescreenRule(key); return rule ? rule.description + (rule.calculation || '') : ''; }
+  // 第五步條件列常駐的小字：只寫 description，算法另外交給滑鼠提示。
+  function prescreenConditionHint(key) {
+    var rule = prescreenRule(key);
+    return rule ? { text: rule.description, calculation: rule.calculation || '' } : { text: '', calculation: '' };
+  }
   function prescreenConditionLabel(key) {
     var zeros = key === 'trailingZeros' ? trailingZeroDigits() : null;
     if (zeros) { return '金額尾數連續 ' + zeros + ' 個 0'; }
@@ -2346,13 +2353,21 @@
       });
   }
 
+  // 從案件清單開啟案件。後端回覆開啟成功時已經進入這個案件、握著它的案件鎖；畫面卻沒有套用完成時，
+  // 比照建立後開啟失敗的做法請後端放掉它，回到案件清單，再在清單上方寫出開啟失敗的原因。
+  // 後端自己拒絕開啟時沒有進入案件，直接在清單上方寫原因。
   function openProject(projectId) {
+    var entered = false;
+    var opened = false;
+    var failure = null;
     return run('開啟案件', function () {
       // 真的開始開案才作廢還沒回來的案件清單、清掉清單上方的提示；清單還在讀的時候按下，這次不會開始，清單照常換上。
       pickerProjectResponseGuard.invalidate();
       Store.setPickerFeedback(null);
       return global.JetApi.projectLoad({ projectId: projectId }).then(function (data) {
+        entered = true;
         applyLoadedProject(data);
+        opened = true;
 
         // 還原持久化的訊息歷史（log.recent）；失敗不影響專案載入
         return global.JetApi.logRecent({}).then(function (log) {
@@ -2373,12 +2388,22 @@
       inlineError: true,
       onError: function (message, error) {
         if (isCancelledOrInProgress(error)) { return; }
-        Store.setPickerFeedback(message, {
-          projectId: projectId,
-          errorCode: error && error.code,
-          correlationId: error && error.correlationId
-        });
+        failure = {
+          message: message,
+          context: {
+            projectId: projectId,
+            errorCode: error && error.code,
+            correlationId: error && error.correlationId
+          }
+        };
+        // 後端已經進入這個案件時，原因等放掉案件、回到清單之後才寫；回到清單會先清掉清單上方的提示。
+        if (!entered) { Store.setPickerFeedback(failure.message, failure.context); }
       }
+    }).then(function () {
+      if (!entered || opened) { return; }
+      return releaseProjectThenGoBackToPicker().then(function (left) {
+        if (left && failure) { Store.setPickerFeedback(failure.message, failure.context); }
+      });
     });
   }
 
@@ -2551,6 +2576,8 @@
         fillDownCount: data.mapping.gl.fillDownCount || 0,
         // 由 GL 借方平均算出的尾數 0 的個數。
         zerosThreshold: data.mapping.gl.zerosThreshold || null,
+        // 確認配對時的日期提醒跟著配對保存，重開案件後第三步摘要照樣列出。
+        dateNotices: Array.isArray(data.mapping.gl.dateNotices) ? data.mapping.gl.dateNotices : [],
         projectedRowCount: null
       });
     } else if (previousMapping.gl && data.importState && data.importState.gl) {
@@ -2919,6 +2946,7 @@
     FILTER_COMMON_CONDITIONS: FILTER_COMMON_CONDITIONS,
     PRESCREEN_RULES: PRESCREEN_RULES,
     prescreenConditionDescription: prescreenConditionDescription,
+    prescreenConditionHint: prescreenConditionHint,
     prescreenConditionLabel: prescreenConditionLabel,
     trailingZeroDigits: trailingZeroDigits,
     PRESCREEN_POSITIONING_COPY: PRESCREEN_POSITIONING_COPY,

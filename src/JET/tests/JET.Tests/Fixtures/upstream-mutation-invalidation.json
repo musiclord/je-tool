@@ -1,0 +1,28 @@
+{
+  "description": [
+    "會清除下游結果的上游修改，以及每一種修改的回應在 invalidatedResults 寫的範圍；值逐筆手寫，不由被測程式算出。",
+    "C# 的 UpstreamMutationInvalidationListTests 核對回應宣告的範圍等於案件資料庫實際清掉的範圍，並核對這份清單涵蓋每個回應帶 invalidatedResults 的 action；前端 frontend-workflow 的測試核對每個畫面入口都照回應清除。",
+    "case 是送出變更的方式，和 MutationInvalidationStateTests.MutateAsync 用的名稱相同；同一個 action 依送出的內容不同可能有兩種 case。",
+    "screen 為 true 表示畫面有入口會送出這個 action；為 false 的只有後端提供，畫面不會呼叫。",
+    "新增會清除下游結果的 action 時，在這裡加一筆，回應要帶 invalidatedResults，畫面收到回應後要交給 Store.applyMutationEffects。"
+  ],
+  "cases": [
+    { "case": "import.gl.fromFile", "action": "import.gl.fromFile", "screen": true, "invalidatedResults": { "validation": true, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": true } },
+    { "case": "import.tb.fromFile", "action": "import.tb.fromFile", "screen": true, "invalidatedResults": { "validation": true, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": true } },
+    { "case": "mapping.commit.gl", "action": "mapping.commit.gl", "screen": true, "invalidatedResults": { "validation": true, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": true } },
+    { "case": "mapping.commit.tb", "action": "mapping.commit.tb", "screen": true, "invalidatedResults": { "validation": true, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": true } },
+    { "case": "import.accountMapping.fromFile", "action": "import.accountMapping.fromFile", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "accountMapping.save", "action": "accountMapping.save", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "accountCategory.save", "action": "accountCategory.save", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "import.authorizedPreparer.fromFile", "action": "import.authorizedPreparer.fromFile", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "import.authorizedPreparer.clear", "action": "import.authorizedPreparer.clear", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "import.holiday", "action": "import.holiday", "screen": false, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "import.makeupDay", "action": "import.makeupDay", "screen": false, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "import.holiday.fromFile", "action": "import.holiday.fromFile", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "import.makeupDay.fromFile", "action": "import.makeupDay.fromFile", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "calendar.setNonWorkingDays", "action": "calendar.setNonWorkingDays", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "calendar.sameNonWorkingDays", "action": "calendar.setNonWorkingDays", "screen": true, "invalidatedResults": { "validation": false, "prescreen": false, "filter": false, "filterScenarios": false, "accountMapping": false } },
+    { "case": "project.update.date", "action": "project.update", "screen": true, "invalidatedResults": { "validation": false, "prescreen": true, "filter": true, "filterScenarios": true, "accountMapping": false } },
+    { "case": "project.update.metadata", "action": "project.update", "screen": true, "invalidatedResults": { "validation": false, "prescreen": false, "filter": false, "filterScenarios": false, "accountMapping": false } }
+  ]
+}

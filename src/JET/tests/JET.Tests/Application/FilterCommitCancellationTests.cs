@@ -91,7 +91,6 @@ public sealed class FilterCommitCancellationTests
         PeriodEnd: "2025-12-31",
         LastAccountingPeriodDate: "2024-12-31",
         MoneyScale: ProjectDocument.DefaultMoneyScale,
-        RoundingMode: ProjectDocument.DefaultRoundingMode,
         CreatedUtc: new DateTimeOffset(2026, 7, 14, 0, 0, 0, TimeSpan.Zero),
         CurrentStep: 4,
         SchemaVersion: ProjectDocument.CurrentSchemaVersion);

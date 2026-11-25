@@ -141,7 +141,7 @@ JET 為 Windows 桌面應用程式，使用者依下表的六個步驟操作。
 | 成功回應 | 相同的 requestId、ok 為 true、data，以及後端產生的 correlationId，支援日誌以同一值記錄該請求。 |
 | 失敗回應 | 相同的 requestId、ok 為 false、correlationId；error 含錯誤碼 code 與中文的錯誤訊息 message，並可含欄位名稱 field 與逐條明細 details。 |
 | 錯誤碼 | 定義於 JetErrorCodes，例如 invalid_payload、operation_in_progress、operation_cancelled 與 database_ 開頭的資料庫錯誤；處理規則見 Design Principle.docx 第 4.5 節。 |
-| 事件 | import.progress、mapping.progress 與 export.progress 三種進度事件，含 event 與 data。 |
+| 事件 | import.progress、mapping.progress 與 export.progress 三種進度事件，含 event、送出該進度的請求的 requestId 與 data；請求已收到回應後才送達的進度，前端不顯示。 |
 | 逾時與重試 | 請求：未設逾時，失敗後不自動重送；長時間作業可由使用者取消。<br>「訊息」區紀錄的寫入（log.append）：失敗時，留待下次狀態變更再送出。 |
 
 ## 5. Dependency Security: SBOM & SCA
@@ -348,7 +348,7 @@ dotnet package list --project JET/JET.csproj `
 |---|---|
 | 身分驗證與授權 | 登入：JET 未另設登入機制。JET 為單機執行的桌面應用程式，不提供網路服務；使用者須先以 Windows 帳號登入 GD 環境才能執行 JET，身分由 Windows 驗證。<br>使用者識別：建案者與案件鎖的持有人取自目前登入的 Windows 帳號。<br>授權：案件資料夾的存取由 Windows 檔案權限控管。 |
 | 資料保護 | 處理範圍：案件資料於本機處理。<br>案件設定：查核期間、金額存放倍率等建立案件時決定的設定不可修改，資料庫以 trigger 拒絕變更，見第 9 節。<br>輸出檔：暫存檔、檔名與不覆寫工作底稿的規則見 Design Principle.docx 第 4.4 節。 |
-| 輸入檢查 | SQL：參數化與 allowlist 的規則見 Design Principle.docx 第 4.4 節；allowlist 指程式內預先列出的允許值。<br>案件名稱：只允許文字、數字、半形空白、底線、連字號與括號，最長 100 字，不得為 Windows 保留的裝置名稱。<br>檔案路徑：報告與工作底稿的完整路徑須位於案件資料夾內；案件根資料夾與案件資料夾的路徑不得含 reparse point，即符號連結等指向其他位置的檔案系統連結。<br>來源檔：副檔名限 .xlsx、.xlsm、.xls、.csv、.txt、.mdb、.accdb；以唯讀方式開啟，且不執行檔案內的巨集。<br>日期：payload 的日期須為 yyyy-MM-dd；建立案件時，查核起始日與查核截止日的年份須為 1900 至 2100 年，起始日不晚於截止日。<br>數量：抽樣筆數 1 至 1,048,524 筆；每項清單條件最多 100 個值；每個案件最多 10 個篩選情境。<br>文字長度：見第 9 節。<br>未通過時：請求不執行，回覆錯誤碼與錯誤訊息。<br>分頁：每頁最多 200 筆；未指定或超出範圍的筆數，以範圍內的筆數查詢。<br>使用者全名：Windows 回傳的值去除前後空白後為空字串、含控制字元或超過 256 個字元時，建案者記為帳號短名。 |
+| 輸入檢查 | SQL：參數化與 allowlist 的規則見 Design Principle.docx 第 4.4 節；allowlist 指程式內預先列出的允許值。<br>案件名稱：只允許文字、數字、半形空白、底線、連字號與括號，最長 100 字，不得為 Windows 保留的裝置名稱。<br>檔案路徑：報告與工作底稿的完整路徑須位於案件資料夾內；案件根資料夾與案件資料夾的路徑不得含 reparse point，即符號連結等指向其他位置的檔案系統連結。<br>來源檔：副檔名限 .xlsx、.xlsm、.xls、.csv、.txt、.mdb、.accdb；以唯讀方式開啟，且不執行檔案內的巨集。<br>日期：payload 的日期須為 yyyy-MM-dd；建立案件時，查核起始日與查核截止日的年份須為 1900 至 2100 年，起始日不晚於截止日。<br>數量：抽樣筆數 1 至 1,048,524 筆；每項清單條件最多 100 個值；每個案件最多 10 個篩選情境。<br>文字長度：見第 9 節。<br>未通過時：請求不執行，回覆錯誤碼與錯誤訊息。<br>分頁：每頁最多 200 筆；未指定、0 或負數時以預設筆數查詢，超過 200 筆時以 200 筆查詢。<br>使用者全名：Windows 回傳的值去除前後空白後為空字串、含控制字元或超過 256 個字元時，建案者記為帳號短名。 |
 | 機密管理 | JET 不使用密碼、金鑰、token 或含密碼的連線字串。 |
 | 介面與 runtime 的安全 | WebView2 的導覽：本機頁面的網址為 https://app.jet.local，見第 6 節；頁面導覽至其他網址時取消，要求開啟新視窗時不開啟。<br>WebView2 的 host objects：停用。host objects 是將後端物件提供給頁面的 JavaScript 直接呼叫的功能。<br>前端：未使用 iframe，也未引用外部網址的資源。<br>Debug 組態才啟用的功能：資料庫檢視、診斷日誌與示範資料的請求（dev.*、demo.*、project.loadDemo），診斷日誌的寫入，以及 WebView2 的開發人員工具、瀏覽器快速鍵與右鍵選單；Release 組態不註冊這些請求。<br>非預期的例外：例外內容不傳至前端，見 Design Principle.docx 第 4.5 節。 |
 | 弱點通報與處置 | 待填寫 |
@@ -408,14 +408,14 @@ tests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe --filter-not-trait "Test
 node --test --test-concurrency=4 tests/frontend/
 ```
 
-驗收條件為上列命令執行的測試案例全數通過，無失敗與略過。2026-11-24 的執行結果如下，明細見 Code Review/Unit test Report.xlsx。
+驗收條件為上列命令執行的測試案例全數通過，無失敗與略過。2026-11-25 的執行結果如下，明細見 Code Review/Unit test Report.xlsx。
 
 | 項目 | 結果 |
 |---|---|
-| 後端測試 | 5,448 個測試案例全數通過。 |
-| 前端測試 | 1,095 個測試案例全數通過。 |
-| 程式碼涵蓋率 | 後端的行涵蓋率（line coverage）為 93.2%，共 48,144 行中執行 44,857 行；以 Microsoft.Testing.Extensions.CodeCoverage 量測，命令見下方。未訂定涵蓋率門檻。 |
-| 涵蓋缺口 | 前端的 JavaScript 未量測涵蓋率。<br>Host 的行涵蓋率為 61.9%，Bridge 為 79.7%；主視窗 Form1 與 JetWebMessageBridge 中操作 WebView2 的程式，大部分未由自動化測試執行。 |
+| 後端測試 | 5,765 個測試案例全數通過。 |
+| 前端測試 | 1,129 個測試案例全數通過。 |
+| 程式碼涵蓋率 | 後端的行涵蓋率（line coverage）為 93.2%，共 49,070 行中執行 45,717 行；以 Microsoft.Testing.Extensions.CodeCoverage 量測，命令見下方。未訂定涵蓋率門檻。 |
+| 涵蓋缺口 | 前端的 JavaScript 未量測涵蓋率。<br>Host 的行涵蓋率為 61.1%，Bridge 為 80.0%；主視窗 Form1 與 JetWebMessageBridge 中操作 WebView2 的程式，大部分未由自動化測試執行。 |
 
 量測程式碼涵蓋率時，後端測試命令另加下列參數：
 
@@ -499,13 +499,10 @@ JET 1.0.0.0 為 repository 的首次 commit，無先前的修訂。Git commit �
 | 未安裝 Access Database Engine | 匯入 Access 資料表時顯示來源檔讀取失敗，錯誤訊息未提示安裝 Access Database Engine。 |
 | 案件資料夾名稱 | 案件資料夾的名稱與案件名稱不符時無法開啟，錯誤訊息未說明是名稱不符。 |
 | 工作底稿的檔案數 | 每次匯出新增一個檔案，JET 不自動清除；案件的報告清單達 4,096 筆時無法再匯出。 |
-| 日期提醒 | 確認 GL 欄位配對後列出的日期提醒未隨案件保存，重新開啟案件後不再列出。 |
-| 金額輸入的檢查 | 進階條件篩選的金額輸入，前端與後端接受的寫法不同；篩選結果以後端的判斷為準。 |
 
 **替代處理方式**
 
 - 工作底稿的檔案數達上限時，於案件資料夾刪除不需要的舊工作底稿後再匯出。
-- 日期提醒於重新確認 GL 欄位配對後再次列出。
 
 **延後工作**
 

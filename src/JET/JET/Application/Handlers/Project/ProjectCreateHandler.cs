@@ -13,6 +13,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
     private readonly IProjectSessionPublisher session;
     private readonly ISupportCaseHistory? supportHistory;
     private readonly ILogger? logger;
+    private readonly ProjectSessionDeparture? sessionDeparture;
 
     internal ProjectCreateHandler(
         IProjectStore projectStore,
@@ -20,7 +21,8 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         CurrentPrincipal principal,
         IProjectSessionPublisher session,
         ISupportCaseHistory? supportHistory = null,
-        ILogger<ProjectCreateHandler>? logger = null)
+        ILogger<ProjectCreateHandler>? logger = null,
+        ProjectSessionDeparture? sessionDeparture = null)
     {
         this.projectStore = projectStore;
         this.repositoryCatalog = repositoryCatalog;
@@ -28,6 +30,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         this.session = session;
         this.supportHistory = supportHistory;
         this.logger = logger;
+        this.sessionDeparture = sessionDeparture;
     }
 
     public string Action => "project.create";
@@ -124,6 +127,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                 document,
                 HasUserSuppliedProjectName: !string.IsNullOrWhiteSpace(projectNameRaw),
                 principal.Name));
+
         ProjectCreateFacts facts;
         SupportOperationStage.Enter("case_create");
         try
@@ -158,6 +162,12 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             // 回應物件要在進入 session 之前建好；這一行之後不再做任何可能失敗的回應組裝工作。
             var response = new { projectId = document.ProjectId, ok = true,
                 warnings = ProjectMetadataRules.GetWarnings(periodStart, periodEnd, prepStartDate) };
+            // 新的案件建好之後、進入 session 之前，才離開目前還開著的另一個案件，放掉它的工作鎖並關閉它的資料庫。
+            // 名稱、查核期間或建立案件資料夾失敗時，目前的案件照樣開著。
+            if (sessionDeparture is not null)
+            {
+                await sessionDeparture.LeaveOtherProjectAsync(document.ProjectId);
+            }
             session.Enter(document.ProjectId, repositories);
             // finalize 與 session 都完成後才結算建案；結算不理會請求取消，只做一次。
             await projectCreateFactsPort.CompleteAsync(facts, CancellationToken.None);

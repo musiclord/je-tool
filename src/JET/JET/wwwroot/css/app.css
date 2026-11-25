@@ -6924,6 +6924,9 @@ button.category-tree__toggle { cursor: pointer; }
 button.category-tree__toggle:hover { color: var(--color-ink); background: rgba(var(--shade), 0.07); }
 button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .account-tree__category { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+/* 第五步從科目樹選取的科目清單：一頁的科目很多，比照第四步科目清單放在有高度上限的框裡捲動，分頁列留在框下方。 */
+.account-tree__list { display: grid; gap: var(--space-2); max-height: 420px; overflow: auto; padding: var(--space-2) var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); }
+.account-tree__pager > .table-pager { margin-top: 0; }
 .account-editor__table { margin: var(--space-4) 0; max-height: 420px; overflow: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 0; }
 .account-editor__table thead { position: sticky; top: 0; z-index: 1; background: var(--color-surface-raised); }
 .account-editor__table table { width: 100%; }

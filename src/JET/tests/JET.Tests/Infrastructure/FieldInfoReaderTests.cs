@@ -171,15 +171,25 @@ public sealed class FieldInfoReaderTests
         }
     }
 
-    [Fact]
-    public async Task XlsxNativeIsoDateCell_UsesDeclaredDateType()
+    // 儲存格型別 t="d" 的值是日期的文字，照原文讀成文字，和其他文字格子相同；讀取器不換算時差、不補上沒寫的日期或年份，
+    // 讀不成日期的內容也照原文保留，日期在確認配對時才判讀。沒有值的格子當成空白。
+    [Theory]
+    [InlineData("2024-01-05T00:30:00+09:00")]
+    [InlineData("2024-01-05T00:30:00Z")]
+    [InlineData("2024-06-30T15:45:00Z")]
+    [InlineData("13:45")]
+    [InlineData("1.25")]
+    [InlineData("2024-01-05")]
+    [InlineData("2024-01-05T00:00:00")]
+    [InlineData("abc")]
+    public async Task XlsxDateTypedCell_IsReadAsTheWrittenText(string written)
     {
         var path = new RawXlsxBuilder()
             .AddSheet("Data",
-                """
+                $"""
                 <sheetData>
-                <row r="1"><c r="A1" t="inlineStr"><is><t>NativeDate</t></is></c></row>
-                <row r="2"><c r="A2" t="d"><v>2024-06-30T15:45:00Z</v></c></row>
+                <row r="1"><c r="A1" t="inlineStr"><is><t>NativeDate</t></is></c><c r="B1" t="inlineStr"><is><t>EmptyDate</t></is></c><c r="C1" t="inlineStr"><is><t>Text</t></is></c></row>
+                <row r="2"><c r="A2" t="d"><v>{written}</v></c><c r="B2" t="d"><v></v></c><c r="C2" t="inlineStr"><is><t>x</t></is></c></row>
                 </sheetData>
                 """)
             .Save();
@@ -188,8 +198,10 @@ public sealed class FieldInfoReaderTests
         {
             var row = Assert.Single(await ReadXlsxRowsAsync(path));
 
-            AssertObservation(row, "NativeDate", LegacyFieldKind.Date, textLength: 10, decimalPlaces: null);
-            Assert.Equal("2024-06-30", row.Values["NativeDate"]);
+            AssertObservation(row, "NativeDate", LegacyFieldKind.Text, textLength: written.Length, decimalPlaces: null);
+            Assert.Equal(written, row.Values["NativeDate"]);
+            Assert.False(row.Values.ContainsKey("EmptyDate"));
+            Assert.DoesNotContain(row.FieldObservations, observation => observation.FieldName == "EmptyDate");
         }
         finally
         {

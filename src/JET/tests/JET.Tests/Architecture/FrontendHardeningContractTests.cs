@@ -35,6 +35,31 @@ public sealed class FrontendHardeningContractTests
     }
 
     [Fact]
+    public void NativeShutdown_WhileAnOperationRuns_RegistersTheReasonWithWindowsWithoutADialog()
+    {
+        var form = File.ReadAllText(Path.Combine(SolutionRoot(), "JET", "Form1.cs"));
+        // 先用斷言確認方法存在，沒有時看到的是斷言失敗，不是擷取方法時丟出的例外。
+        Assert.Contains("void WndProc(", form, StringComparison.Ordinal);
+        var closing = ExtractCSharpMethod(form, "OnFormClosing");
+        var windowMessages = ExtractCSharpMethod(form, "WndProc");
+
+        // Windows 問能不能關機時作業還在進行：先把原因登記給 Windows 再回覆，不跳對話框，也不改走畫面上的提示。
+        AssertOrder(
+            closing,
+            "TryAcquireShutdownExecutionLease",
+            "CloseReason.WindowsShutDown",
+            "ShutdownBlockReasonCreate(Handle, BusyExitMessage)",
+            "MessageBox.Show(",
+            "NotifyBusyNativeExitAsync()");
+        // 可以關閉時先撤回原因，再釋放 runtime。
+        AssertOrder(closing, "ShutdownBlockReasonDestroy(", "_runtime?.Dispose()");
+        // 關機被取消時撤回原因，其他訊息照常交給 WinForms。
+        AssertOrder(windowMessages, "WmEndSession", "m.WParam == IntPtr.Zero", "ShutdownBlockReasonDestroy(", "base.WndProc(ref m)");
+        // 登記的原因沿用作業還在進行時的同一句。
+        Assert.Contains("BusyExitMessage = \"作業還在進行，請等它完成後再試一次。\"", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RuntimeFrontend_DoesNotExposeTestCaseLoadersInAnyConfiguration()
     {
         var frontendRoot = Path.Combine(SolutionRoot(), "JET", "wwwroot");

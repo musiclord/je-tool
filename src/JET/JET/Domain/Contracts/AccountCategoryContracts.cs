@@ -162,20 +162,6 @@ public static class AccountCategoryCatalog
     public static AccountCategorySnapshot BuiltInSnapshot { get; } =
         new(1, AccountCategoryBuiltIns.All);
 
-    public static AccountCategory ResolveImportCategory(
-        AccountCategorySnapshot categorySnapshot,
-        string? raw)
-    {
-        if (TryResolveImportCategory(categorySnapshot, raw, out var resolved))
-        {
-            return resolved;
-        }
-
-        throw new JetActionException(
-            JetErrorCodes.ProjectionFailed,
-            $"分類「{raw}」不在本案件的科目分類中（{LabelList(categorySnapshot)}），請改用清單中的分類名稱。");
-    }
-
     /// <summary>
     /// 把匯入檔分類欄的一格對到案件的分類。空白算 Others；有內容時先比分類身分與目前的分類名稱（名稱不分大小寫）。
     /// 都對不到時，內建分類原本的英文名稱仍指向那個內建分類：內建分類可以改名，

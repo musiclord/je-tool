@@ -76,7 +76,6 @@ public sealed class JsonFileProjectStoreTests
         "2024-12-31",
         "2024-12-31",
         ProjectDocument.DefaultMoneyScale,
-        ProjectDocument.DefaultRoundingMode,
         createdUtc ?? DateTimeOffset.UtcNow,
         CurrentStep: 1,
         ProjectDocument.CurrentSchemaVersion,
@@ -130,7 +129,6 @@ public sealed class JsonFileProjectStoreTests
         Assert.Equal(older.ProjectCode, found.ProjectCode);
         Assert.Equal(older.ClientName, found.ClientName);
         Assert.Equal(older.MoneyScale, found.MoneyScale);
-        Assert.Equal(older.RoundingMode, found.RoundingMode);
         Assert.Equal(older.PeriodStart, found.PeriodStart);
         Assert.Equal(older.LastAccountingPeriodDate, found.LastAccountingPeriodDate);
     }
@@ -319,6 +317,31 @@ public sealed class JsonFileProjectStoreTests
         Assert.Equal(good.ProjectId, Assert.Single(listed).ProjectId);
     }
 
+    /// <summary>首次發布的 JET 寫的設定檔，案件名稱是 first-release。</summary>
+    private const string FirstReleasedProjectJson = """
+        {
+          "projectId": "first-release",
+          "projectCode": "SYNTHETIC",
+          "clientName": "合成工業股份有限公司",
+          "operatorId": "auditor",
+          "periodStart": "2025-01-01",
+          "periodEnd": "2025-12-31",
+          "lastAccountingPeriodDate": "2026-01-12",
+          "moneyScale": 10000,
+          "roundingMode": "AwayFromZero",
+          "createdUtc": "2026-11-20T06:38:52.1783553+00:00",
+          "currentStep": 4,
+          "schemaVersion": 2,
+          "databaseProvider": "sqlite",
+          "rocDateEnabled": true,
+          "lastOpenedUtc": "2026-11-20T06:39:16.0549379+00:00",
+          "nonWorkingDays": [0, 6],
+          "sampleSeed": 1940292176,
+          "sampleSeedVersion": 2,
+          "calendarImported": true
+        }
+        """;
+
     // 首次發布的設定檔是第 2 版。之後的版本改了設定檔的格式，也要讀得出這一版寫的設定檔，不能請審計員刪除案件。
     [Fact]
     public async Task FirstReleasedProjectJson_CanStillBeRead()
@@ -328,29 +351,7 @@ public sealed class JsonFileProjectStoreTests
         var store = new JsonFileProjectStore(folder);
         const string projectId = "first-release";
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        await ProjectJsonEdits.WriteAllTextAsync(folder.GetProjectJsonPath(projectId), """
-            {
-              "projectId": "first-release",
-              "projectCode": "SYNTHETIC",
-              "clientName": "合成工業股份有限公司",
-              "operatorId": "auditor",
-              "periodStart": "2025-01-01",
-              "periodEnd": "2025-12-31",
-              "lastAccountingPeriodDate": "2026-01-12",
-              "moneyScale": 10000,
-              "roundingMode": "AwayFromZero",
-              "createdUtc": "2026-11-20T06:38:52.1783553+00:00",
-              "currentStep": 4,
-              "schemaVersion": 2,
-              "databaseProvider": "sqlite",
-              "rocDateEnabled": true,
-              "lastOpenedUtc": "2026-11-20T06:39:16.0549379+00:00",
-              "nonWorkingDays": [0, 6],
-              "sampleSeed": 1940292176,
-              "sampleSeedVersion": 2,
-              "calendarImported": true
-            }
-            """);
+        await ProjectJsonEdits.WriteAllTextAsync(folder.GetProjectJsonPath(projectId), FirstReleasedProjectJson);
 
         var found = await store.FindAsync(projectId, CancellationToken.None);
 
@@ -367,6 +368,58 @@ public sealed class JsonFileProjectStoreTests
         Assert.Equal(1940292176L, found.SampleSeed);
         Assert.Equal(2, found.SampleSeedVersion);
         Assert.True(found.CalendarImported);
+    }
+
+    // 首次發布的設定檔另有進位方式 roundingMode。金額的進位方式固定，不是案件設定，所以再存檔時不寫這一欄；
+    // 設定檔版本仍是第 2 版，其他設定照舊讀得出來。
+    [Fact]
+    public async Task FirstReleasedProjectJson_SavedAgain_DropsRoundingMode()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        const string projectId = "first-release";
+        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        var path = folder.GetProjectJsonPath(projectId);
+        await ProjectJsonEdits.WriteAllTextAsync(path, FirstReleasedProjectJson);
+        var found = await store.FindAsync(projectId, CancellationToken.None);
+        Assert.NotNull(found);
+
+        await store.SaveAsync(found, CancellationToken.None);
+
+        using (var saved = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(path)))
+        {
+            Assert.False(saved.RootElement.TryGetProperty("roundingMode", out _));
+            Assert.Equal(2, saved.RootElement.GetProperty("schemaVersion").GetInt32());
+        }
+
+        var reread = await store.FindAsync(projectId, CancellationToken.None);
+        Assert.NotNull(reread);
+        Assert.Equal(10_000, reread.MoneyScale);
+        Assert.Equal(1940292176L, reread.SampleSeed);
+    }
+
+    // 設定檔沒有 roundingMode 時照常讀出案件。現行版本存的設定檔沒有這一欄，設定檔版本因此仍是第 2 版，不必提高。
+    [Fact]
+    public async Task ProjectJsonWithoutRoundingMode_CanBeRead()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument();
+        await store.CreateAsync(document, CancellationToken.None);
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        node.Remove("roundingMode");
+        await ProjectJsonEdits.WriteAllTextAsync(path, node.ToJsonString());
+
+        var found = await store.FindAsync(document.ProjectId, CancellationToken.None);
+
+        Assert.NotNull(found);
+        Assert.Equal("2024-01-01", found.PeriodStart);
+        Assert.Equal("2024-12-31", found.PeriodEnd);
+        Assert.Equal(10_000, found.MoneyScale);
+        Assert.Equal(1_234_567L, found.SampleSeed);
     }
 
     // 設定檔版本比現行版本新，是較新版本的 JET 寫過的案件：訊息請使用者改用較新版本，不叫他刪除案件。

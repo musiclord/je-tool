@@ -71,7 +71,7 @@ public sealed class ExportFileWriteErrorTests
                 (editor, cancellationToken) =>
                 {
                     editor.RewriteWorksheetPart("Summary Inforamtion", static (_, _) => { }, cancellationToken);
-                    using var sheet = AddDetailSheet(editor.Document, "合成明細");
+                    using var sheet = AddDetailSheet(editor.Document, "合成明細", SheetUsedRange.Table(detailRows, 10));
                     for (uint row = 1; row <= detailRows; row++)
                     {
                         sheet.WriteDataRow(row, [.. Enumerable.Range(1, 10)
@@ -266,6 +266,24 @@ public sealed class ExportFileWriteErrorTests
             "無法寫入 Windows 暫存資料夾，本次未產生。請確認目前的 Windows 帳號可以寫入暫存資料夾，再試一次。",
             exception.Message);
         Assert.IsType<UnauthorizedAccessException>(exception.InnerException);
+    }
+
+    /// <summary>
+    /// 填範本途中遇到磁碟已滿與沒有權限以外的讀寫錯誤，例如網路磁碟斷線。這和範本無關，重新下載 JET 也沒有用，
+    /// 所以不說成範本無法填入，和其他沒有歸類的意外錯誤顯示同一句。測試不切斷這台電腦的磁碟，用合成的讀寫錯誤代替。
+    /// </summary>
+    [Fact]
+    public async Task FillingTemplate_OtherFileError_ShowsTheCommonUnexpectedError()
+    {
+        await using var output = new MemoryStream();
+        var fileError = new IOException("合成的讀寫錯誤");
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() => FillCriteriaTemplateAsync(
+            output,
+            () => throw fileError));
+
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, JET.Bridge.JetWebMessageBridge.ToErrorDto(exception).Message);
+        Assert.Same(fileError, exception);
     }
 
     [Fact]
@@ -467,7 +485,7 @@ public sealed class ExportFileWriteErrorTests
         info.SetAccessControl(security);
     }
 
-    private static ReportSheetWriter AddDetailSheet(SpreadsheetDocument document, string name)
+    private static ReportSheetWriter AddDetailSheet(SpreadsheetDocument document, string name, SheetUsedRange usedRange)
     {
         var workbookPart = document.WorkbookPart!;
         var sheets = workbookPart.RequiredWorkbook().Sheets!;
@@ -478,7 +496,7 @@ public sealed class ExportFileWriteErrorTests
             SheetId = sheets.Elements<Sheet>().Max(sheet => sheet.SheetId?.Value ?? 0U) + 1U,
             Name = name
         });
-        return new ReportSheetWriter(name, part);
+        return new ReportSheetWriter(name, part, usedRange);
     }
 
     /// <summary>

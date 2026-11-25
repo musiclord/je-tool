@@ -819,6 +819,196 @@ public sealed class ValidationDirectTemplatePackageTests
         AssertOpenXmlValid(bytes);
     }
 
+    /// <summary>
+    /// 每一張工作表的 dimension 都等於實際寫出的格子範圍：摘要頁、欄位資訊、step1-3 差異表與它的續頁、明細的續頁、
+    /// V_Report 5 與隱藏的中繼資料都一樣。續頁的列數上限是 17 時，差異表從第 17 列起寫，一頁只放得下一個科目，
+    /// 最後一筆剛好在列數上限，下面沒有鎖定的空白列；上限是 20 時一頁四個科目，22 個科目的最後一頁只有兩個，下面多一列鎖定的空白格。
+    /// 明細表一頁放「上限減 1」列，22 列在兩種設定下都有續頁。V_Report 5 寫到 Excel 的列數上限才換頁，所以兩種設定都只有一張。
+    /// </summary>
+    [Theory]
+    [InlineData(17U)]
+    [InlineData(20U)]
+    public async Task EveryWorksheet_DeclaresDimensionEqualToWrittenCells(uint continuationRowLimit)
+    {
+        const int rowCount = 22;
+        var repositories = new ValidationRepositoryFakes
+        {
+            CompletenessRows = Enumerable.Range(1, rowCount)
+                .Select(index => new CompletenessDiffAccount(
+                    $"{1_100 + index}",
+                    index % 2 == 0 ? null : $"合成科目{index}",
+                    10_000,
+                    9_000,
+                    1_000L * index,
+                    false))
+                .ToArray(),
+            BlankRows = Enumerable.Range(1, rowCount)
+                .Select(index => new BlankRecordRow(
+                    $"DOC-{index}", null, "2025-03-01", "row", true, false, false, false, 1_000 + index))
+                .ToArray(),
+            SourceQualityRows = Enumerable.Range(1, rowCount)
+                .Select(index => new SourceQualityFindingRow(
+                    "blankGlDate", index, "synthetic-source.xlsx [GL]", $"DOC-{index}", "1000", null, null, index))
+                .ToArray()
+        };
+        var projection = Projection(
+            blankAccountNumberCount: rowCount,
+            completenessDiffAccountCount: rowCount,
+            sourceQualityFindingCount: rowCount);
+        var fieldInfo = JetAuditProgram.ProjectFieldInfo(
+            [new FieldInfo(1, "TB_TEXT_TB", null, LegacyFieldKind.Text, 20, null)],
+            [
+                new FieldInfo(1, "GL_TEXT_JE", null, LegacyFieldKind.Text, 40, null),
+                new FieldInfo(2, "GL_NUMBER", null, LegacyFieldKind.Number, null, 2)
+            ]);
+
+        var bytes = await WriteReportAsync(
+            repositories,
+            projection,
+            Plan(projection, unbalancedDetailRowCount: 0),
+            fieldInfo,
+            new LegacyReportWriterOptions(continuationRowLimit));
+
+        using (var document = Open(bytes))
+        {
+            var names = document.WorkbookPart!.RequiredWorkbook().Sheets!.Elements<Sheet>()
+                .Select(sheet => sheet.Name!.Value!)
+                .ToArray();
+            Assert.Contains(LegacyReportWriter.SeriesName(WorkingPaperSheetCatalog.Step13, 2), names);
+            Assert.Contains(LegacyReportWriter.SeriesName("V_Report 1", 2), names);
+            Assert.Contains(LegacyReportWriter.SeriesName("Source_Quality", 2), names);
+            Assert.Contains("V_Report 5", names);
+            Assert.DoesNotContain(LegacyReportWriter.SeriesName("V_Report 5", 2), names);
+            Assert.Contains(ReportWorkbookMetadataFormat.WorksheetName, names);
+        }
+
+        JET.Tests.Infrastructure.WorksheetDimensionAssert.EveryWorksheetMatchesWrittenCells(bytes);
+        AssertOpenXmlValid(bytes);
+    }
+
+    /// <summary>
+    /// 資料驗證報告的文字都寫進共用字串表：摘要頁、欄位資訊、step1-3 差異表與續頁、明細的續頁都一樣。
+    /// 只有 JET 讀回用的兩種紀錄照樣寫成 inline string：JET_Metadata，以及欄位資訊頁 F1:H1 的配對紀錄；
+    /// 欄位資訊看得見的對照表照樣讀得回配對前的欄名。
+    /// </summary>
+    [Fact]
+    public async Task TextCells_ReferToTheSharedStringTable()
+    {
+        const int rowCount = 22;
+        var repositories = new ValidationRepositoryFakes
+        {
+            CompletenessRows = Enumerable.Range(1, rowCount)
+                .Select(index => new CompletenessDiffAccount(
+                    $"{1_100 + index}",
+                    index % 2 == 0 ? null : $"合成科目{index}",
+                    10_000,
+                    9_000,
+                    1_000L * index,
+                    false))
+                .ToArray(),
+            BlankRows = Enumerable.Range(1, rowCount)
+                .Select(index => new BlankRecordRow(
+                    $"DOC-{index}", null, "2025-03-01", "row", true, false, false, false, 1_000 + index))
+                .ToArray(),
+            SourceQualityRows = Enumerable.Range(1, rowCount)
+                .Select(index => new SourceQualityFindingRow(
+                    "blankGlDate", index, "synthetic-source.xlsx [GL]", $"DOC-{index}", "1000", null, null, index))
+                .ToArray()
+        };
+        var projection = Projection(
+            blankAccountNumberCount: rowCount,
+            completenessDiffAccountCount: rowCount,
+            sourceQualityFindingCount: rowCount);
+        var fieldInfo = JetAuditProgram.ProjectFieldInfo(
+            [new FieldInfo(1, "TB_TEXT_TB", null, LegacyFieldKind.Text, 20, null)],
+            [
+                new FieldInfo(1, "GL_TEXT_JE", null, LegacyFieldKind.Text, 40, null),
+                new FieldInfo(2, "GL_NUMBER", null, LegacyFieldKind.Number, null, 2)
+            ]);
+
+        var bytes = await WriteReportAsync(
+            repositories,
+            projection,
+            Plan(projection, unbalancedDetailRowCount: 0),
+            fieldInfo,
+            new LegacyReportWriterOptions(17U));
+
+        JET.Tests.Infrastructure.SharedStringTableAssert.TextCellsReferToTheSharedStringTable(bytes);
+        Assert.Empty(JET.Tests.Infrastructure.SharedStringTableAssert.RecordCellsNotInline(bytes));
+        AssertOpenXmlValid(bytes);
+        using var workbook = new XLWorkbook(new MemoryStream(bytes, writable: false));
+        var fieldInfoNames = workbook.Worksheet(FieldInfoSheet).Column(1).CellsUsed().Select(cell => cell.GetString()).ToArray();
+        Assert.Contains("TB_TEXT_TB", fieldInfoNames);
+        Assert.Contains("GL_TEXT_JE", fieldInfoNames);
+        Assert.Equal(MappingMetadataFormat.Marker, workbook.Worksheet(FieldInfoSheet).Cell("F1").GetString());
+    }
+
+    /// <summary>
+    /// 同一份合成資料分別用照原樣寫出的寫法與和 Excel 相同的寫法產生資料驗證報告：文字一份是 inline string、一份在共用字串表，
+    /// 摘要頁、欄位資訊、step1-3 差異表與續頁、明細的續頁，儲存格的內容與外觀都相同。差異表的科目名稱有一筆含換行。
+    /// </summary>
+    [Fact]
+    public async Task ExcelLayout_KeepsCellContentAndAppearance()
+    {
+        const int rowCount = 22;
+        var repositories = new ValidationRepositoryFakes
+        {
+            CompletenessRows = Enumerable.Range(1, rowCount)
+                .Select(index => new CompletenessDiffAccount(
+                    $"{1_100 + index}",
+                    index switch
+                    {
+                        1 => "合成科目\n第二行",
+                        _ when index % 2 == 0 => null,
+                        _ => $"合成科目{index}"
+                    },
+                    10_000,
+                    9_000,
+                    1_000L * index,
+                    false))
+                .ToArray(),
+            BlankRows = Enumerable.Range(1, rowCount)
+                .Select(index => new BlankRecordRow(
+                    $"DOC-{index}", null, "2025-03-01", "row", true, false, false, false, 1_000 + index))
+                .ToArray(),
+            SourceQualityRows = Enumerable.Range(1, rowCount)
+                .Select(index => new SourceQualityFindingRow(
+                    "blankGlDate", index, "synthetic-source.xlsx [GL]", $"DOC-{index}", "1000", null, null, index))
+                .ToArray()
+        };
+        var projection = Projection(
+            blankAccountNumberCount: rowCount,
+            completenessDiffAccountCount: rowCount,
+            sourceQualityFindingCount: rowCount);
+        var fieldInfo = JetAuditProgram.ProjectFieldInfo(
+            [new FieldInfo(1, "TB_TEXT_TB", null, LegacyFieldKind.Text, 20, null)],
+            [
+                new FieldInfo(1, "GL_TEXT_JE", null, LegacyFieldKind.Text, 40, null),
+                new FieldInfo(2, "GL_NUMBER", null, LegacyFieldKind.Number, null, 2)
+            ]);
+
+        var asWritten = await WriteReportAsync(
+            repositories,
+            projection,
+            Plan(projection, unbalancedDetailRowCount: 0),
+            fieldInfo,
+            new LegacyReportWriterOptions(17U) { Layout = FormalWorkbookLayout.AsWritten });
+        var sameAsExcel = await WriteReportAsync(
+            repositories,
+            projection,
+            Plan(projection, unbalancedDetailRowCount: 0),
+            fieldInfo,
+            new LegacyReportWriterOptions(17U));
+
+        // 前提：兩份的寫法真的不同，比對才有意義。
+        Assert.NotEqual(0, JET.Tests.Infrastructure.ExcelPackageLayoutAssert.InlineTextCellCount(asWritten));
+        Assert.Equal(0, JET.Tests.Infrastructure.ExcelPackageLayoutAssert.InlineTextCellCount(sameAsExcel));
+        // 同一組檢查認得出照原樣寫出的那一份，和 Excel 相同的那一份全部通過。
+        Assert.NotEmpty(JET.Tests.Infrastructure.ExcelPackageLayoutAssert.Problems(asWritten, ReportTemplateCatalog.Validation));
+        Assert.Empty(JET.Tests.Infrastructure.ExcelPackageLayoutAssert.Problems(sameAsExcel, ReportTemplateCatalog.Validation));
+        JET.Tests.Infrastructure.ExcelPackageLayoutAssert.SameContentAndAppearance(asWritten, sameAsExcel);
+    }
+
     [Fact]
     public async Task FieldInfo_UsesLegacyPhysicalLayoutHiddenRoundTripAndFullDataAutoFitCap()
     {

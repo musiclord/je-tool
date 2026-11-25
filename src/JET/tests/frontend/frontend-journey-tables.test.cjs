@@ -176,6 +176,29 @@ test('approval dates outside the period load the first 200 rows on opening even 
   assert.equal(detail.querySelector('.table-pager').hidden, false, 'more than 200 rows shows the pager');
 });
 
+// 「核准日不在期間」的明細裡，讀不成日期的傳票核准日寫「無法辨識：」加上來源原文，空白的核准日照樣空白，
+// 審計員分得出是哪一種；異常類別兩者都是「核准日不在期間」。後端只在讀不成時帶原文，由 ApprovalDateOutOfPeriodBlankTests 核對。
+test('approval date out of period detail marks unreadable source text apart from blank', async () => {
+  const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 3; data.blankRecordsTest.blankRows = []; });
+  const detail = f.detailOf('null-approvalDateNotInPeriod');
+  f.toggleFor('[data-page-query="null-approvalDateNotInPeriod"]').fire('click');
+  f.requestsOf('queryBlankRecordsPage')[0].resolve({ rows: [
+    { voucherNumber: 'JV-BAD', accountNumber: '1001', glDate: '2025-03-05', approvalDate: null, approvalDateRawValue: '2025-13-45', description: 'Synthetic' },
+    { voucherNumber: 'JV-BLANK', accountNumber: '1001', glDate: '2025-03-05', approvalDate: null, approvalDateRawValue: null, description: 'Synthetic' },
+    { voucherNumber: 'JV-LATE', accountNumber: '1001', glDate: '2025-03-05', approvalDate: '2026-01-05', approvalDateRawValue: null, description: 'Synthetic' }],
+  nextCursor: null, totalCount: 3 }); await settle();
+
+  const headers = detail.querySelectorAll('thead th').map(cell => cell.textContent.trim());
+  const approval = headers.findIndex(text => text.startsWith('傳票核准日'));
+  const category = headers.findIndex(text => text.startsWith('異常類別'));
+  assert.ok(approval >= 0 && category >= 0, headers.join(' | '));
+  const rows = detail.querySelectorAll('tbody tr').map(row => row.querySelectorAll('td').map(cell => cell.textContent));
+  assert.deepEqual(rows.map(cells => [cells[0], cells[approval], cells[category]]), [
+    ['JV-BAD', '無法辨識：2025-13-45', '核准日不在期間'],
+    ['JV-BLANK', '', '核准日不在期間'],
+    ['JV-LATE', '2026-01-05', '核准日不在期間']]);
+});
+
 // 總筆數只在第一頁計算，帶游標的續頁回 totalCount null。
 // 換到第二頁後分頁列仍用第一頁的總筆數算頁數，下一頁照樣可按。
 test('a continuation page without a total keeps the first page count on a step four detail table', async () => {

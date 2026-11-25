@@ -561,9 +561,11 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             return TextValue(value);
         }
 
-        if (dataType == CellValues.String)
+        if (dataType == CellValues.String || dataType == CellValues.Date)
         {
-            // 公式字串取快取值，同樣是 Excel 的跳脫寫法
+            // 公式字串取快取值，同樣是 Excel 的跳脫寫法。
+            // t="d" 的值是 ISO 8601 的日期文字，和其他文字格子一樣照原文讀成文字：讀取器不解析文字，
+            // 不換算時差，也不補上沒寫的日期或年份；這個值是不是日期，確認配對時由日期規則判讀。
             return TextValue(ExcelText.Decode(cell.CellValue?.InnerText ?? string.Empty).Trim());
         }
 
@@ -581,28 +583,15 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
                 return new ExtractedCellValue(string.Empty, LegacyFieldKind.Number, DecimalPlaces: 0);
             }
 
-            var value = raw == "1" ? "true" : "false";
-            return new ExtractedCellValue(value, LegacyFieldKind.Number, DecimalPlaces: 0);
-        }
-
-        if (dataType == CellValues.Date)
-        {
-            // SpreadsheetML 的 t="d" 儲存格，值是 ISO 8601 的日期文字。儲存格型別已經說明它是日期，
-            // 所以在這裡處理，不讓它走到下面被當成數字解析而失敗。值帶有時間時只取日期。
-            var raw = cell.CellValue?.InnerText?.Trim() ?? string.Empty;
-            if (DateTime.TryParse(
-                    raw,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.RoundtripKind,
-                    out var date))
+            // 布林儲存格的值只有 1 與 0。其他程式寫進其他值時照原文保留，不猜它是哪一個；
+            // 欄位型別照儲存格型別記成數字，和數值儲存格寫了不是數字的內容時相同。
+            var value = raw switch
             {
-                return new ExtractedCellValue(
-                    date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    LegacyFieldKind.Date,
-                    DecimalPlaces: null);
-            }
-
-            return new ExtractedCellValue(raw, LegacyFieldKind.Date, DecimalPlaces: null);
+                "1" => "true",
+                "0" => "false",
+                _ => raw
+            };
+            return new ExtractedCellValue(value, LegacyFieldKind.Number, DecimalPlaces: 0);
         }
 
         // 其餘是數值儲存格：沒有型別屬性，或 t="n"。公式儲存格沒有存計算結果時當成空白，讀取時不重算公式；

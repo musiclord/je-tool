@@ -68,12 +68,9 @@ public sealed class ProjectReleaseLockHandler(
 
         if (session.Current is (var projectId, var repositories))
         {
-            await repositories.LockService.ReleaseAsync(projectId, principal.Name, cancellationToken);
-            session.Leave(projectId);
-            if (databaseCheckpoint is not null)
-            {
-                await ProjectDatabaseCheckpointSteps.TryCloseAsync(databaseCheckpoint, projectId, logger);
-            }
+            await ProjectSessionDeparture.LeaveAsync(
+                projectId, repositories.LockService, expected => session.Leave(expected),
+                principal.Name, databaseCheckpoint, logger, cancellationToken);
         }
 
         return new { ok = true };

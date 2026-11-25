@@ -156,7 +156,7 @@ public sealed class FilterOperandParsingTests
     private static FilterValidationContext Context(bool rocEnabled)
     {
         var project = new ProjectDocument("filter-operands", "", "", "test", "2025-01-01", "2025-12-31", null,
-            100, "AwayFromZero", DateTimeOffset.UnixEpoch, 5, ProjectDocument.CurrentSchemaVersion, RocDateEnabled: rocEnabled);
+            100, DateTimeOffset.UnixEpoch, 5, ProjectDocument.CurrentSchemaVersion, RocDateEnabled: rocEnabled);
         var mapping = new CommittedMapping(DatasetKind.Gl, new Dictionary<string, string>
         {
             ["glDate"] = "Date", ["accountNumber"] = "Account", ["amount"] = "Amount", ["description"] = "Description"

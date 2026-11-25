@@ -621,12 +621,15 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
         using var document = SpreadsheetDocument.Open(path, false);
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
         var worksheet = WorkingPaperWriterTestSupport.WorksheetFor(document, CompletenessDiffSheet);
+        var sharedItems = JET.Tests.Infrastructure.WrittenCellText.SharedItems(workbookPart);
 
         Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
         Assert.Equal(
             new[] { "1101", "1201", "4201" },
             new[] { "B17", "B18", "B19" }
-                .Select(reference => WorkingPaperWriterTestSupport.CellFor(worksheet, reference).InnerText)
+                .Select(reference => JET.Tests.Infrastructure.WrittenCellText.Of(
+                    WorkingPaperWriterTestSupport.CellFor(worksheet, reference),
+                    sharedItems))
                 .ToArray());
         Assert.All(
             WorkingPaperWriterTestSupport.Cells(17, 20, 2, 4),

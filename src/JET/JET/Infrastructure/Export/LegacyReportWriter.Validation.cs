@@ -86,7 +86,8 @@ internal sealed partial class LegacyReportWriter
                 operatorId,
                 ct,
                 progress),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            _layout).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<SheetStat>> FillValidationTemplateAsync(
@@ -266,16 +267,17 @@ internal sealed partial class LegacyReportWriter
                     allowed.Add("E24");
                 }
 
+                var worksheet = part.RequiredWorksheet();
                 var cells = new DirectTemplateCellEditor(
-                    part.RequiredWorksheet(),
+                    worksheet,
                     allowed,
                     editor.StylePatcher);
-                cells.SetInlineString("E1", $"Client: {context.Project.CompanyName}");
-                cells.SetInlineString("E2", $"Year End: {context.Project.PeriodEnd}");
+                cells.SetText("E1", $"Client: {context.Project.CompanyName}");
+                cells.SetText("E2", $"Year End: {context.Project.PeriodEnd}");
                 cells.Clear("E3");
-                cells.SetInlineString("E4", $"Prepared by: {operatorId}");
-                cells.SetInlineString("E5", string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
-                cells.SetInlineString("E9", glBatch is null
+                cells.SetText("E4", $"Prepared by: {operatorId}");
+                cells.SetText("E5", string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
+                cells.SetText("E9", glBatch is null
                     ? "N/A"
                     : Path.GetFileName(glBatch.SourceFileName));
                 // E10 照舊版寫借貸淨額的絕對值，差額不到 0.01 時寫 0。
@@ -283,12 +285,12 @@ internal sealed partial class LegacyReportWriter
                 cells.SetNumber("E11", projection.TotalDebit);
                 cells.SetNumber("E12", projection.TotalCredit);
                 cells.SetNumber("E13", projection.GlRowCount);
-                cells.SetInlineString("E14", tbBatch is null
+                cells.SetText("E14", tbBatch is null
                     ? "N/A"
                     : Path.GetFileName(tbBatch.SourceFileName));
                 if (tbBatch is null)
                 {
-                    cells.SetInlineString("E15", "N/A");
+                    cells.SetText("E15", "N/A");
                 }
                 else
                 {
@@ -324,14 +326,14 @@ internal sealed partial class LegacyReportWriter
                 }
                 else
                 {
-                    cells.SetInlineString("D23", "N/A");
-                    cells.SetInlineString("E23", "未設定傳票核准日欄位");
+                    cells.SetText("D23", "N/A");
+                    cells.SetText("E23", "未設定傳票核准日欄位");
                 }
                 // 沒有 TB 時逐科目比對無法執行，比照核准日那一列寫 N/A 並註明原因。
                 if (projection.CompletenessNaNote is { } completenessNote)
                 {
-                    cells.SetInlineString("D24", "N/A");
-                    cells.SetInlineString("E24", completenessNote);
+                    cells.SetText("D24", "N/A");
+                    cells.SetText("E24", completenessNote);
                 }
                 else
                 {
@@ -353,6 +355,8 @@ internal sealed partial class LegacyReportWriter
                 // 主表照舊版加上工作表保護，不設密碼，和欄位資訊頁一樣。
                 cells.ProtectSheet();
                 cells.EnsureAllAllowedCellsWereEdited();
+                // 摘要頁的 dimension 依寫完的格子重算，和條件篩選報告的摘要頁相同；這一頁沒有加列時和範本相同。
+                SheetUsedRange.RefreshDimension(worksheet);
                 ExcelText.SaveWorksheet(part);
                 ct.ThrowIfCancellationRequested();
             },
@@ -400,6 +404,7 @@ internal sealed partial class LegacyReportWriter
                 using var sheet = new ReportSheetWriter(
                     MappingMetadataFormat.WorksheetName,
                     part,
+                    FieldInfoUsedRange(projection, mappingMetadata is not null),
                     [
                         new ReportColumn(1, 1, widths[0], BestFit: true),
                         new ReportColumn(2, 2, widths[1], BestFit: true),
@@ -418,7 +423,7 @@ internal sealed partial class LegacyReportWriter
                 {
                     // 隱藏的配對資料用 0 號樣式，不能沿用看得見的表頭那種自動換行的樣式；
                     // 不然很長的 JSON 會把第 1 列撐高。
-                    firstRow.Add(sheet.TextCell(1, 6, MappingMetadataFormat.Marker, 0));
+                    firstRow.Add(sheet.VerbatimTextCell(1, 6, MappingMetadataFormat.Marker, 0));
                     firstRow.Add(sheet.NumberCell(1, 7, MappingMetadataFormat.CurrentVersion, 0));
                     firstRow.Add(sheet.VerbatimTextCell(1, 8, mappingMetadata, 0));
                 }
@@ -455,6 +460,19 @@ internal sealed partial class LegacyReportWriter
             },
             cancellationToken);
         stat = result ?? throw new InvalidOperationException("Field Info writer did not produce stats.");
+    }
+
+    /// <summary>
+    /// 欄位資訊頁寫出的格子範圍。第 1 列只有隱藏的配對資料 F1:H1，沒有配對資料時整列沒有格子；
+    /// 第 2 列起是 A 到 E 欄的 TB 與 GL 兩張對照表：TB 標題、表頭、TB 各列，兩列空白列，GL 標題、表頭、GL 各列。
+    /// </summary>
+    private static SheetUsedRange FieldInfoUsedRange(FieldInfoProjection projection, bool hasMappingMetadata)
+    {
+        var lastRow = checked(7U + (uint)projection.TbRows.Count + (uint)projection.GlRows.Count);
+        var tables = SheetUsedRange.Of(2, 1, lastRow, 5);
+        return hasMappingMetadata
+            ? tables.Union(SheetUsedRange.Of(1, 6, 1, 8))
+            : tables;
     }
 
     private static void WriteFieldInfoHeader(
@@ -522,10 +540,23 @@ internal sealed partial class LegacyReportWriter
             return;
         }
 
-        // 差異科目用一個查詢依序讀完，各科目的彙總只算一次。先讀第一筆，確認目前的資料仍有差異科目。
-        await using var differences = StreamCompletenessDifferences(context, cancellationToken)
-            .GetAsyncEnumerator(cancellationToken);
-        if (!await differences.MoveNextAsync().ConfigureAwait(false))
+        // 差異科目用一個查詢依序讀完，各科目的彙總只算一次。先全部寫進暫存檔，知道有幾個科目，
+        // 開每一頁時才寫得出那一頁的使用範圍；這張表一列是一個科目，資料量不大。
+        using var differences = RawReportSpool.Create(CompletenessDiffSpoolColumns);
+        await foreach (var item in StreamCompletenessDifferences(context, cancellationToken)
+                           .WithCancellation(cancellationToken)
+                           .ConfigureAwait(false))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            differences.Append(
+            [
+                item.AccountNumber,
+                item.AccountName,
+                item.DiffScaled.ToString(CultureInfo.InvariantCulture)
+            ]);
+        }
+        differences.Complete();
+        if (differences.RowCount == 0)
         {
             // 保存的驗證結果說有差異科目，但目前的資料查不到任何一列，表示來源資料在驗證之後變了，不是範本損壞。
             // 錯誤碼和 MissingRawGlSource 一樣用 StaleResult；如果丟 InvalidDataException，
@@ -546,11 +577,11 @@ internal sealed partial class LegacyReportWriter
         var staticCells = new DirectTemplateCellEditor(
             templateWorksheet,
             ["A1", "A2", "A3"]);
-        staticCells.SetInlineString("A1", $"公司名稱 : {context.CompanyName}");
-        staticCells.SetInlineString(
+        staticCells.SetText("A1", $"公司名稱 : {context.CompanyName}");
+        staticCells.SetText(
             "A2",
             $"測試資料期間 :  {context.PeriodStart} ~ {context.PeriodEnd}");
-        staticCells.SetInlineString(
+        staticCells.SetText(
             "A3",
             $"財務報表準備期間 - 開始日 : {DisplayPrepStartDate(context.PrepStartDate)}");
         staticCells.EnsureAllAllowedCellsWereEdited();
@@ -559,16 +590,19 @@ internal sealed partial class LegacyReportWriter
         var continuationPrototype = (Worksheet)templateWorksheet.CloneNode(true);
 
         var partNumber = 1;
-        uint rowIndex = 17;
+        uint rowIndex = CompletenessDiffFirstRow;
         var sheetName = WorkingPaperSheetCatalog.Step13;
         var currentPart = templatePart;
-        DirectTemplateStreamingSheetWriter? sheet =
-            new(sheetName, templatePart, firstDynamicRow: 17, ensureProtection: true);
+        DirectTemplateStreamingSheetWriter? sheet = new(
+            sheetName,
+            templatePart,
+            firstDynamicRow: CompletenessDiffFirstRow,
+            CompletenessDiffPageRange(differences.RowCount, partNumber),
+            ensureProtection: true);
         try
         {
-            do
+            foreach (var values in differences.ReadRows(cancellationToken))
             {
-                var item = differences.Current;
                 cancellationToken.ThrowIfCancellationRequested();
                 if (rowIndex > _continuationRowLimit)
                 {
@@ -576,7 +610,7 @@ internal sealed partial class LegacyReportWriter
                     sheet.Dispose();
 
                     partNumber++;
-                    rowIndex = 17;
+                    rowIndex = CompletenessDiffFirstRow;
                     sheetName = SeriesName(WorkingPaperSheetCatalog.Step13, partNumber);
                     var continuationPart = editor.AppendWorksheetClone(
                         templatePart,
@@ -587,21 +621,21 @@ internal sealed partial class LegacyReportWriter
                     sheet = new DirectTemplateStreamingSheetWriter(
                         sheetName,
                         continuationPart,
-                        firstDynamicRow: 17,
+                        firstDynamicRow: CompletenessDiffFirstRow,
+                        CompletenessDiffPageRange(differences.RowCount, partNumber),
                         ensureProtection: true);
                 }
 
                 var cells = CompletenessDiffCells(
                     currentPart,
                     rowIndex,
-                    item,
+                    values,
                     context.MoneyScale,
                     cellStyles);
                 sheet.WriteDataRow(rowIndex, cells);
                 rowIndex++;
-                ReportIntermediateRows(stats, sheetName, (long)rowIndex - 17, progress);
+                ReportIntermediateRows(stats, sheetName, (long)rowIndex - CompletenessDiffFirstRow, progress);
             }
-            while (await differences.MoveNextAsync().ConfigureAwait(false));
 
             // 舊版 JET 鎖 B17:D 到「17 加差異科目數」那一列，比最後一筆多一列；這一列補上鎖定的空白格。
             // 最後一筆剛好寫在列數上限時沒有下一列，就不補。
@@ -626,17 +660,50 @@ internal sealed partial class LegacyReportWriter
         }
     }
 
+    /// <summary>step1-3 差異表的第一筆資料列；上面是範本的固定列。</summary>
+    private const uint CompletenessDiffFirstRow = 17;
+
+    /// <summary>step1-3 差異表的一列有 A 到 H 共 8 欄。</summary>
+    private const uint CompletenessDiffColumnCount = 8;
+
+    /// <summary>差異科目寫進暫存檔時的三欄：科目編號、科目名稱與差異金額（放大成整數的值，用不受地區設定影響的寫法）。</summary>
+    private static readonly string[] CompletenessDiffSpoolColumns = ["AccountNumber", "AccountName", "DiffScaled"];
+
+    /// <summary>
+    /// step1-3 差異表第 <paramref name="part"/> 頁資料列的格子範圍，不含範本的固定列。
+    /// 差異科目從第 17 列起一列一個科目，寫滿 A 到 H 欄，寫到續頁的列數上限就換到下一頁。
+    /// 舊版 JET 在最後一筆的下一列多鎖 B 到 D 欄，所以那一列也寫出 B 到 D 欄的空白格；最後一筆剛好在列數上限時沒有這一列。
+    /// </summary>
+    private SheetUsedRange CompletenessDiffPageRange(long totalRows, int part)
+    {
+        var rows = PageRowCount(totalRows, part, _continuationRowLimit - CompletenessDiffFirstRow + 1U);
+        var lastDataRow = CompletenessDiffFirstRow + rows - 1U;
+        var range = SheetUsedRange.Of(CompletenessDiffFirstRow, 1, lastDataRow, CompletenessDiffColumnCount);
+        return lastDataRow < _continuationRowLimit
+            ? range.Union(SheetUsedRange.Of(lastDataRow + 1U, 2, lastDataRow + 1U, 4))
+            : range;
+    }
+
     private static IReadOnlyList<Cell> CompletenessDiffCells(
         WorksheetPart part,
         uint rowIndex,
-        CompletenessDiffAccount item,
+        IReadOnlyList<string?> values,
         int moneyScale,
         CompletenessDiffCellStyles styles) =>
         [
             DirectBlankCell(rowIndex, 1, styles.LeadingBlank),
-            DirectTextCell(part, rowIndex, 2, item.AccountNumber, styles.AccountNumber),
-            DirectTextCell(part, rowIndex, 3, item.AccountName, styles.AccountName),
-            DirectNumberCell(rowIndex, 4, Display(item.DiffScaled, moneyScale), styles.Difference),
+            DirectTextCell(part, rowIndex, 2, values[0], styles.AccountNumber),
+            DirectTextCell(part, rowIndex, 3, values[1], styles.AccountName),
+            DirectNumberCell(
+                rowIndex,
+                4,
+                Display(
+                    long.Parse(
+                        values[2] ?? throw new InvalidDataException("Completeness difference spool is missing an amount."),
+                        NumberStyles.AllowLeadingSign,
+                        CultureInfo.InvariantCulture),
+                    moneyScale),
+                styles.Difference),
             DirectBlankCell(rowIndex, 5, styles.Explanation),
             DirectBlankCell(rowIndex, 6, styles.Reconciliation),
             DirectBlankCell(rowIndex, 7, styles.RemainingDifference),
@@ -706,8 +773,7 @@ internal sealed partial class LegacyReportWriter
         var cell = DirectBlankCell(row, column, style);
         if (!string.IsNullOrEmpty(value))
         {
-            cell.DataType = CellValues.InlineString;
-            cell.InlineString = ExcelText.InlineString(value, part);
+            ExcelText.SetText(cell, value, part);
         }
         return cell;
     }
@@ -811,7 +877,7 @@ internal sealed partial class LegacyReportWriter
         var part = 1;
         var rowIndex = 2U;
         var sheetName = SeriesName(baseName, part);
-        ReportSheetWriter? sheet = OpenSourceQualitySheet(sheetName);
+        ReportSheetWriter? sheet = OpenSourceQualitySheet(sheetName, part);
         try
         {
             foreach (var values in spool.ReadRows(cancellationToken))
@@ -825,7 +891,7 @@ internal sealed partial class LegacyReportWriter
                     rowIndex = 2;
                     sheetName = SeriesName(baseName, part);
                     ReportSheetStarted(stats, sheetName, progress);
-                    sheet = OpenSourceQualitySheet(sheetName);
+                    sheet = OpenSourceQualitySheet(sheetName, part);
                 }
 
                 sheet.WriteDataRow(
@@ -848,12 +914,13 @@ internal sealed partial class LegacyReportWriter
             sheet?.Dispose();
         }
 
-        ReportSheetWriter OpenSourceQualitySheet(string name)
+        ReportSheetWriter OpenSourceQualitySheet(string name, int sheetPart)
         {
             var writer = OpenSheet(
                 document,
                 sheets,
                 name,
+                PagedSheetUsedRange(spool.RowCount, sheetPart, checked((uint)headers.Length), _continuationRowLimit),
                 columns,
                 new ReportSheetOptions(PageMargins: StandardMargins, DefaultRowHeight: LegacyReportStyles.ExportDatabaseRowHeight),
                 legacyStyles.Map);
@@ -922,10 +989,13 @@ internal sealed partial class LegacyReportWriter
         var part = 1;
         uint row = 2;
         var sheetName = SeriesName("V_Report 5", part);
+        // V_Report 5 和其他明細不同，寫到 Excel 的列數上限才換頁，不看續頁的列數設定。
+        var columnCount = checked((uint)headers.Length);
         ReportSheetWriter? sheet = OpenCompletenessSheet(
             document,
             sheets,
             part,
+            PagedSheetUsedRange(spool.RowCount, part, columnCount, ExcelMaxRow),
             headers,
             spool.Widths,
             legacyStyles);
@@ -953,6 +1023,7 @@ internal sealed partial class LegacyReportWriter
                         document,
                         sheets,
                         part,
+                        PagedSheetUsedRange(spool.RowCount, part, columnCount, ExcelMaxRow),
                         headers,
                         spool.Widths,
                         legacyStyles);
@@ -1011,6 +1082,7 @@ internal sealed partial class LegacyReportWriter
         SpreadsheetDocument document,
         Sheets sheets,
         int part,
+        SheetUsedRange usedRange,
         IReadOnlyList<string> headers,
         IReadOnlyList<double> widths,
         WorkbookStyleMap legacyStyles)
@@ -1022,7 +1094,7 @@ internal sealed partial class LegacyReportWriter
                 + $"does not match header count {headers.Count}.");
         }
 
-        var sheet = OpenSheet(document, sheets, SeriesName("V_Report 5", part),
+        var sheet = OpenSheet(document, sheets, SeriesName("V_Report 5", part), usedRange,
             LegacyAutoFitColumns(
                 widths,
                 RawSheetAutoFitMode.LegacyFirstTwenty),

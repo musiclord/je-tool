@@ -190,7 +190,6 @@ public sealed class ProjectListLocalFirstTests
             "2025-12-31",
             null,
             ProjectDocument.DefaultMoneyScale,
-            ProjectDocument.DefaultRoundingMode,
             new DateTimeOffset(2025, 1, createdDay, 0, 0, 0, TimeSpan.Zero),
             CurrentStep: 1,
             ProjectDocument.CurrentSchemaVersion,

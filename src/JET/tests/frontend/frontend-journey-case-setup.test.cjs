@@ -6,8 +6,9 @@
 //           填表到一半 Windows 身分才送到；表單剛打開就點進欄位；建好以後在頁首與案件清單看到案件名稱與客戶名稱。
 //           表單填到一半時別的作業失敗、步驟上方出現失敗提示，接著送出表單（建立案件與修改案件資料各一次）；
 //           案件建好以後接著開啟它時失敗或被取消，回到案件清單從清單開啟；JET 放不掉這個案件時再按一次「建立案件」；
-//           Debug 組建在開啟失敗後回到的案件清單按頁尾的「輸出診斷日誌」。
-//           這兩段在檔案最後，用整個 JET 畫面的 bootFullApp，原因寫在各段的開頭。
+//           Debug 組建在開啟失敗後回到的案件清單按頁尾的「輸出診斷日誌」；
+//           從案件清單開啟案件，後端已經開啟、畫面沒有開成，以及這時放不掉案件。
+//           這三段在檔案最後，用整個 JET 畫面的 bootFullApp，原因寫在各段的開頭。
 //   情境 4　選 GL 與 TB 來源檔；匯入 0 筆的假日檔與補班檔；把整週都設成工作日；重存同一組非工作日但順序不同或重複；改成不同的非工作日。
 // 夾具：support/frontend-fixtures.cjs 的 usageJourneyFixture（正式 state、ui-core、各步驟腳本，可訂閱重繪）
 // 與 remapAppFixture（另加上 app.js 的頁首、案件清單與中欄重繪）。這裡用 usageJourneyFixture 的假 DOM 畫正式的表單，
@@ -186,6 +187,17 @@ test('a create failure marks only the field the backend names and never guesses 
     assert.deepEqual(form.querySelectorAll('[aria-invalid="true"]').map(node => node.getAttribute('name')), [], name);
     assert.equal(form.clientName.value, '合成客戶股份有限公司', name + ': the entered values stay');
   }
+});
+
+// 建立案件表單的說明寫出建立前要確認的事：案件名稱與查核期間建立後不能修改、填錯時怎麼辦，
+// 以及期末財報準備日可以之後按「修改案件資料」補填。只核對這些資訊，不逐字比對說明句。
+test('the create form says what cannot change after creation and that the preparation date can be filled in later', () => {
+  const f = createFixture();
+  const note = f.page().querySelectorAll('.rule-card__sub').map(node => node.textContent).join('');
+  for (const piece of ['查核期間', '不能修改', '新案件', '「財報準備日起核准」', '留空', '「修改案件資料」']) {
+    assert.ok(note.includes(piece), piece + ' in: ' + note);
+  }
+  assert.doesNotMatch(note, /不會延長/);
 });
 
 test('a failed save of the case details marks the preparation date only when the backend names it', async () => {
@@ -863,4 +875,71 @@ test('when the created case cannot be released the screen stays, and pressing cr
   f.reply('project.load', NEW_CASE_LOADED); await flush();
   assert.equal(f.state().project.projectId, '合成新案');
   assert.ok(shownStep(f).querySelector('[data-bind="create-form"]') === null, 'the form is replaced by the case summary');
+});
+
+// =====================================================================================================
+// 情境 2 補充　從案件清單開啟案件，後端已經開啟，畫面沒有開成
+// =====================================================================================================
+//
+// 審計員的操作：在案件清單按「開啟」，後端已經開啟這個案件、握著它的案件鎖，畫面套用到一半出錯。
+// JET 先放掉這個案件再回到案件清單，清單上方的紅色錯誤框寫出原因，審計員可以再開一次。放不掉時和按「回首頁」放不掉一樣，留在原畫面。
+// 後端自己拒絕開啟時，後端沒有開著這個案件，不送放掉案件的請求。
+
+// 畫面套用開啟的案件、跳到上次所在的步驟時出錯一次，之後照常。
+function failNextStepChange(f, message) {
+  const setStepIndex = f.store.setStepIndex;
+  f.store.setStepIndex = () => { f.store.setStepIndex = setStepIndex; throw new Error(message); };
+}
+
+test('a case opened from the list that the screen could not show is released, and the case list gives the reason', async () => {
+  const f = await bootFullApp([NEW_CASE]);
+
+  // 後端拒絕開啟：不送放掉案件的請求，紅色錯誤框寫原因。
+  f.click('[data-action="picker-open"]');
+  f.fail('project.load', { code: 'synthetic', message: '合成：案件在另一個視窗開著。' }); await flush();
+  assert.deepEqual(caseActions(f), ['project.listLocal', 'project.load']);
+  assert.equal(f.state().busy, false);
+  assert.match(f.$('.picker-feedback__body').textContent, /^開啟案件失敗：合成：案件在另一個視窗開著/);
+
+  // 後端開好了，畫面沒有開成：先放掉這個案件，放掉以後才回到案件清單重讀清單。
+  failNextStepChange(f, '合成：畫面套用失敗');
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', NEW_CASE_LOADED); await flush();
+  assert.deepEqual(plain(f.request('project.releaseLock').payload), {});
+  assert.equal(f.sent('project.listLocal').length, 1, 'the case list is not reloaded before the case is released');
+  assert.equal(f.sent('log.recent').length, 0, 'the message history of a case that did not open is not restored');
+  f.reply('project.releaseLock', {}); await flush();
+  assert.equal(onCaseList(f), true, 'the screen is the case list');
+  f.reply('project.listLocal', { projects: [NEW_CASE] }); await flush();
+  assert.equal(f.state().busy, false);
+  assert.equal(f.state().project, null);
+  assert.deepEqual(caseActions(f), ['project.listLocal', 'project.load', 'project.load', 'project.releaseLock', 'project.listLocal']);
+  assert.deepEqual(listedCases(f), ['合成新案']);
+  // 開啟失敗是紅色的錯誤框，不是琥珀色提示。
+  assert.match(f.$('.picker-feedback__body').textContent, /^開啟案件失敗：合成：畫面套用失敗/);
+  assert.equal(listNotice(f), null);
+  assert.equal(f.state().pickerFeedbackContext.projectId, '合成新案');
+
+  // 再開一次照常開啟。
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', NEW_CASE_LOADED); await flush();
+  f.reply('log.recent', { messages: [] }); await flush();
+  assert.equal(f.state().view, 'workflow');
+  assert.equal(f.state().project.projectId, '合成新案');
+  assert.equal(f.sent('project.releaseLock').length, 1);
+});
+
+test('when a case opened from the list cannot be released the screen stays and says why', async () => {
+  const f = await bootFullApp([NEW_CASE]);
+  failNextStepChange(f, '合成：畫面套用失敗');
+  f.click('[data-action="picker-open"]');
+  f.reply('project.load', NEW_CASE_LOADED); await flush();
+  f.fail('project.releaseLock', { code: 'synthetic', message: '合成：案件鎖沒有釋放' }); await flush();
+
+  // 和按「回首頁」放不掉案件時一樣：留在原畫面，訊息面板寫無法離開。
+  assert.equal(f.state().view, 'workflow');
+  assert.equal(f.state().busy, false);
+  assert.deepEqual(f.messages()[0], { text: '無法離開案件，已保留目前畫面：合成：案件鎖沒有釋放', level: 'error' });
+  assert.equal(f.sent('project.listLocal').length, 1, 'the case list is not reloaded');
+  assert.equal(f.state().pickerFeedback, null, 'nothing is written for a case list that is not shown');
 });

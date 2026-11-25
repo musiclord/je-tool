@@ -1255,6 +1255,32 @@ test('an account-tree answer that returns while the condition has no tree leaves
   assert.ok(f.$(at + '[data-account-tree-code="1101"]') !== null, 'asking again lists the accounts');
 });
 
+// 審計員在科目清單的第二頁按下一頁，還沒讀回來就把比較方式換成沒有科目樹的那一種，回應在這段時間回來。
+// 換回「完整內容相同」後，科目樹回到還沒讀取的樣子，也不留下前一次的頁碼。
+test('an account-tree page answer that comes back after the tree was replaced leaves no page numbers behind', async () => {
+  const f = fieldPane({ accountCategory: ACCOUNT_CATEGORIES });
+  f.window.JetApi.queryAccountMappingPage = payload => new Promise((resolve, reject) => f.requests.push({ action: 'queryAccountMappingPage', payload, resolve, reject }));
+  f.click('[data-add-field="accountNumber"]');
+  const at = '.rule-row[data-gi="0"][data-ri="0"] ';
+  const reads = () => f.requests.filter(request => request.action === 'queryAccountMappingPage');
+  const accounts = (prefix, count) => Array.from({ length: count }, (_, i) => ({ accountNumber: prefix + String(i).padStart(3, '0'), accountName: '合成科目', categoryId: 'builtin.cash' }));
+  f.click(at + '[data-account-tree-category=""]');
+  reads().at(-1).resolve({ rows: accounts('A', 200), nextCursor: 'after-A199', totalCount: 450 }); await settle();
+  f.click(at + '[data-account-tree-next]');
+  reads().at(-1).resolve({ rows: accounts('B', 200), nextCursor: 'after-B199', totalCount: null }); await settle();
+  assert.equal(f.$(at + '[data-page-position]').textContent, '2/3');
+  f.click(at + '[data-account-tree-next]');
+  const late = reads().at(-1);
+  assert.equal(late.payload.cursor, 'after-B199');
+  f.choose(at + '[data-value-kind]', 'contains');
+  assert.ok(f.$(at + '[data-account-tree]') === null, 'a keyword comparison has no account tree');
+  late.resolve({ rows: accounts('C', 50), nextCursor: null, totalCount: null }); await settle();
+  f.choose(at + '[data-value-kind]', 'exact');
+  assert.equal(f.$(at + '[data-account-tree-status]').textContent, '先選分類，或搜尋本案科目。');
+  assert.equal(f.$(at + '[data-page-position]'), null, 'no page numbers are left from the earlier pages');
+  assert.equal(f.$(at + '[data-account-tree-previous]'), null);
+});
+
 // 審計員勾了「勾選此分類的科目」，科目還沒讀回來就換到第四步。回應在第四步回來：不改第五步的條件，也不重畫第四步。
 // 回到第五步時科目樹不寫「正在載入科目…」，條件仍是空的；再勾一次就照常選入。
 test('an account-tree answer that returns after the auditor left step five changes no condition and redraws nothing', async () => {

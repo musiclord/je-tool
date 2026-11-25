@@ -44,6 +44,8 @@ public sealed class QueryBlankRecordsPageHandler(
                 accountNumber = r.AccountNumber,
                 glDate = r.GlDate,
                 approvalDate = r.ApprovalDate,
+                // 只有「核准日不在期間」裡讀不成日期的核准日有值，是來源的原文；空白與其他類別是 null。
+                approvalDateRawValue = r.ApprovalDateRawValue,
                 description = r.Description
             }).ToArray(),
             totalCount = page.TotalCount,

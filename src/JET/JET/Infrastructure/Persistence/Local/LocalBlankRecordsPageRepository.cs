@@ -76,13 +76,85 @@ public sealed class LocalBlankRecordsPageRepository(ILocalProjectDatabase databa
 
         var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, database.Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<BlankRecordRow>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
-            buffer.Add(BlankRecordRowMapper.MapRow(reader, category), paging.HasSort ? reader.GetValue(6) : null);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                buffer.Add(BlankRecordRowMapper.MapRow(reader, category), paging.HasSort ? reader.GetValue(6) : null);
+            }
         }
 
-        return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
+        var page = buffer.ToPage(request, paging, static row => row.EntryId, totalCount);
+        return category == BlankRecordCategory.ApprovalDateNotInPeriod
+            ? await WithApprovalDateRawValuesAsync(connection, page, cancellationToken)
+            : page;
+    }
+
+    /// <summary>
+    /// 「核准日不在期間」這一頁裡沒有核准日的列，補上來源那一格的原文：讀不成日期的核准日在 GL 也是空的，
+    /// 只看 GL 分不出是讀不成還是空白。只查這一頁的分錄，分頁、總筆數與排序都不變；
+    /// 傳票核准日沒有配對來源欄時（沒有配對或與總帳日期相同），沒有原文可查，照原樣回傳。
+    /// 原文去掉前後空白後是空的，就是空白，不帶原文。
+    /// </summary>
+    private static async Task<PageResult<BlankRecordRow>> WithApprovalDateRawValuesAsync(
+        System.Data.Common.DbConnection connection,
+        PageResult<BlankRecordRow> page,
+        CancellationToken cancellationToken)
+    {
+        var entryIds = page.Rows.Where(static row => row.ApprovalDate is null).Select(static row => row.EntryId).ToArray();
+        if (entryIds.Length == 0)
+        {
+            return page;
+        }
+
+        var mapping = await LocalMappingStateStore.FindCommittedWithinAsync(connection, DatasetKind.Gl, cancellationToken);
+        if (mapping?.GlOptions?.ApprovalDateMode != ApprovalDateModeNames.Mapped
+            || !mapping.Mapping.TryGetValue(GlMappingKeys.ApprovalDate, out var sourceColumn)
+            || string.IsNullOrWhiteSpace(sourceColumn))
+        {
+            return page;
+        }
+
+        await using var command = connection.CreateCommand();
+        var placeholders = new string[entryIds.Length];
+        for (var index = 0; index < entryIds.Length; index++)
+        {
+            placeholders[index] = "@entry" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            command.AddWithValue(placeholders[index], entryIds[index]);
+        }
+
+        command.AddWithValue("@sourceColumn", sourceColumn);
+        // 來源欄名只當成參數拿去比對 json_each.key，不拼進 JSON path；gl.source_row_number 存的是 pbc_gl.row_number。
+        // 這一頁的分錄本來就只有納入測試的分錄，範圍條件照樣寫上，和其他讀 GL 的查詢一致。
+        command.CommandText =
+            "SELECT g.entry_id, "
+            + "(SELECT CAST(j.value AS TEXT) FROM json_each(s.row_json) AS j WHERE j.key = @sourceColumn) "
+            + "FROM gl g "
+            + "JOIN pbc_gl s ON s.batch_id = g.batch_id AND s.row_number = g.source_row_number "
+            + "WHERE " + GlExcludedPopulation.SqlPredicate("g") + " AND g.approval_date IS NULL "
+            + "AND g.entry_id IN (" + string.Join(", ", placeholders) + ");";
+
+        var rawValues = new Dictionary<long, string>();
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var text = reader.IsDBNull(1) ? "" : reader.GetString(1).Trim();
+                if (text.Length > 0)
+                {
+                    rawValues[reader.GetInt64(0)] = GlDateNoticeCollector.Shorten(text);
+                }
+            }
+        }
+
+        return rawValues.Count == 0
+            ? page
+            : page with
+            {
+                Rows = page.Rows
+                    .Select(row => rawValues.TryGetValue(row.EntryId, out var raw) ? row with { ApprovalDateRawValue = raw } : row)
+                    .ToArray()
+            };
     }
 
     // 只有「核准日不在期間」的條件用到查核期間；分頁與整份讀完共用。

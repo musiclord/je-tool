@@ -597,8 +597,9 @@
           categoryMultiSelect('categoryIds', '指定分類') +
           '<p class="rule-field__hint">此條件只判斷同一筆分錄的分類。範本分類留白的科目視為 Others；未在配對檔的科目不屬於任何分類。</p>';
       case 'prescreen': {
-        var explanation = Ui.prescreenConditionDescription(rule.prescreenKey);
-        var explanationHtml = explanation ? '<p class="rule-field__hint">' + Ui.esc(explanation) + '</p>' : '';
+        var hint = Ui.prescreenConditionHint(rule.prescreenKey);
+        var explanationHtml = hint.text ? '<p class="rule-field__hint"' + (hint.calculation ? ' title="' + Ui.esc(hint.calculation) + '"' : '') + '>' +
+          Ui.esc(hint.text) + '</p>' : '';
         // 缺期末財報準備日等前置條件時，原因寫在樣態選單上；有準備日時這裡寫出比較的日期。
         if (rule.prescreenKey === 'prepPeriodApproval' && (Store.getState().project || {}).prepStartDate) {
           explanationHtml += '<p class="rule-field__hint">' + Ui.esc(ruleSummaryLabel(rule, 0)) + '</p>';
@@ -754,7 +755,10 @@
           '<input type="number" data-rule-bind="countFrom" min="0" step="1" aria-label="統計次數或區間下限" value="' + Ui.esc(rule.countFrom) + '">' +
           (rule.countOperator === 'between' ? '<span>至</span><input type="number" data-rule-bind="countTo" min="0" step="1" aria-label="統計區間上限" value="' + Ui.esc(rule.countTo) + '"><span>含兩個端點</span>' : '') +
           '<p class="rule-explanation">在 GL 中依匯入後的科目或人員分組；空白欄位不列入。' +
-          (rule.countUnit === 'vouchers' ? '同案件相同傳票號碼算一張，空白號碼不計張；符合該科目或人員的分錄仍會列出。' : '同張傳票有多筆分錄時，每筆都計入。') + '</p>';
+          (rule.countUnit === 'vouchers'
+            ? '傳票號碼空白的分錄不算張數。科目或人員底下只有這種分錄時算 0 張，一樣會和門檻比較，例如條件是「小於或等於 2」時也會選出。' +
+              '科目或人員符合條件時，底下每一筆分錄都會選出，包括傳票號碼空白的分錄，所以結果筆數可能比填的張數多。'
+            : '同張傳票有多筆分錄時，每筆都計入。') + '</p>';
       }
 
       case 'revenueDebitNearQuarterEnd':

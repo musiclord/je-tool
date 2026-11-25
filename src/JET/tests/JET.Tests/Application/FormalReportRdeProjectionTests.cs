@@ -135,27 +135,21 @@ public sealed class FormalReportRdeProjectionTests
 
     // Excel 的日期從 1900-03-01 起才和實際日期一致，更早的日期換不成正確的序列值，西元 100 年以前還會換算失敗。
     // 這種日期在底稿照存下來的年月日寫成文字，匯出照常完成；確認配對後的日期提醒寫出欄位、值與筆數。
+    // 年份早於 1900 的列為年份不尋常；1900-01-01 到 1900-02-28 年份不算不尋常，列為底稿寫成文字。
     [Theory]
-    [InlineData("0025-04-02", true)]
-    [InlineData("1850-04-02", true)]
-    [InlineData("1900-02-28", false)]
-    public async Task WorkingPaper_DateBeforeExcelCanShowIt_IsWrittenAsTextAsStored(string rdeDate, bool yearReminder)
+    [InlineData("0025-04-02", "unusualYear")]
+    [InlineData("1850-04-02", "unusualYear")]
+    [InlineData("1900-02-28", "textInWorkingPaper")]
+    public async Task WorkingPaper_DateBeforeExcelCanShowIt_IsWrittenAsTextAsStored(string rdeDate, string noticeKind)
     {
         using var host = new HandlerTestHost();
         var setup = await SetupAsync(host, rdeDate);
-        if (yearReminder)
-        {
-            var notice = Assert.Single(setup.DateNotices);
-            Assert.Equal("RDE 日期", notice.GetProperty("label").GetString());
-            Assert.Equal("unusualYear", notice.GetProperty("kind").GetString());
-            Assert.Equal("kept", notice.GetProperty("handling").GetString());
-            Assert.Equal(1, notice.GetProperty("count").GetInt64());
-            Assert.Equal(rdeDate, Assert.Single(notice.GetProperty("values").EnumerateArray()).GetProperty("value").GetString());
-        }
-        else
-        {
-            Assert.Empty(setup.DateNotices);
-        }
+        var notice = Assert.Single(setup.DateNotices);
+        Assert.Equal("RDE 日期", notice.GetProperty("label").GetString());
+        Assert.Equal(noticeKind, notice.GetProperty("kind").GetString());
+        Assert.Equal("kept", notice.GetProperty("handling").GetString());
+        Assert.Equal(1, notice.GetProperty("count").GetInt64());
+        Assert.Equal(rdeDate, Assert.Single(notice.GetProperty("values").EnumerateArray()).GetProperty("value").GetString());
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;

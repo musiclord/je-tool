@@ -138,7 +138,7 @@ public sealed class FormalWorkbookArchiveTests
             SheetId = sheets.Elements<Sheet>().Max(sheet => sheet.SheetId?.Value ?? 0U) + 1U,
             Name = name
         });
-        return new ReportSheetWriter(name, part);
+        return new ReportSheetWriter(name, part, SheetUsedRange.Table(DetailRows, DetailColumns));
     }
 
     private static void WriteDetailRows(ReportSheetWriter sheet)
@@ -164,6 +164,7 @@ public sealed class FormalWorkbookArchiveTests
         var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => item.Name?.Value == DetailSheetName);
         var part = (WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!);
+        var sharedItems = WrittenCellText.SharedItems(workbookPart);
 
         var rows = 0;
         string? firstText = null;
@@ -180,8 +181,8 @@ public sealed class FormalWorkbookArchiveTests
             rows++;
             var cells = row.Elements<Cell>().ToArray();
             Assert.Equal(DetailColumns, cells.Length);
-            firstText ??= cells[0].InnerText;
-            lastText = cells[^1].InnerText;
+            firstText ??= WrittenCellText.Of(cells[0], sharedItems);
+            lastText = WrittenCellText.Of(cells[^1], sharedItems);
         }
 
         Assert.Equal(DetailRows, rows);

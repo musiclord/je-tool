@@ -712,7 +712,6 @@ public sealed class IntakeMappingProgramTests
 
         Assert.Same(document, plan.Document);
         Assert.Equal(ProjectDocument.DefaultMoneyScale, plan.Document.MoneyScale);
-        Assert.Equal(ProjectDocument.DefaultRoundingMode, plan.Document.RoundingMode);
         // 持久化的 SampleSeed 就是實際使用的種子。
         Assert.Equal(31, plan.Document.SampleSeed);
         Assert.Equal(JetAuditProgram.CurrentInfSamplingAlgorithmVersion, plan.Document.SampleSeedVersion);

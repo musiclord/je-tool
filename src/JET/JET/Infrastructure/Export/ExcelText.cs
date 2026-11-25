@@ -13,6 +13,9 @@ namespace JET.Infrastructure;
 /// 儲存格文字寫進活頁簿前的編碼，以及 JET 讀回自己寫的文字時的還原，依 Excel 文字的 _xHHHH_ 跳脫格式：
 /// XML 不允許的字元寫成 _xHHHH_；CR 也這樣寫，因為讀取 XML 時 CR 會被換成 LF；原文裡會被讀成跳脫格式的底線寫成 _x005F_。
 /// Tab、LF 與成對的 surrogate 照原樣寫入。報告與範本的文字儲存格只透過這裡建立。
+/// 文字寫成 inline string 還是寫進共用字串表，也只在這裡決定：工作表屬於寫法和 Excel 存檔時相同的正式輸出時，
+/// <see cref="SetText"/> 與 <see cref="SetVerbatimText"/> 把文字寫進共用字串表，格子只放編號；其他活頁簿寫成 inline string。
+/// JET 讀回用的隱藏紀錄與工作底稿用名稱帶 Inline 的方法，不論哪一種活頁簿都寫成 inline string。
 /// 文字一律加 xml:space="preserve"：Excel 依這個屬性決定空白怎麼處理，加了才保證前後空白與連續空白照原樣保留。
 /// Excel 一格最多 32,767 個字元。一般文字寫出後超過這個長度時，寫到上限並在結尾加上已截斷的註明，記在那張工作表的截斷格數；
 /// 長度以跳脫後寫進檔案的字數計算，它不會比原文短，所以不論以原文或寫出的字數計算都不超過上限。
@@ -43,6 +46,121 @@ internal static class ExcelText
     /// <summary>和 <see cref="VerbatimInlineString(string)"/> 相同，給以 XML 元素組列的寫出程式用。</summary>
     public static XElement VerbatimInlineStringElement(XNamespace spreadsheet, string value) =>
         TextElement(spreadsheet, Encode(value));
+
+    /// <summary>
+    /// 把 <paramref name="cell"/> 寫成文字格，文字寫進 <paramref name="part"/> 這張工作表；超過每格上限時截斷，並記在這張工作表的截斷格數。
+    /// 這張工作表屬於寫法和 Excel 存檔時相同的正式輸出時，文字寫進共用字串表，格子只放編號；其他活頁簿寫成 inline string。
+    /// </summary>
+    public static void SetText(Cell cell, string value, WorksheetPart part) =>
+        SetEncodedText(cell, EncodeWithinLimit(value, part), part);
+
+    /// <summary>
+    /// 和 <see cref="SetText"/> 相同，但照原樣寫出、不截斷：篩選條件說明切好的分段與程式固定的文字，長度由寫出的程式自己控制。
+    /// </summary>
+    public static void SetVerbatimText(Cell cell, string value, WorksheetPart part)
+    {
+        ArgumentNullException.ThrowIfNull(part);
+        SetEncodedText(cell, Encode(value), part);
+    }
+
+    /// <summary>
+    /// 把 <paramref name="cell"/> 寫成 inline string，不論活頁簿有沒有共用字串表；超過每格上限時截斷，記在這張工作表的截斷格數。
+    /// 給工作底稿這類仍寫成 inline string 的輸出用。
+    /// </summary>
+    public static void SetInlineText(Cell cell, string value, WorksheetPart part)
+    {
+        ArgumentNullException.ThrowIfNull(cell);
+        cell.DataType = CellValues.InlineString;
+        cell.InlineString = InlineString(value, part);
+    }
+
+    /// <summary>
+    /// 把 <paramref name="cell"/> 寫成 inline string、照原樣不截斷，不論活頁簿有沒有共用字串表。
+    /// JET 讀回用的隱藏紀錄用這個寫法，讀回時只要讀那幾格，不必載入整份共用字串表。
+    /// </summary>
+    public static void SetVerbatimInlineText(Cell cell, string value)
+    {
+        ArgumentNullException.ThrowIfNull(cell);
+        cell.DataType = CellValues.InlineString;
+        cell.InlineString = VerbatimInlineString(value);
+    }
+
+    /// <summary>和 <see cref="SetInlineText"/> 相同，給以 XML 元素組列的寫出程式用；一律寫成 inline string。</summary>
+    public static void SetInlineTextElement(XElement cell, XNamespace spreadsheet, string value, WorksheetPart part)
+    {
+        ArgumentNullException.ThrowIfNull(cell);
+        cell.SetAttributeValue("t", "inlineStr");
+        cell.Add(InlineStringElement(spreadsheet, value, part));
+    }
+
+    /// <summary>和 <see cref="SetVerbatimInlineText"/> 相同，給以 XML 元素組列的寫出程式用；一律寫成 inline string。</summary>
+    public static void SetVerbatimInlineTextElement(XElement cell, XNamespace spreadsheet, string value)
+    {
+        ArgumentNullException.ThrowIfNull(cell);
+        cell.SetAttributeValue("t", "inlineStr");
+        cell.Add(VerbatimInlineStringElement(spreadsheet, value));
+    }
+
+    private static void SetEncodedText(Cell cell, string encoded, WorksheetPart part)
+    {
+        ArgumentNullException.ThrowIfNull(cell);
+        if (FormalWorkbookArchive.SharedStringsOf(part.OpenXmlPackage) is { } sharedStrings)
+        {
+            cell.DataType = CellValues.SharedString;
+            cell.InlineString = null;
+            cell.CellValue = new CellValue(sharedStrings.Add(encoded).ToString(CultureInfo.InvariantCulture));
+            return;
+        }
+
+        cell.DataType = CellValues.InlineString;
+        cell.InlineString = TextElement(encoded);
+    }
+
+    /// <summary>
+    /// 把已經經過 <see cref="Encode"/> 的文字寫成一筆共用字串項目：<c>&lt;si&gt;&lt;t xml:space="preserve"&gt;…&lt;/t&gt;&lt;/si&gt;</c>，
+    /// 直接寫成 XML 文字，不經過 XML 寫出程式。編碼後只剩 XML 允許的字元，所以只把 &amp;、&lt; 與 &gt; 寫成實體參照，
+    /// LF 與 Tab 照原樣寫。文字裡還有要跳脫的字元，表示呼叫端漏了編碼，丟出例外，不寫出讀不回來的 XML。
+    /// </summary>
+    internal static void WriteSharedStringItem(TextWriter writer, string encoded)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(encoded);
+        writer.Write("<si><t xml:space=\"preserve\">");
+        var start = 0;
+        for (var index = 0; index < encoded.Length; index++)
+        {
+            if (IsPairStart(encoded, index))
+            {
+                index++;
+                continue;
+            }
+
+            var character = encoded[index];
+            var entity = character switch
+            {
+                '&' => "&amp;",
+                '<' => "&lt;",
+                '>' => "&gt;",
+                _ => null
+            };
+            if (entity is null)
+            {
+                if (Escaped(character))
+                {
+                    throw new ArgumentException("共用字串的文字要先經過 Excel 文字編碼。", nameof(encoded));
+                }
+
+                continue;
+            }
+
+            writer.Write(encoded.AsSpan(start, index - start));
+            writer.Write(entity);
+            start = index + 1;
+        }
+
+        writer.Write(encoded.AsSpan(start));
+        writer.Write("</t></si>");
+    }
 
     /// <summary>這張工作表到目前為止有幾格文字因為超過上限而截斷。</summary>
     public static int TruncatedCellCount(WorksheetPart part) => part.Annotation<TruncatedCells>()?.Count ?? 0;

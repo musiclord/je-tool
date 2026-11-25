@@ -90,11 +90,17 @@ internal sealed record WorkingPaperWriterOptions(uint ContinuationRowLimit = Exc
 }
 
 /// <summary>
-/// 測試可縮小 ValidationReport step1-3 條件表的換頁列上限；正式執行仍使用 Excel 硬上限。
-/// 該表固定骨架占至第 16 列，因此至少保留第 17 列給一筆資料。
+/// 報告寫出程式給測試用的設定。測試可縮小 ValidationReport step1-3 條件表的換頁列上限；正式執行仍使用 Excel 硬上限。
+/// 該表固定骨架占至第 16 列，因此至少保留第 17 列給一筆資料。測試也可以改報告收尾時的寫法，見 <see cref="Layout"/>。
 /// </summary>
 internal sealed record LegacyReportWriterOptions(uint ContinuationRowLimit = ExcelWorksheetConstraints.MaxRows)
 {
+    /// <summary>
+    /// 資料驗證、預篩選與條件篩選報告收尾時的寫法。正式執行一律是 <see cref="FormalWorkbookLayout.SameAsExcel"/>；
+    /// 測試改成 <see cref="FormalWorkbookLayout.AsWritten"/>，用同一份資料比對兩種寫法的內容與外觀。INF 不受影響，一律照原樣寫出。
+    /// </summary>
+    public FormalWorkbookLayout Layout { get; init; } = FormalWorkbookLayout.SameAsExcel;
+
     public uint ValidateAndGetLimit()
     {
         if (ContinuationRowLimit is < 17 or > ExcelWorksheetConstraints.MaxRows)

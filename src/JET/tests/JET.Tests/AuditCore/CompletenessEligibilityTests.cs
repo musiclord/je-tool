@@ -56,9 +56,9 @@ public sealed class CompletenessEligibilityTests
 
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
-        // 兩組數字都是確認配對時與存下後算的，不是「匯入前後」，提醒照實寫。
-        // 黃色提示不過度解釋，句子保持簡短。
-        Assert.Contains("存下的分錄筆數或借貸合計與配對時不一致", decision.Warning, StringComparison.Ordinal);
+        // 提醒寫出是 JET 存下的 GL 有誤，以及重新確認配對這個下一步。
+        Assert.Contains("JET 存下的 GL 分錄", decision.Warning, StringComparison.Ordinal);
+        Assert.Contains("「重新確認配對」", decision.Warning, StringComparison.Ordinal);
     }
 
     [Fact]

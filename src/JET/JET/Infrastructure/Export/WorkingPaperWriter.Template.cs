@@ -769,9 +769,13 @@ internal sealed partial class WorkingPaperWriter
             MergeCellStyle = mergeCellStyle
         };
 
-    private static void RemoveCoverEmbeddedDocument(
+    /// <param name="createRewritten">
+    /// 建立放改寫內容的暫存檔；沒有指定時照一般匯出建立。測試從這裡留住暫存檔，核對取消之後它已經關閉並刪除。
+    /// </param>
+    internal static void RemoveCoverEmbeddedDocument(
         WorksheetPart worksheetPart,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<ExportSpoolFile>? createRewritten = null)
     {
         const string spreadsheetNamespace =
             "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
@@ -781,78 +785,90 @@ internal sealed partial class WorkingPaperWriter
 
         var relationshipIds = new HashSet<string>(StringComparer.Ordinal);
         var removedElement = false;
-        using var rewritten = CreateTemporaryCoverWorksheetStream();
+        // 改寫的內容先放進暫存檔；取消或用不到這份內容時放掉暫存檔，緩衝寫不出去也不丟出新的錯誤。
+        using var rewritten = createRewritten?.Invoke()
+            ?? ExportSpoolFile.Create(".jet-working-paper-cover-", bufferSize: 128 * 1024);
         using (var reader = OpenXmlReader.Create(worksheetPart))
-        using (var writer = OpenXmlWriter.Create(rewritten))
+        using (var writer = OpenXmlWriter.Create(rewritten.Stream))
         {
-            if (reader.StandaloneXml is bool standalone)
+            try
             {
-                writer.WriteStartDocument(standalone);
-            }
-            else
-            {
-                writer.WriteStartDocument();
-            }
-
-            int? omittedDepth = null;
-            while (reader.Read())
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (reader.IsStartElement)
+                if (reader.StandaloneXml is bool standalone)
                 {
-                    if (omittedDepth is null
-                        && reader.Depth == 1
-                        && string.Equals(
-                            reader.NamespaceUri,
-                            spreadsheetNamespace,
-                            StringComparison.Ordinal)
-                        && reader.LocalName is "drawing" or "legacyDrawing" or "oleObjects")
-                    {
-                        omittedDepth = reader.Depth;
-                        removedElement = true;
-                    }
+                    writer.WriteStartDocument(standalone);
+                }
+                else
+                {
+                    writer.WriteStartDocument();
+                }
 
-                    if (omittedDepth is not null)
+                int? omittedDepth = null;
+                while (reader.Read())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (reader.IsStartElement)
                     {
-                        foreach (var attribute in reader.Attributes)
+                        if (omittedDepth is null
+                            && reader.Depth == 1
+                            && string.Equals(
+                                reader.NamespaceUri,
+                                spreadsheetNamespace,
+                                StringComparison.Ordinal)
+                            && reader.LocalName is "drawing" or "legacyDrawing" or "oleObjects")
                         {
-                            if (attribute.NamespaceUri == relationshipNamespace
-                                && attribute.LocalName == "id"
-                                && !string.IsNullOrEmpty(attribute.Value))
+                            omittedDepth = reader.Depth;
+                            removedElement = true;
+                        }
+
+                        if (omittedDepth is not null)
+                        {
+                            foreach (var attribute in reader.Attributes)
                             {
-                                relationshipIds.Add(attribute.Value);
+                                if (attribute.NamespaceUri == relationshipNamespace
+                                    && attribute.LocalName == "id"
+                                    && !string.IsNullOrEmpty(attribute.Value))
+                                {
+                                    relationshipIds.Add(attribute.Value);
+                                }
                             }
+                            continue;
+                        }
+
+                        writer.WriteStartElement(
+                            reader,
+                            reader.Attributes,
+                            reader.NamespaceDeclarations);
+                        var text = reader.GetText();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            writer.WriteString(text);
                         }
                         continue;
                     }
 
-                    writer.WriteStartElement(
-                        reader,
-                        reader.Attributes,
-                        reader.NamespaceDeclarations);
-                    var text = reader.GetText();
-                    if (!string.IsNullOrEmpty(text))
+                    if (!reader.IsEndElement)
                     {
-                        writer.WriteString(text);
+                        continue;
                     }
-                    continue;
-                }
 
-                if (!reader.IsEndElement)
-                {
-                    continue;
-                }
-
-                if (omittedDepth is int depth)
-                {
-                    if (reader.Depth == depth)
+                    if (omittedDepth is int depth)
                     {
-                        omittedDepth = null;
+                        if (reader.Depth == depth)
+                        {
+                            omittedDepth = null;
+                        }
+                        continue;
                     }
-                    continue;
-                }
 
-                writer.WriteEndElement();
+                    writer.WriteEndElement();
+                }
+            }
+            catch
+            {
+                // XML 寫入器關閉時會補上還沒寫的結尾，並把緩衝寫進暫存檔；這時暫存資料夾的磁碟已滿就會丟出新的錯誤，
+                // 蓋掉取消或原本失敗的原因。改寫已經失敗或取消，先在這裡安靜地放掉寫入器，離開時的釋放就不會再丟出。
+                ExportResources.ReleaseAll(writer);
+                throw;
             }
         }
 
@@ -861,8 +877,8 @@ internal sealed partial class WorkingPaperWriter
             return;
         }
 
-        rewritten.Position = 0;
-        worksheetPart.FeedData(rewritten);
+        rewritten.Stream.Position = 0;
+        worksheetPart.FeedData(rewritten.Stream);
 
         foreach (var relationshipId in relationshipIds)
         {
@@ -873,20 +889,6 @@ internal sealed partial class WorkingPaperWriter
                     "WorkingPaper cover embedded-document relationship closure is invalid.");
             }
         }
-    }
-
-    private static FileStream CreateTemporaryCoverWorksheetStream()
-    {
-        var path = Path.Combine(
-            Path.GetTempPath(),
-            $".jet-working-paper-cover-{Guid.NewGuid():N}.tmp");
-        return new FileStream(
-            path,
-            FileMode.CreateNew,
-            FileAccess.ReadWrite,
-            FileShare.None,
-            bufferSize: 128 * 1024,
-            FileOptions.SequentialScan | FileOptions.DeleteOnClose);
     }
 
     private static DirectTemplateWorksheetOverlayPlan OverlayOnly(

@@ -217,7 +217,8 @@ internal sealed partial class WorkingPaperWriter(
             output,
             WorkingPaperDirectTemplateSheets,
             (editor, ct) => FillTemplateAsync(editor, context, plan, ct, progress),
-            cancellationToken);
+            cancellationToken,
+            FormalWorkbookLayout.AsWritten);
     }
 
     /// <summary>
@@ -972,10 +973,15 @@ internal sealed partial class WorkingPaperWriter(
             };
             if (!string.IsNullOrEmpty(value))
             {
-                cell.DataType = CellValues.InlineString;
-                cell.InlineString = _part is null
-                    ? ExcelText.VerbatimInlineString(value)
-                    : ExcelText.InlineString(value, _part);
+                // 工作底稿的文字寫成 inline string。
+                if (_part is null)
+                {
+                    ExcelText.SetVerbatimInlineText(cell, value);
+                }
+                else
+                {
+                    ExcelText.SetInlineText(cell, value, _part);
+                }
             }
 
             return cell;
@@ -991,8 +997,7 @@ internal sealed partial class WorkingPaperWriter(
             };
             if (!string.IsNullOrEmpty(value))
             {
-                cell.DataType = CellValues.InlineString;
-                cell.InlineString = ExcelText.VerbatimInlineString(value);
+                ExcelText.SetVerbatimInlineText(cell, value);
             }
 
             return cell;

@@ -210,7 +210,7 @@ public sealed class ReportTextEncodingTests
         using var document = CreateWorkbook(stream, out var parts, out _);
         var error = Record.Exception(() =>
         {
-            using var sheet = new ReportSheetWriter("合成二", parts[1]);
+            using var sheet = new ReportSheetWriter("合成二", parts[1], SheetUsedRange.Of(5, 2, 5, 3));
             sheet.WriteDataRow(5, [sheet.TextCell(5, 2, "合成"), RawTextCell("C5", "合成\u0001摘要")]);
         });
 
@@ -258,7 +258,7 @@ public sealed class ReportTextEncodingTests
         parts[1].Worksheet = new Worksheet(new SheetData(new Row(RawTextCell("A1", "固定列")) { RowIndex = 1 }));
         var error = Record.Exception(() =>
         {
-            using var sheet = new DirectTemplateStreamingSheetWriter("合成2", parts[1], firstDynamicRow: 2);
+            using var sheet = new DirectTemplateStreamingSheetWriter("合成2", parts[1], firstDynamicRow: 2, SheetUsedRange.Of(2, 2, 2, 2));
             sheet.WriteDataRow(2, [RawTextCell("B2", "合成\u0008人員")]);
         });
 

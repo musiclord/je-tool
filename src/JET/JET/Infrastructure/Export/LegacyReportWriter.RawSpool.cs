@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace JET.Infrastructure;
 
 internal sealed partial class LegacyReportWriter
@@ -11,8 +9,7 @@ internal sealed partial class LegacyReportWriter
     /// </summary>
     private sealed class RawReportSpool : IDisposable
     {
-        private readonly FileStream _stream;
-        private readonly BinaryWriter _writer;
+        private readonly ExportSpoolFile _file;
         private readonly ExcelDisplayWidthTracker _widths;
         private BinaryReader? _reader;
         private bool _completed;
@@ -20,14 +17,10 @@ internal sealed partial class LegacyReportWriter
         private bool _disposed;
 
         private RawReportSpool(
-            FileStream stream,
+            ExportSpoolFile file,
             IReadOnlyList<string> headers)
         {
-            _stream = stream;
-            _writer = new BinaryWriter(
-                stream,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                leaveOpen: true);
+            _file = file;
             _widths = new ExcelDisplayWidthTracker(headers);
         }
 
@@ -50,23 +43,14 @@ internal sealed partial class LegacyReportWriter
 
         internal static RawReportSpool Create(IReadOnlyList<string> headers)
         {
-            var path = Path.Combine(
-                Path.GetTempPath(),
-                $".jet-legacy-report-raw-{Guid.NewGuid():N}.tmp");
-            var stream = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.ReadWrite,
-                FileShare.None,
-                bufferSize: 1024 * 1024,
-                FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+            var file = ExportSpoolFile.Create(".jet-legacy-report-raw-", bufferSize: 1024 * 1024);
             try
             {
-                return new RawReportSpool(stream, headers);
+                return new RawReportSpool(file, headers);
             }
             catch
             {
-                stream.Dispose();
+                file.Dispose();
                 throw;
             }
         }
@@ -81,12 +65,13 @@ internal sealed partial class LegacyReportWriter
             }
 
             _widths.Observe(values);
+            var writer = _file.Writer;
             foreach (var value in values)
             {
-                _writer.Write(value is not null);
+                writer.Write(value is not null);
                 if (value is not null)
                 {
-                    _writer.Write(value);
+                    writer.Write(value);
                 }
             }
             RowCount = checked(RowCount + 1);
@@ -100,14 +85,7 @@ internal sealed partial class LegacyReportWriter
                 return;
             }
 
-            _writer.Flush();
-            _stream.Position = 0;
-            _reader = new BinaryReader(
-                _stream,
-                new UTF8Encoding(
-                    encoderShouldEmitUTF8Identifier: false,
-                    throwOnInvalidBytes: true),
-                leaveOpen: true);
+            _reader = _file.StartReading(throwOnInvalidBytes: true);
             _completed = true;
         }
 
@@ -148,10 +126,8 @@ internal sealed partial class LegacyReportWriter
                 return;
             }
 
-            _reader?.Dispose();
-            _writer.Dispose();
-            _stream.Dispose();
             _disposed = true;
+            _file.Dispose();
         }
 
         private void ThrowIfDisposed()

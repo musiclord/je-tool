@@ -1,4 +1,5 @@
 using System.Globalization;
+using JET.Domain;
 
 namespace JET.Infrastructure;
 
@@ -78,20 +79,16 @@ internal static class ExcelSerialDate
         return remainder < 0 ? day - 1 : day;
     }
 
-    /// <summary>存下來的值是不是 Excel 顯示、但日曆上沒有的那兩天。</summary>
-    internal static bool IsShownNonexistentDate(string value) => value is DayZero or FictitiousLeapDay;
-
-    // 寫出的活頁簿都用 1900 日期系統。ToOADate 換出的序列值從 1900-03-01 起才和 Excel 的序列值相同，
-    // 更早的日期會差一天，因為 Excel 把 1900 年當成閏年；1900 年以前的日期 Excel 沒有序列值，西元 100 年以前 ToOADate 也換算不出來。
-    private static readonly DateOnly FirstExcelFaithfulDate = new(1900, 3, 1);
-
     /// <summary>
     /// 日期換成寫進日期儲存格的序列值。早於 1900-03-01 的日期回傳 false，不寫成日期儲存格；
     /// 呼叫端改把存下來的日期文字照原樣寫成文字儲存格，匯出照常完成。
+    /// 寫出的活頁簿都用 1900 日期系統。ToOADate 換出的序列值從 1900-03-01 起才和 Excel 的序列值相同，
+    /// 更早的日期會差一天，因為 Excel 把 1900 年當成閏年；1900 年以前的日期 Excel 沒有序列值，西元 100 年以前 ToOADate 也換算不出來。
+    /// 這一天定義在 <see cref="DateNormalizer.FirstExcelFaithfulDate"/>，確認配對後的日期提醒用同一天列出在底稿寫成文字的日期。
     /// </summary>
     internal static bool TryExcelDateSerial(DateOnly date, out string serial)
     {
-        if (date < FirstExcelFaithfulDate)
+        if (date < DateNormalizer.FirstExcelFaithfulDate)
         {
             serial = string.Empty;
             return false;

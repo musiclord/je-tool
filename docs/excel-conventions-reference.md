@@ -1,7 +1,8 @@
 # Excel 讀寫規範的依據與核對表
 
 這份是 [Excel 讀寫規範](excel-conventions.md) 的附表，列出 2026-11-16 實際讀過的微軟網頁、逐項核對的結果，
-以及 JET 每一種 Excel 操作的程式位置；NumberingFormat Class 是 2026-11-20 補讀的，Review guidelines for customizing a number format 是 2026-11-24 補讀的。程式位置以 `src/JET/JET/Infrastructure/` 為起點，
+以及 JET 每一種 Excel 操作的程式位置；NumberingFormat Class 是 2026-11-20 補讀的，Review guidelines for customizing a number format 是 2026-11-24 補讀的，
+共用字串表、`dimension` 與關聯路徑的四頁是 2026-11-25 補讀的。程式位置以 `src/JET/JET/Infrastructure/` 為起點，
 行號原本是 2026-11-16 讀到的位置，之後改程式時更新了其中幾列，其他列的行號可能已經移動。
 
 判定分成四種：
@@ -11,7 +12,10 @@
 - 約定：微軟沒有規定，是 JET 自己的做法。
 - 未能查證：本次沒有在微軟網頁讀到明確規定。
 
-68 個核對項目裡，符合 43 項、不符合 3 項、約定 15 項、未能查證 7 項。不符合與未能查證的處理，見規範文末「已知要改善的地方」。
+76 個核對項目裡，符合 46 項、不符合 3 項、約定 19 項、未能查證 8 項。不符合與未能查證的處理，見規範文末「已知要改善的地方」。
+
+核對過、沒有發現問題的主題：跳脫格式、工作表名稱規則、列數與欄數上限、欄寬上限、底色保留索引、樣式與字型數量、
+`sheetId`、保護不設密碼與可選取的設定、鎖定樣式的 `applyProtection`、xls 的大小上限，以及工作表元素順序。
 
 ## 讀過的微軟網頁
 
@@ -46,6 +50,10 @@
 | [[MS-OI29500] definedName (Defined Name)](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/16c3c118-f358-493d-a99f-4c85ca834c00) | Office 用 `localSheetId` 指出名稱定義在哪一張工作表 |
 | [[MS-OI29500] sheetProtection](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/15197a02-26f7-4a37-ab9c-7de4d4894ea5) | 密碼雜湊的寫法 |
 | [[MS-OFFMACRO2] CT_Worksheet](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-offmacro2/c1b21fb9-e0c0-4a06-9bee-ce94e60bd823) | 工作表元素的順序；這頁寫的是巨集工作表 |
+| [Working with the shared string table](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/working-with-the-shared-string-table) | Excel 存檔時一定建立共用字串表，不建立也合法；一份套件只有一個；範例 `count="6" uniqueCount="5"` |
+| [SharedStringTable Class，Office 2010 版](https://learn.microsoft.com/en-us/previous-versions/office/developer/office-2010/cc840863(v=office.14)) | `count` 是活頁簿裡文字的總數，不算數字；`uniqueCount` 是共用字串表裡不重複的字串數 |
+| [SheetDimension Class](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.sheetdimension) | `dimension` 是工作表的使用範圍，可以省略 |
+| OPC 的關聯說明，標題未記下：[relationships-overview](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/opc/relationships-overview) | 關聯的相對 URI 以來源零件為基準解析 |
 
 沒有讀到或沒有採用的來源：
 
@@ -64,11 +72,11 @@
 |:---|:---|:---|
 | 讀取依 `t` 取值：`s`、`inlineStr`、`str`、`e`、`b`、`d`、`n` | CellValues Enum；v (Cell Value) | 符合 |
 | 沒有 `r` 的格子接著前一格的下一欄 | c (Cell) | 符合 |
-| 寫文字用 inline string，不建共用字串表 | v (Cell Value)；Cell Class | 符合 |
+| 三份報告的文字寫進共用字串表；INF 報告、底稿、科目配對範本與 JET 讀回用的隱藏紀錄寫 inline string | Working with the shared string table；v (Cell Value)；Cell Class | 符合 |
 | 布林讀成 true、false；Step 4-1 寫回 1、0 | v (Cell Value) | 符合 |
 | 錯誤值照原文讀入 | v (Cell Value) | 符合 |
 | 共用字串索引不是有效索引時明確失敗，寫出工作表與儲存格 | v (Cell Value) 要求是有效索引 | 符合 |
-| 沒有值的格子不寫 `t`，INF 擴充列也一樣，不留沒有 `is` 的 `inlineStr` 格子 | Cell Class 說 `inlineStr` 的格子只能有 `is` | 符合 |
+| 沒有值的格子不寫 `t`，INF 擴充列也一樣；不留沒有 `is` 的 `inlineStr` 格子，`s` 的格子一定寫編號 | Cell Class 說 `inlineStr` 的格子只能有 `is`；v (Cell Value) 要求是有效索引 | 符合 |
 
 ### 日期與時間
 
@@ -141,10 +149,18 @@ JET 與範本寫出的公式：沒有任何儲存格公式。只有資料驗證�
 
 | 項目 | 依據 | 判定 |
 |:---|:---|:---|
-| 組件與關聯由 SDK 建立，`sheetId` 唯一 | Structure of a SpreadsheetML document | 符合 |
+| 組件由 SDK 建立，`sheetId` 唯一 | Structure of a SpreadsheetML document | 符合 |
+| 三份報告的關聯目標用以來源零件為基準的相對路徑，收尾時改寫 SDK 從根目錄起算的寫法 | relationships-overview | 符合 |
+| 三份報告每張工作表寫 `dimension`，範圍等於寫出的格子 | SheetDimension Class | 符合 |
+| XML 不帶 BOM | 沒有相關規定，照 Excel 存檔的樣子 | 約定 |
+| 主要命名空間用預設命名空間，不加前綴 `x` | 沒有相關規定，照 Excel 存檔的樣子 | 約定 |
+| 文字的換行寫 LF；屬性裡的換行與 Tab 寫成字元參照 | 沒有相關規定，照 Excel 存檔的樣子 | 約定 |
 | 寫出元素的順序 | CT_Worksheet，巨集工作表的頁面 | 符合 |
 | 串流疊寫補上的保護排在 `sheetCalcPr` 之後 | CT_Worksheet | 符合 |
-| 範本原有的共用字串表照留 | v (Cell Value) | 符合 |
+| 範本原有的共用字串項目照留在前面，新的接在後面 | v (Cell Value)；Working with the shared string table | 符合 |
+| `count` 是參照共用字串表的格數，`uniqueCount` 是項目數 | SharedStringTable Class | 符合 |
+| 只記住 256 字以內、估計 64 MiB 以內的文字，超過後同樣的文字可能各存一份 | 沒有相關規定 | 約定 |
+| Excel 是否接受共用字串表裡內容相同的項目 | 本次沒有讀到 | 未能查證 |
 | 底色 0、1 保留，`s` 指向 `cellXfs` | ST_FillId；c (Cell) | 符合 |
 | CR、控制字元、單獨 surrogate 與開頭底線的跳脫 | ST_Xstring | 符合 |
 | 大寫 X 的 `_X0041_` 也跳脫 | ST_Xstring 只寫了小寫的形式 | 未能查證 |
@@ -176,49 +192,106 @@ JET 與範本寫出的公式：沒有任何儲存格公式。只有資料驗證�
 
 ## JET 的 Excel 操作
 
-共 41 種：讀取 13 種，寫出 28 種。理由欄寫程式註解、`jet-guide.md` 或裁定裡寫的原因，沒寫的標「未寫」。
+共 46 種：讀取 13 種，寫出 33 種。理由欄寫程式註解、`jet-guide.md` 或裁定裡寫的原因，沒寫的標「未寫」。
 
 | 操作 | 位置 | 理由 |
 |:---|:---|:---|
 | 逐列串流讀 xlsx 與 xlsm | `FileIO/OpenXmlSaxTableReader.cs` 第 11 到 23 行、第 309 行起 | 一百萬列與小檔走同一段程式，不載入 DOM |
 | 找標頭列、補佔位欄 | 同檔第 14 到 19 行 | 不丟資料 |
-| 讀共用字串與富文字，略過注音 | 同檔第 469 到 519 行、第 665 到 689 行 | 注音標示不屬於格子內容；編號找不到文字時檔案已經損壞，不當成空白讀進來 |
-| 依 `t` 取值 | 同檔第 549 到 606 行 | 金額可能存成文字，讀取時統一轉成文字 |
-| 數值轉成 decimal 文字 | 同檔第 655 到 660 行、第 691 到 709 行 | 去掉浮點數的尾數誤差 |
+| 讀共用字串與富文字，略過注音 | 同檔第 469 到 519 行、第 654 到 678 行 | 注音標示不屬於格子內容；編號找不到文字時檔案已經損壞，不當成空白讀進來 |
+| 依 `t` 取值 | 同檔第 549 到 610 行 | 金額可能存成文字，讀取時統一轉成文字；`t="d"` 的日期文字照原文讀，不補沒寫的部分（裁定 2026-11-24-28） |
+| 數值轉成 decimal 文字 | 同檔第 644 到 648 行、第 680 到 698 行 | 去掉浮點數的尾數誤差 |
 | 讀樣式表的數字格式 | 同檔第 521 到 542 行 | 未寫 |
 | 記下有公式、卻沒有存計算結果的格子 | 同檔第 103 到 114 行、第 364 到 367 行 | 讀到的值不變，匯入完成時提醒審計員用 Excel 存檔後再匯入 |
 | 判斷日期與時間格式 | `FileIO/ExcelDateFormatDetector.cs` 第 19 到 130 行 | 內建編號照 ECMA-376 §18.8.30 |
-| 序列值轉日期 | `FileIO/ExcelSerialDate.cs`；`FileIO/OpenXmlSaxTableReader.cs` 第 625 到 645 行、第 718 到 723 行 | 照 Excel 顯示的年月日換算（裁定 2026-11-20-02）；Excel 顯示不出日期時交出序列值，確認配對時判斷；繁中版只有時間的內建格式，值小於 1 時不換成日期，不同的時間才分得出來 |
-| 還原 `_xHHHH_` | `Export/ExcelText.cs` 第 138 到 166 行 | 審計員在 Excel 看到什麼就讀到什麼 |
+| 序列值轉日期 | `FileIO/ExcelSerialDate.cs`；`FileIO/OpenXmlSaxTableReader.cs` 第 612 到 634 行、第 707 到 712 行 | 照 Excel 顯示的年月日換算（裁定 2026-11-20-02）；Excel 顯示不出日期時交出序列值，確認配對時判斷；繁中版只有時間的內建格式，值小於 1 時不換成日期，不同的時間才分得出來 |
+| 還原 `_xHHHH_` | `Export/ExcelText.cs` 第 256 到 284 行 | 審計員在 Excel 看到什麼就讀到什麼 |
 | 讀 xls | `FileIO/BinaryExcelTableReader.cs`、`FileIO/NativeTabularValue.cs` | 值的規則和 xlsx 一致 |
 | 由底稿匯入欄位 | `FileIO/OpenXmlMappingMetadataReader.cs` | 帶入第三步的欄位配對 |
 | 讀 JET 中繼資料 | `Export/ReportWorkbookMetadataCodec.cs` | 同上 |
-| 寫文字格子與跳脫 | `Export/ExcelText.cs` 第 18 到 136 行、第 266 到 304 行 | 來源含控制字元也能產生報告（裁定 2026-10-21-10）；超過每格上限的文字寫到上限並註明，匯出不失敗 |
-| 寫數值格子 | `Export/ReportSheetWriter.cs` 第 178 行、`Export/WorkingPaperWriter.cs` 第 991 行 | 未寫 |
+| 寫文字格子與跳脫 | `Export/ExcelText.cs` 第 12 到 255 行、第 384 到 422 行 | 來源含控制字元也能產生報告（裁定 2026-10-21-10）；超過每格上限的文字寫到上限並註明，匯出不失敗 |
+| 寫數值格子 | `Export/ReportSheetWriter.cs` 第 197 行、`Export/WorkingPaperWriter.cs` 第 991 行 | 未寫 |
 | 日期寫成文字 | 例如 `Export/LegacyReportWriter.Validation.cs` 第 274 行 | 裁定 2026-11-16-07 |
-| 日期與時間寫成序列值 | `FileIO/ExcelSerialDate.cs` 第 84 到 102 行；`Export/WorkingPaperWriter.Step2To41.cs` 第 899 到 962 行、第 1698 到 1723 行 | 只把存成 yyyy-MM-dd、1900-03-01 以後的日期寫成序列值，PBC 的值不被改掉（裁定 2026-11-20-02） |
-| 布林寫成 1 或 0 | `Export/WorkingPaperWriter.Step2To41.cs` 第 858 到 865 行 | 舊版明細是數值 1 或 0 |
+| 日期與時間寫成序列值 | `FileIO/ExcelSerialDate.cs` 第 84 到 102 行；`Export/WorkingPaperWriter.Step2To41.cs` 第 902 到 953 行、第 1616 到 1641 行 | 只把存成 yyyy-MM-dd、1900-03-01 以後的日期寫成序列值，PBC 的值不被改掉（裁定 2026-11-20-02） |
+| 布林寫成 1 或 0 | `Export/WorkingPaperWriter.Step2To41.cs` 第 860 到 867 行 | 舊版明細是數值 1 或 0 |
 | 建樣式表 | `Export/LegacyReportStyles.cs`、`Export/WorkingPaperStyles.cs`、`Export/FormalFieldInfoAppearance.cs` | 照舊版 JET 的樣式 |
 | 修補範本樣式與數字格式 | `Export/ReportTemplatePackage.cs` 第 346 到 431 行、第 538 行起 | 同一組修改只追加一次，數量有上限 |
 | 鎖定與不鎖定樣式 | `Export/DirectTemplateWorkbookEditor.cs` 第 79 到 88 行 | 照舊版的鎖定範圍 |
 | 統一字型 | `Export/FormalWorkbookTypography.cs` 第 36 到 66 行 | 未寫 |
 | 估算欄寬 | `Export/ExcelDisplayWidth.cs` | Open XML 不能執行 AutoFit，照舊版用最寬的內容 |
 | 設定列高 | `Export/FormalWorkbookTypography.cs` 第 17 到 34 行 | 微軟正黑體比 Arial 高（裁定 2026-10-29-08）；最高到 Excel 的列高上限 409 點 |
-| 工作表視圖與凍結窗格 | `Export/ReportSheetWriter.cs` 第 380 到 416 行、`Export/WorkingPaperWriter.cs` 第 1345 到 1367 行 | 避免高 DPI 的 Excel 把列高折半 |
-| 合併儲存格 | `Export/ReportSheetWriter.cs` 第 322 到 331 行、`Export/WorkingPaperWriter.cs` 第 1244 行 | 未寫 |
+| 工作表視圖與凍結窗格 | `Export/ReportSheetWriter.cs` 第 402 到 439 行、`Export/WorkingPaperWriter.cs` 第 1345 到 1367 行 | 避免高 DPI 的 Excel 把列高折半 |
+| 合併儲存格 | `Export/ReportSheetWriter.cs` 第 343 到 352 行、`Export/WorkingPaperWriter.cs` 第 1244 行 | 未寫 |
 | 資料驗證清單 | `Export/AccountMappingTemplateWriter.cs` 第 303 到 307 行、`Export/LegacyReportWriter.Inf.cs` 第 356 到 365 行 | 裁定 2026-11-09-13、2026-11-12-34 |
-| 延伸資料驗證範圍 | `Export/ReportSheetWriter.cs` 第 241 到 267 行的 `ExtendSqref` | 只延伸結束列是範本最後一列的範圍 |
+| 延伸資料驗證範圍 | `Export/ReportSheetWriter.cs` 第 261 到 287 行的 `ExtendSqref` | 只延伸結束列是範本最後一列的範圍 |
 | 工作表保護 | 規範文末「重複的寫法與常數」列的五處 | 照舊版的範圍（裁定 2026-11-09-14） |
-| 頁面設定 | `Export/ReportSheetWriter.cs` 第 352 到 379 行、`Export/WorkingPaperWriter.cs` 第 1286 行 | 未寫 |
+| 頁面設定 | `Export/ReportSheetWriter.cs` 第 373 到 396 行、`Export/WorkingPaperWriter.cs` 第 1286 行 | 未寫 |
 | 工作表與續頁命名 | `Export/ExcelWorksheetConstraints.cs` 第 41 到 70 行、`Export/LegacyReportWriter.cs` 第 570 到 579 行 | 未寫 |
 | 列欄上限與換頁 | `Export/ExcelWorksheetConstraints.cs` 第 11 到 39 行、第 73 到 109 行 | 不寫出超過上限的列號或欄號 |
 | 超長條件說明切段 | `Export/FilterConditionExcelText.cs` | 保留完整文字 |
 | 複製範本後疊寫 | `Export/ReportTemplatePackage.cs`、`Export/DirectTemplateWorkbookEditor.cs`、`Export/DirectTemplateWorksheetOverlay.cs`、`Export/DirectTemplateStreamingSheetWriter.cs` | 底稿的文字、下拉選單與外觀盡量照範本 |
-| 新增、複製與刪除工作表 | `Export/DirectTemplateWorkbookEditor.cs` 第 189 到 315 行、`Export/LegacyReportWriter.cs` 第 207 行 | 未寫 |
+| 新增、複製與刪除工作表 | `Export/DirectTemplateWorkbookEditor.cs` 第 189 到 315 行、`Export/LegacyReportWriter.cs` 第 224 行 | 未寫 |
 | 刪除工作表時調整定義名稱 | `Export/DirectTemplateWorkbookEditor.cs` 第 228 到 251 行 | `localSheetId` 是工作表的位置，刪除工作表後要跟著改 |
-| 對齊定義名稱 | `Export/WorkingPaperWriter.Template.cs` 第 572 到 657 行 | 未寫 |
-| 寫隱藏的中繼資料工作表 | `Export/ReportWorkbookMetadataCodec.cs` 第 189 行 | 供第三步由底稿匯入欄位 |
+| 對齊定義名稱 | `Export/WorkingPaperWriter.Template.cs` 第 572 到 657 行的 `AlignDirectTemplateSheets` | 未寫原因。做法是先依目前的位置記下每個名稱屬於哪一張工作表，排好後再改成那張工作表的新位置 |
+| 寫隱藏的中繼資料工作表 | `Export/ReportWorkbookMetadataCodec.cs` 第 136 到 198 行 | 供第三步由底稿匯入欄位；三份報告的這張表也寫 `dimension` |
 | 串流寫出到暫存檔再改名 | `Export/ReportSheetWriter.cs`；`jet-guide.md` 第 7 節「檔案、發布與版本」 | 產生大型工作簿 |
-| 工作表內容直接壓縮進輸出檔 | `Export/FormalWorkbookArchive.cs`、`Export/ReportTemplatePackage.cs` 的 `FillDirectCoreAsync` | OpenXML SDK 的可寫活頁簿把改過的項目整份留在記憶體，單一項目到約 2 GB 就失敗 |
+| 工作表內容直接壓縮進輸出檔 | `Export/FormalWorkbookArchive.cs`、`Export/ReportTemplatePackage.cs` 的 `FillDirectCoreAsync` | OpenXML SDK 的可寫活頁簿把改過的項目整份未壓縮地留在記憶體，等關閉時才壓縮寫出；2026-11-17 用合成資料實測，單張 76 萬列、每列約 3 KB 時，寫到約 2 GB 就丟出「Stream was too long」 |
+| 文字寫進共用字串表 | `Export/ExcelText.cs` 第 50 到 163 行；`Export/WorkbookSharedStrings.cs`；`Export/FormalWorkbookArchive.cs` 第 74 到 116 行、第 237 到 385 行 | 和 Excel 存檔時相同（裁定 2026-11-25-01）；JET 讀回用的隱藏紀錄留 inline string，讀回時不必載入整份共用字串表 |
+| 寫出工作表的 XML | `Export/SpreadsheetXmlWriter.cs`；`Export/FormalWorkbookArchive.cs` 第 118 到 150 行的 `OpenWorksheetContent` 與 `OpenWorksheetWriter` | 和 Excel 存檔時相同；Open XML SDK 的元素一律用前綴 `x` 寫出主要命名空間 |
+| 收尾時整理其餘零件 | `Export/FormalWorkbookArchive.cs` 第 152 到 235 行的 `Complete`、第 387 到 496 行 | SDK 新增零件時把關聯寫成從根目錄起算，存關聯與內容類型時帶 BOM，用 DOM 存回的零件加前綴 `x`，都沒有設定能改 |
+| 寫出 `dimension` | `Export/SheetUsedRange.cs`；`Export/ReportSheetWriter.cs` 第 100 到 106 行、第 224 到 230 行、第 289 到 292 行；`Export/DirectTemplateStreamingSheetWriter.cs` 第 80 行、第 115 行起、第 241 行 | 壓縮檔的項目寫過不能回頭改，所以開頁時宣告範圍，寫列與關閉時核對 |
 | 寫入失敗時記下位置 | `Export/ExcelText.cs` 第 183 到 217 行 | 只記位置與碼位，不記文字 |
-| 匯出失敗或取消時放掉工作表寫入器 | `Export/ExportResources.cs`；各工作表寫入器的 `Dispose` | 釋放時只放掉壓縮檔項目與暫存檔，不補寫結尾；這時再寫入可能丟出新的例外，蓋掉原本的失敗原因。工作表寫完要呼叫 `CloseAndSummarize` 關閉，這是 JET 的約定 |
+| 匯出失敗或取消時放掉工作表寫入器 | `Export/ExportResources.cs`、`Export/ExportSpoolFile.cs`；各工作表寫入器的 `Dispose` | 匯出用的暫存檔都由 `ExportSpoolFile` 建立（裁定 2026-11-24-36）。釋放時只放掉壓縮檔項目與暫存檔，不補寫結尾；這時再寫入可能丟出新的例外，蓋掉原本的失敗原因。工作表寫完要呼叫 `CloseAndSummarize` 關閉，這是 JET 的約定 |
+
+## 規範條文的補充細節
+
+規範裡寫「見附表」的細節。
+
+### 公式沒有存計算結果時的提醒
+
+GL、TB、科目配對、授權編製人員與假日的匯入，在成功回應的提醒寫出檔名、工作表、格數與第一格，
+請審計員用 Excel 開啟這個檔案並存檔後再匯入；預覽讀到的列也同樣提醒。讀欄名與工作表清單時不計，
+國定假日與補班日略過的第 1 列標題也不計。
+
+### xls 的日期換算
+
+日期由套件換算，也先四捨五入到毫秒：1900 日期系統的序列值 0 到 59 先加 1 再換，60 以後不加；
+1904 日期系統一律加 1,462。讀取器把它換出的 1899-12-31 改回 Excel 顯示的 1900-01-00；換不成日期時套件交回原本的數字，
+讀取器交出這個數字的文字。
+
+### 截斷文字的提醒
+
+匯出結果的提醒一個檔案一則，寫出檔名、總格數與各工作表的格數，最多逐一列出五張，
+其餘合併成「另有 k 張工作表共 m 個」，並說明案件資料裡的完整文字不變。
+
+### 科目配對範本的欄位長度
+
+科目配對範本只寫科目代號、科目名稱與分類名稱。案件資料裡科目代號最多 450 字，科目名稱與分類名稱最多 400 字。
+
+## 已知要改善處的細節
+
+規範文末「已知要改善的地方」寫「見附表」的細節。
+
+### 內建格式在東亞語言版有只含時間的格式
+
+- 這些編號依開檔程式的介面語言解讀：32、33 在繁中、簡中、日文與韓文版都只有時間，繁中版的 34、35、52、53、55、56 也是時間。
+- 套了這些格式的欄，帶日期的值只存日期，時間不見。只有時間的值，xlsx 的 1900 日期系統存成序列值的文字，例如「0.5625」，
+  避免不同的時間都變成 1900-01-00；1904 日期系統存成 1904-01-01；xls 沒有實測。
+- 依據：Microsoft Learn〈NumberingFormat Class〉，2026-11-20 查閱。審計員用繁中版 Excel 是推測。
+  xls 沒寫格式字串時，ExcelDataReader 用日文版的字串代替，32、33 已經算時間。
+
+### 時間格的值太大時整份匯入失敗
+
+- 時間格式的數值交給 `TimeSpan.FromDays`，超過約 1,067 萬天就丟出例外。xlsx 的時間格式都會這樣。
+  xls 只有套件判成經過時間的格式會，例如內建 46 的 `[h]:mm:ss`，訊息也沒有指出是哪一格；
+  `h:mm`、`h:mm:ss`、`mm:ss` 的極大值照數字讀進來。
+- 依據：.NET 的時間長度最多約 10,675,199 天，實測過。xls 用合成檔案實測；xlsx 依程式推論，沒有實際執行 JET。
+
+### xls 與 1904 日期系統的換算限制
+
+- xls 的序列值 60 讀成和 59 同一天的 1900-02-28，Excel 顯示的是日曆上沒有的 1900-02-29，日期提醒列成底稿寫成文字。套件 3.9.0 只把 0 到 59 加 1。
+- xls 的 1904 日期系統裡，序列值 -1461 以上、-1460 未滿存成 1900-01-00，列為日曆上沒有這一天；xlsx 存序列值的文字，
+  例如 -1460.75 存成「1.25」。套件不公開日期系統，讀取器分不出來。
+- 1904 日期系統的負數，JET 讀成 1900 到 1903 年的日期；Excel 實際怎麼顯示，查不到可靠的出處。
+- 1904 日期系統換不出日期時，xlsx 存加了 1,462 的數字；xls 晚於 9999-12-31 的值存儲存格本身的數字。
+- xls 的 -1 到 0 之間的負小數，以及 h:mm 這類時間格式的負數，套件換算後負號不見。

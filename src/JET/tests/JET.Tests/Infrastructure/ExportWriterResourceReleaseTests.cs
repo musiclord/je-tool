@@ -19,6 +19,57 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class ExportWriterResourceReleaseTests
 {
+    /// <summary>Windows 的 ERROR_DISK_FULL 包成 HRESULT 的值。</summary>
+    private const int DiskFullHResult = unchecked((int)0x80070070);
+
+    [Fact]
+    public void ExportSpoolFile_ReleasedWhileTheTemporaryDiskIsFull_ClosesAndDeletesWithoutThrowing()
+    {
+        var spool = ExportSpoolFile.Create(".jet-export-spool-release-test-", 4_096);
+        var stream = spool.Stream;
+        try
+        {
+            spool.Writer.Write(1L);
+            WriteByteBeyondFreeSpace(stream, Path.GetTempPath());
+            // 緩衝裡還有寫不出去的內容：暫存資料夾所在磁碟已滿。
+            Assert.Equal(DiskFullHResult, Assert.Throws<IOException>(stream.Flush).HResult);
+
+            // 匯出已經失敗或取消，暫存檔的內容用不到了；放掉時不能再丟出錯誤蓋掉原本的原因。
+            var error = Record.Exception(spool.Dispose);
+
+            Assert.Null(error);
+            Assert.False(stream.CanRead, "放掉之後暫存檔還開著。");
+            Assert.False(File.Exists(stream.Name), "放掉之後暫存檔還留在暫存資料夾。");
+        }
+        finally
+        {
+            try
+            {
+                stream.Dispose();
+            }
+            catch (IOException)
+            {
+                // 放掉失敗時測試自己關閉暫存檔，不留下開著的檔案；結果已由上面的斷言判定。
+            }
+        }
+    }
+
+    [Fact]
+    public void ExportSpoolFile_StartReadingWhileTheTemporaryDiskIsFull_ReportsTheDiskFullError()
+    {
+        using var spool = ExportSpoolFile.Create(".jet-export-spool-read-test-", 4_096);
+        var stream = spool.Stream;
+        spool.Writer.Write(1L);
+        WriteByteBeyondFreeSpace(stream, Path.GetTempPath());
+
+        // 寫完要讀回時內容還沒寫進檔案，這個錯誤要照常丟出，外層才能告訴審計員暫存資料夾的磁碟已滿。
+        var error = Record.Exception(() => spool.StartReading(throwOnInvalidBytes: false));
+
+        Assert.Equal(DiskFullHResult, Assert.IsAssignableFrom<IOException>(error).HResult);
+        spool.Dispose();
+        Assert.False(File.Exists(stream.Name), "放掉之後暫存檔還留在暫存資料夾。");
+    }
+
     [Fact]
     public void WorkingPaperSheet_CancelledBetweenRows_DisposeReleasesTheEntryWithoutThrowing()
     {
@@ -169,9 +220,9 @@ public sealed class ExportWriterResourceReleaseTests
         var next = workbook.AddSheet(new Worksheet(new SheetData()));
 
         Assert.Throws<ArgumentOutOfRangeException>(() => new ReportSheetWriter(
-            "合成一", first, options: new ReportSheetOptions(DefaultRowHeight: -1)));
+            "合成一", first, SheetUsedRange.Empty, options: new ReportSheetOptions(DefaultRowHeight: -1)));
 
-        using var following = new ReportSheetWriter("合成二", next);
+        using var following = new ReportSheetWriter("合成二", next, SheetUsedRange.Empty);
         following.CloseAndSummarize(CancellationToken.None);
     }
 
@@ -186,9 +237,10 @@ public sealed class ExportWriterResourceReleaseTests
             save: false);
         var next = workbook.AddSheet(new Worksheet(new SheetData()));
 
-        Assert.Throws<ArgumentException>(() => new DirectTemplateStreamingSheetWriter("合成一", first, firstDynamicRow: 2));
+        Assert.Throws<ArgumentException>(() => new DirectTemplateStreamingSheetWriter(
+            "合成一", first, firstDynamicRow: 2, SheetUsedRange.Empty));
 
-        using var following = new ReportSheetWriter("合成二", next);
+        using var following = new ReportSheetWriter("合成二", next, SheetUsedRange.Empty);
         following.CloseAndSummarize(CancellationToken.None);
     }
 
@@ -200,13 +252,13 @@ public sealed class ExportWriterResourceReleaseTests
         var first = workbook.AddSheet(new Worksheet(new SheetData()));
         var next = workbook.AddSheet(new Worksheet(new SheetData()));
         // 開了一張工作表卻沒有人釋放，例如寫表頭時失敗。
-        var orphan = new ReportSheetWriter("合成一", first);
+        var orphan = new ReportSheetWriter("合成一", first, SheetUsedRange.Of(1, 1, 1, 1));
         orphan.WriteDataRow(1, [orphan.TextCell(1, 1, "合成", style: 0)]);
 
         workbook.Archive.Dispose();
 
         Assert.Null(Record.Exception(workbook.Archive.Dispose));
-        Assert.Throws<ObjectDisposedException>(() => new ReportSheetWriter("合成二", next));
+        Assert.Throws<ObjectDisposedException>(() => new ReportSheetWriter("合成二", next, SheetUsedRange.Empty));
         using var copy = new MemoryStream();
         Assert.Throws<ObjectDisposedException>(() => workbook.Archive.Complete(copy, CancellationToken.None));
         GC.KeepAlive(orphan);
@@ -218,7 +270,7 @@ public sealed class ExportWriterResourceReleaseTests
         using var output = new FailingOutputStream();
         using var workbook = new SyntheticWorkbook(output);
         var first = workbook.AddSheet(new Worksheet(new SheetData()));
-        var orphan = new ReportSheetWriter("合成一", first);
+        var orphan = new ReportSheetWriter("合成一", first, SheetUsedRange.Of(1, 1, 1, 1));
         orphan.WriteDataRow(1, [orphan.TextCell(1, 1, "合成", style: 0)]);
         output.FailFromNowOn();
 
@@ -276,16 +328,85 @@ public sealed class ExportWriterResourceReleaseTests
         Assert.Equal("合成的讀取失敗", Assert.IsType<InvalidOperationException>(error).Message);
     }
 
+    [Fact]
+    public void RewrittenTemplateSheet_CopyFailsWhileTheTemporaryDiskIsFull_KeepsTheOriginalErrorAndDeletesTheCopy()
+    {
+        using var output = new MemoryStream();
+        using var workbook = new SyntheticWorkbook(output);
+        var part = workbook.AddSheet(new Worksheet(
+            new Columns(new Column { Min = 1, Max = 1, Style = 0 }),
+            new SheetData(new Row { RowIndex = 1 }, new Row { RowIndex = 2 })));
+        var plan = new DirectTemplateWorksheetRewritePlan(
+            FirstDynamicRow: 2,
+            DimensionReference: "A1:A2",
+            PrototypeColumns: [1],
+            MapColumnStyle: null,
+            CreateDynamicRows: (_, _) => []);
+        var copy = new CopyFailingTemporaryFile();
+        try
+        {
+            // 副本的緩衝裡已經有寫不出去的內容：暫存資料夾所在磁碟已滿。接著把範本工作表複製進副本時失敗。
+            WriteByteBeyondFreeSpace(copy, Path.GetTempPath());
+            copy.FailWritesFromNowOn();
+
+            var error = Record.Exception(() => DirectTemplateWorksheetRewriter.Rewrite(
+                part, plan, CancellationToken.None, createSourceCopy: () => copy));
+
+            Assert.Equal("合成的複製失敗", Assert.IsType<InvalidOperationException>(error).Message);
+            Assert.False(copy.CanRead, "複製失敗之後，範本工作表副本還開著。");
+            Assert.False(File.Exists(copy.Name), "複製失敗之後，範本工作表副本還留在暫存資料夾。");
+        }
+        finally
+        {
+            try
+            {
+                copy.Dispose();
+            }
+            catch (IOException)
+            {
+                // 放掉失敗時測試自己關閉副本，不留下開著的檔案；結果已由上面的斷言判定。
+            }
+        }
+    }
+
+    [Fact]
+    public void CoverRewrite_CancelledWhileTheTemporaryDiskIsFull_KeepsTheCancellationAndDeletesTheTemporaryFile()
+    {
+        using var output = new MemoryStream();
+        using var workbook = new SyntheticWorkbook(output);
+        var cover = workbook.AddSheet(TemplateWithRows(5));
+        using var cancellation = new CancellationTokenSource();
+        FileStream? temporary = null;
+
+        var error = Record.Exception(() => WorkingPaperWriter.RemoveCoverEmbeddedDocument(
+            cover,
+            cancellation.Token,
+            () =>
+            {
+                var rewritten = ExportSpoolFile.Create(".jet-cover-rewrite-cancel-test-", 4_096);
+                temporary = rewritten.Stream;
+                // 暫存檔的緩衝裡有寫不出去的內容：暫存資料夾所在磁碟已滿。改寫剛開始，審計員就取消匯出。
+                WriteByteBeyondFreeSpace(temporary, Path.GetTempPath());
+                cancellation.Cancel();
+                return rewritten;
+            }));
+
+        Assert.IsAssignableFrom<OperationCanceledException>(error);
+        Assert.NotNull(temporary);
+        Assert.False(temporary.CanRead, "取消之後，封面改寫用的暫存檔還開著。");
+        Assert.False(File.Exists(temporary.Name), "取消之後，封面改寫用的暫存檔還留在暫存資料夾。");
+    }
+
     private static IDisposable OpenWithOneRowWritten(string writerKind, SyntheticWorkbook workbook, WorksheetPart part)
     {
         switch (writerKind)
         {
             case "report":
-                var report = new ReportSheetWriter("合成", part);
+                var report = new ReportSheetWriter("合成", part, SheetUsedRange.Of(6, 1, 6, 1));
                 report.WriteDataRow(6, [report.TextCell(6, 1, "合成", style: 0)]);
                 return report;
             case "streamingTemplate":
-                var streaming = new DirectTemplateStreamingSheetWriter("合成", part, firstDynamicRow: 6);
+                var streaming = new DirectTemplateStreamingSheetWriter("合成", part, firstDynamicRow: 6, SheetUsedRange.Of(6, 1, 6, 1));
                 streaming.WriteDataRow(6, [new Cell { CellReference = "A6" }]);
                 return streaming;
             case "workingPaperContinuation":
@@ -301,6 +422,17 @@ public sealed class ExportWriterResourceReleaseTests
             default:
                 throw new ArgumentOutOfRangeException(nameof(writerKind));
         }
+    }
+
+    /// <summary>
+    /// 在超過所在磁碟剩餘空間的位置寫一個位元組。這個位元組先留在緩衝區，之後寫出、定位或關檔時，Windows 會回報磁碟已滿；
+    /// 檔案大小不變，不會真的占用磁碟。
+    /// </summary>
+    private static void WriteByteBeyondFreeSpace(Stream output, string directory)
+    {
+        var freeBytes = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(directory))!).TotalFreeSpace;
+        output.Position = freeBytes + (1L << 30);
+        output.WriteByte(0);
     }
 
     private static Worksheet TemplateWithRows(int rows) => new(new SheetData(
@@ -449,6 +581,48 @@ public sealed class ExportWriterResourceReleaseTests
             Archive.Dispose();
             _document.Dispose();
             _package.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 測試自己建立的範本副本，放在 Windows 暫存資料夾、關閉時自動刪除。要求失敗之後，把內容寫進來時丟出合成的錯誤；
+    /// 已經放進緩衝區的內容不經過這裡，關檔時照常寫進檔案。
+    /// </summary>
+    private sealed class CopyFailingTemporaryFile : FileStream
+    {
+        private bool _failing;
+
+        internal CopyFailingTemporaryFile()
+            : base(
+                Path.Combine(Path.GetTempPath(), $".jet-template-copy-failure-test-{Guid.NewGuid():N}.tmp"),
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                4_096,
+                FileOptions.DeleteOnClose)
+        {
+        }
+
+        internal void FailWritesFromNowOn() => _failing = true;
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            ThrowIfFailing();
+            base.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            ThrowIfFailing();
+            base.Write(buffer);
+        }
+
+        private void ThrowIfFailing()
+        {
+            if (_failing)
+            {
+                throw new InvalidOperationException("合成的複製失敗");
+            }
         }
     }
 

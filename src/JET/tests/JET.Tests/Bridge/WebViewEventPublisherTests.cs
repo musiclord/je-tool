@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Bridge;
 
 /// <summary>
-/// 事件信封的 wire shape（後端送給前端的事件：{ event, data }、無 requestId）。
+/// 事件信封的 wire shape（後端送給前端的事件：{ event, requestId, data }；不在任何請求裡送出時沒有 requestId）。
 /// 測信封的序列化，以及 Publish 在綁定前不動作、綁定後把工作排進 UI 的 SynchronizationContext；
 /// 實際呼叫 WebView2 送出訊息不在這個測試的範圍。
 /// </summary>
@@ -23,13 +23,29 @@ public sealed class WebViewEventPublisherTests
         var root = JsonDocument.Parse(json).RootElement;
 
         Assert.Equal("import.progress", root.GetProperty("event").GetString());
-        Assert.False(root.TryGetProperty("requestId", out _)); // 與 response 信封的區隔鍵
+        Assert.False(root.TryGetProperty("requestId", out _)); // 不在任何請求裡送出的事件不帶請求編號
 
         var data = root.GetProperty("data");
         Assert.Equal("gl", data.GetProperty("kind").GetString());
         Assert.Equal("je.xlsx", data.GetProperty("fileName").GetString());
         Assert.Equal(JsonValueKind.Null, data.GetProperty("sheetName").ValueKind);
         Assert.Equal(20_000, data.GetProperty("rowsRead").GetInt32());
+    }
+
+    [Fact]
+    public async Task SerializeEnvelope_WhileARequestRuns_CarriesItsRequestId_AlsoOnAWorkerThread()
+    {
+        var registry = new RequestCancellationRegistry();
+
+        var inside = await registry.RunAsync("request-1", _ => Task.Run(() =>
+            WebViewEventPublisher.SerializeEnvelope("import.progress", new { rowsRead = 20_000 })));
+        var afterwards = WebViewEventPublisher.SerializeEnvelope("import.progress", new { rowsRead = 1 });
+
+        var root = JsonDocument.Parse(inside).RootElement;
+        Assert.True(root.TryGetProperty("requestId", out var requestId), inside);
+        Assert.Equal("request-1", requestId.GetString());
+        Assert.Equal(20_000, root.GetProperty("data").GetProperty("rowsRead").GetInt32());
+        Assert.False(JsonDocument.Parse(afterwards).RootElement.TryGetProperty("requestId", out _), afterwards);
     }
 
     [Fact]

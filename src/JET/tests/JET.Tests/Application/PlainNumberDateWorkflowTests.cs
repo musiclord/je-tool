@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using JET.Domain;
+using JET.Tests.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -142,6 +143,85 @@ public sealed class PlainNumberDateWorkflowTests
             Assert.Equal("yearTooLong", value.GetProperty("problem").GetString());
             Assert.Equal(0, value.GetProperty("markStart").GetInt32());
             Assert.Equal(5, value.GetProperty("markLength").GetInt32());
+        }
+        finally { File.Delete(path); }
+    }
+
+    // 用「-」分隔、年份在 1900 到 2100 年以外的日期，和用「/」分隔的一樣照寫出來的年份讀成日期，
+    // 日期提醒列為年份不尋常、照來源資料保留，標出年份；民國年用預設的開啟，114-6-11 讀成 2025-06-11，不列。
+    [Fact]
+    public async Task HyphenDatesOutside1900Through2100_AreKeptLikeSlashDates()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"jet-hyphen-date-{Guid.NewGuid():N}.csv");
+        File.WriteAllText(path,
+            "Document,Date,Account,Name,Description,Amount,Approved\n"
+            + "V1,2025-03-05,A,Synthetic,Normal,1,1899-6-11\n"
+            + "V2,2025-03-05,A,Synthetic,Normal,1,2101-6-11\n"
+            + "V3,2025-03-05,A,Synthetic,Normal,1,114-6-11\n"
+            + "V4,2025-03-05,A,Synthetic,Normal,1,2025-03-06\n", new UTF8Encoding(false));
+        try
+        {
+            using var host = new HandlerTestHost();
+            await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+            { projectName = "Hyphen dates", periodStart = "2024-01-01", periodEnd = "2025-12-31", databaseProvider = "sqlite" }));
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            var mapping = MappingCaseTemplateFixture.Mapping();
+            mapping["approvalDate"] = "Approved";
+
+            var committed = JsonSerializer.SerializeToElement(await host.DispatchAsync("mapping.commit.gl",
+                JsonSerializer.Serialize(new { mapping, amountMode = "signed", rdeFields = Array.Empty<object>() })));
+
+            Assert.Equal(4, committed.GetProperty("projectedRowCount").GetInt32());
+            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            Assert.Equal("approvalDate", notice.GetProperty("field").GetString());
+            Assert.Equal("unusualYear", notice.GetProperty("kind").GetString());
+            Assert.Equal("kept", notice.GetProperty("handling").GetString());
+            Assert.Equal(2, notice.GetProperty("count").GetInt64());
+            Assert.Equal(
+                ["1899-6-11|0|4|2", "2101-6-11|0|4|3"],
+                notice.GetProperty("values").EnumerateArray().Select(value =>
+                    value.GetProperty("value").GetString() + "|" + value.GetProperty("markStart").GetInt32() + "|"
+                    + value.GetProperty("markLength").GetInt32() + "|"
+                    + string.Join(",", value.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("row").GetInt32()))));
+        }
+        finally { File.Delete(path); }
+    }
+
+    // 民國年選項關閉時，三位數年份在前的 114/6/11 與 114-6-11 讀不成日期，日期提醒寫年份不到四位數、只標年份；
+    // 2025-02-29 是日曆上沒有這一天，標出日。原因照案件的民國年選項判斷。
+    [Fact]
+    public async Task ThreeDigitYearWithRocOff_IsReportedAsYearTooShort()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"jet-short-year-date-{Guid.NewGuid():N}.csv");
+        File.WriteAllText(path,
+            "Document,Date,Account,Name,Description,Amount,Approved\n"
+            + "V1,2025-03-05,A,Synthetic,Normal,1,114/6/11\n"
+            + "V2,2025-03-05,A,Synthetic,Normal,1,114-6-11\n"
+            + "V3,2025-03-05,A,Synthetic,Normal,1,2025-02-29\n", new UTF8Encoding(false));
+        try
+        {
+            using var host = new HandlerTestHost();
+            var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+            { projectName = "Short year dates", periodStart = "2024-01-01", periodEnd = "2025-12-31", databaseProvider = "sqlite" }));
+            var id = created.GetProperty("projectId").GetString()!;
+            // 合成案件改用民國年關閉的設定；畫面沒有這條路，只在測試裡這樣做。
+            await ProtectedSettingEdits.ApplyAsync(host.ProjectsRoot, id, project => project with { RocDateEnabled = false });
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            var mapping = MappingCaseTemplateFixture.Mapping();
+            mapping["approvalDate"] = "Approved";
+
+            var committed = JsonSerializer.SerializeToElement(await host.DispatchAsync("mapping.commit.gl",
+                JsonSerializer.Serialize(new { mapping, amountMode = "signed", rdeFields = Array.Empty<object>() })));
+
+            Assert.Equal(3, committed.GetProperty("projectedRowCount").GetInt32());
+            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            Assert.Equal("unrecognized", notice.GetProperty("kind").GetString());
+            Assert.Equal("notUsed", notice.GetProperty("handling").GetString());
+            Assert.Equal(
+                ["114/6/11|yearTooShort|0|3", "114-6-11|yearTooShort|0|3", "2025-02-29|noSuchDate|8|2"],
+                notice.GetProperty("values").EnumerateArray().Select(value =>
+                    value.GetProperty("value").GetString() + "|" + value.GetProperty("problem").GetString() + "|"
+                    + value.GetProperty("markStart").GetInt32() + "|" + value.GetProperty("markLength").GetInt32()));
         }
         finally { File.Delete(path); }
     }

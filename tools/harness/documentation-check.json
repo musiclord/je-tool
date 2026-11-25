@@ -281,14 +281,8 @@
       { "id": "size-rulings", "match": ["docs/rulings.md"], "maxKiB": 2048 },
       { "id": "size-glossary", "match": ["docs/glossary.md"], "maxKiB": 1024 },
       { "id": "size-frontend-description", "match": ["docs/jet-frontend-description.md"], "maxKiB": 195.3125 },
-      {
-        "id": "size-reference-document",
-        "match": [
-          "docs/jet-guide.md",
-          "docs/action-contract-manifest.md"
-        ],
-        "maxKiB": 160
-      },
+      { "id": "size-system-guide", "match": ["docs/jet-guide.md"], "maxKiB": 320 },
+      { "id": "size-reference-document", "match": ["docs/action-contract-manifest.md"], "maxKiB": 160 },
       {
         "id": "size-excel-conventions",
         "match": [

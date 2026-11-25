@@ -13,60 +13,42 @@ internal sealed partial class LegacyReportWriter
     /// </summary>
     private sealed class CriteriaVoucherRowSpool : IDisposable
     {
-        private FileStream? _stream;
+        private ExportSpoolFile? _file;
         private BinaryReader? _reader;
         private long _count;
         private long _nextIndex;
         private bool _disposed;
 
-        internal bool IsFilled => _stream is not null;
+        internal bool IsFilled => _reader is not null;
 
+        /// <summary>
+        /// 把查詢讀到的分錄依序寫進暫存檔，讀完才從頭讀回。中途失敗或取消時，暫存檔由呼叫端放掉這個物件時一起放掉。
+        /// </summary>
         internal async Task FillAsync(
             IAsyncEnumerable<(long EntryId, bool IsHit)> rows,
             bool wholeVoucher,
             CancellationToken cancellationToken)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_stream is not null)
+            if (_file is not null)
             {
                 throw new InvalidOperationException("Criteria voucher row spool is already filled.");
             }
 
-            var path = Path.Combine(
-                Path.GetTempPath(),
-                $".jet-legacy-report-criteria-{Guid.NewGuid():N}.tmp");
-            var stream = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.ReadWrite,
-                FileShare.None,
-                bufferSize: 64 * 1024,
-                FileOptions.SequentialScan | FileOptions.DeleteOnClose);
-            try
+            _file = ExportSpoolFile.Create(".jet-legacy-report-criteria-", bufferSize: 64 * 1024);
+            var writer = _file.Writer;
+            long count = 0;
+            await foreach (var row in rows.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                long count = 0;
-                await using (var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true))
-                {
-                    await foreach (var row in rows.WithCancellation(cancellationToken).ConfigureAwait(false))
-                    {
-                        writer.Write(row.EntryId);
-                        // 整張傳票計數的情境，命中傳票的每一筆分錄都算符合條件，和摘要的分錄筆數一致。
-                        writer.Write(wholeVoucher || row.IsHit);
-                        count++;
-                    }
-                }
+                writer.Write(row.EntryId);
+                // 整張傳票計數的情境，命中傳票的每一筆分錄都算符合條件，和摘要的分錄筆數一致。
+                writer.Write(wholeVoucher || row.IsHit);
+                count++;
+            }
 
-                stream.Position = 0;
-                _stream = stream;
-                _reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
-                _count = count;
-                _nextIndex = 0;
-            }
-            catch
-            {
-                await stream.DisposeAsync().ConfigureAwait(false);
-                throw;
-            }
+            _reader = _file.StartReading(throwOnInvalidBytes: false);
+            _count = count;
+            _nextIndex = 0;
         }
 
         internal PageResult<CriteriaVoucherRow> ReadPage(PageRequest page)
@@ -107,8 +89,7 @@ internal sealed partial class LegacyReportWriter
             }
 
             _disposed = true;
-            _reader?.Dispose();
-            _stream?.Dispose();
+            _file?.Dispose();
         }
     }
 }

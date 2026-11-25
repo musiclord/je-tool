@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml;
@@ -437,7 +436,8 @@ internal sealed class DirectTemplateCellEditor
         }
     }
 
-    internal void SetInlineString(
+    /// <summary>文字格，寫法見 <see cref="ExcelText.SetText"/>；沒有文字時只留樣式。</summary>
+    internal void SetText(
         string reference,
         string? value,
         WorkbookStylePatch? stylePatch = null)
@@ -450,12 +450,11 @@ internal sealed class DirectTemplateCellEditor
             return;
         }
 
-        cell.DataType = CellValues.InlineString;
-        cell.InlineString = ExcelText.InlineString(value, WorksheetPart);
+        ExcelText.SetText(cell, value, WorksheetPart);
     }
 
-    /// <summary>照原樣寫出、不截斷的文字，給篩選條件說明切好的分段。</summary>
-    internal void SetVerbatimInlineString(string reference, string? value)
+    /// <summary>照原樣寫出、不截斷的文字，給篩選條件說明切好的分段；寫法見 <see cref="ExcelText.SetVerbatimText"/>。</summary>
+    internal void SetVerbatimText(string reference, string? value)
     {
         var cell = TakeCell(reference);
         ClearPayload(cell);
@@ -464,11 +463,10 @@ internal sealed class DirectTemplateCellEditor
             return;
         }
 
-        cell.DataType = CellValues.InlineString;
-        cell.InlineString = ExcelText.VerbatimInlineString(value);
+        ExcelText.SetVerbatimText(cell, value, WorksheetPart);
     }
 
-    /// <summary>超過 Excel 每格上限的文字截斷後，截斷格數記在這張工作表上。</summary>
+    /// <summary>文字寫進的工作表：截斷格數記在它上面，文字寫進它所屬活頁簿的共用字串表。</summary>
     private WorksheetPart WorksheetPart => _worksheet.WorksheetPart
         ?? throw new InvalidOperationException("Template worksheet is not loaded from a worksheet part.");
 
@@ -696,10 +694,15 @@ internal static class DirectTemplateWorksheetRewriter
         "oleObjects", "controls", "webPublishItems", "tableParts", "extLst"
     };
 
+    /// <param name="createSourceCopy">
+    /// 建立放原本 XML 副本的暫存檔；沒有指定時用 <see cref="CreateTemporaryWorksheetStream"/>。
+    /// 測試從這裡留住副本，核對複製失敗之後副本已經關閉。
+    /// </param>
     internal static void Rewrite(
         WorksheetPart part,
         DirectTemplateWorksheetRewritePlan plan,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<FileStream>? createSourceCopy = null)
     {
         if (plan.FirstDynamicRow == 0)
         {
@@ -737,12 +740,22 @@ internal static class DirectTemplateWorksheetRewriter
                 nameof(plan));
         }
 
-        using var sourceCopy = CreateTemporaryWorksheetStream();
-        using (var source = part.GetStream(FileMode.Open, FileAccess.Read))
+        using var sourceCopy = (createSourceCopy ?? CreateTemporaryWorksheetStream)();
+        try
         {
-            source.CopyTo(sourceCopy);
+            using (var source = part.GetStream(FileMode.Open, FileAccess.Read))
+            {
+                source.CopyTo(sourceCopy);
+            }
+            sourceCopy.Position = 0;
         }
-        sourceCopy.Position = 0;
+        catch
+        {
+            // 複製到副本或回到開頭時失敗，緩衝裡還沒寫進檔案的內容在關檔時會再寫一次；暫存資料夾的磁碟已滿時，
+            // 這次又會丟出新的錯誤，蓋掉原本的原因。副本已經用不到了，在這裡安靜地放掉；檔案一定關閉，關閉時跟著刪除。
+            ExportResources.ReleaseAll(sourceCopy);
+            throw;
+        }
 
         var readerSettings = new XmlReaderSettings
         {
@@ -751,17 +764,9 @@ internal static class DirectTemplateWorksheetRewriter
             IgnoreWhitespace = false,
             CloseInput = false
         };
-        var writerSettings = new XmlWriterSettings
-        {
-            Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            Indent = false,
-            OmitXmlDeclaration = false,
-            CloseOutput = false
-        };
 
-        using var target = FormalWorkbookArchive.OpenWorksheetContent(part);
         using var reader = XmlReader.Create(sourceCopy, readerSettings);
-        using var writer = XmlWriter.Create(target, writerSettings);
+        using var writer = FormalWorkbookArchive.OpenWorksheetWriter(part);
         try
         {
             try
@@ -773,13 +778,12 @@ internal static class DirectTemplateWorksheetRewriter
                 throw;
             }
             writer.Flush();
-            target.Flush();
         }
         catch
         {
-            // XML 寫入器與壓縮檔項目關閉時還會把緩衝寫出去。改寫已經失敗或取消，先在這裡安靜地放掉，
+            // XML 寫入器關閉時還會把緩衝寫進壓縮檔項目，再關閉那個項目。改寫已經失敗或取消，先在這裡安靜地放掉，
             // 離開時的釋放就不會再丟出新的例外，蓋掉原本的原因。
-            ExportResources.ReleaseAll(writer, target);
+            ExportResources.ReleaseAll(writer);
             throw;
         }
     }
@@ -1095,9 +1099,8 @@ internal static class DirectTemplateWorksheetRewriter
             }
 
             cell.RemoveNodes();
-            cell.SetAttributeValue("t", "inlineStr");
             // 固定儲存格換上的是程式寫好的說明文字，照原樣寫出。
-            cell.Add(ExcelText.VerbatimInlineStringElement(spreadsheet, value));
+            ExcelText.SetVerbatimInlineTextElement(cell, spreadsheet, value);
             applied.Add(reference);
         }
     }
@@ -1140,17 +1143,6 @@ internal static class DirectTemplateWorksheetRewriter
             NumberStyles.Float,
             CultureInfo.InvariantCulture);
 
-    private static FileStream CreateTemporaryWorksheetStream()
-    {
-        var path = Path.Combine(
-            Path.GetTempPath(),
-            $".jet-template-worksheet-{Guid.NewGuid():N}.tmp");
-        return new FileStream(
-            path,
-            FileMode.CreateNew,
-            FileAccess.ReadWrite,
-            FileShare.None,
-            bufferSize: 128 * 1024,
-            FileOptions.SequentialScan | FileOptions.DeleteOnClose);
-    }
+    private static FileStream CreateTemporaryWorksheetStream() =>
+        ExportSpoolFile.CreateStream(".jet-template-worksheet-", bufferSize: 128 * 1024);
 }

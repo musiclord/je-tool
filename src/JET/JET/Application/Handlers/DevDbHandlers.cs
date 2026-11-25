@@ -32,7 +32,6 @@ public sealed class DevDbOverviewHandler(
 public sealed class DevDbTableDataHandler(ProjectSession session) : IApplicationActionHandler
 {
     private const int DefaultLimit = 50;
-    private const int MaxLimit = 200;
 
     public string Action => "dev.db.tableData";
 
@@ -41,7 +40,7 @@ public sealed class DevDbTableDataHandler(ProjectSession session) : IApplication
         var (projectId, repositories) = session.RequireActive();
 
         var tableName = PayloadReader.GetRequiredString(payload, "tableName");
-        var limit = Math.Clamp(PayloadReader.GetOptionalInt(payload, "limit") ?? DefaultLimit, 1, MaxLimit);
+        var limit = PageRequestReader.ReadPageSize(payload, "limit", DefaultLimit);
         var offset = Math.Max(PayloadReader.GetOptionalInt(payload, "offset") ?? 0, 0);
 
         var page = await repositories.DevDatabaseInspector.GetTablePageAsync(projectId, tableName, limit, offset, cancellationToken)

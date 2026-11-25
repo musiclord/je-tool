@@ -93,7 +93,7 @@ public sealed class FilterScenarioRuleUpgradeTests
     public void SavedBlankAmountCondition_IsListedOnLoadWithWhatToUseInstead()
     {
         var project = new ProjectDocument("never-blank", "", "", "test", "2025-01-01", "2025-12-31", null,
-            100, "AwayFromZero", DateTimeOffset.UnixEpoch, 5, ProjectDocument.CurrentSchemaVersion);
+            100, DateTimeOffset.UnixEpoch, 5, ProjectDocument.CurrentSchemaVersion);
         var mapping = new CommittedMapping(DatasetKind.Gl, new Dictionary<string, string>
         {
             ["voucherNumber"] = "Voucher", ["glDate"] = "Date", ["accountNumber"] = "Account",

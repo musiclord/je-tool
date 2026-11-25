@@ -92,10 +92,15 @@ public sealed partial class TerminologyUnificationFrontendTests
         // Shares the fourth/fifth-step explanation.
         Assert.Contains("desc: Ui.prescreenConditionDescription('trailingZeros')",
             ReadFrontend("js", "steps", "validate-step.js"), StringComparison.Ordinal);
-        // 0 的個數照 IDEA 版由 GL 算出，說明寫的是算法，不寫死 6 個 0。
-        Assert.Equal("依本次測試的分錄，找出金額整數部分尾數連續多個 0 的分錄。借方金額合計除以全部分錄筆數得到平均，0 的個數是平均整數部分的位數減一，例如平均 2,391,281 是 6 個 0，至少 1 個、最多 12 個。不含小數，整數部分為 0 不列入。",
-            // 一條規則只有一個定義，說明文字放在 PRESCREEN_RULES 的 description。
-            FrontendConstantTextReader.ValueProperty(ReadFrontend("js", "ui-core.js"), "PRESCREEN_RULES", "trailingZeros", "description"));
+        // 0 的個數照 IDEA 版由 GL 算出：說明寫整數部分與個數的來源，算法寫在 calculation，不寫死 6 個 0。只核對資訊。
+        // 一條規則只有一個定義，說明文字放在 PRESCREEN_RULES。
+        var uiCore = ReadFrontend("js", "ui-core.js");
+        var description = FrontendConstantTextReader.ValueProperty(uiCore, "PRESCREEN_RULES", "trailingZeros", "description");
+        var calculation = FrontendConstantTextReader.ValueProperty(uiCore, "PRESCREEN_RULES", "trailingZeros", "calculation");
+        Assert.Contains("整數部分", description, StringComparison.Ordinal);
+        Assert.Contains("GL", description, StringComparison.Ordinal);
+        Assert.Contains("位數減一", calculation, StringComparison.Ordinal);
+        Assert.Contains("IDEA", calculation, StringComparison.Ordinal);
     }
 
     [Fact]

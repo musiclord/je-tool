@@ -122,6 +122,7 @@ public sealed class ExcelCellTextLimitExportTests
     {
         using var document = SpreadsheetDocument.Open(path, isEditable: false);
         var workbook = document.WorkbookPart!;
+        var sharedItems = JET.Tests.Infrastructure.WrittenCellText.SharedItems(workbook);
         var result = new List<(string, int)>();
         foreach (var sheet in workbook.Workbook!.Sheets!.Elements<Sheet>())
         {
@@ -129,7 +130,7 @@ public sealed class ExcelCellTextLimitExportTests
             var count = 0;
             foreach (var cell in part.Worksheet!.Descendants<Cell>())
             {
-                if (cell.InlineString?.InnerText is not { } written)
+                if (JET.Tests.Infrastructure.WrittenCellText.Of(cell, sharedItems) is not { } written)
                 {
                     continue;
                 }

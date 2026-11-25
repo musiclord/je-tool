@@ -31,8 +31,9 @@ public sealed class SourceValueOwnershipTests
             "Domain/Primitives/MoneyScaling.cs",
             "MoneyScaling.FromScaled",
             "把放大後的金額整數轉回十進位"),
+        // 進位方式的名稱寫成文字也算，例如存成設定值的 "AwayFromZero"。
         new(MidpointRoundingRule,
-            @"\bMidpointRounding\b",
+            @"\bMidpointRounding\b|""(?:AwayFromZero|ToEven|ToZero|ToNegativeInfinity|ToPositiveInfinity)""",
             "Domain/Primitives/MoneyScaling.cs",
             "MoneyScaling.TryToScaled 或 MoneyScaling.TryParseScaled",
             "金額的四捨五入方式"),
@@ -149,6 +150,7 @@ public sealed class SourceValueOwnershipTests
             (ScaledToDecimalRule, "private static decimal Display(long scaled, int moneyScale) => (decimal)scaled / moneyScale;"),
             (ScaledToDecimalRule, "voucherTotal = (decimal)row.VoucherTotalScaled / project.MoneyScale }).ToArray();"),
             (MidpointRoundingRule, "var rounded = Math.Round(value * moneyScale, 0, MidpointRounding.ToEven);"),
+            (MidpointRoundingRule, "public const string DefaultRoundingMode = \"AwayFromZero\";"),
             (DecimalTryParseRule, "if (decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))")
         ];
 

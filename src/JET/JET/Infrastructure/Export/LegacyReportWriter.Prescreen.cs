@@ -90,7 +90,8 @@ internal sealed partial class LegacyReportWriter
                 ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, ct);
                 return stats;
             },
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            _layout).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<SheetStat>> FillPrescreenTemplateAsync(
@@ -248,18 +249,18 @@ internal sealed partial class LegacyReportWriter
                     allowed,
                     editor.StylePatcher,
                     [3]);
-                cells.SetInlineString(
+                cells.SetText(
                     "E1",
                     $"Client: {context.Project.CompanyName}");
-                cells.SetInlineString(
+                cells.SetText(
                     "E2",
                     $"Year End: {context.Project.PeriodEnd}");
-                cells.SetInlineString("E4", $"Prepared by: {operatorId}");
-                cells.SetInlineString(
+                cells.SetText("E4", $"Prepared by: {operatorId}");
+                cells.SetText(
                     "E5",
                     string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
-                cells.SetInlineString("C8", closeDateText);
-                cells.SetInlineString("C11", zeroText);
+                cells.SetText("C8", closeDateText);
+                cells.SetText("C11", zeroText);
 
                 SetPrescreenHitSummaryRow(
                     cells,
@@ -310,6 +311,8 @@ internal sealed partial class LegacyReportWriter
                         PrescreenReportDetailKind.BlankDescription));
                 cells.PatchColumn(3, PrescreenDescriptionColumnWrap);
                 cells.EnsureAllAllowedCellsWereEdited();
+                // 摘要頁的 dimension 依寫完的格子重算，和條件篩選報告的摘要頁相同；這一頁沒有加列時和範本相同。
+                SheetUsedRange.RefreshDimension(worksheet);
                 ExcelText.SaveWorksheet(part);
                 ct.ThrowIfCancellationRequested();
             },
@@ -323,8 +326,8 @@ internal sealed partial class LegacyReportWriter
         PrescreenReportRuleProjection projection,
         PrescreenReportDetailPlan detail)
     {
-        cells.SetInlineString($"A{row}", projection.Status);
-        cells.SetInlineString($"D{row}", detail.Disposition switch
+        cells.SetText($"A{row}", projection.Status);
+        cells.SetText($"D{row}", detail.Disposition switch
         {
             PrescreenReportDetailDisposition.NotApplicable =>
                 NotApplicableResultText(detail),
@@ -339,8 +342,8 @@ internal sealed partial class LegacyReportWriter
         // 零筆時照舊版沒有明細工作表，E、F 欄寫 N/A。
         if (detail.Counts is null || detail.Counts.RowHitCount == 0)
         {
-            cells.SetInlineString($"E{row}", "N/A");
-            cells.SetInlineString($"F{row}", "N/A");
+            cells.SetText($"E{row}", "N/A");
+            cells.SetText($"F{row}", "N/A");
             return;
         }
 
@@ -355,14 +358,14 @@ internal sealed partial class LegacyReportWriter
         string sheetName,
         string? notApplicableMessage)
     {
-        cells.SetInlineString($"A{row}", projection.Status);
-        cells.SetInlineString(
+        cells.SetText($"A{row}", projection.Status);
+        cells.SetText(
             $"D{row}",
             projection.NaReason is not { } naReason
                 ? DetailSheetResultText(null, sheetName)
                 : notApplicableMessage ?? $"N/A（{naReason}）");
-        cells.SetInlineString($"E{row}", "N/A");
-        cells.SetInlineString($"F{row}", "N/A");
+        cells.SetText($"E{row}", "N/A");
+        cells.SetText($"F{row}", "N/A");
     }
 
     // 舊版有明細工作表時寫「符合預篩選條件之明細項請詳 [Rn] 工作表」；空白摘要是舊版另外加的規則，句子多「新增」兩個字。
@@ -479,10 +482,12 @@ internal sealed partial class LegacyReportWriter
         var part = 1;
         uint row = 2;
         var sheetName = SeriesName("R5", part);
+        var columnCount = checked((uint)widths.Count);
         ReportSheetWriter? sheet = OpenPreparerSummarySheet(
             document,
             sheets,
             part,
+            PagedSheetUsedRange(preparers.Count, part, columnCount, _continuationRowLimit),
             widths,
             includeManual,
             styles,
@@ -506,6 +511,7 @@ internal sealed partial class LegacyReportWriter
                         document,
                         sheets,
                         part,
+                        PagedSheetUsedRange(preparers.Count, part, columnCount, _continuationRowLimit),
                         widths,
                         includeManual,
                         styles,
@@ -538,6 +544,7 @@ internal sealed partial class LegacyReportWriter
         SpreadsheetDocument document,
         Sheets sheets,
         int part,
+        SheetUsedRange usedRange,
         IReadOnlyList<double> widths,
         bool includeManual,
         WorkbookStyleMap styles,
@@ -553,6 +560,7 @@ internal sealed partial class LegacyReportWriter
             document,
             sheets,
             SeriesName("R5", part),
+            usedRange,
             LegacyAutoFitColumns(
                 widths,
                 autoFitMode),
@@ -706,10 +714,12 @@ internal sealed partial class LegacyReportWriter
         var part = 1;
         uint row = 2;
         var sheetName = SeriesName("R6", part);
+        var columnCount = checked((uint)headers.Count);
         ReportSheetWriter? sheet = OpenAccountUsageSheet(
             document,
             sheets,
             part,
+            PagedSheetUsedRange(accounts.Count, part, columnCount, _continuationRowLimit),
             headers,
             widths,
             styles,
@@ -733,6 +743,7 @@ internal sealed partial class LegacyReportWriter
                         document,
                         sheets,
                         part,
+                        PagedSheetUsedRange(accounts.Count, part, columnCount, _continuationRowLimit),
                         headers,
                         widths,
                         styles,
@@ -825,6 +836,7 @@ internal sealed partial class LegacyReportWriter
         SpreadsheetDocument document,
         Sheets sheets,
         int part,
+        SheetUsedRange usedRange,
         IReadOnlyList<string> headers,
         IReadOnlyList<double> widths,
         WorkbookStyleMap styles,
@@ -844,6 +856,7 @@ internal sealed partial class LegacyReportWriter
             document,
             sheets,
             SeriesName("R6", part),
+            usedRange,
             LegacyAutoFitColumns(
                 widths,
                 autoFitMode),

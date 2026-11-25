@@ -119,7 +119,8 @@ public sealed class AccountMappingTemplateWriter :
                 }
                 return stats;
             },
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            FormalWorkbookLayout.AsWritten).ConfigureAwait(false);
     }
 
     private static IReadOnlyList<SheetStat> FillTemplate(
@@ -255,7 +256,7 @@ public sealed class AccountMappingTemplateWriter :
 
     /// <summary>
     /// 科目代號、科目名稱與分類名稱在案件資料裡都有字數上限，遠低於 Excel 每格上限，實際不會截斷；
-    /// 仍照一般文字寫出，萬一超過也不會寫出 Excel 打不開的檔案。
+    /// 仍照一般文字寫出，萬一超過也不會寫出 Excel 打不開的檔案。科目配對範本的文字寫成 inline string。
     /// </summary>
     private static XElement TextCell(
         WorksheetPart part,
@@ -270,8 +271,7 @@ public sealed class AccountMappingTemplateWriter :
             return cell;
         }
 
-        cell.SetAttributeValue("t", "inlineStr");
-        cell.Add(ExcelText.InlineStringElement(Spreadsheet, value, part));
+        ExcelText.SetInlineTextElement(cell, Spreadsheet, value, part);
         return cell;
     }
 

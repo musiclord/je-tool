@@ -317,7 +317,7 @@
           formRow('periodEnd', '查核截止日', 'date', true, filled('periodEnd')) +
           formRow('prepStartDate', '期末財報準備日', 'date', false, filled('prepStartDate')) +
           preparationWarningHtml() +
-          '<p class="rule-card__sub">查核期間決定本次分析的總帳範圍；期末財報準備日供「財報準備日起核准」條件使用，不會延長查核期間。</p>' +
+          '<p class="rule-card__sub">查核期間決定哪些分錄納入測試。案件名稱與查核期間建立後不能修改，填錯時要另外建立新案件。期末財報準備日用於「財報準備日起核准」條件，可以先留空，建立後再按「修改案件資料」補填。</p>' +
           '<div id="create-form-error" class="form-notice create-form__error" data-bind="create-error" data-collapsible role="alert" tabindex="-1" hidden></div>' +
           '<div class="panel__actions">' +
             '<button type="submit" class="btn">建立案件</button>' +

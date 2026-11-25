@@ -1,13 +1,14 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using JET.Application;
 using Microsoft.Web.WebView2.Core;
 
 namespace JET.Bridge;
 
 /// <summary>
-/// IJetEventPublisher 的 WebView2 實作。事件的格式是 { event, data }，沒有 requestId，
-/// 藉此和 action 的回應區分；不認得這個格式的前端會直接忽略。
+/// IJetEventPublisher 的 WebView2 實作。事件的格式是 { event, requestId, data }，前端看有沒有 event 和 action 的回應區分。
+/// requestId 是送出這個事件的畫面請求，前端只把還在等回應的請求的進度交給畫面；不在任何請求裡送出的事件不帶這個鍵。
 /// Publish 可能從背景執行緒呼叫，例如匯入是在 Task.Run 裡執行；PostWebMessageAsJson 必須在 UI 執行緒呼叫，
 /// 所以用 Bind 時傳入的 SynchronizationContext 轉回 UI 執行緒。
 /// Bind 之前 WebView 還沒準備好，事件直接丟棄；事件只是給畫面的提示，正式結果不靠它傳遞。
@@ -50,13 +51,19 @@ public sealed class WebViewEventPublisher : IJetEventPublisher
         }, null);
     }
 
-    /// <summary>信封序列化抽成純靜態，讓 wire shape 可單元測試。</summary>
+    /// <summary>
+    /// 信封序列化抽成純靜態，讓 wire shape 可單元測試。請求編號在送出事件的當下讀，
+    /// 所以要在事件所屬請求的非同步流程裡呼叫，不能延到切回 UI 執行緒之後。
+    /// </summary>
     public static string SerializeEnvelope(string eventName, object payload)
     {
-        return JsonSerializer.Serialize(new JetEventEnvelope(eventName, payload), JsonOptions);
+        return JsonSerializer.Serialize(
+            new JetEventEnvelope(eventName, RequestCancellationRegistry.CurrentRequestId, payload),
+            JsonOptions);
     }
 }
 
 internal sealed record JetEventEnvelope(
     string Event,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RequestId,
     object Data);

@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Text.Json;
 using FsCheck.Xunit;
 using JET.Domain;
+using JET.Tests.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Domain;
@@ -182,4 +184,60 @@ public sealed class MoneyScalingTests
             Assert.False(MoneyScaling.TryToScaled(item.Amount, item.Scale, out _));
         }
     }
+
+    // 前後端讀同一份金額固定答案 tests/JET.Tests/Fixtures/amount-parsing.json，
+    // 前端第五步的金額條件測試讀同一份；一邊改了規則另一邊就失敗。
+    public static TheoryData<string> SharedFixtureRaws()
+    {
+        var data = new TheoryData<string>();
+        foreach (var raw in SharedAmountFixture.Cases.Keys) data.Add(raw);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(SharedFixtureRaws))]
+    public void TryParseScaled_SharedAmountFixture_MatchesTheFixedAnswer(string raw)
+    {
+        Assert.Equal(SharedAmountFixture.Cases[raw],
+            MoneyScaling.TryParseScaled(raw, SharedAmountFixture.MoneyScale, out var scaled)
+                ? scaled.ToString(CultureInfo.InvariantCulture) : null);
+    }
+}
+
+/// <summary>
+/// 前後端共用的金額固定答案：每個原文對應金額存放倍率為 <see cref="MoneyScale"/> 時放大後的整數文字，null 是不是有效金額；
+/// 區間對應 ok、reversed、invalidFrom、invalidTo 或 invalidBoth。
+/// </summary>
+internal static class SharedAmountFixture
+{
+    private static readonly JsonElement Root = Load();
+
+    internal static int MoneyScale { get; } = Root.GetProperty("moneyScale").GetInt32();
+
+    internal static IReadOnlyDictionary<string, string?> Cases { get; } = ReadCases();
+
+    internal static IReadOnlyList<(string From, string To, string Result)> Ranges { get; } = ReadRanges();
+
+    private static JsonElement Load()
+    {
+        using var json = JsonDocument.Parse(File.ReadAllText(TestRepositoryPaths.Fixture("amount-parsing.json")));
+        return json.RootElement.Clone();
+    }
+
+    private static Dictionary<string, string?> ReadCases()
+    {
+        var cases = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var item in Root.GetProperty("cases").EnumerateArray())
+        {
+            var scaled = item.GetProperty("scaled");
+            cases.Add(item.GetProperty("raw").GetString()!, scaled.ValueKind == JsonValueKind.Null ? null : scaled.GetString());
+        }
+
+        return cases;
+    }
+
+    private static List<(string From, string To, string Result)> ReadRanges() =>
+        Root.GetProperty("ranges").EnumerateArray()
+            .Select(item => (item.GetProperty("from").GetString()!, item.GetProperty("to").GetString()!, item.GetProperty("result").GetString()!))
+            .ToList();
 }

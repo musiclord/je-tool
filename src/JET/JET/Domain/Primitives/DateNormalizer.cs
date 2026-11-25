@@ -26,6 +26,15 @@ public enum DateProblemKind
     /// <summary>年份寫成五位數以上，例如 99999/02/01，多半是年份多打了幾位數。</summary>
     YearTooLong,
 
+    /// <summary>
+    /// 年份在前但只有三位數，例如民國年選項關閉時的 114/6/11，民國年開啟時不在民國 100 到 199 年的 200/6/11，
+    /// 或後面接時間的 114/6/11 08:30；民國年的寫法不接時間，所以這種值不論民國年選項開或關都算這一種。
+    /// </summary>
+    YearTooShort,
+
+    /// <summary>帶時間、寫成年月日或英文月份這類寫法讀得出日期，但年份不在 1900 到 2100 年之間，例如 1899/6/11 08:30。</summary>
+    LooseYearOutOfRange,
+
     /// <summary>其他讀不成日期的內容。</summary>
     NotDate
 }
@@ -35,8 +44,10 @@ public readonly record struct DateProblem(DateProblemKind Kind, int MarkStart, i
 
 /// <summary>
 /// 日期字串正規化的權威實作。純函式、provider 無關；輸出一律 "yyyy-MM-dd"。
-/// 判定順序固定：補零成四位數的民國年（開關）→ ISO → 顯式西元（yyyy/M/d、yyyy.M.d、yyyyMMdd）→ 民國年（開關）→
-/// 純數字一律拒絕 → 寬鬆 fallback（年份 1900 到 2100 的 sanity guard，且原文要寫出四位數年份與日）。
+/// 判定順序固定：補零成四位數的民國年（開關）→ ISO → 顯式西元（yyyy-M-d、yyyy/M/d、yyyy.M.d、yyyyMMdd，年份 0001 到 9999）→
+/// 民國年（開關，1xx-M-D、1xx/M/D、1xx.M.D、1xxMMdd）→ 純數字一律拒絕 → 短年份三段式與年份在後的寫法一律拒絕 →
+/// 寬鬆 fallback（帶時間、年月日、英文月份等寫法；年份 1900 到 2100 的 sanity guard，且原文要寫出四位數年份與日；
+/// 帶時差或 Z 的日期時間取文字裡寫的那一天，不換成電腦的時間）。
 /// 純數字不當成 Excel 序列值：日期型儲存格由讀取器依儲存格格式換成 ISO，
 /// 走到這裡的數字是沒套日期格式的儲存格或文字檔裡的數字，分不出是年份還是序列值，一律視為無法辨識。
 /// 前端 filter-values.js 的日期清單鏡像同一套規則；兩邊共用 tests/JET.Tests/Fixtures/date-normalization.json 的固定答案。
@@ -48,10 +59,12 @@ public static partial class DateNormalizer
     [GeneratedRegex(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")]
     private static partial Regex IsoPattern();
 
-    [GeneratedRegex(@"^([0-9]{4})[/.]([0-9]{1,2})[/.]([0-9]{1,2})$")]
+    // 年份在前的四位數年份，月日用 -、/ 或 . 分隔，三種符號可以混用；年份照寫出來的讀，不限 1900 到 2100 年。
+    [GeneratedRegex(@"^([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})$")]
     private static partial Regex ExplicitWesternPattern();
 
-    [GeneratedRegex(@"^(1[0-9]{2})[/.]([0-9]{1,2})[/.]([0-9]{1,2})$")]
+    // 民國年選項開啟時的三位數民國年 100 到 199，分隔符號和西元的寫法相同。
+    [GeneratedRegex(@"^(1[0-9]{2})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})$")]
     private static partial Regex RocSeparatedPattern();
 
     [GeneratedRegex(@"^(1[0-9]{2})([0-9]{2})([0-9]{2})$")]
@@ -64,7 +77,7 @@ public static partial class DateNormalizer
     [GeneratedRegex(@"^0(1[0-9]{2})([0-9]{2})([0-9]{2})$")]
     private static partial Regex RocPaddedCompactPattern();
 
-    [GeneratedRegex(@"^[0-9]{1,3}[/.][0-9]{1,2}[/.][0-9]{1,2}$")]
+    [GeneratedRegex(@"^[0-9]{1,3}[-/.][0-9]{1,2}[-/.][0-9]{1,2}$")]
     private static partial Regex AmbiguousShortYearPattern();
 
     // 日期旁邊即使帶時間或星期文字，也不能交給 fallback 猜月日順序。
@@ -122,7 +135,7 @@ public static partial class DateNormalizer
             return true;
         }
 
-        // 2. 顯式西元：yyyy/M/d、yyyy.M.d
+        // 2. 顯式西元：yyyy-M-d、yyyy/M/d、yyyy.M.d
         var western = ExplicitWesternPattern().Match(text);
         if (western.Success)
         {
@@ -176,22 +189,36 @@ public static partial class DateNormalizer
             return false;
         }
 
-        // 兩位數年等短年份三段式（11/05/06）無法分辨民國/西元/日月序，一律拒絕。
-        // 民國年關閉時，3 位數年三段式也落入此處被拒絕，而非被吞成西元 0114。
+        // 兩位數年等短年份三段式（11/05/06、11-05-06）無法分辨民國/西元/日月序，一律拒絕。
+        // 民國年關閉時，3 位數年三段式（114/6/11、114-6-11）也落入此處被拒絕，而非被吞成西元 0114。
         if (AmbiguousShortYearPattern().IsMatch(text) || NumericYearLastPattern().IsMatch(text))
         {
             return false;
         }
 
         // 5. 寬鬆 fallback + 年份 sanity guard
-        if (DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
-            && parsed.Year is >= 1900 and <= 2100
-            && WritesYearAndDay(text, parsed))
+        if (TryReadLoose(text, out var parsed) && parsed.Year is >= 1900 and <= 2100)
         {
             isoDate = parsed.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             return true;
         }
 
+        return false;
+    }
+
+    // 寬鬆解析讀出的日期，年份範圍由呼叫端判斷；TryNormalize 與 DescribeUnrecognized 共用，兩邊的判斷才不會分歧。
+    // 帶時差或 Z 的日期時間取文字裡寫的那一天，不換成這台電腦的時間，結果才不會隨電腦的時區改變；
+    // 沒寫時差的值當成 UTC，同樣不受電腦時區影響。原文還要寫出四位數年份與日。
+    private static bool TryReadLoose(string text, out DateTime parsed)
+    {
+        if (DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var written)
+            && WritesYearAndDay(text, written.DateTime))
+        {
+            parsed = written.DateTime;
+            return true;
+        }
+
+        parsed = default;
         return false;
     }
 
@@ -243,47 +270,79 @@ public static partial class DateNormalizer
     internal static bool HasUnusualYear(string isoDate) =>
         string.CompareOrdinal(isoDate, "1900-01-01") < 0 || string.CompareOrdinal(isoDate, "2100-12-31") > 0;
 
-    [GeneratedRegex(@"^([0-9]{3,4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})$")]
-    private static partial Regex YearFirstPattern();
+    /// <summary>
+    /// 寫出的活頁簿都用 1900 日期系統，日期換成的序列值從這一天起才和 Excel 顯示的日期一致：Excel 把 1900 年當成閏年，
+    /// 更早的日期會差一天，1900 年以前的日期 Excel 沒有序列值。更早的日期在底稿寫成文字，不寫成日期儲存格。
+    /// 寫底稿與確認配對後的日期提醒都用這一天判斷。
+    /// </summary>
+    internal static readonly DateOnly FirstExcelFaithfulDate = new(1900, 3, 1);
 
-    [GeneratedRegex(@"^([0-9]{3,4})([0-9]{2})([0-9]{2})$")]
-    private static partial Regex YearFirstCompactPattern();
+    private static readonly string FirstExcelFaithfulIsoDate =
+        FirstExcelFaithfulDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>yyyy-MM-dd 的日期早於 <see cref="FirstExcelFaithfulDate"/>，在底稿寫成文字。這種日期照樣保留，只在確認配對後提醒審計員。</summary>
+    internal static bool IsBeforeFirstExcelFaithfulDate(string isoDate) =>
+        string.CompareOrdinal(isoDate, FirstExcelFaithfulIsoDate) < 0;
+
+    // 日期後面可以接的時間，例如 08:30、08:30:00、T08:30:00.5，時間後面還可以接 Z 或 +08:00 這類時差。
+    private const string TimeSuffix = @"(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?";
 
     // 年份寫成五位數以上，後面接著用 -、/ 或 . 寫月日，可以再接時間，例如 99999/02/01、99999-02-01T08:30:00。
-    [GeneratedRegex(@"^([0-9]{5,})[-/.][0-9]{1,2}[-/.][0-9]{1,2}(?:[ T][0-9]{1,2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?)?$")]
+    [GeneratedRegex(@"^([0-9]{5,})[-/.][0-9]{1,2}[-/.][0-9]{1,2}" + TimeSuffix + "$")]
     private static partial Regex LongYearFirstPattern();
+
+    // 以下三個樣式只給 DescribeUnrecognized 找出哪一段有問題。四位數與三位數年份在前的寫法後面可以接時間，
+    // 帶時間的值由寬鬆解析讀，日期那一段寫錯時一樣標出月或日，年份只有三位數時一樣標出年份。
+    [GeneratedRegex(@"^([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})" + TimeSuffix + "$")]
+    private static partial Regex FourDigitYearFirstPattern();
+
+    [GeneratedRegex(@"^([0-9]{4})([0-9]{2})([0-9]{2})$")]
+    private static partial Regex WesternCompactPattern();
+
+    [GeneratedRegex(@"^([0-9]{3})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})" + TimeSuffix + "$")]
+    private static partial Regex ThreeDigitYearFirstPattern();
 
     /// <summary>
     /// 無法辨識的日期哪裡有問題，給畫面標示用：問題的種類，以及要標出的那一段在去掉頭尾空白的原文裡的位置。
-    /// 只在 <see cref="TryNormalize"/> 回 false 之後呼叫。年份寫成五位數以上、後面用 -、/ 或 . 寫月日時標出年份，不猜是哪一年；
-    /// 年份寫在前面、月或日不存在時標出月或日；其他情形標出整個值。
+    /// 只在 <see cref="TryNormalize"/> 回 false 之後呼叫，<paramref name="options"/> 要和讀日期時相同。判斷的順序和讀日期相同：
+    /// 年份寫成五位數以上、後面用 -、/ 或 . 寫月日時標出年份，不猜是哪一年；讀得出年月日三段、但那一天在那一年的日曆上不存在時，
+    /// 標出月或日，年份是 0 時標出年份；年份在前卻只有三位數時標出年份；寬鬆解析讀得出日期、年份卻不在 1900 到 2100 年時標出年份；
+    /// 其他情形標出整個值。
     /// </summary>
-    internal static DateProblem DescribeUnrecognized(string raw)
+    internal static DateProblem DescribeUnrecognized(string raw, DateParseOptions options)
     {
         var text = raw.Trim();
         var longYear = LongYearFirstPattern().Match(text);
         if (longYear.Success)
         {
-            return new DateProblem(DateProblemKind.YearTooLong, longYear.Groups[1].Index, longYear.Groups[1].Length);
+            return Mark(DateProblemKind.YearTooLong, longYear.Groups[1]);
         }
 
-        var separated = YearFirstPattern().Match(text);
-        var parts = separated.Success ? separated : YearFirstCompactPattern().Match(text);
-        if (parts.Success)
+        if (options.RocYearEnabled
+            && (MissingCalendarPart(RocPaddedSeparatedPattern().Match(text), 1911, separated: true)
+                ?? MissingCalendarPart(RocPaddedCompactPattern().Match(text), 1911, separated: false)) is { } rocPadded)
         {
-            var month = int.Parse(parts.Groups[2].Value, CultureInfo.InvariantCulture);
-            var day = int.Parse(parts.Groups[3].Value, CultureInfo.InvariantCulture);
-            if (month is < 1 or > 12)
-            {
-                return new DateProblem(DateProblemKind.NoSuchDate, parts.Groups[2].Index, parts.Groups[2].Length);
-            }
+            return rocPadded;
+        }
 
-            // 有分隔符號時，月份對了還讀不成日期，就是那個月沒有這一天，例如 2 月 30 日。
-            // 沒有分隔符號的一串數字只在日超過 31 時才這樣判斷，其餘照純數字處理。
-            if (separated.Success || day is < 1 or > 31)
-            {
-                return new DateProblem(DateProblemKind.NoSuchDate, parts.Groups[3].Index, parts.Groups[3].Length);
-            }
+        if ((MissingCalendarPart(FourDigitYearFirstPattern().Match(text), 0, separated: true)
+                ?? MissingCalendarPart(WesternCompactPattern().Match(text), 0, separated: false)) is { } western)
+        {
+            return western;
+        }
+
+        if (options.RocYearEnabled
+            && (MissingCalendarPart(RocSeparatedPattern().Match(text), 1911, separated: true)
+                ?? MissingCalendarPart(RocCompactPattern().Match(text), 1911, separated: false)) is { } roc)
+        {
+            return roc;
+        }
+
+        // 民國年選項關閉時的 114/6/11，或開啟時不在民國 100 到 199 年的 200/6/11。
+        var shortYear = ThreeDigitYearFirstPattern().Match(text);
+        if (shortYear.Success)
+        {
+            return Mark(DateProblemKind.YearTooShort, shortYear.Groups[1]);
         }
 
         if (decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
@@ -296,8 +355,50 @@ public static partial class DateNormalizer
             return new DateProblem(DateProblemKind.AmbiguousOrder, 0, text.Length);
         }
 
+        // 寬鬆解析讀得出日期卻沒有收，就是年份不在 1900 到 2100 年之間。標出原文裡寫的四位數年份，找不到時標整個值。
+        if (TryReadLoose(text, out var loose))
+        {
+            var year = loose.Year.ToString("D4", CultureInfo.InvariantCulture);
+            var index = text.IndexOf(year, StringComparison.Ordinal);
+            return index < 0
+                ? new DateProblem(DateProblemKind.LooseYearOutOfRange, 0, text.Length)
+                : new DateProblem(DateProblemKind.LooseYearOutOfRange, index, year.Length);
+        }
+
         return new DateProblem(DateProblemKind.NotDate, 0, text.Length);
     }
+
+    // 年月日三段讀得出來時，用那一年實際的天數查那一天存不存在；不存在時交出要標的那一段，存在或樣式不符時交出 null。
+    // 年份是 0 時標出年份，只看有分隔符號的寫法；沒有分隔符號的一串數字照純數字處理。
+    private static DateProblem? MissingCalendarPart(Match parts, int yearOffset, bool separated)
+    {
+        if (!parts.Success)
+        {
+            return null;
+        }
+
+        var year = int.Parse(parts.Groups[1].Value, CultureInfo.InvariantCulture) + yearOffset;
+        var month = int.Parse(parts.Groups[2].Value, CultureInfo.InvariantCulture);
+        var day = int.Parse(parts.Groups[3].Value, CultureInfo.InvariantCulture);
+        if (year == 0)
+        {
+            return separated ? Mark(DateProblemKind.NoSuchDate, parts.Groups[1]) : null;
+        }
+
+        if (month is < 1 or > 12)
+        {
+            return Mark(DateProblemKind.NoSuchDate, parts.Groups[2]);
+        }
+
+        if (day < 1 || day > DateTime.DaysInMonth(year, month))
+        {
+            return Mark(DateProblemKind.NoSuchDate, parts.Groups[3]);
+        }
+
+        return null;
+    }
+
+    private static DateProblem Mark(DateProblemKind kind, Group part) => new(kind, part.Index, part.Length);
 
     private static bool TryBuildIsoDate(int year, int month, int day, out string? isoDate)
     {

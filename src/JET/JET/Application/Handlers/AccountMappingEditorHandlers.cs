@@ -22,7 +22,7 @@ public sealed class QueryAccountMappingPageHandler(
         var categoryId = PayloadReader.GetOptionalString(payload, "categoryId")?.Trim();
         if (categoryId?.Length > 64)
             throw new JetActionException(JetErrorCodes.InvalidPayload, "分類識別無效，請重新選擇分類。");
-        var request = new PageRequest(cursor, Math.Clamp(PayloadReader.GetOptionalInt(payload, "pageSize") ?? 200, 1, 200), IncludeTotalCount: string.IsNullOrEmpty(cursor));
+        var request = new PageRequest(cursor, PageRequestReader.ReadPageSize(payload), IncludeTotalCount: string.IsNullOrEmpty(cursor));
         var page = await Task.Run(() => repositories.AccountMappingEditor.GetPageAsync(
             projectId, request, search, cancellationToken, categoryId), cancellationToken);
         return new { rows = page.Rows.Select(row => new

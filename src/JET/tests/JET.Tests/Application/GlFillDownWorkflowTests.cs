@@ -320,6 +320,93 @@ public sealed class GlFillDownWorkflowTests
     }
 
     // INF 主表與底稿第二步共用的版面：樣本從第 53 列起，B 欄傳票號碼、E 欄借貸代號、J 欄分錄來源。
+    // 總帳日期配到數值儲存格的來源欄，例如存 20250305，欄位型態照來源記成數值。勾了往下填補時，底稿第 4-1 頁的總帳日期讀整理後的值
+    // 2025-03-05，它不是數值；照存下來的文字寫成文字儲存格，匯出照常完成。
+    [Fact]
+    public async Task FillDown_GlDateFromANumberColumn_ExportsStep41WithTheFilledText()
+    {
+        using var host = new HandlerTestHost();
+        var created = await host.DispatchAsync("project.create", CreatePayload("sqlite"));
+        var projectId = created.GetProperty("projectId").GetString()!;
+        var builder = new InlineGlWorkbookBuilder()
+            .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
+            .AddRow("JV-1", 20250305, "1000", "合成現金", "合成摘要", 10, 1)
+            .AddRow("JV-1", null, "4000", "合成收入", "合成摘要", 10, 0);
+        await ImportGlAsync(host, builder);
+        var tbPath = new InlineTbWorkbookBuilder()
+            .AddRow("1000", "合成現金", 10)
+            .AddRow("4000", "合成收入", -10)
+            .WriteWorkbook();
+        try
+        {
+            await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tbPath, fileName = "合成試算表.xlsx" }));
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(tbPath);
+        }
+
+        await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
+        {
+            mapping = builder.BuildFlagModeMapping(),
+            amountMode = "flag",
+            manualAutoPolicy = new { manualValues = new[] { "1" }, automaticValues = new[] { "0" } },
+            rdeFields = Array.Empty<object>(),
+            fillDownFields = new[] { "glDate" }
+        }));
+        await host.DispatchAsync("mapping.commit.tb", JsonSerializer.Serialize(new
+        {
+            mapping = InlineTbWorkbookBuilder.BuildDirectModeMapping(),
+            changeMode = "direct"
+        }));
+        var validation = await host.DispatchAsync("validate.run");
+        Assert.True(validation.GetProperty("completenessTest").GetProperty("eligibility").GetProperty("isEligible").GetBoolean());
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var scenarios = await host.DispatchAsync("filter.commit", """
+            {
+              "scenarios": [
+                {
+                  "name": "合成借方",
+                  "rationale": "產出底稿",
+                  "groups": [
+                    { "join": "AND", "conditions": [ { "join": "AND", "type": "drCrOnly", "drCr": "debit" } ] }
+                  ]
+                }
+              ]
+            }
+            """);
+        var revision = scenarios.GetProperty("resultRef").GetProperty("revision").GetString()!;
+        await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new
+        {
+            validationResultId = resultId,
+            prescreenResultId,
+            revision
+        }));
+
+        JsonElement workingPaperResponse = default;
+        var exportError = await Record.ExceptionAsync(async () =>
+            workingPaperResponse = await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
+            {
+                validationResultId = resultId,
+                prescreenResultId,
+                scenarioRevision = revision,
+                scenarioPositions = new[] { 1 }
+            })));
+        Assert.Null(exportError);
+
+        using var workingPaper = new XLWorkbook(Path.Combine(
+            host.ProjectsRoot, projectId, workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
+        var sheet = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
+        var glDateColumn = sheet.Row(5).CellsUsed().Single(cell => cell.GetString() == "總帳日期_JE").Address.ColumnNumber;
+        // 這張傳票的兩列都列進第 4-1 頁，第一列寫的 20250305 與往下填補的第二列都是整理後的 2025-03-05。
+        Assert.Equal(
+            ["Text|2025-03-05", "Text|2025-03-05"],
+            new[] { 6, 7 }.Select(row => sheet.Cell(row, glDateColumn).DataType + "|" + sheet.Cell(row, glDateColumn).GetString()));
+    }
+
     private static void AssertCleanedSampleRows(IXLWorksheet sheet)
     {
         Assert.Equal(["JV-1", "JV-1", "JV-1"], new[] { 53, 54, 55 }.Select(row => sheet.Cell(row, "B").GetString()));

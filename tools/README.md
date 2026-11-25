@@ -157,8 +157,8 @@ Restore、Gui 與 Excel 驅動程式自己管理的程序，以及 `Mutation` �
 `Documentation` 檢查目前仍有效的文件與 AI Agent 轉接檔。缺檔、必要指向缺漏及已確認過時的事實會失敗；不自然用語只列為提醒。
 檢查哪些檔案以 `documentation-check.json` 的 `files` 為準，沒有列進去的檔案不會被檢查；現行計畫在進行期間要列進去。
 `documentation-check.json` 的 `styleWarnings` 比對固定片語，`stylePatterns` 用正規表示式抓符號代句與工作用語，程式碼不檢查。
-`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 1,024 KiB；裁定總表 2,048 KiB；名詞表 1,024 KiB；前端說明 200,000 位元組，設定檔寫成 195.3125 KiB；系統規格與 action 契約 160 KiB；
-Excel 讀寫規範與它的核對表 30 KiB；其他現行文件與 Agent 文件 64 KiB；歷史文件不設上限（裁定 2026-11-02-04，裁定總表的上限見 2026-11-06-14，現行計畫的上限見 2026-11-11-14，名詞表的上限見 2026-11-12-15，前端說明的上限見 2026-11-12-37，其他現行文件的上限見 2026-11-17-09）。
+`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 1,024 KiB；裁定總表 2,048 KiB；名詞表 1,024 KiB；前端說明 200,000 位元組，設定檔寫成 195.3125 KiB；系統規格 320 KiB；action 契約 160 KiB；
+Excel 讀寫規範與它的核對表 30 KiB；其他現行文件與 Agent 文件 64 KiB；歷史文件不設上限（裁定 2026-11-02-04，裁定總表的上限見 2026-11-06-14，現行計畫的上限見 2026-11-11-14，名詞表的上限見 2026-11-12-15，前端說明的上限見 2026-11-12-37，系統規格的上限見 2026-11-24-18，其他現行文件的上限見 2026-11-17-09）。
 `rulingLocations` 核對裁定總表「落實位置」寫的檔案都存在；`rulingReferences` 核對 `src/JET` 與 `tools` 裡寫的「裁定 編號」都是現行裁定；
 `retiredNames` 在 `src/JET/JET` 找名詞表「不再使用的名稱」列的舊名稱，註解也算；`tableNames` 核對 SQLite 建立的表都列在名詞表，
 名詞表列的表也都還存在。架構圖表另由 [`harness/architecture/`](harness/architecture/README.md) 檢查，結果寫在文件報告的
@@ -218,6 +218,10 @@ ReleaseCandidate 需要 Node.js。
 - 假資料用了正式後端不會回的欄位：照正式的形狀改假資料並註明原因，斷言不動。
 - 正式後端會回、但流程穩定走不到：列進 `ActionShapeJourney.UnreachedKinds`，寫明產生它的程式與走不到的原因。
 - 測試刻意假造正式後端不會回的資料來確認畫面防呆：用 `unchecked('原因', 資料)` 包起來。
+
+會清除下游結果的 action 另有一份手寫清單 `src/JET/tests/JET.Tests/Fixtures/upstream-mutation-invalidation.json`，
+C# 的 `UpstreamMutationInvalidationListTests` 與前端的 `frontend-workflow.test.cjs` 都讀它。清單裡畫面有入口的 action，
+要和契約檔裡回應帶 `invalidatedResults` 的 action 相同；新增這類 action 時，契約檔與這份清單都要更新。
 
 改了 action 的資料形狀後，用下面的命令重新產生契約檔，看過差異符合預期，再跑一次 FrontendMapping：
 

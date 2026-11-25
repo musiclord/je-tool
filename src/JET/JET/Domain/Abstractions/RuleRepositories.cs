@@ -25,7 +25,8 @@ public sealed record ProjectionResult(
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
     /// <summary>
-    /// GL 投影成功後的日期提醒：哪個欄位有讀不成日期的值，或年份不在 1900 到 2100 年之間的日期，各有幾筆、是哪些值。
+    /// GL 投影成功後的日期提醒：哪個欄位有讀不成日期的值、年份不在 1900 到 2100 年之間的日期，
+    /// 或早於 1900-03-01、底稿寫成文字的日期，各有幾筆、是哪些值。
     /// 不擋確認配對；沒有時是空的，TB 投影及失敗結果也是空的。
     /// </summary>
     public IReadOnlyList<GlDateNotice> DateNotices { get; init; } = [];

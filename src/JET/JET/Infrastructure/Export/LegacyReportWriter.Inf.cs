@@ -149,7 +149,8 @@ internal sealed partial class LegacyReportWriter
                 workbookMetadata,
                 ct,
                 progress),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            FormalWorkbookLayout.AsWritten).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<InfSampleRow>> ReadInfSamplesAsync(
@@ -260,15 +261,15 @@ internal sealed partial class LegacyReportWriter
         bool approverMapped,
         CancellationToken cancellationToken)
     {
-        cells.SetInlineString("A1", $"公司名稱 [{context.Project.CompanyName}]");
-        cells.SetInlineString(
+        cells.SetText("A1", $"公司名稱 [{context.Project.CompanyName}]");
+        cells.SetText(
             "A2",
             $"財務報表期間 [{context.Project.PeriodStart} ~ {context.Project.PeriodEnd}]");
         // 範本原句後接上這批樣本實際使用的隨機種子序號，格式照範本 A4。
-        cells.SetInlineString("A4", InfSampling.SampleSeedSentence(context.SampleSeed));
+        cells.SetText("A4", InfSampling.SampleSeedSentence(context.SampleSeed));
         if (approverMapped)
         {
-            cells.SetInlineString("L51", "傳票核准人員");
+            cells.SetText("L51", "傳票核准人員");
         }
 
         for (var index = 0; index < Math.Max(InfReportSampleSize, samples.Count); index++)
@@ -288,19 +289,19 @@ internal sealed partial class LegacyReportWriter
             var sample = templateSample.Row;
             WorkbookStylePatch? CharacterFormat(uint column) =>
                 textColumns.Contains(column) ? InfCharacterNumberFormat : null;
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(2, row),
                 sample.VoucherNumber,
                 CharacterFormat(2));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(3, row),
                 sample.AccountNumber,
                 CharacterFormat(3));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(4, row),
                 sample.AccountName,
                 CharacterFormat(4));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(5, row),
                 templateSample.Direction,
                 CharacterFormat(5));
@@ -308,27 +309,27 @@ internal sealed partial class LegacyReportWriter
                 ReportSheetWriter.Reference(6, row),
                 Display(sample.DebitScaled - sample.CreditScaled, context.Project.MoneyScale),
                 CharacterFormat(6));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(7, row),
                 sample.GlDate,
                 CharacterFormat(7));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(8, row),
                 sample.ApprovalDate,
                 CharacterFormat(8));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(9, row),
                 sample.CreatedBy,
                 CharacterFormat(9));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(10, row),
                 templateSample.SourceModule,
                 CharacterFormat(10));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(11, row),
                 sample.Description,
                 CharacterFormat(11));
-            cells.SetInlineString(
+            cells.SetText(
                 ReportSheetWriter.Reference(12, row),
                 sample.ApprovedBy,
                 CharacterFormat(12));
@@ -362,8 +363,7 @@ internal sealed partial class LegacyReportWriter
                 // A 欄寫序號；其他欄是只留範本樣式的空白格，沒有值就不寫儲存格型別。
                 if (column == "A")
                 {
-                    cell.DataType = CellValues.InlineString;
-                    cell.InlineString = ExcelText.VerbatimInlineString($"{rowIndex - 52}.");
+                    ExcelText.SetVerbatimText(cell, $"{rowIndex - 52}.", part);
                 }
                 else
                 {
@@ -628,9 +628,11 @@ internal sealed partial class LegacyReportWriter
             projectedRows.Add(values);
         }
 
+        // 第 1 列是表頭，下面一列一個樣本，每一列都寫滿每一欄。
         using var sheet = new ReportSheetWriter(
             InfAllFieldsSheet,
             part,
+            SheetUsedRange.Table(checked((uint)projectedRows.Count + 1U), checked((uint)outputColumns.Length)),
             widths.Widths.Select((width, index) => new ReportColumn(
                     checked((uint)index + 1),
                     checked((uint)index + 1),

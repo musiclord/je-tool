@@ -99,7 +99,8 @@ public sealed class ExcelSerialDateReadingTests
     }
 
     // 日曆上沒有的 1900-02-29 與 1900-01-00 列在確認配對後的日期提醒，標出日，原因是日曆上沒有這一天；
-    // 序列值 1 的 1900-01-01 和序列值 45292 的 2024-01-01 都是一般的日期，不列。
+    // 序列值 1 的 1900-01-01 早於 1900-03-01，底稿寫成文字，另列一則底稿寫成文字，標出整個值；
+    // 序列值 45292 的 2024-01-01 是一般的日期，不列。
     [Theory]
     [InlineData("xlsx")]
     [InlineData("xls")]
@@ -118,12 +119,29 @@ public sealed class ExcelSerialDateReadingTests
             var committed = JsonSerializer.SerializeToElement(await host.DispatchAsync("mapping.commit.gl",
                 JsonSerializer.Serialize(new { mapping, amountMode = "signed" })));
 
-            // .xls 的序列值 60 由 ExcelDataReader 換成 1900-02-28，是一般的日期，不在提醒裡；這是套件的限制。
+            // .xls 的序列值 60 由 ExcelDataReader 換成 1900-02-28，是讀得成的日期，不列為日曆上沒有這一天，
+            // 和 1900-01-01 一起列在底稿寫成文字那一則；這是套件的限制。
             string[] expected = format == "xls"
                 ? ["1900-01-00|noSuchDate|8|2|3"]
                 : ["1900-02-29|noSuchDate|8|2|2", "1900-01-00|noSuchDate|8|2|3"];
+            string[] expectedText = format == "xls"
+                ? ["1900-02-28|0|10|2", "1900-01-01|0|10|4"]
+                : ["1900-01-01|0|10|4"];
             Assert.Equal(4, committed.GetProperty("projectedRowCount").GetInt32());
-            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            var notices = committed.GetProperty("dateNotices").EnumerateArray().ToArray();
+            Assert.Equal(2, notices.Length);
+            var text = notices[1];
+            Assert.Equal("NativeDate", text.GetProperty("sourceColumn").GetString());
+            Assert.Equal("textInWorkingPaper", text.GetProperty("kind").GetString());
+            Assert.Equal("kept", text.GetProperty("handling").GetString());
+            Assert.Equal(expectedText.Length, text.GetProperty("count").GetInt64());
+            Assert.Equal(
+                expectedText,
+                text.GetProperty("values").EnumerateArray().Select(value =>
+                    value.GetProperty("value").GetString() + "|"
+                    + value.GetProperty("markStart").GetInt32() + "|" + value.GetProperty("markLength").GetInt32() + "|"
+                    + string.Join(",", value.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("row").GetInt32()))));
+            var notice = notices[0];
             Assert.Equal("NativeDate", notice.GetProperty("sourceColumn").GetString());
             Assert.Equal("unrecognized", notice.GetProperty("kind").GetString());
             Assert.Equal("notUsed", notice.GetProperty("handling").GetString());

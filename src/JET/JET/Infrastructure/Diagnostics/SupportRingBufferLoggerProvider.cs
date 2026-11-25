@@ -101,6 +101,8 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "filter.compile_check_failed",
         // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑。
         SupportEventNames.CaseOpened,
+        // 開啟或建立另一個案件時，後端自己離開了前一個案件；只記在離開的案件，沒有其他欄位。
+        SupportEventNames.CaseLeft,
         // 操作監看模組：長時間操作的定時紀錄與摘要、跑太久或沒有正常結束的 SQL、匯出進度。
         // 只收時間、筆數與程式寫死的步驟代號；SQL 文字、參數與執行計畫只在診斷日誌。
         SupportEventNames.ActionStillRunning,
@@ -337,6 +339,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
                 + $"condition {fields.GetValueOrDefault("condition_no") ?? "n/a"} compile check failed: {fields.GetValueOrDefault("compile_check") ?? "unknown"}",
             SupportEventNames.CaseOpened => $"case opened by {fields.GetValueOrDefault("opened_by") ?? "unknown"} "
                 + $"provider={fields.GetValueOrDefault("database_provider") ?? "unknown"}",
+            SupportEventNames.CaseLeft => $"case left by {action}",
             SupportEventNames.ActionStillRunning => $"action {action} still running after {fields.GetValueOrDefault("elapsed_ms") ?? 0} ms "
                 + $"at {fields.GetValueOrDefault("current_stage") ?? "unknown"}",
             SupportEventNames.ActionSummary => $"action {action} took {fields.GetValueOrDefault("elapsed_ms") ?? 0} ms, "

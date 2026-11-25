@@ -55,6 +55,7 @@ internal sealed class InlineGlWorkbookBuilder
     internal string WriteWorkbook()
     {
         var nonFiniteSerials = new List<(string Reference, double Value)>();
+        var dateTypedCells = new List<(string Reference, string Text)>();
         var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
             // 在寫入儲存格以前設定，DateTime 的儲存格才會照 1904 日期系統換成序列值。
@@ -86,7 +87,17 @@ internal sealed class InlineGlWorkbookBuilder
                             cell.SetValue(d);
                             break;
                         case double dbl:
-                            cell.SetValue(dbl);
+                            if (double.IsFinite(dbl))
+                            {
+                                cell.SetValue(dbl);
+                            }
+                            else
+                            {
+                                // ClosedXML 不接受 NaN 與無限大，先寫 0，存檔後再換成原本的值；不套日期格式，仍是一般的數值儲存格。
+                                cell.SetValue(0);
+                                nonFiniteSerials.Add((cell.Address.ToStringRelative(), dbl));
+                            }
+
                             break;
                         case DateTime dateTime:
                             cell.SetValue(dateTime);
@@ -108,6 +119,11 @@ internal sealed class InlineGlWorkbookBuilder
 
                             cell.Style.NumberFormat.NumberFormatId = 14;
                             break;
+                        case DateTypedCell dateTyped:
+                            // ClosedXML 寫不出 t="d" 的儲存格，先寫文字，存檔後再改成 t="d" 與原本的文字。
+                            cell.SetValue(dateTyped.Text);
+                            dateTypedCells.Add((cell.Address.ToStringRelative(), dateTyped.Text));
+                            break;
                         default:
                             cell.SetValue(_rows[r][c]!.ToString());
                             break;
@@ -120,7 +136,30 @@ internal sealed class InlineGlWorkbookBuilder
             WriteNonFiniteSerials(path, nonFiniteSerials);
         }
 
+        if (dateTypedCells.Count > 0)
+        {
+            WriteDateTypedCells(path, dateTypedCells);
+        }
+
         return path;
+    }
+
+    // 其他程式產生的 xlsx 可能用 t="d" 的儲存格寫日期的文字，這裡用 Open XML SDK 照這種寫法改進存好的檔案。
+    private static void WriteDateTypedCells(string path, IReadOnlyList<(string Reference, string Text)> dateTypedCells)
+    {
+        using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(path, true);
+        var worksheet = document.WorkbookPart!.WorksheetParts.Single().Worksheet!;
+        var cells = worksheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.Cell>()
+            .ToDictionary(cell => cell.CellReference!.Value!, StringComparer.Ordinal);
+        foreach (var (reference, text) in dateTypedCells)
+        {
+            var cell = cells[reference];
+            cell.InlineString = null;
+            cell.DataType = DocumentFormat.OpenXml.Spreadsheet.CellValues.Date;
+            cell.CellValue = new DocumentFormat.OpenXml.Spreadsheet.CellValue(text);
+        }
+
+        worksheet.Save();
     }
 
     // 其他程式產生的 xlsx 可能在數值儲存格寫 NaN、Infinity 或 -Infinity，這裡用 Open XML SDK 照這種寫法改進存好的檔案。
@@ -430,3 +469,9 @@ internal static class InlineWorkbookProject
 /// 也可以是其他程式寫進檔案的 NaN 或無限大。
 /// </summary>
 internal sealed record ExcelDateSerial(double Value);
+
+/// <summary>
+/// 寫成儲存格型別 t="d" 的儲存格，值照 Text 的原文寫；其他程式產生的 xlsx 用這種寫法存日期的文字，
+/// 也可能寫進不是日期的內容。
+/// </summary>
+internal sealed record DateTypedCell(string Text);

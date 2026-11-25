@@ -35,11 +35,13 @@ internal static class CompletenessEligibility
     private const string IncompleteValidationReason =
         "目前完整性驗證結果不完整，請重新執行資料驗證。";
 
-    // 兩組數字都是 JET 在確認配對時與存下後算的，不比對來源檔本身，所以不寫「匯入前後」。
-    // 不請審計員輸出支援日誌。黃色提示不過度解釋。
-    // 提醒的開頭寫哪一項沒通過，和卡片上的狀態字一致。
+    // 提醒的開頭寫哪一項沒通過，和卡片上的狀態字一致；接著寫是 JET 存下的 GL 有誤，以及回哪一步、按哪個按鈕。
+    // 怎麼比對的不寫在畫面上，也不請審計員輸出支援日誌。
     private const string StoredTotalsMismatchReason =
-        "存入筆數與合計核對未通過：存下的分錄筆數或借貸合計與配對時不一致，請重新確認 GL 欄位配對後再驗證。";
+        "存入筆數與合計核對未通過：JET 存下的 GL 分錄筆數或金額有誤。請回第三步「GL 欄位配對」按「重新確認配對」，再重新執行驗證。";
+
+    // 接在 GL 與 TB 逐科目比對的提醒後面。差異來自案件資料，審計員可以在底稿說明；JET 自己存錯時沒有原因可說明，不接這句。
+    private const string ContinueWithExplanationSuffix = " 審計員可說明差異原因並繼續篩選與匯出。";
 
     internal static CompletenessEligibilityDecision Evaluate(CompletenessEligibilityFacts facts)
     {
@@ -70,21 +72,24 @@ internal static class CompletenessEligibility
             warnings.Add(StoredTotalsMismatchReason);
         }
 
+        var accountComparisonWarned = false;
         // 沒有 TB 不擋後續步驟，提醒直接沿用逐科目比對無法執行的原因句。
         if (facts.AccountComparisonApplicable is not true)
         {
             warnings.Add(facts.AccountComparisonNaReason ?? AccountComparisonProcedure.MissingTbMappingReason);
+            accountComparisonWarned = true;
         }
 
         if (facts.AccountComparisonDifferenceAccountCount is not 0)
         {
             warnings.Add(
                 $"GL 與 TB 逐科目比對未通過：仍有 {CountText.Format(facts.AccountComparisonDifferenceAccountCount.Value)} 個科目金額不一致。");
+            accountComparisonWarned = true;
         }
 
         return new CompletenessEligibilityDecision(IsEligible: true, Reason: null,
             Warning: warnings.Count == 0 ? null : string.Join(" ", warnings)
-                + " 審計員可說明差異原因並繼續篩選與匯出。");
+                + (accountComparisonWarned ? ContinueWithExplanationSuffix : string.Empty));
     }
 
     private static CompletenessEligibilityDecision Ineligible(string reason) =>

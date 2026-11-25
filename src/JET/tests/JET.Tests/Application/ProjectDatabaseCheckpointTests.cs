@@ -107,6 +107,74 @@ public sealed class ProjectDatabaseCheckpointTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
+    public async Task OpeningAnotherCase_ClosesThePreviousCaseDatabase(string provider)
+    {
+        using var workspace = new TempProjectRoot();
+        var projects = Path.Combine(workspace.Path, "projects");
+        Directory.CreateDirectory(projects);
+        var first = $"checkpoint-switch-load-first-{provider}";
+        var second = $"checkpoint-switch-load-second-{provider}";
+        var gl = WriteGl(workspace.Path, "gl.csv", GlRows);
+
+        using var host = new HandlerTestHost(projectsRootPath: projects);
+        await host.DispatchAsync("project.create", CreatePayload(second, provider));
+        await host.DispatchAsync("project.releaseLock");
+        await host.DispatchAsync("project.create", CreatePayload(first, provider));
+        await ImportAsync(host, gl);
+        await CommitGlAsync(host);
+
+        // 沒有先離開案件就開另一個案件：前一個案件的連線要關閉，記錄檔併回資料庫檔。
+        await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = second }));
+
+        var databasePath = DatabasePath(projects, first, provider);
+        try
+        {
+            AssertNoSideFiles(databasePath, provider);
+            Assert.True(CanOpenExclusively(databasePath), "換案件後 JET 不應再開著前一個案件的資料庫");
+            Assert.Equal(GlRows, await ScalarDirectAsync(databasePath, provider, "SELECT COUNT(*) FROM gl;"));
+        }
+        finally
+        {
+            // 斷言不成立時前一個案件的連線還留在連線池，暫存資料夾刪不掉，會蓋掉斷言本身；先清掉這裡的連線池。
+            SqliteTestPool.ClearAllUnder(projects);
+        }
+    }
+
+    [Theory]
+    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
+    public async Task CreatingAnotherCase_ClosesThePreviousCaseDatabase(string provider)
+    {
+        using var workspace = new TempProjectRoot();
+        var projects = Path.Combine(workspace.Path, "projects");
+        Directory.CreateDirectory(projects);
+        var first = $"checkpoint-switch-create-first-{provider}";
+        var second = $"checkpoint-switch-create-second-{provider}";
+        var gl = WriteGl(workspace.Path, "gl.csv", GlRows);
+
+        using var host = new HandlerTestHost(projectsRootPath: projects);
+        await host.DispatchAsync("project.create", CreatePayload(first, provider));
+        await ImportAsync(host, gl);
+        await CommitGlAsync(host);
+
+        // 沒有先離開案件就建立另一個案件：前一個案件的連線要關閉，記錄檔併回資料庫檔。
+        await host.DispatchAsync("project.create", CreatePayload(second, provider));
+
+        var databasePath = DatabasePath(projects, first, provider);
+        try
+        {
+            AssertNoSideFiles(databasePath, provider);
+            Assert.True(CanOpenExclusively(databasePath), "建立另一個案件後 JET 不應再開著前一個案件的資料庫");
+            Assert.Equal(GlRows, await ScalarDirectAsync(databasePath, provider, "SELECT COUNT(*) FROM gl;"));
+        }
+        finally
+        {
+            // 斷言不成立時前一個案件的連線還留在連線池，暫存資料夾刪不掉，會蓋掉斷言本身；先清掉這裡的連線池。
+            SqliteTestPool.ClearAllUnder(projects);
+        }
+    }
+
+    [Theory]
+    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
     public async Task AFailedLoad_LeavesTheDatabaseFileClosed(string provider)
     {
         using var workspace = new TempProjectRoot();

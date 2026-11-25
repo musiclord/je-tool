@@ -3557,6 +3557,44 @@
                     "items": "string"
                   },
                   "committedUtc": "string",
+                  "dateNotices": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "count": "number",
+                        "field": "string",
+                        "handling": "string",
+                        "kind": "string",
+                        "label": "string",
+                        "omittedValueRowCount": "number",
+                        "sourceColumn": "string",
+                        "values": {
+                          "kind": "array",
+                          "items": {
+                            "kind": "object",
+                            "fields": {
+                              "count": "number",
+                              "markLength": "number",
+                              "markStart": "number",
+                              "problem": "string",
+                              "rows": {
+                                "kind": "array",
+                                "items": {
+                                  "kind": "object",
+                                  "fields": {
+                                    "row": "number",
+                                    "source": "null"
+                                  }
+                                }
+                              },
+                              "value": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
                   "fillDownCount": "number",
                   "fillDownFields": {
                     "kind": "array",
@@ -3879,8 +3917,7 @@
               "prepStartDate": "null|string",
               "projectCode": "string",
               "projectId": "string",
-              "rocDateEnabled": "boolean",
-              "roundingMode": "string"
+              "rocDateEnabled": "boolean"
             }
           },
           "reports": {
@@ -4313,8 +4350,7 @@
               "prepStartDate": "null|string",
               "projectCode": "string",
               "projectId": "string",
-              "rocDateEnabled": "boolean",
-              "roundingMode": "string"
+              "rocDateEnabled": "boolean"
             }
           },
           "reportWarning": "null",
@@ -4475,7 +4511,8 @@
               "kind": "object",
               "fields": {
                 "accountNumber": "string",
-                "approvalDate": "string",
+                "approvalDate": "null|string",
+                "approvalDateRawValue": "null|string",
                 "description": "null|string",
                 "glDate": "string",
                 "voucherNumber": "string"

@@ -1074,19 +1074,8 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
         };
 
     /// <summary>在 Windows 暫存資料夾建立放範本副本的暫存檔，關閉時自動刪除。</summary>
-    internal static FileStream CreateTemporaryWorksheetStream()
-    {
-        var path = Path.Combine(
-            Path.GetTempPath(),
-            $".jet-working-paper-worksheet-{Guid.NewGuid():N}.tmp");
-        return new FileStream(
-            path,
-            FileMode.CreateNew,
-            FileAccess.ReadWrite,
-            FileShare.None,
-            bufferSize: 128 * 1024,
-            FileOptions.SequentialScan | FileOptions.DeleteOnClose);
-    }
+    internal static FileStream CreateTemporaryWorksheetStream() =>
+        ExportSpoolFile.CreateStream(".jet-working-paper-worksheet-", bufferSize: 128 * 1024);
 
     private sealed class StreamingWorksheet : IDisposable
     {

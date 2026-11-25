@@ -128,6 +128,69 @@ public sealed class ExcelNativeDateImportTests
         finally { File.Delete(path); }
     }
 
+    // 其他程式產生的 xlsx 可能用儲存格型別 t="d" 寫日期的文字。PBC-GL 照原文存下，確認配對時才由日期規則判讀：
+    // 帶時差的日期時間取文字裡寫的那一天；只有時間的 13:45 與只有數字的 1.25 都不是日期，不補上今天或今年，
+    // 配成傳票核准日時這兩格當成沒有日期，並列進日期提醒。
+    [Fact]
+    public async Task DateTypedCell_IsKeptInPbcGlAndReadByTheDateRules()
+    {
+        string[] written = ["2025-03-06T00:30:00+14:00", "13:45", "1.25"];
+        string[] header = ["Document", "Date", "Account", "Name", "Description", "Amount", "NativeDate"];
+        var headerXml = string.Join("", header.Select((value, index) =>
+            $"<c r=\"{(char)('A' + index)}1\" t=\"inlineStr\"><is><t>{value}</t></is></c>"));
+        var rowsXml = string.Join("", written.Select((value, index) =>
+        {
+            var row = index + 2;
+            return $"<row r=\"{row}\">"
+                + $"<c r=\"A{row}\" t=\"inlineStr\"><is><t>V{row - 1}</t></is></c>"
+                + $"<c r=\"B{row}\" t=\"inlineStr\"><is><t>2025-03-05</t></is></c>"
+                + $"<c r=\"C{row}\" t=\"inlineStr\"><is><t>A</t></is></c>"
+                + $"<c r=\"D{row}\" t=\"inlineStr\"><is><t>Synthetic</t></is></c>"
+                + $"<c r=\"E{row}\" t=\"inlineStr\"><is><t>Normal</t></is></c>"
+                + $"<c r=\"F{row}\"><v>1</v></c><c r=\"G{row}\" t=\"d\"><v>{value}</v></c></row>";
+        }));
+        var path = new RawXlsxBuilder()
+            .AddSheet("Sheet1", $"<sheetData><row r=\"1\">{headerXml}</row>{rowsXml}</sheetData>")
+            .Save();
+        try
+        {
+            using var host = new HandlerTestHost();
+            var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+            { projectName = "Date typed cell", periodStart = "2024-01-01", periodEnd = "2025-12-31", databaseProvider = "sqlite" }));
+            var projectId = created.GetProperty("projectId").GetString()!;
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+
+            Assert.Equal(
+                written,
+                await DemoProjectPipeline.QueryStringListAsync(host, projectId,
+                    "SELECT json_extract(row_json, '$.NativeDate') FROM pbc_gl ORDER BY source_row_number;"));
+
+            var mapping = MappingCaseTemplateFixture.Mapping();
+            mapping["approvalDate"] = "NativeDate";
+            var committed = JsonSerializer.SerializeToElement(await host.DispatchAsync("mapping.commit.gl",
+                JsonSerializer.Serialize(new { mapping, amountMode = "signed" })));
+
+            Assert.Equal(
+                ["2025-03-06", null, null],
+                await DemoProjectPipeline.QueryStringListAsync(host, projectId,
+                    "SELECT approval_date FROM gl ORDER BY source_row_number;"));
+            var notice = Assert.Single(committed.GetProperty("dateNotices").EnumerateArray());
+            Assert.Equal("NativeDate", notice.GetProperty("sourceColumn").GetString());
+            Assert.Equal("unrecognized", notice.GetProperty("kind").GetString());
+            Assert.Equal("notUsed", notice.GetProperty("handling").GetString());
+            Assert.Equal(2, notice.GetProperty("count").GetInt64());
+            // 每個值寫成「值|原因|列號」，依文字排序後比對。
+            Assert.Equal(
+                ["1.25|number|4", "13:45|notDate|3"],
+                notice.GetProperty("values").EnumerateArray()
+                    .Select(value => value.GetProperty("value").GetString() + "|" + value.GetProperty("problem").GetString() + "|"
+                        + Assert.Single(value.GetProperty("rows").EnumerateArray()).GetProperty("row").GetInt32())
+                    .OrderBy(text => text, StringComparer.Ordinal)
+                    .ToArray());
+        }
+        finally { File.Delete(path); }
+    }
+
     private static string WriteSource(string format, int badOaSerial = 73416)
     {
         var date1904 = format.EndsWith("1904", StringComparison.Ordinal);

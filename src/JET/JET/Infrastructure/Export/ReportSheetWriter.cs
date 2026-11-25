@@ -43,52 +43,67 @@ internal sealed record ReportSheetOptions(
     ReportPageMargins? PageMargins = null,
     ReportPageSetup? PageSetup = null);
 
-/// <summary>六份報告共用的工作表寫出工具：由上往下一列一列寫，寫過的列不能回頭改。</summary>
+/// <summary>
+/// 六份報告共用的工作表寫出工具：由上往下一列一列寫，寫過的列不能回頭改。
+/// XML 經 <see cref="FormalWorkbookArchive.OpenWorksheetWriter"/> 寫出，寫法和 Excel 存檔時相同。
+/// 工作表開頭的 dimension 寫在所有列之前，寫出後不能回頭改，所以呼叫端開頁時就要說出這一頁會寫出的格子範圍；
+/// 寫出的格子落在範圍外，或關閉時寫出的範圍和宣告的不同，都是程式算錯了範圍，丟出 <see cref="InvalidOperationException"/>。
+/// </summary>
 internal sealed class ReportSheetWriter : IDisposable
 {
     private readonly string _name;
     private readonly WorksheetPart _part;
-    private readonly Stream _content;
-    private readonly OpenXmlWriter _writer;
+    private readonly SpreadsheetXmlWriter _writer;
     private readonly List<string> _merges = [];
     private readonly List<(string Range, string Formula)> _validations = [];
     private readonly ReportSheetOptions? _options;
     private readonly Func<uint, uint> _mapStyle;
+    private readonly SheetUsedRange _declaredRange;
+    private SheetUsedRange _writtenRange;
     private bool _protect;
     private bool _faulted;
     private bool _disposed;
     private long _dataRows;
 
+    /// <param name="name">工作表名稱，寫進錯誤訊息。</param>
+    /// <param name="part">要寫的工作表。</param>
+    /// <param name="usedRange">這一頁會寫出的格子範圍，寫成工作表的 dimension；一格都不寫時用 <see cref="SheetUsedRange.Empty"/>。</param>
+    /// <param name="columns">欄寬與欄的樣式。</param>
+    /// <param name="options">顯示與列印設定。</param>
+    /// <param name="mapStyle">把報告的樣式編號換成這份活頁簿的樣式編號。</param>
     public ReportSheetWriter(
         string name,
         WorksheetPart part,
+        SheetUsedRange usedRange,
         IReadOnlyList<ReportColumn>? columns = null,
         ReportSheetOptions? options = null,
         Func<uint, uint>? mapStyle = null)
     {
         _name = name;
         _part = part;
+        _declaredRange = usedRange;
         _options = options;
         _mapStyle = mapStyle ?? (static style => style);
-        _content = FormalWorkbookArchive.OpenWorksheetContent(part);
+        _writer = FormalWorkbookArchive.OpenWorksheetWriter(part);
         try
         {
-            _writer = OpenXmlWriter.Create(_content);
             WriteElementsBeforeRows(columns, options);
         }
         catch
         {
             // 建構失敗時呼叫端拿不到這個寫入器，已經開啟的項目要在這裡放掉。
-            ExportResources.ReleaseAll(_writer, _content);
+            ExportResources.ReleaseAll(_writer);
             throw;
         }
     }
 
     private void WriteElementsBeforeRows(IReadOnlyList<ReportColumn>? columns, ReportSheetOptions? options)
     {
-        _writer.WriteStartDocument();
-        _writer.WriteStartElement(new Worksheet());
+        _writer.WriteStartDocument(standalone: true);
+        _writer.WriteStartElement(string.Empty, "worksheet", SpreadsheetXmlWriter.MainNamespace);
+        _writer.WriteAttributeString("xmlns", "r", null, SpreadsheetXmlWriter.RelationshipsNamespace);
 
+        new SheetDimension { Reference = _declaredRange.Reference }.WriteTo(_writer);
         WriteSheetView(options);
         if (options?.DefaultRowHeight is { } defaultRowHeight)
         {
@@ -96,11 +111,11 @@ internal sealed class ReportSheetWriter : IDisposable
             {
                 throw new ArgumentOutOfRangeException(nameof(options), "Default row height must be finite and positive.");
             }
-            _writer.WriteElement(new SheetFormatProperties
+            new SheetFormatProperties
             {
                 DefaultRowHeight = defaultRowHeight,
                 CustomHeight = true
-            });
+            }.WriteTo(_writer);
         }
 
         if (columns is { Count: > 0 })
@@ -128,10 +143,10 @@ internal sealed class ReportSheetWriter : IDisposable
                 collection.Append(element);
             }
 
-            _writer.WriteElement(collection);
+            collection.WriteTo(_writer);
         }
 
-        _writer.WriteStartElement(new SheetData());
+        _writer.WriteStartElement(string.Empty, "sheetData", SpreadsheetXmlWriter.MainNamespace);
     }
 
     public void WriteFixedRow(uint rowIndex, IReadOnlyList<Cell> cells, double? height = null) =>
@@ -149,27 +164,31 @@ internal sealed class ReportSheetWriter : IDisposable
 
     public void Protect() => _protect = true;
 
-    /// <summary>文字格；超過 Excel 每格上限的文字寫到上限並註明已截斷，記在這張工作表的截斷格數。</summary>
+    /// <summary>
+    /// 文字格，寫法見 <see cref="ExcelText.SetText"/>：正式輸出的文字寫進共用字串表。
+    /// 超過 Excel 每格上限的文字寫到上限並註明已截斷，記在這張工作表的截斷格數。
+    /// </summary>
     public Cell TextCell(uint row, uint column, string? value, uint style = LegacyReportStyles.Body)
     {
         var cell = new Cell { CellReference = Reference(column, row), StyleIndex = _mapStyle(style) };
         if (!string.IsNullOrEmpty(value))
         {
-            cell.DataType = CellValues.InlineString;
-            cell.InlineString = ExcelText.InlineString(value, _part);
+            ExcelText.SetText(cell, value, _part);
         }
 
         return cell;
     }
 
-    /// <summary>照原樣寫出、不截斷的文字格，給 JET 讀回用的配對資料。</summary>
+    /// <summary>
+    /// 給 JET 讀回用的配對資料：照原樣寫出、不截斷，一律寫成 inline string，
+    /// 讀回時只要讀這幾格，不必載入整份共用字串表。
+    /// </summary>
     public Cell VerbatimTextCell(uint row, uint column, string? value, uint style = LegacyReportStyles.Body)
     {
         var cell = new Cell { CellReference = Reference(column, row), StyleIndex = _mapStyle(style) };
         if (!string.IsNullOrEmpty(value))
         {
-            cell.DataType = CellValues.InlineString;
-            cell.InlineString = ExcelText.VerbatimInlineString(value);
+            ExcelText.SetVerbatimInlineText(cell, value);
         }
 
         return cell;
@@ -200,6 +219,7 @@ internal sealed class ReportSheetWriter : IDisposable
     /// <summary>
     /// 寫完結尾並關閉這張工作表。寫結尾、把緩衝寫出去或關閉壓縮檔項目失敗時往外丟，因為這時失敗代表工作表不完整。
     /// 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，所以那之後不補結尾。
+    /// 寫出的格子比開頁時宣告的範圍少時，dimension 已經寫錯了，不補結尾，丟出程式錯誤。
     /// </summary>
     private void Close()
     {
@@ -207,9 +227,9 @@ internal sealed class ReportSheetWriter : IDisposable
         {
             if (!_disposed && !_faulted)
             {
+                SheetUsedRange.EnsureWrittenAsDeclared(_declaredRange, _writtenRange, _name);
                 CloseElements();
                 _writer.Dispose();
-                _content.Dispose();
             }
         }
         finally
@@ -229,7 +249,7 @@ internal sealed class ReportSheetWriter : IDisposable
         }
 
         _disposed = true;
-        ExportResources.ReleaseAll(_writer, _content);
+        ExportResources.ReleaseAll(_writer);
     }
 
     public static string Reference(uint column, uint row)
@@ -269,6 +289,7 @@ internal sealed class ReportSheetWriter : IDisposable
     private void WriteRowCore(uint rowIndex, IReadOnlyList<Cell> cells, double? height)
     {
         ExcelWorksheetConstraints.EnsureCell(rowIndex, 1);
+        _writtenRange = _writtenRange.IncludeDeclaredCells(_declaredRange, cells, _name);
         var row = new Row { RowIndex = rowIndex };
         if (height is not null)
         {
@@ -283,7 +304,7 @@ internal sealed class ReportSheetWriter : IDisposable
 
         try
         {
-            _writer.WriteElement(row);
+            row.WriteTo(_writer);
         }
         catch (Exception error) when (Fault(error, cells))
         {
@@ -309,14 +330,14 @@ internal sealed class ReportSheetWriter : IDisposable
 
         if (_protect)
         {
-            _writer.WriteElement(new SheetProtection
+            new SheetProtection
             {
                 Sheet = true,
                 Objects = true,
                 Scenarios = true,
                 SelectLockedCells = false,
                 SelectUnlockedCells = false
-            });
+            }.WriteTo(_writer);
         }
 
         if (_merges.Count > 0)
@@ -327,7 +348,7 @@ internal sealed class ReportSheetWriter : IDisposable
                 merges.Append(new MergeCell { Reference = range });
             }
 
-            _writer.WriteElement(merges);
+            merges.WriteTo(_writer);
         }
 
         if (_validations.Count > 0)
@@ -346,12 +367,12 @@ internal sealed class ReportSheetWriter : IDisposable
                 validations.Append(validation);
             }
 
-            _writer.WriteElement(validations);
+            validations.WriteTo(_writer);
         }
 
         if (_options?.PageMargins is { } margins)
         {
-            _writer.WriteElement(new PageMargins
+            new PageMargins
             {
                 Left = margins.Left,
                 Right = margins.Right,
@@ -359,22 +380,23 @@ internal sealed class ReportSheetWriter : IDisposable
                 Bottom = margins.Bottom,
                 Header = margins.Header,
                 Footer = margins.Footer
-            });
+            }.WriteTo(_writer);
         }
 
         if (_options?.PageSetup is { } setup)
         {
-            _writer.WriteElement(new PageSetup
+            new PageSetup
             {
                 Orientation = setup.Orientation,
                 PaperSize = setup.PaperSize,
                 Scale = setup.Scale,
                 FitToWidth = setup.FitToWidth,
                 FitToHeight = setup.FitToHeight
-            });
+            }.WriteTo(_writer);
         }
 
         _writer.WriteEndElement();
+        _writer.WriteEndDocument();
     }
 
     private void WriteSheetView(ReportSheetOptions? options)
@@ -413,7 +435,7 @@ internal sealed class ReportSheetWriter : IDisposable
             });
         }
 
-        _writer.WriteElement(new SheetViews(view));
+        new SheetViews(view).WriteTo(_writer);
     }
 
     private static string ColumnLetters(uint column)

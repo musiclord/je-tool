@@ -210,6 +210,31 @@ public sealed class TypedFieldRuleValidationTests
             errors);
     }
 
+    // 金額區間的上下限照前後端共用的固定答案 tests/JET.Tests/Fixtures/amount-parsing.json：
+    // 先各自讀成放大後的整數，讀不成的各寫一句，兩端都讀得成才比大小。前端第五步的區間測試讀同一份。
+    public static TheoryData<string, string, string> SharedAmountFixtureRanges()
+    {
+        var data = new TheoryData<string, string, string>();
+        foreach (var range in SharedAmountFixture.Ranges) data.Add(range.From, range.To, range.Result);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(SharedAmountFixtureRanges))]
+    public void Between_SharedAmountFixtureRanges_MatchTheFixedAnswer(string from, string to, string result)
+    {
+        var errors = FilterScenarioValidator.Validate(
+            Scenario(TypedRule(MoneyFieldId, "between", from: from, to: to, amountBasis: "signed")),
+            Context with { MoneyScale = SharedAmountFixture.MoneyScale });
+
+        var expected = new List<string>();
+        if (result is "invalidFrom" or "invalidBoth") expected.Add($"第 1 組第 1 條：金額「{from}」不是數字");
+        if (result is "invalidTo" or "invalidBoth") expected.Add($"第 1 組第 1 條：金額「{to}」不是數字");
+        if (result == "reversed") expected.Add("第 1 組第 1 條：下限金額大於上限金額");
+        Assert.Contains(result, new[] { "ok", "reversed", "invalidFrom", "invalidTo", "invalidBoth" });
+        Assert.Equal(expected, errors);
+    }
+
     [Fact]
     public void Between_EqualBounds_IsValid()
     {

@@ -180,7 +180,6 @@ public sealed class JsonStorageReadabilityTests
             "dev-tester",
             "2025-01-01", "2025-12-31", null,
             ProjectDocument.DefaultMoneyScale,
-            ProjectDocument.DefaultRoundingMode,
             DateTimeOffset.UtcNow, 1, ProjectDocument.CurrentSchemaVersion);
 
         await store.CreateAsync(document, CancellationToken.None);

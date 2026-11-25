@@ -76,7 +76,9 @@
 
 ## 主程式進度事件
 
-主程式可以用 `{ "event": "<name>", "data": {} }` 傳送單向進度。事件沒有 `requestId`，也不代表成功。
+主程式可以用 `{ "event": "<name>", "requestId": "<id>", "data": {} }` 傳送單向進度，進度事件不代表成功。
+`requestId` 是送出這則進度的請求，和那個請求的回應相同；不在任何請求裡送出的事件不帶這個鍵。
+`jet-api.js` 只把還在等回應的請求的進度交給畫面，回應到了之後才送達的進度與不認得的請求的進度直接丟掉。
 
 | 事件 | 用途 |
 |:---|:---|
@@ -165,6 +167,8 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 本機案件的資料庫檔不見或是 0 位元組時也列成錯誤列，`code` 是 `file_read_error`；建案中的標記還在時照常列出（裁定 2026-11-05-72）。
 設定檔的 `projectId` 與實際資料夾名稱不同時，也列成錯誤列，識別碼取資料夾名稱，刪除只作用於該資料夾（裁定 2026-11-10-01）。
 `moneyScale` 缺少或不是正數時沿用設定檔無法讀取的錯誤，不補預設值。
+首次發布的設定檔另外寫了進位方式 `roundingMode`。金額的進位方式固定，不是案件設定，所以讀取時不理會這一欄，
+`project.load` 與 `project.update` 回應的 `project` 也不帶它。
 
 建案時查核起始日不得晚於截止日，否則回 `invalid_payload`，`field` 為 `periodStart`，不建立案件。
 建案時查核起始日與查核截止日的年份都要在 1900 到 2100 之間，否則同樣回 `invalid_payload`，不建立案件。
@@ -185,6 +189,11 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 `project.load` 的 payload 只需 `projectId`。原本另可選填 `databaseProvider`，用來找只存在伺服器上的 SQL Server 案件，
 回應也帶心跳間隔 `heartbeatSeconds`，都隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
 本機沒有這個案件資料夾時回 `project_not_found`；資料庫種類以 `project.json` 為準，不是 SQLite 時在取得案件鎖之前回 `unsupported_provider`。
+畫面回到案件清單之前都會先送 `project.releaseLock`。畫面沒有離開成，`project.load` 或 `project.create` 要進入的卻是另一個案件時，
+後端在新案件開成之後、進入作用中案件之前，照 `project.releaseLock` 的做法離開目前的案件：放掉它的案件鎖、離開作用中案件，再關閉它的資料庫連線。
+重開同一個案件時不動。新案件開不成或建不成時不離開，目前的案件照樣開著（裁定 2026-11-24-31）。
+放掉成功時，前一個案件的支援紀錄記一筆 `support.case_left`。
+放不掉目前的案件時，只在支援日誌記一筆 `action.step_failed`，`step` 是 `lock_release`，照常開啟或建立新案件，不回錯誤。
 本機案件的資料庫檔不見、是 0 位元組或沒有任何資料表時，`project.load` 回 `file_read_error`，不建立新的資料庫（裁定 2026-11-05-72）。
 案件資料夾裡的檔案全都是唯讀時，`project.load` 照樣成功，之後第一個寫入資料庫的動作回 `database_read_only`（裁定 2026-11-18-02）。
 `project.load` 回應另含 `settingsRestored` 字串陣列，列出設定檔和案件資料庫記錄的不同、已照資料庫改回的項目，名稱用 action 欄位：`periodStart`、`periodEnd`、`prepStartDate`、`nonWorkingDays`、`operatorId`、`sampleSeed`、`moneyScale`、`rocDateEnabled`，順序固定，種子或抽樣演算法版本不同都寫 `sampleSeed`；沒有不同時是空陣列。開啟中的案件，其他 action 讀到的這些設定一律是案件資料庫的值（裁定 2026-11-19-01）。
@@ -204,6 +213,9 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 預覽或儲存的條件對這些欄位用 `isBlank` 時回 `invalid_scenario` 與條件列 `details`，原因寫出改法，例如
 「第 N 組第 M 條：GL 中的金額不會空白，來源空白的金額已當成 0；要找 0 元的分錄，請改用「指定金額」填 0」；`isNotBlank` 與 `includeBlank` 不改變結果，不擋。
 攸關資料元素欄位用 `fieldId` 指定，空白時不存值，不受這條限制。
+
+`project.load` 回應的 `mapping.gl` 另含 `dateNotices`，是確認這份配對時 `mapping.commit.gl` 回應的同一份日期提醒，沒有時是空陣列；
+欄位與保存方式見「欄位配對與科目分類」一節的 `dateNotices` 說明。
 
 `project.load` 回應另含 `filterScenarioCheck: { status, recalculatedCount, problems }`，說明開案時用目前篩選規則
 檢查已儲存情境的結果。已是目前規則版本的情境也逐一檢查（裁定 2026-10-13-25）。`status` 為 `current`（沒有情境，或都已是目前規則而且檢查合格）、`recalculated`（整批已改用目前規則，
@@ -239,6 +251,9 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 GL、TB、科目配對、授權編製人員清單、國定假日與補班日匯入，GL、TB 配對確認，科目分類或配對儲存、授權編製人員清單清除、每週休息日設定與案件資料更新，
 成功回應共同帶 `invalidatedResults: { validation, prescreen, filter, filterScenarios, accountMapping }`、`staleState`、`reports` 與 `reportWarning`。
 前者是本次需要清掉的結果範圍，包含未儲存的預覽；後者只描述已保存結果是否過期。前端不再用 action 名稱或 setter 自行推算失效範圍。
+哪些 action 屬於這一類、每一種修改回什麼值，寫在前後端測試共用的手寫清單 `src/JET/tests/JET.Tests/Fixtures/upstream-mutation-invalidation.json`。
+後端的 `UpstreamMutationInvalidationListTests` 核對回應宣告的範圍和案件資料庫實際清掉的範圍相同，也核對清單涵蓋每個回應帶 `invalidatedResults` 的 action；
+前端測試核對畫面上每個送出這類修改的地方，都把回應交給 `Store.applyMutationEffects`。新增這類 action 時，要加進這份清單。
 變更已提交、卻讀不回目前結果狀態時，回應仍成功：`staleState` 與 `reports` 回 null，前端保留畫面上的值，
 `reportWarning` 說明變更已儲存、重新開啟案件就會更新。支援日誌記一筆 `workflow_state.read_failed`，只寫讀取階段與錯誤類型。
 `filterScenarios` 為 true 時，後端已刪除全部已存篩選情境與命中，前端應把第五步回到預設狀態。
@@ -454,22 +469,29 @@ GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與�
 已投影的資料不會自動重寫。重新確認 GL 配對才按目前設定投影；還原草稿接受有效的單邊代碼，但不猜另一側代碼，也不改寫已確認配對。
 千分位逗號只接受每組三位；括號可表示負數（裁定 2026-10-04-06），不可再疊加正負號。正負號放在尾端時，前面可以有空白，有沒有千分位都讀成同一個值。
 GL、TB、RDE 金額與篩選運算值共用相同解析。
+第五步畫面送出篩選條件前，照同一套金額規則先檢查，前後端共用 `src/JET/tests/JET.Tests/Fixtures/amount-parsing.json` 的固定答案。
+畫面用 `project.load` 回傳的 `moneyScale` 把值放大取整，再比區間的上下限；沒有 `moneyScale` 時畫面不檢查金額，交給後端。payload 不變。
 純數字不當成日期（裁定 2026-10-22-11）：沒套日期格式的數字儲存格與文字檔裡的 `2025`、`2025.12`、`45292` 這類值，
 都視為無法辨識的日期，確認配對時寫出列號。日期型儲存格由讀取器依儲存格格式換成 ISO，
 照 Excel 顯示的年月日交出 yyyy-MM-dd，最晚到 9999-12-31；1904 日期制的序列值 0 是 1904-01-01。1900 日期制的序列值 0 與 60
 在 Excel 顯示成日曆上沒有的 1900 年 1 月 0 日與 1900-02-29，交出 1900-01-00 與 1900-02-29，視為無法辨識的日期（裁定 2026-11-20-02）。
-.xls 由 ExcelDataReader 換算，序列值 60 交出 1900-02-28，當成一般的日期；1904 日期制的序列值 -1461 以上、-1460 未滿也交出 1900-01-00。
-換算不出日期的儲存格，例如序列值是負數，交出序列值的文字，視為無法辨識的日期（裁定 2026-11-17-22）。明確西元或民國文字日期的原範圍不變，
+.xls 由 ExcelDataReader 換算，序列值 60 交出 1900-02-28，當成一般的日期，在 `dateNotices` 列成底稿寫成文字；1904 日期制的序列值 -1461 以上、-1460 未滿也交出 1900-01-00。
+換算不出日期的儲存格，例如序列值是負數，交出序列值的文字，視為無法辨識的日期（裁定 2026-11-17-22）。文字寫法的西元或民國日期照本段最後的規則讀，
 Access 原生日期照原樣。無法辨識的日期不擋確認配對，怎麼處理見下面 `dateNotices` 的說明。帶逗號的數字不當成日期，也不交給寬鬆解析；不論逗號是否三位一組（例如 `1,234`、`12,31`），
 都視為無法辨識的日期，確認配對時寫出列號。第五步貼上的日期清單同樣保留原文，由後端寫出格式錯誤（裁定 2026-10-19-09）。
 前後端的日期規則共用 `src/JET/tests/JET.Tests/Fixtures/date-normalization.json` 的固定答案，一邊改了規則，另一邊的測試就會失敗。
 年份在後的數字三段式日期不猜月日順序，帶時間也一樣拒絕。
 交給寬鬆解析的值，原文要寫出四位數年份與日：`12/31`、`2025-12`、`Dec 2025`、`31 Dec`、`Dec 31, 25` 這類缺年份、缺日
 或只寫兩位數年份的值，不補成今年、補成 1 日或猜年份，同樣視為無法辨識的日期，確認配對時寫出列號，日期清單也由後端寫出格式錯誤。
-`June 11, 2025` 與帶時間的 `2025/06/11 00:00:00` 照常接受（裁定 2026-10-19-11）。
+`June 11, 2025` 與帶時間的 `2025/06/11 00:00:00` 照常接受（裁定 2026-10-19-11）。帶時差或 `Z` 的日期時間取文字裡寫的那一天，
+不換成電腦的時間，例如 `2024-01-05T00:30:00+09:00` 讀成 2024-01-05；只有時間的 `13:45` 視為無法辨識的日期，不補成當天。
+xlsx 儲存格型別 `t="d"` 的值是日期文字，讀取器照原文存進 PBC-GL，欄位型態記成文字，確認配對時才依這些規則判讀。
 案件的民國年開關打開時，補零成四位數的民國年也當成民國年：年份四位數、0 開頭、落在 0100 到 0199，寫成 `0114/06/11`、`0114-06-11` 或 `01140611`，
 都讀成 2025-06-11；月或日不合法時視為無法辨識的日期。這個判定排在西元年之前。開關關閉時照寫出來的年份讀，`0114-06-11` 就是西元 114 年（裁定 2026-11-17-20）。
-文字寫法的日期年份可以是 0001 到 9999，年份不合常理的照來源資料保留，不擋確認配對（裁定 2026-11-17-19）。
+開關打開時，三位數的民國年 100 到 199 用 `/`、`.` 或 `-` 分隔都接受，`114/6/11` 與 `114-6-11` 都讀成 2025-06-11；開關關閉時這兩種寫法都是無法辨識的日期。
+四位數年份寫在前面、月日用 `-`、`/` 或 `.` 分隔的日期，年份可以是 0001 到 9999，照寫出來的年份讀，`1899-6-11` 和 `1899/6/11` 一樣讀成 1899-06-11。
+帶時間、寫成「年月日」或用英文月份這類交給寬鬆解析的寫法，只收 1900 到 2100 年，例如 `1899/6/11 08:30` 視為無法辨識的日期。
+年份不合常理的日期照來源資料保留，不擋確認配對（裁定 2026-11-17-19）。
 
 `mapping.valueProfile` 只回有界的值分布：預設及畫面請求為 50 個最常見非空白值，action 可指定 1 到 100 個，另回 `blankCount`、`distinctCount` 與
 `truncated`。可選的 `comparisonValues` 每次最多 100 個原始字串；有提供時另外回傳 `comparisonGroups`，
@@ -521,24 +543,35 @@ TB 成功回應的 `warnings` 和 GL 一樣，必填文字欄整欄空白時提�
 GL 的人工/自動分錄選「只指定人工代碼」或「只指定自動代碼」，而清單代碼在來源裡一筆都沒有時，`warnings` 另加一則提醒，
 寫出代碼、來源欄、有值的列會怎麼判定與下一步；比對方式和投影相同，去掉頭尾空白、不分大小寫。逐值指定時不做這項檢查。
 GL 的成功回應另有 `dateNotices`，沒有需要提醒的日期時是空陣列（裁定 2026-11-17-22）。來源的日期有內容卻讀不成日期，
-或讀得成但年份不在 1900 到 2100 年之間時，一個欄位的一種情形一則。檢查總帳日期、另外配對來源欄的傳票核准日，
+或讀得成但年份不在 1900 到 2100 年之間，或落在 1900-01-01 到 1900-02-28 而在工作底稿寫成文字時，一個欄位的一種情形一則。
+1900 年以前的日期已經算年份不尋常，不再列成底稿寫成文字。檢查總帳日期、另外配對來源欄的傳票核准日，
 以及型別是日期的攸關資料元素；傳票核准日沿用總帳日期時不另外數。納入測試與未納入測試的列都算，不擋確認。每一則的欄位：
 
 - `field` 是 `glDate`、`approvalDate` 或攸關資料元素的欄位識別碼；`label` 是欄位名稱，`sourceColumn` 是來源欄。
-- `kind` 是 `unrecognized`（讀不成日期）或 `unusualYear`（年份不在 1900 到 2100 年之間）；`count` 是這種情形的筆數。
+- `kind` 是 `unrecognized`（讀不成日期）、`unusualYear`（年份不在 1900 到 2100 年之間）或 `textInWorkingPaper`
+  （日期早於 1900-03-01，Excel 無法照原樣顯示成日期，底稿寫成文字）；`count` 是這種情形的筆數。底稿的內容與格式不因這則提醒改變。
 - `handling` 是 JET 的處理方式。`excluded`：總帳日期讀不成日期，整列列入 GL(未納入測試)，未納入原因是 `unrecognizedGlDate`。
-  `notUsed`：傳票核准日或攸關資料元素讀不成日期，那一格當成沒有日期。`kept`：年份不尋常的日期照來源資料保留（裁定 2026-11-17-19）。
+  `notUsed`：傳票核准日或攸關資料元素讀不成日期，那一格當成沒有日期。`kept`：年份不尋常的日期照來源資料保留（裁定 2026-11-17-19），底稿寫成文字的日期也一樣。
 - `values` 最多列 10 個值。每個值有來源的原文 `value`，超過 50 個字時只留開頭；這個值的筆數 `count`；
   要標出來的那一段在原文裡的位置 `markStart` 與長度 `markLength`；最多 10 個 `rows`。`rows` 每一項的 `row` 是來源檔的列號，
   一個批次有多個來源檔時 `source` 是來源名稱，只有一個來源時是 null。
-- 讀不成日期的值另有 `problem`：`number` 是純數字，`noSuchDate` 是日曆上沒有這一天，`ambiguousOrder` 是分不出年月日的順序，
+- 讀不成日期的值另有 `problem`，照讀日期時的順序與案件的民國年選項判斷：`number` 是純數字，
+  `noSuchDate` 是日曆上沒有這一天，照那一年實際的天數查，例如 2025-02-29，標出來的是月或日，年份寫成 0 時標出年份；
+  `ambiguousOrder` 是分不出年月日的順序，
   `yearTooLong` 是年份寫成五位數以上、後面用 -、/ 或 . 寫月日，可以再接時間，例如 99999/02/01，標出來的是年份那一段；
+  `yearTooShort` 是年份寫在前面卻只有三位數，例如民國年選項關閉時的 114/6/11 或 114-6-11，標出來的是年份那一段；
+  `looseYearOutOfRange` 是帶時間、寫成「年月日」或用英文月份的寫法讀得出日期，但年份不在 1900 到 2100 年之間，
+  例如 1899/6/11 08:30，標出來的是原文裡的四位數年份，找不到時標出整個值；
   `notDate` 是其他情形，例如 99999年2月1日，或用全形數字寫的 ２０２５/０６/１１。
-  年份不尋常的值 `problem` 是 null，標出來的是年份。
+  年份不尋常的值 `problem` 是 null，標出來的是年份。底稿寫成文字的值 `problem` 也是 null，標出來的是整個值。
 - 沒有列在 `values` 的其他值共有幾筆，寫在 `omittedValueRowCount`。
 
 沒有任何一列納入 GL，而且有總帳日期讀不成日期時，照舊回 `projection_failed`，明細列出那些值與列號。
-`dateNotices` 只在這次回應裡，不隨案件保存；重開案件後要重新確認配對才會再拿到。
+`dateNotices` 和配對在同一個交易存進案件資料庫既有的 `schema_info` 表，key 是 `gl_date_notices`，值是同一份陣列的 JSON；
+資料表結構與案件資料庫版本不變。`project.load` 回應的 `mapping.gl` 帶回同一份 `dateNotices`，第三步摘要照樣列出。
+重新匯入 GL 時跟著已確認的配對一起清掉；這次確認配對失敗而回復時，上一次的配對與提醒一起留著。
+在這個做法之前確認過的案件沒有存下提醒，`dateNotices` 是空陣列，重新確認配對後才有。
+存下的內容讀不出來時也回空陣列，支援紀錄只記步驟代碼 `gl_date_notices_read` 與例外型別，不擋開案。
 GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 寫一筆重新配對的操作紀錄。寫不進去時配對仍已生效，
 `warnings` 另加「變更已儲存，但這次變更沒有寫入操作紀錄。」，和重新匯入相同。本機案件確認前讀不到操作紀錄、
 無法判斷這次要不要記時，不寫紀錄，`warnings` 同樣加這一句。
@@ -580,6 +613,10 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 驗證報告讀同一份摘要，筆數是 null 時主表寫 N/A，也不建立核准日不在期間的明細表。
 `validate.run` 的空值明細樣本、`project.load` 帶回的同一份樣本與 `query.blankRecordsPage` 的每列另帶傳票核准日 `approvalDate`，
 可為 null，`query.blankRecordsPage` 也能依它排序；畫面只在「核准日不在期間」的明細顯示「傳票核准日」欄（裁定 2026-11-06-13）。
+`query.blankRecordsPage` 的每列另帶可為 null 的 `approvalDateRawValue`。只在 `category` 是 `approvalDateNotInPeriod`、
+傳票核准日配對了來源欄、這一列的 `approvalDate` 是 null，而來源那一格去掉頭尾空白後不是空的時候有值，是那一格的原文，
+超過 50 個字時只留開頭，和 `dateNotices` 的值相同。也就是讀不成日期的核准日；空白的核准日與其他類別都是 null。
+畫面把它寫成「無法辨識：」加原文，和空白分開。筆數、分頁、排序、搜尋、驗證報告與底稿都不讀它，`validate.run` 的明細樣本也不帶。
 
 ### 預篩選
 
@@ -653,7 +690,7 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 - `query.highRiskSummaryScenarios`
 - `query.highRiskSummaryVoucherPage`
 - `query.highRiskSummaryRowPage`
-- `query.accountMappingPage`（第四步科目分類清單，可依科目編號或名稱搜尋；有界分頁）
+- `query.accountMappingPage`（第四步科目分類清單與第五步從科目樹選取的科目清單，可依科目編號或名稱搜尋；有界分頁）
 - `query.accountMappingDifferencePage`（`kind` 為 `mappingOnly` 或 `unmapped`，另收 `cursor`、`pageSize`；
   每頁預設 200 筆，上限也是 200 筆。回 `{ kind, rows: [{ accountNumber, accountName }], nextCursor, totalCount }`。
   依科目編號升冪，`accountName` 可為 null。第一頁回總筆數，空清單為 0；續頁的 `totalCount` 為 null。
@@ -672,12 +709,13 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 四個既有篩選結果查詢以持久化失效旗標判斷是否需要補算，零筆與搜尋無結果不再觸發寫入。只有實際
 失效的首頁需要既有寫入鎖；一般讀取前後核對資料、情境及案件，避免切換期間回傳混合結果。
 
-所有供畫面使用的 `query.*Page` 每頁預設 200 筆，上限也是 200 筆。不帶游標的第一頁回應 `totalCount`，
+所有供畫面使用的 `query.*Page` 每頁預設 200 筆，上限也是 200 筆。沒有帶 `pageSize`、帶 0 或負數時一頁讀 200 筆，
+超過 200 時以 200 筆查詢；每個查詢都用同一個讀法。不帶游標的第一頁回應 `totalCount`，
 它是目前查詢範圍的總列數，包含搜尋、分類或情境條件。帶游標的續頁不再計數，`totalCount` 為 null，
 前端沿用第一頁的總筆數計算頁數。資料庫用集合查詢計數，不為了計頁而載入完整資料。
 內部報表的批次大小維持原本設定，不額外要求這項計數。
 
-`query.dataPreview` 接受 `dataset`、`limit` 與 `offset`。`limit` 預設 200，上限也是 200；`offset` 預設 0，
+`query.dataPreview` 接受 `dataset`、`limit` 與 `offset`。`limit` 預設 200，上限也是 200，沒有帶、帶 0 或負數時讀 200 筆；`offset` 預設 0，
 負值視為 0。資料庫依固定順序只讀當頁資料。`offset` 為 0 時，`totalCount` 和 `stats` 描述完整資料集；
 `offset` 大於 0 時兩者為 null，前端沿用第一頁的值。
 回應有 `dataset`、`columns`、`columnDetails`、`rows`、`totalCount` 與 `stats`，欄位配對及右側預覽共用這個查詢。
@@ -1142,9 +1180,13 @@ false 表示程式內部丟出取消例外。
 匯出只含這個程式還沒寫進紀錄的事件。`start` 與 `startUtc` 是紀錄的起點。`unreadableLines` 與 `unreadableLineNumbers`
 是無法解讀的行，例如程式寫到一半就結束；`incompleteTailBytes` 是匯出當下最後一行還沒寫完的位元組數，這部分不讀。
 `gapMarkers` 與 `markedMissingEvents` 是缺口的行數與合計筆數，`openings` 與 `processes` 是開啟次數與寫過紀錄的程式數。
-`processesNotClosed` 列出開啟案件後沒有記到 `project.releaseLock` 成功的程式代號，通常是程式沒有正常結束，不含匯出的程式本身。
+`processesNotClosed` 列出開啟案件後沒有記到 `project.releaseLock` 成功、也沒有記到 `support.case_left` 的程式代號，通常是程式沒有正常結束，不含匯出的程式本身。
 `unsavedEvents`、`droppedEvents` 與 `lastWriteFailure` 是這個程式還沒寫進紀錄的筆數、已經放棄的筆數，以及最近一次寫不進去的原因。
 程式被強制結束時，還沒寫進紀錄的事件會遺失，紀錄裡也不會有缺口行；`processesNotClosed` 仍會列出這個程式。
+`project.load` 或 `project.create` 開啟另一個案件時，後端在新案件開成之後自己離開前一個案件。工作鎖放成功時，JET 在前一個案件的紀錄記一筆
+`support.case_left`，帶開新案件那次操作的 `action` 與操作識別碼，沒有其他欄位。匯出時這一筆和 `project.releaseLock` 成功一樣算正常離開，
+`processesNotClosed` 不列出這個程式。工作鎖放不掉時不記這一筆，這個程式仍會列在 `processesNotClosed`。
+2026-11-25 加上這一筆以前留下的紀錄沒有它，那段期間的換案件仍會被列出。
 
 `dev.*` action 只服務開發面板，一般使用者流程不能依賴。`dev.log.exportFile` 輸入
 `{ projectId, correlationId? }`，從本次 Debug 程序的完整檔案 sink 篩出該案件的紀錄；有 correlationId 時

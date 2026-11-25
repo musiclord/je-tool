@@ -23,6 +23,8 @@ public sealed partial class HandlerRepositoryScopeTests
         // 更新案件資料也必須讀目前版本，回傳後端權威的結果及報告狀態。
         ("ProjectUpdateHandler", "Project/ProjectUpdateHandler.cs", "FilterScenarios,ReportStore,ResultStaleStates,Results"),
         ("ProjectReleaseLockHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
+        // 建案與開案前離開前一個案件，和 project.releaseLock 一樣只放掉它的工作鎖。
+        ("ProjectSessionDeparture", "Project/ProjectSessionDeparture.cs", "LockService"),
         ("QueryAccountMappingDifferencePageHandler", "Query/QueryAccountMappingDifferencePageHandler.cs", "AccountMappingDifferences"),
         ("QueryAccountMappingBlankPageHandler", "Query/QueryAccountMappingBlankPageHandler.cs", "AccountMappingBlankPages"),
         ("QueryCompletenessDiffPageHandler", "Query/QueryCompletenessDiffPageHandler.cs", "CompletenessDiffPages"),

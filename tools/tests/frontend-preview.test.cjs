@@ -109,6 +109,36 @@ test('account page replays only the prepared bounded request', () => {
   assert.throws(() => dispatch(prepared, 'accountMapping.save', { changes: [{ accountNumber: '1000', categoryId: 'builtin.others' }] }));
 });
 
+// 第四步與第五步的科目清單每頁 200 個，第五步另外帶分類。準備好的那一頁已列出全部科目時，這些請求都拿得到答案；
+// 指定分類時只列出這一頁裡屬於這個分類的科目。分類有下層、要的筆數比準備好的少或超過 200、帶搜尋字或游標時照樣拒絕。
+test('account page also answers the 200-account pages and category reads of steps four and five', () => {
+  const page = { rows: [{ accountNumber: '1000', categoryId: 'builtin.cash' }, { accountNumber: '2000', categoryId: 'builtin.receivables' }], nextCursor: null, totalCount: 2 };
+  const prepared = { ...bundle, accountMappingPage: page, loaded: { accountCategory: { categories: [
+    { categoryId: 'builtin.cash' }, { categoryId: 'builtin.receivables' }, { categoryId: 'custom.parent' }, { categoryId: 'custom.child', parentCategoryId: 'custom.parent' }] } } };
+  const answer = (source, payload) => {
+    let result;
+    assert.doesNotThrow(() => { result = dispatch(source, 'query.accountMappingPage', payload); }, JSON.stringify(payload));
+    return result;
+  };
+  const codes = result => result.rows.map(row => row.accountNumber);
+  assert.deepEqual(codes(answer(prepared, { cursor: null, pageSize: 200, search: '' })), ['1000', '2000']);
+  assert.deepEqual(codes(answer(prepared, { categoryId: null, search: '', pageSize: 200, cursor: null })), ['1000', '2000']);
+  const cash = answer(prepared, { categoryId: 'builtin.cash', search: '', pageSize: 200, cursor: null });
+  assert.deepEqual(codes(cash), ['1000']);
+  assert.equal(cash.totalCount, 1);
+  assert.equal(cash.nextCursor, null);
+  assert.deepEqual(codes(answer(prepared, { categoryId: 'custom.child', search: '', pageSize: 200, cursor: null })), []);
+  cash.rows.push({ accountNumber: 'changed' });
+  assert.deepEqual(codes(answer(prepared, { categoryId: 'builtin.cash', search: '', pageSize: 200, cursor: null })), ['1000']);
+  for (const payload of [{ categoryId: 'custom.parent', search: '', pageSize: 200, cursor: null }, { pageSize: 201 }, { pageSize: 1 },
+    { categoryId: 'builtin.cash', search: '1', pageSize: 200, cursor: null }, { categoryId: 'builtin.cash', search: '', pageSize: 200, cursor: 'next' }])
+    assert.throws(() => dispatch(prepared, 'query.accountMappingPage', payload), JSON.stringify(payload));
+  const partial = { ...prepared, accountMappingPage: { ...page, nextCursor: 'more' } };
+  assert.throws(() => dispatch(partial, 'query.accountMappingPage', { cursor: null, pageSize: 200, search: '' }));
+  assert.throws(() => dispatch(partial, 'query.accountMappingPage', { categoryId: 'builtin.cash', search: '', pageSize: 200, cursor: null }));
+  assert.equal(answer(partial, { cursor: null, pageSize: 100, search: '' }).nextCursor, 'more');
+});
+
 test('mapping profiles and comparison metadata replay exact backend-prepared outputs only', () => {
   const payload = { dataset: 'gl', sourceColumn: 'Mode', limit: 50, comparisonValues: ['ß', 'SS'] };
   const comparison = { dataset: 'gl', sourceColumn: 'Mode', comparisonOnly: true, comparisonValues: ['ß', 'SS'] };

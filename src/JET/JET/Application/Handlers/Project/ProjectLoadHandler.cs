@@ -14,6 +14,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     private readonly IProjectDatabaseCheckpoint? databaseCheckpoint;
     private readonly ILogger? logger;
     private readonly ISupportCaseHistory? supportHistory;
+    private readonly ProjectSessionDeparture? sessionDeparture;
 
     internal ProjectLoadHandler(
         IProjectStore projectStore,
@@ -22,7 +23,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         ProjectSession session,
         ILogger<ProjectLoadHandler>? logger = null,
         ISupportCaseHistory? supportHistory = null,
-        IProjectDatabaseCheckpoint? databaseCheckpoint = null)
+        IProjectDatabaseCheckpoint? databaseCheckpoint = null,
+        ProjectSessionDeparture? sessionDeparture = null)
     {
         this.logger = logger;
         this.supportHistory = supportHistory;
@@ -31,6 +33,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         this.principal = principal;
         this.session = session;
         this.databaseCheckpoint = databaseCheckpoint;
+        this.sessionDeparture = sessionDeparture;
     }
 
     public string Action => "project.load";
@@ -185,6 +188,9 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var glOptions = glMapping is null
                 ? null
                 : glMapping.GlOptions ?? GlMappingOptions.NormalizeLegacy(glMapping.Mapping);
+            IReadOnlyList<GlDateNotice> glDateNotices = glMapping is null
+                ? []
+                : await ReadGlDateNoticesAsync(repositories.MappingStates, document.ProjectId, cancellationToken);
 
             var response = new
             {
@@ -198,7 +204,6 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                     periodEnd = document.PeriodEnd,
                     prepStartDate = document.LastAccountingPeriodDate,
                     moneyScale = document.MoneyScale,
-                    roundingMode = document.RoundingMode,
                     databaseProvider = document.DatabaseProvider,
                     rocDateEnabled = document.RocDateEnabled,
                     createdUtc = document.CreatedUtc,
@@ -224,6 +229,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glOptions),
                         // GL 中每一筆都有值的欄位；第五步不替它們提供「空白」的比較方式，和條件檢查讀同一份欄位目錄的答案。
                         neverBlankGlFields = JetFieldCatalog.NeverBlankGlFields(glMapping.Mapping, glOptions),
+                        // 確認配對時存下的日期提醒，和那次確認配對的回應相同；第三步摘要照樣列出。
+                        dateNotices = glDateNotices,
                         sourceBatchId = glMapping.SourceBatchId,
                         committedUtc = glMapping.CommittedUtc
                     },
@@ -333,6 +340,13 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             SupportOperationStage.Enter("metadata_save");
             await projectStore.SaveAsync(openedDocument, cancellationToken);
 
+            // 新的案件確定開成之後、進入 session 之前，才離開目前還開著的另一個案件，放掉它的工作鎖並關閉它的資料庫；
+            // 重開同一個案件時不動。前面任何一步失敗時，目前的案件照樣開著。
+            if (sessionDeparture is not null)
+            {
+                await sessionDeparture.LeaveOtherProjectAsync(document.ProjectId);
+            }
+
             session.Enter(document.ProjectId, repositories);
             // 持有工作鎖時才建立案件的支援紀錄資料夾，並記下這次開啟。
             SupportCaseDiagnostics.CaseOpened(
@@ -399,6 +413,26 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             calendarLists);
         return FilterScenarioRuleUpgrade.Evaluate(
             savedScenarios, validationContext, document.MoneyScale, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// 日期提醒只是讓審計員回頭看的說明，存下的內容讀不出來時當成沒有，不擋開案；重新確認配對就會再存一份。
+    /// 支援日誌只記步驟代號與例外的型別、位置，不寫存下的內容。
+    /// </summary>
+    private async Task<IReadOnlyList<GlDateNotice>> ReadGlDateNoticesAsync(
+        IMappingStateStore mappingStates,
+        string projectId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await mappingStates.FindGlDateNoticesAsync(projectId, cancellationToken);
+        }
+        catch (JsonException error)
+        {
+            if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "gl_date_notices_read", error);
+            return [];
+        }
     }
 
     private static string ToWireStatus(FilterScenarioUpgradeStatus status) => status switch

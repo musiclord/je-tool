@@ -17,7 +17,6 @@ public sealed class QueryDataPreviewHandler(
     ProjectSession session) : IApplicationActionHandler
 {
     private const int DefaultLimit = 200;
-    private const int MaxLimit = 200;
 
     public string Action => "query.dataPreview";
 
@@ -31,7 +30,7 @@ public sealed class QueryDataPreviewHandler(
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "preview_dataset_invalid");
         }
 
-        var limit = Math.Clamp(PayloadReader.GetOptionalInt(payload, "limit") ?? DefaultLimit, 1, MaxLimit);
+        var limit = PageRequestReader.ReadPageSize(payload, "limit", DefaultLimit);
 
         var offset = Math.Max(0, PayloadReader.GetOptionalInt(payload, "offset") ?? 0);
 

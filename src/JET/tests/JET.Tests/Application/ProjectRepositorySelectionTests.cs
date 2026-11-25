@@ -46,6 +46,28 @@ public sealed class ProjectRepositorySelectionTests
     }
 
     [Fact]
+    public async Task CreateOtherCaseFails_KeepsPreviousSession()
+    {
+        using var root = new TempProjectRoot();
+        var activeCase = NewProjectId("sqlite-a");
+        var blockedCase = NewProjectId("sqlite-blocked");
+        using var host = new HandlerTestHost(projectsRootPath: root.Path);
+        await host.DispatchAsync("project.create", CreatePayload(activeCase, ProjectDocument.DefaultDatabaseProvider));
+
+        // 同名的空資料夾沒有設定檔，通過名稱檢查，建案在建立案件資料夾時才失敗。
+        Directory.CreateDirectory(Path.Combine(root.Path, blockedCase));
+        await Assert.ThrowsAsync<JetActionException>(
+            () => host.DispatchAsync("project.create", CreatePayload(blockedCase, ProjectDocument.DefaultDatabaseProvider)));
+
+        var overview = await host.DispatchAsync("dev.db.overview");
+        AssertDatabaseUnder(overview, root.Path, activeCase);
+        using var contender = new HandlerTestHost(projectsRootPath: root.Path);
+        var held = await Assert.ThrowsAsync<JetActionException>(
+            () => contender.DispatchAsync("project.load", LoadPayload(activeCase)));
+        Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
+    }
+
+    [Fact]
     public async Task LoadCaseWithUnknownProvider_RejectsBeforeLockingAndKeepsActiveCase()
     {
         using var root = new TempProjectRoot();

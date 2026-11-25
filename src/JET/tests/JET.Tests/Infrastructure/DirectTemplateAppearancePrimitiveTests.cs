@@ -404,6 +404,7 @@ public sealed class DirectTemplateAppearancePrimitiveTests
             using var writer = new ReportSheetWriter(
                 "Synthetic",
                 part,
+                SheetUsedRange.Of(1, 1, 1, 1),
                 [new ReportColumn(1, 1, expectedWidth, BestFit: true)]);
             writer.WriteDataRow(1, [InlineTextCell("A1", "late-row-very-long-display-value", 0)]);
             writer.CloseAndSummarize(CancellationToken.None);

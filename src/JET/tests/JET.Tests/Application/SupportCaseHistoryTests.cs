@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 離開案件、之後再回到同一案件時，匯出的支援日誌不能缺一開始的事件。每個情境先寫出完整的預期事件順序，
 /// 再只讀匯出檔核對：重新開啟、沒有正常離開與寫到一半的行、紀錄檔被占用或唯讀、另一個程式開不了案件、切換案件、
-/// 刪除後重建同名案件、舊案件第一次開啟，以及寫不進去的事件超過保留上限。程式真的重新啟動與被強制結束的情境見
+/// 沒有先離開就開另一個案件、刪除後重建同名案件、舊案件第一次開啟，以及寫不進去的事件超過保留上限。程式真的重新啟動與被強制結束的情境見
 /// <see cref="SupportCaseHistoryProcessTests"/>。
 /// </summary>
 public sealed class SupportCaseHistoryTests
@@ -236,6 +236,72 @@ public sealed class SupportCaseHistoryTests
             .. Recent("P1", "second-1"), .. Pair("P1", "project.releaseLock", "second-leave"),
         ];
         Assert.Equal(secondExpected, Story(await ExportAsync(host, second)));
+    }
+
+    [Theory]
+    [InlineData("load")]
+    [InlineData("create")]
+    public async Task OpeningAnotherCaseWithoutLeaving_RecordsTheLeaveInTheLeftCaseSoItIsNotListedAsNotClosed(string opening)
+    {
+        using var root = new TempProjectRoot();
+        string id;
+        string otherId;
+        using (var first = new HandlerTestHost(enableDevTools: false, projectsRootPath: root.Path))
+        {
+            if (opening == "load")
+            {
+                otherId = await CreateAsync(first, "sqlite", "Synthetic history switch target", "other-create");
+                await first.DispatchAsync("project.releaseLock", correlationId: "other-leave");
+            }
+            else
+            {
+                otherId = "";
+            }
+
+            id = await CreateAsync(first, "sqlite", "Synthetic history switch", "create");
+            await first.DispatchAsync("log.recent", correlationId: "first-1");
+            // 沒有先離開案件就開另一個案件：後端在新的案件開成之後自己離開這個案件。
+            if (opening == "load")
+            {
+                await first.DispatchAsync("project.load", Json(new { projectId = otherId }), correlationId: "switch");
+            }
+            else
+            {
+                otherId = await CreateAsync(first, "sqlite", "Synthetic history switch target", "switch");
+            }
+
+            await first.DispatchAsync("project.releaseLock", correlationId: "other-leave-again");
+        }
+
+        using var second = new HandlerTestHost(enableDevTools: false, projectsRootPath: root.Path);
+        await second.DispatchAsync("project.load", Json(new { projectId = id }), correlationId: "reopen");
+        var log = await ExportAsync(second, id);
+
+        // 第一個程式開另一個案件時已經離開這個案件，和記到 project.releaseLock 一樣不列入；匯出的程式本身也不列入。
+        Assert.Empty(log.History.GetProperty("processesNotClosed").EnumerateArray());
+
+        // 載入另一個案件的操作屬於那個案件；建立案件的操作沒有案件代號，記在當時開著的這個案件。
+        // 離開事件帶著開另一個案件的那次操作識別碼，只寫進離開的這個案件。
+        string[] switching = opening == "load"
+            ? ["P1 support.case_left project.load switch"]
+            :
+            [
+                "P1 action.start project.create switch", "P1 support.case_left project.create switch",
+                "P1 action.end project.create switch",
+            ];
+        string[] expected =
+        [
+            "P1 support.history_started", "P1 support.history_process", "P1 support.case_opened project.create create",
+            .. Recent("P1", "first-1"), .. switching,
+            "P2 support.history_process", .. Load("P2", "reopen"),
+        ];
+        Assert.Equal(expected, Story(log));
+        Assert.Equal(2, Number(log.History, "openings"));
+        AssertSafe(log.Text, root.Path, id);
+
+        var other = await ExportAsync(second, otherId);
+        Assert.DoesNotContain(Story(other), line => line.Contains("support.case_left", StringComparison.Ordinal));
+        Assert.Empty(other.History.GetProperty("processesNotClosed").EnumerateArray());
     }
 
     [Fact]

@@ -80,7 +80,6 @@ public sealed class ProjectUpdateHandler(
                 periodEnd = updated.PeriodEnd,
                 prepStartDate = updated.LastAccountingPeriodDate,
                 moneyScale = updated.MoneyScale,
-                roundingMode = updated.RoundingMode,
                 databaseProvider = updated.DatabaseProvider,
                 rocDateEnabled = updated.RocDateEnabled,
                 createdUtc = updated.CreatedUtc,

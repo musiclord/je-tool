@@ -2976,7 +2976,7 @@ test('account-number tree keeps existing exact-list semantics and selects actual
   const f = accountTreeReviewFixture();
   assert.match(f.render().html, /從科目樹選取/);
   f.render().click('[data-account-tree-category="builtin.cash"]');
-  assert.equal(f.requests[0].payload.categoryId, 'builtin.cash'); assert.equal(f.requests[0].payload.pageSize, 100);
+  assert.equal(f.requests[0].payload.categoryId, 'builtin.cash'); assert.equal(f.requests[0].payload.pageSize, 200);
   f.requests[0].resolve({ rows: [{ accountNumber: '0010', accountName: 'Synthetic bank', categoryId: 'bank' }], nextCursor: null }); await settle();
   f.render().check('[data-account-tree-code="0010"]');
   assert.deepEqual(plain(f.rule.values), ['0099', '0010']); assert.equal(f.rule.operator, 'in');
@@ -3047,6 +3047,81 @@ test('late account-tree category selections cannot mutate a different project, c
   }
 });
 
+// 合成科目：編號是字首加三位數，名稱與分類固定。
+function syntheticAccountRows(prefix, count) {
+  return Array.from({ length: count }, (_, i) => ({ accountNumber: prefix + String(i).padStart(3, '0'), accountName: 'Synthetic', categoryId: 'bank' }));
+}
+
+// 第五步的科目清單和其他明細表一樣每頁 200 個，用共用的分頁列換頁；勾過的科目換頁後仍留在條件裡，回到那一頁時照樣勾著。
+test('account-tree pages use the shared pager and keep ticked accounts across pages', async () => {
+  const f = accountTreeReviewFixture();
+  f.render().click('[data-account-tree-category=""]');
+  assert.equal(f.requests[0].payload.pageSize, 200);
+  f.requests[0].resolve({ rows: syntheticAccountRows('A', 200), nextCursor: 'after-A199', totalCount: 450 }); await settle();
+  let html = f.render().html;
+  assert.doesNotMatch(html, /載入下一頁科目/);
+  assert.match(html, /<nav class="table-pager"[^>]*>/);
+  assert.doesNotMatch(html, /<nav class="table-pager"[^>]*hidden/);
+  assert.match(html, /data-page-position[^>]*>1\/3</);
+  assert.match(html, /data-account-tree-previous[^>]*disabled/);
+  assert.doesNotMatch(html, /data-account-tree-next[^>]*disabled/);
+  assert.match(html, /data-preserve-scroll="account-tree-/);
+  f.render().check('[data-account-tree-code="A001"]');
+  f.render().click('[data-account-tree-next]');
+  assert.equal(f.requests[1].payload.cursor, 'after-A199');
+  assert.equal(f.requests[1].payload.pageSize, 200);
+  assert.match(f.render().html, /data-account-tree-next[^>]*disabled/);
+  f.requests[1].resolve({ rows: syntheticAccountRows('B', 200), nextCursor: 'after-B199', totalCount: null }); await settle();
+  html = f.render().html;
+  assert.match(html, /data-page-position[^>]*>2\/3</);
+  assert.doesNotMatch(html, /data-account-tree-code="A001"/);
+  assert.deepEqual(plain(f.rule.values), ['0099', 'A001']);
+  f.render().click('[data-account-tree-previous]');
+  assert.equal(f.requests[2].payload.cursor, null);
+  f.requests[2].resolve({ rows: syntheticAccountRows('A', 200), nextCursor: 'after-A199', totalCount: 450 }); await settle();
+  html = f.render().html;
+  assert.match(html, /data-page-position[^>]*>1\/3</);
+  assert.match(html, /data-account-tree-code="A001" checked/);
+  assert.deepEqual(plain(f.rule.values), ['0099', 'A001']);
+});
+
+// 換分類、搜尋或清除搜尋時，科目清單回到第一頁，頁數照第一頁讀回的總數；只有一頁時不顯示分頁列。
+test('account-tree search, clearing the search and another category go back to the first page', async () => {
+  const f = accountTreeReviewFixture();
+  const position = () => /data-page-position[^>]*>([^<]*)</.exec(f.render().html)[1];
+  const secondPage = async (expected, cursor) => {
+    f.render().click('[data-account-tree-next]');
+    assert.equal(f.requests.at(-1).payload.cursor, cursor);
+    f.requests.at(-1).resolve({ rows: syntheticAccountRows('B', 200), nextCursor: 'after-B199', totalCount: null }); await settle();
+    assert.equal(position(), expected);
+  };
+  f.render().click('[data-account-tree-category="builtin.cash"]');
+  f.requests[0].resolve({ rows: syntheticAccountRows('A', 200), nextCursor: 'after-A199', totalCount: 450 }); await settle();
+  await secondPage('2/3', 'after-A199');
+
+  f.render().search('A1');
+  assert.deepEqual(plain(f.requests[2].payload), { categoryId: 'builtin.cash', search: 'A1', pageSize: 200, cursor: null });
+  f.requests[2].resolve({ rows: syntheticAccountRows('A1', 20), nextCursor: null, totalCount: 20 }); await settle();
+  assert.match(f.render().html, /data-account-tree-code="A1019"/);
+  assert.doesNotMatch(f.render().html, /class="table-pager"/, 'a single page has no pager');
+
+  f.render().search('A');
+  f.requests[3].resolve({ rows: syntheticAccountRows('A', 200), nextCursor: 'after-A199', totalCount: 250 }); await settle();
+  await secondPage('2/2', 'after-A199');
+  f.render().click('[data-search-clear]');
+  assert.deepEqual(plain(f.requests[5].payload), { categoryId: 'builtin.cash', search: '', pageSize: 200, cursor: null });
+  f.requests[5].resolve({ rows: syntheticAccountRows('A', 200), nextCursor: 'after-A199', totalCount: 450 }); await settle();
+  assert.equal(position(), '1/3');
+  assert.match(f.render().html, /data-account-tree-previous[^>]*disabled/);
+
+  await secondPage('2/3', 'after-A199');
+  f.render().click('[data-account-tree-category=""]');
+  assert.deepEqual(plain(f.requests[7].payload), { categoryId: null, search: '', pageSize: 200, cursor: null });
+  f.requests[7].resolve({ rows: syntheticAccountRows('A', 200), nextCursor: 'after-A199', totalCount: 600 }); await settle();
+  assert.equal(position(), '1/3');
+  assert.match(f.render().html, /data-account-tree-previous[^>]*disabled/);
+});
+
 // Exercise the actual editors and their change handlers; fixture values are synthetic.
 function filterEditorsFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
@@ -3061,7 +3136,8 @@ function filterEditorsFixture() {
   vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, mount: mount };',
     'Ui.FilterVouchers = { summary: summary, mount: mount, matchStatusHtml: matchStatusHtml };'), context);
   const store = window.JetStore, ui = window.JetUi, api = window.exposedFilter;
-  store.setProject({ projectId: 'filter-editors-synthetic', rocDateEnabled: true, periodStart: '2025-01-01', periodEnd: '2025-12-31' });
+  // 金額存放倍率和 project.load 回傳的案件資料一樣帶著，第五步的金額檢查才有依據。
+  store.setProject({ projectId: 'filter-editors-synthetic', rocDateEnabled: true, moneyScale: 10000, periodStart: '2025-01-01', periodEnd: '2025-12-31' });
   store.setRuleDefaults(LOADED_RULE_DEFAULTS);
   api.syncViewState(store.getState());
   function editor(rule) {
@@ -3197,7 +3273,7 @@ test('same-row bracket and voucher child menus do not offer voucher-wide absent 
 
 // 不能用的已存條件，原因寫在卡片上：每一種條件的原因都寫在卡片同一個位置，
 // 樣態選單照樣寫條件名稱，不用原因取代名稱。
-test('unavailable saved risk selections keep their name and explain on the card, and deleted fields show a selected placeholder', () => {
+test('unavailable saved risk selections keep their name and explain on the card', () => {
   const f = filterEditorsFixture();
   for (const [key, label] of [['nonAuthorizedPreparer', '非授權編製人員'], ['unexpectedAccountPair', '未預期借貸組合']]) {
     const rule = { type: 'prescreen', prescreenKey: key };
@@ -3205,7 +3281,6 @@ test('unavailable saved risk selections keep their name and explain on the card,
     // 授權編製人員的名單在提示裡稱為「清單」。
     assert.match(f.api.ruleRowHtml(rule, { conditions: [rule] }, 0, 0), /<p class="rule-field__hint">[^<]*(?:清單|科目配對)/);
   }
-  assert.match(f.ui.FilterValues.fieldOptionsHtml(f.store.getState(), 'deleted-rde', []), /<option[^>]*value="deleted-rde"[^>]*selected[^>]*>[^<]*(?:未配對|重新選擇)/);
 });
 
 test('negative absolute money warns without blocking while invalid amount formats are caught before sending', () => {
@@ -3213,8 +3288,8 @@ test('negative absolute money warns without blocking while invalid amount format
   const negative = { type: 'fieldValue', field: 'amount', operator: 'lessThan', amountBasis: 'absolute', value: '-10.50' };
   assert.equal(values.problem(negative, state), '');
   assert.match(f.editor(negative).html, /絕對值.*負數|負數.*絕對值/);
-  for (const value of ['not-money', '1e3', '$12', '12.3.4']) assert.match(values.problem({ ...negative, value }, state), /金額/);
-  for (const value of ['-', '1,234.50', '12,34', '12-', '+12.50']) assert.equal(values.problem({ ...negative, value }, state), '', value);
+  for (const value of ['not-money', '1e3', '$12', '12.3.4', '12,34']) assert.match(values.problem({ ...negative, value }, state), /金額/);
+  for (const value of ['-', '1,234.50', '12-', '+12.50']) assert.equal(values.problem({ ...negative, value }, state), '', value);
   assert.match(values.problem({ ...negative, operator: 'between', from: '2', to: '1' }, state), /起點|上限|區間/);
 });
 
@@ -3376,23 +3451,26 @@ test('validation interpretation uses the rewritten completeness and balance sent
   f.requests[0].reject(new Error('Synthetic end of request')); await settle();
 });
 
-test('completeness detail displays both authoritative control totals even when they agree', () => {
+test('completeness detail shows only the account comparison; the stored-entry check stays behind the scenes until it disagrees', () => {
   const f = stepScreensFixture(), data = validationResultData();
   data.completenessTest = { diffAccountCount: 0, diffAccounts: [], eligibility: { isEligible: true, reason: null, warning: null }, storedTotals: {
     eligibleSource: { rowCount: 123, totalDebit: 4567.89, totalCredit: 4567.89 },
     gl: { rowCount: 123, totalDebit: 4567.89, totalCredit: 4567.89 }, rowCountMatch: true, amountMatch: true } };
   const item = f.v.VALIDATION_ITEMS.find(entry => entry.title === '完整性測試');
-  const html = f.v.detailHtml(item.detail(data));
-  // 兩欄都是 JET 算的數字，不比對來源檔本身；欄名逐字核對。
-  // 第四步明細表的筆數與金額欄連同表頭靠右，這兩欄表頭帶 preview-table__amount。
-  // 這張核對表上方沒有說明，數字與欄名要完整呈現。
-  assert.doesNotMatch(html, /確認 JET 存下的分錄沒有少，也沒有重複。|這一項不和來源檔自己的合計比對。/);
-  const dom = treeDom(); dom.content.innerHTML = html;
-  assert.deepEqual(dom.content.querySelectorAll('th').map(th => th.textContent), ['核對項目', '確認配對時算出', '存下後重新計算']);
-  assert.ok((html.match(/123/g) || []).length >= 2); assert.ok((html.match(/4,567\.89/g) || []).length >= 4);
-  data.completenessTest.storedTotals = { eligibleSource: null, gl: null, rowCountMatch: null, amountMatch: null };
-  const missing = f.v.detailHtml(item.detail(data));
-  assert.match(missing, /尚無|無法核對|—/); assert.doesNotMatch(missing, /NaN/);
+  // 通過時沒有明細，和借貸不平測試通過時一樣；JET 自己的寫入核對不放上畫面。
+  assert.equal(f.v.detailHtml(item.detail(data)), '');
+  // 科目不符時只列逐科目比對，沒有寫入核對的兩欄表。
+  data.completenessTest.diffAccountCount = 1;
+  data.completenessTest.diffAccounts = [{ accountNumber: '1001', accountName: '合成科目', tbAmount: 10, glAmount: 9, diff: 1 }];
+  const dom = treeDom(); dom.content.innerHTML = f.v.detailHtml(item.detail(data));
+  assert.deepEqual(dom.content.querySelectorAll('th').map(th => th.textContent), ['科目編號', '科目名稱', 'TB 金額', 'GL 金額', '差額']);
+  assert.doesNotMatch(dom.content.innerHTML, /確認配對時算出|存下後重新計算|核對項目|4,567\.89/);
+  // 寫入核對不一致時，明細只寫後端送來的原因。
+  data.completenessTest.diffAccountCount = 0; data.completenessTest.diffAccounts = [];
+  data.completenessTest.eligibility = { isEligible: false, reason: '合成原因', warning: null };
+  data.completenessTest.storedTotals = { ...data.completenessTest.storedTotals, gl: { rowCount: 122, totalDebit: 4567.89, totalCredit: 4567.89 }, rowCountMatch: false };
+  const mismatch = f.v.detailHtml(item.detail(data));
+  assert.match(mismatch, /合成原因/); assert.doesNotMatch(mismatch, /<th|122|123/);
 });
 
 test('an older case without import control totals remains eligible and does not ask for a futile validation rerun', () => {
@@ -3403,7 +3481,7 @@ test('an older case without import control totals remains eligible and does not 
   f.store.setResult('validate', data);
   const item = f.v.VALIDATION_ITEMS.find(entry => entry.title === '完整性測試');
   const html = f.v.detailHtml(item.detail(data));
-  assert.match(html, /—/); assert.doesNotMatch(html, />0(?:\.00)?<|NaN/);
+  assert.match(html, /舊案缺少匯入控制總數/); assert.doesNotMatch(html, /<th|>0(?:\.00)?<|NaN/);
   assert.doesNotMatch(html, /請重新執行|重新匯入/);
   const eligibility = f.ui.completenessEligibility(data);
   assert.equal(eligibility.isEligible, true); assert.equal(eligibility.warning, data.completenessTest.eligibility.warning);
@@ -4185,7 +4263,36 @@ test('constants keep separate fixed audit thresholds and unchanged full labels a
   // 第四步照舊版，沒有編製分錄較少的人員與使用較少的科目；PRESCREEN_DEFAULTS 的兩個 11 筆是第五步常用查法的預設值。
   assert.equal(labels.rarePreparer, undefined);
   assert.equal(labels.rareAccount, undefined);
-  assert.equal(f.ui.prescreenConditionDescription('trailingZeros'), '依本次測試的分錄，找出金額整數部分尾數連續多個 0 的分錄。借方金額合計除以全部分錄筆數得到平均，0 的個數是平均整數部分的位數減一，例如平均 2,391,281 是 6 個 0，至少 1 個、最多 12 個。不含小數，整數部分為 0 不列入。');
+  // 第四步的說明寫出找什麼、個數怎麼來、上下限、去哪裡改個數，以及照 IDEA 版的算法與例子；只核對這些資訊。
+  const zeros = f.ui.prescreenConditionDescription('trailingZeros');
+  for (const piece of ['整數部分', 'GL', '最少 1 個、最多 12 個', '「欄位條件」', '「尾數連續多個 0」', 'IDEA', '位數減一', '2,391,281', '6 個 0']) {
+    assert.ok(zeros.includes(piece), piece + ' in: ' + zeros);
+  }
+  // 第五步條件列常駐的小字不寫算法，算法放在滑鼠提示。
+  const rule = { type: 'prescreen', prescreenKey: 'trailingZeros' };
+  const row = filterEditorsFixture().api.ruleRowHtml(rule, { conditions: [rule] }, 0, 0);
+  const hint = row.match(/<p class="rule-field__hint"[^>]*>([^<]*)<\/p>/);
+  assert.ok(hint, 'the condition row has a hint');
+  assert.ok(hint[1].includes('最少 1 個、最多 12 個'), hint[1]);
+  assert.doesNotMatch(hint[1], /位數減一|2,391,281/);
+  assert.match(row, /<p class="rule-field__hint" title="[^"]*位數減一[^"]*"/);
+});
+
+// 第五步「科目與人員統計」依傳票張數計算時，說明寫出空白傳票號碼不算張數、只有這種分錄時算 0 張也會比較，
+// 以及選出的是每一筆分錄；第四、五步的非授權編製人員說明寫出清單、傳票建立人員與回第二步的下一步。只核對資訊。
+test('voucher-count and non-authorized preparer explanations name what the auditor needs without system disclaimers', () => {
+  const f = filterEditorsFixture();
+  const frequency = { type: 'entityFrequency', field: 'accountNumber', countUnit: 'vouchers', countOperator: 'lessThanOrEqual', countFrom: 2 };
+  const explanation = f.api.ruleRowHtml(frequency, { conditions: [frequency] }, 0, 0).match(/<p class="rule-explanation">([^<]*)<\/p>/)[1];
+  for (const piece of ['在 GL 中依匯入後的科目或人員分組；空白欄位不列入。', '傳票號碼空白', '0 張', '每一筆分錄', '筆數可能比填的張數多']) {
+    assert.ok(explanation.includes(piece), piece + ' in: ' + explanation);
+  }
+  assert.doesNotMatch(explanation, /同案件/);
+  const preparer = f.ui.prescreenConditionDescription('nonAuthorizedPreparer');
+  for (const piece of ['傳票建立人員', '授權編製人員清單', '第二步', '姓名', '員工代碼']) {
+    assert.ok(preparer.includes(piece), piece + ' in: ' + preparer);
+  }
+  assert.doesNotMatch(preparer, /識別值|不代表已判定越權/);
 });
 
 // 第四步照舊版，沒有 11 筆以下的人員與科目，只有依筆數排序的兩份彙總；
@@ -4488,16 +4595,12 @@ test('step five field lists show the source column of each relevant data element
   f.store.setMappingCommitted('gl', { mapping: {}, mode: 'dual', options: { rdeFields: [
     { fieldId: 'rde.created-a', sourceColumn: 'CreateDate', label: '傳票建立日', valueType: 'date' },
     { fieldId: 'rde.created-b', sourceColumn: 'EntryDate', label: '傳票建立日', valueType: 'date' }] } });
-  const general = f.ui.FilterValues.fieldOptionsHtml(f.store.getState(), 'rde.created-b', []);
-  // 第五步選單只寫欄位名稱，並加註來源欄。
-  assert.match(general, /<option value="rde\.created-a">傳票建立日（來源欄：CreateDate）<\/option>/);
-  assert.match(general, /<option value="rde\.created-b" selected>傳票建立日（來源欄：EntryDate）<\/option>/);
   const typed = f.filter.ruleControlsHtml({ type: 'typed', fieldId: 'rde.created-a', operator: 'between', from: '', to: '' }, 0, 0);
   assert.match(typed, /<option value="rde\.created-a" selected>傳票建立日（來源欄：CreateDate）<\/option>/);
   assert.match(typed, /<option value="rde\.created-b">傳票建立日（來源欄：EntryDate）<\/option>/);
 });
 
-test('all five field picker forms share source-aware labels without changing saved field ids', () => {
+test('all four field picker forms share source-aware labels without changing saved field ids', () => {
  const f=stepScreensFixture();
  f.store.setMappingCommitted('gl',{mapping:{},mode:'dual',options:{rdeFields:[
   {fieldId:'rde.a',sourceColumn:'Create<Date>',label:'傳票建立日',valueType:'date'},
@@ -4515,7 +4618,6 @@ test('all five field picker forms share source-aware labels without changing sav
  const dates=[['rde.a','Create&lt;Date&gt;'],['rde.b','EntryDate']];
  const texts=[['rde.t1','Dept&amp;A'],['rde.t2','DeptB']];
  check(f.filter.compoundRuleHtml({type:'group',conditions:[]},0,0,false,{matchScope:'row'}),'[data-child-kind]',dates,'field:');
- check(f.ui.FilterValues.fieldOptionsHtml(f.store.getState(),'rde.b',[]),null,dates);
  check(f.filter.ruleControlsHtml({type:'typed',fieldId:'rde.a',operator:'between'},0,0),'[data-rule-bind="fieldId"]',dates);
  // 範例的就地選欄位用欄位按鈕：按鈕只寫欄位名稱，
  // 和別的欄位同名時才加來源欄；完整說明（含「來源欄：」）放在 title，保存的是欄位識別。
@@ -5056,6 +5158,187 @@ test('cancelling project metadata editing sends no write and preserves saved sce
   f.click('[data-action="cancel-project-metadata"]'); f.draw();
   assert.equal(f.state.filter.savedScenarios, saved); assert.equal(f.state.project.prepStartDate, '2025-11-20');
   assert.equal(f.requests.some(r => r.action === 'projectUpdate'), false);
+});
+
+// 會清除下游結果的上游修改，前後端共用一份手寫清單。C# 的 UpstreamMutationInvalidationListTests 核對回應宣告的範圍
+// 等於資料庫實際清掉的範圍；這裡核對畫面的每個入口都把回應交給同一個清除步驟，畫面清掉的正是回應寫的範圍。
+const actionContract = require('./support/action-contract.cjs');
+const UPSTREAM_MUTATION_LIST = JSON.parse(fs.readFileSync(path.join(__dirname, '../JET.Tests/Fixtures/upstream-mutation-invalidation.json'), 'utf8')).cases;
+
+async function sendUpstreamImport(f, kind, effects) {
+  f.draw(); f.click('[data-task-toggle="' + kind + '"]'); f.draw();
+  f.click('[data-action="wizard-replace-' + kind + '"]');
+  f.request('hostSelectFiles').resolve({ files: [{ filePath: 'synthetic.csv', fileName: 'synthetic.csv' }] }); await settle();
+  f.request('importInspectFile').resolve({ fileType: 'csv', columns: ['Code', 'Amount'], encoding: 'utf-8', delimiter: ',' }); await settle();
+  f.draw(); f.click('[data-action="pending-preview"][data-index="0"]');
+  f.request('importPreviewFile').resolve({ columns: ['Code', 'Amount'], sampleRows: [['1000', '10']] }); await settle(); f.draw();
+  f.click('[data-action="wizard-confirm"]');
+  f.request(kind === 'gl' ? 'importGlFromFile' : 'importTbFromFile')
+    .resolve({ batchId: 'next', rowCount: 1, addedRowCount: 1, columns: ['Code', 'Amount'], sources: [], ...effects });
+}
+
+async function sendUpstreamMappingCommit(f, kind, effects) {
+  const mapping = prepareUsageMapping(f, kind), mode = kind === 'gl' ? 'signed' : 'direct';
+  f.store.setMappingCommitted(kind, { mapping, mode, options: kind === 'gl' ? plain(f.state.mapping.gl.options) : null });
+  f.draw(); f.click('[data-action="remap-' + kind + '"]'); f.draw();
+  f.click('[data-action="commit-' + kind + '"]');
+  f.request(kind === 'gl' ? 'mappingCommitGl' : 'mappingCommitTb').resolve({ projectedRowCount: 2, ...effects });
+}
+
+async function sendUpstreamAccountMappingFile(f, effects) {
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' });
+  f.draw(); f.click('[data-action="toggle-account-excel"]'); f.draw(); f.click('[data-action="import-account-mapping"]');
+  f.request('hostSelectFile').resolve({ filePath: 'synthetic.csv', fileName: 'synthetic.csv' }); await settle();
+  f.request('importAccountMappingFromFile').resolve({ batchId: 'mapping-next', rowCount: 2, hasAnyCategory: true, mappingOnlyCount: 0, unmappedCount: 0, ...effects });
+}
+
+async function sendUpstreamAccountEditorSave(f, effects) {
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed' }); f.draw();
+  f.request('queryAccountMappingPage').resolve({ rows: [{ accountNumber: '1000', accountName: '合成科目', categoryId: 'builtin.cash' }], nextCursor: null }); await settle(); f.draw();
+  f.change('[data-account-select-page]', true); chooseAccountCategory(f, 'builtin.revenue'); f.draw(); f.click('[data-account-apply]'); f.draw();
+  f.click('[data-account-save]');
+  f.request('accountMappingSave').resolve({ batchId: 'saved', rowCount: 1, hasAnyCategory: true, ...effects });
+}
+
+async function sendUpstreamCategorySave(f, effects) {
+  f.draw(); f.click('[data-action="toggle-category"]'); f.draw();
+  const label = f.$('[data-category-label="builtin.others"]'); assert.ok(label, 'category label rendered');
+  label.value = '合成其他'; label.fire('input'); f.draw();
+  f.click('[data-action="save-category"]');
+  const save = f.request('accountCategorySave');
+  save.resolve({ revision: 2, categories: plain(save.payload.categories).map(item => ({ ...item, isBuiltIn: true })), ...effects });
+}
+
+async function sendUpstreamPreparerImport(f, effects) {
+  f.draw(); f.click('[data-task-toggle="authorizedPreparer"]'); f.draw();
+  f.click('[data-action="import-authorized-preparer"]');
+  f.request('hostSelectFile').resolve({ filePath: 'synthetic.xlsx', fileName: 'synthetic.xlsx' }); await settle();
+  f.request('importInspectFile').resolve({ fileType: 'xlsx', worksheets: [{ name: 'Sheet1', columns: ['Id'], rowCountEstimate: 1 }] }); await settle();
+  f.request('importPreviewFile').resolve({ columns: ['Id'], sampleRows: [['A1']] }); await settle(); f.draw();
+  f.change('[data-ap-column]', 'Id'); f.draw();
+  f.click('[data-action="commit-authorized-preparer"]');
+  f.request('importAuthorizedPreparerFromFile').resolve({ batchId: 'preparer-next', rowCount: 1, sourceColumn: 'Id',
+    sourceRowCount: 1, blankRowCount: 0, duplicateRowCount: 0, ...effects });
+}
+
+async function sendUpstreamPreparerClear(f, effects) {
+  f.store.setAuthorizedPreparerState({ rowCount: 2, sourceColumn: 'Id', sourceRowCount: 2, blankRowCount: 0, duplicateRowCount: 0, matchedPreparerCount: 1 });
+  f.draw(); f.click('[data-task-toggle="authorizedPreparer"]'); f.draw();
+  f.click('[data-action="clear-authorized-preparer"]');
+  f.request('importAuthorizedPreparerClear').resolve({ cleared: true, ...effects });
+}
+
+async function sendUpstreamCalendarFile(f, action, method, effects) {
+  f.draw(); f.click('[data-task-toggle="calendar"]'); f.draw();
+  f.click('[data-action="' + action + '"]');
+  f.request('hostSelectFile').resolve({ filePath: 'synthetic.xlsx', fileName: 'synthetic.xlsx' }); await settle();
+  f.request(method).resolve({ count: 2, ...effects });
+}
+
+async function sendUpstreamNonWorkingDays(f, changed, effects) {
+  f.store.setCalendarState({ nonWorkingDays: [0, 6], nonWorkingDaysConfigured: true });
+  f.draw(); f.click('[data-task-toggle="calendar"]'); f.draw();
+  f.change('[data-weekday="6"]', !changed);
+  f.request('calendarSetNonWorkingDays').resolve({ nonWorkingDays: changed ? [0] : [0, 6], ...effects });
+}
+
+async function sendUpstreamProjectUpdate(f, field, value, effects) {
+  f.draw(); f.click('[data-action="edit-project-metadata"]'); f.draw();
+  const form = f.$('[data-bind="project-update-form"]');
+  form.elements[field].value = value; form.fire('input'); form.fire('submit');
+  f.request('projectUpdate').resolve({ project: { ...plain(f.state.project), [field]: value }, ...effects });
+}
+
+// 每一種上游修改在畫面上怎麼送出：step 是入口所在的步驟，send 照審計員的操作按下去，再用 effects 當成後端的回應。
+// 表的鍵要和清單裡畫面有入口的 case 相同；清單多一筆畫面入口，這裡就要補一種操作。
+const UPSTREAM_MUTATION_SCREENS = {
+  'import.gl.fromFile': { step: 'import', send: (f, effects) => sendUpstreamImport(f, 'gl', effects) },
+  'import.tb.fromFile': { step: 'import', send: (f, effects) => sendUpstreamImport(f, 'tb', effects) },
+  'mapping.commit.gl': { step: 'mapping', send: (f, effects) => sendUpstreamMappingCommit(f, 'gl', effects) },
+  'mapping.commit.tb': { step: 'mapping', send: (f, effects) => sendUpstreamMappingCommit(f, 'tb', effects) },
+  'import.accountMapping.fromFile': { step: 'validate', send: sendUpstreamAccountMappingFile },
+  'accountMapping.save': { step: 'validate', send: sendUpstreamAccountEditorSave },
+  'accountCategory.save': { step: 'validate', send: sendUpstreamCategorySave },
+  'import.authorizedPreparer.fromFile': { step: 'import', send: sendUpstreamPreparerImport },
+  'import.authorizedPreparer.clear': { step: 'import', send: sendUpstreamPreparerClear },
+  'import.holiday.fromFile': { step: 'import', send: (f, effects) => sendUpstreamCalendarFile(f, 'import-holiday', 'importHolidayFromFile', effects) },
+  'import.makeupDay.fromFile': { step: 'import', send: (f, effects) => sendUpstreamCalendarFile(f, 'import-makeup', 'importMakeupDayFromFile', effects) },
+  'calendar.setNonWorkingDays': { step: 'import', send: (f, effects) => sendUpstreamNonWorkingDays(f, true, effects) },
+  'calendar.sameNonWorkingDays': { step: 'import', send: (f, effects) => sendUpstreamNonWorkingDays(f, false, effects) },
+  'project.update.date': { step: 'create', send: (f, effects) => sendUpstreamProjectUpdate(f, 'prepStartDate', '2025-11-21', effects) },
+  'project.update.metadata': { step: 'create', send: (f, effects) => sendUpstreamProjectUpdate(f, 'clientName', '合成改名', effects) }
+};
+
+for (const entry of UPSTREAM_MUTATION_LIST.filter(item => item.screen)) {
+  test('upstream change ' + entry.case + ' clears what the reply names and locks step five only when validation is cleared', async () => {
+    const screen = UPSTREAM_MUTATION_SCREENS[entry.case];
+    assert.ok(screen, entry.case + ' is a screen entry in the shared list; add how the auditor sends it to UPSTREAM_MUTATION_SCREENS');
+    const f = usageJourneyFixture(screen.step), inv = entry.invalidatedResults;
+    // 每一種結果都先放好，才看得出回應沒寫的有沒有被留下。
+    f.store.setResult('validate', validationResultData('v1'));
+    f.store.setResult('prescreen', remapPrescreen('p1'));
+    f.store.setAccountMappingState({ batchId: 'am-seed', rowCount: 1 });
+    f.state.filter.preview = { count: 1 };
+    assert.equal(f.window.JetUi.stepGate(f.state, 4).ok, true, 'step five is open before the change');
+    await screen.send(f, { invalidatedResults: { ...inv }, staleState: { validation: inv.validation, prescreen: inv.prescreen, filter: false }, reports: [] });
+    await settle();
+    assert.equal(f.state.results.validate === null, inv.validation, 'validation result cleared exactly when the reply says so');
+    assert.equal(f.state.results.prescreen === null, inv.prescreen, 'prescreen result cleared exactly when the reply says so');
+    assert.equal(f.state.filter.preview === null, inv.filter, 'filter preview cleared exactly when the reply says so');
+    assert.equal(f.state.filter.savedScenarios.length === 0, inv.filterScenarios, 'saved scenarios cleared exactly when the reply says so');
+    assert.equal(f.state.importState.accountMapping === null, inv.accountMapping, 'account mapping cleared exactly when the reply says so');
+    assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, inv.filterScenarios ? 1 : 0);
+    assert.equal(f.window.JetUi.stepGate(f.state, 4).ok, !inv.validation, 'step five locks only when the validation result is cleared');
+  });
+}
+
+test('every invalidatedResults key in the backend contract clears something on screen', () => {
+  const keys = new Set();
+  for (const shape of Object.values(actionContract.contract.actions)) {
+    const fields = shape.response && shape.response.fields;
+    if (fields && fields.invalidatedResults) Object.keys(fields.invalidatedResults.fields).forEach(key => keys.add(key));
+  }
+  const cleared = {
+    validation: state => state.results.validate === null,
+    prescreen: state => state.results.prescreen === null,
+    filter: state => state.filter.preview === null,
+    filterScenarios: state => state.filter.savedScenarios.length === 0,
+    accountMapping: state => state.importState.accountMapping === null
+  };
+  // 每個鍵單獨為 true 時畫面清掉什麼；清空情境時，條件預覽也一起清掉。
+  const clears = { validation: ['validation'], prescreen: ['prescreen'], filter: ['filter'],
+    filterScenarios: ['filter', 'filterScenarios'], accountMapping: ['accountMapping'] };
+  assert.deepEqual([...keys].sort(), Object.keys(clears).sort(), 'every key the backend can send has a screen effect written here');
+  for (const key of Object.keys(clears)) {
+    const f = responseEffectsFixture();
+    f.store.setSavedScenarios([savedBlankDescription()]);
+    f.store.setAccountMappingState({ batchId: 'am-seed', rowCount: 1 });
+    const state = seedResults(f);
+    for (const [name, isCleared] of Object.entries(cleared)) assert.equal(isCleared(state), false, key + ': ' + name + ' starts with something to clear');
+    f.store.applyMutationEffects({ invalidatedResults: { [key]: true } });
+    for (const [name, isCleared] of Object.entries(cleared)) assert.equal(isCleared(state), clears[key].includes(name), key + ' alone: ' + name);
+  }
+});
+
+test('only the listed screen entries call upstream change actions', () => {
+  const sources = [];
+  (function read(folder) {
+    for (const item of fs.readdirSync(folder, { withFileTypes: true })) {
+      const full = path.join(folder, item.name);
+      if (item.isDirectory()) read(full);
+      else if (item.name.endsWith('.js') && item.name !== 'jet-api.js') sources.push(fs.readFileSync(full, 'utf8'));
+    }
+  })(root);
+  const source = sources.join('\n');
+  for (const action of new Set(UPSTREAM_MUTATION_LIST.map(item => item.action))) {
+    const screens = new Set(UPSTREAM_MUTATION_LIST.filter(item => item.action === action).map(item => item.screen));
+    assert.equal(screens.size, 1, action + ': every case of one action says the same about its screen entry');
+    const onScreen = screens.has(true), method = actionContract.toMethodName(action);
+    assert.equal(new RegExp('JetApi\\.' + method + '\\b').test(source), onScreen,
+      action + (onScreen ? ' is listed as a screen entry but no screen script calls JetApi.' : ' is listed without a screen entry but a screen script calls JetApi.') + method);
+  }
+  assert.deepEqual(Object.keys(UPSTREAM_MUTATION_SCREENS).sort(), UPSTREAM_MUTATION_LIST.filter(item => item.screen).map(item => item.case).sort(),
+    'every screen entry in the shared list has one screen operation and nothing else');
 });
 
 test('editing then applying an example creates a new scenario, keeps metadata visible and preserves the original', async () => {

@@ -40,7 +40,6 @@ public sealed class ProgramMilestoneProgressTests
         PeriodEnd: "2025-12-31",
         LastAccountingPeriodDate: null,
         MoneyScale: ProjectDocument.DefaultMoneyScale,
-        RoundingMode: ProjectDocument.DefaultRoundingMode,
         CreatedUtc: DateTimeOffset.UnixEpoch,
         CurrentStep: currentStep,
         SchemaVersion: ProjectDocument.CurrentSchemaVersion);

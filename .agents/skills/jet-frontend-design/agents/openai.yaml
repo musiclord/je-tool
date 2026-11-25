@@ -1,6 +1,6 @@
 interface:
   display_name: "JET Frontend Design"
-  short_description: "依 JET 已裁定的設計方向與 AI 預設樣式禁止清單，設計、修改或檢查前端畫面"
+  short_description: "依 JET 已裁定的設計方向、畫面文字寫法與 AI 預設樣式禁止清單，設計、修改或檢查前端畫面"
   default_prompt: "Use $jet-frontend-design to restyle or review this JET screen without falling back to generic AI design defaults."
 
 policy:

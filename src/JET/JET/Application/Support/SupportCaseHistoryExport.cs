@@ -108,6 +108,7 @@ internal sealed class SupportCaseHistoryExport
                             break;
                         case SupportEventNames.ActionEnd
                             when parsed.Action == JetActionNames.ProjectReleaseLock && parsed.ProcessInstance is not null:
+                        case SupportEventNames.CaseLeft when parsed.ProcessInstance is not null:
                             stillOpen[parsed.ProcessInstance] = false;
                             break;
                     }
@@ -139,7 +140,8 @@ internal sealed class SupportCaseHistoryExport
             markedMissingEvents = markedMissing,
             openings,
             processes = processes.Count,
-            // 開啟後沒有記到 project.releaseLock 成功的程序，不含這個程序；通常是程式沒有正常結束。
+            // 開啟後沒有記到 project.releaseLock 成功，也沒有記到開另一個案件時由後端離開的程序，不含這個程序；
+            // 通常是程式沒有正常結束。
             processesNotClosed = stillOpen.Where(pair => pair.Value && pair.Key != current).Select(pair => pair.Key).ToArray(),
             unsavedEvents = unsaved.Length,
             // 寫不進去的事件超過保留上限而放棄的筆數，還沒在紀錄裡寫成缺口。

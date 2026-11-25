@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -824,6 +823,9 @@ internal sealed partial class WorkingPaperWriter
         return Typed(text, column);
     }
 
+    // 欄位型態是匯入時照儲存格型別記下的，來源的內容本來就可能不合這個型態，例如數值儲存格寫了 NaN，
+    // 或其他程式在 t="d" 的儲存格寫了不是日期的文字。值合乎型態才寫成數值、日期或時間儲存格，
+    // 其他照存下來的文字寫成文字儲存格，匯出照常完成；這不是案件資料庫損壞。
     private static Step41ProjectedValue Typed(
         string? value,
         WorkingPaperStep41Column column)
@@ -857,7 +859,7 @@ internal sealed partial class WorkingPaperWriter
         string renderedText;
         if (bool.TryParse(value, out var boolean))
         {
-            // xlsx 的布林儲存格，匯入時欄位定義記成數值、小數 0 位，row_json 裡的值則是 true 或 false。
+            // xlsx 的布林儲存格，匯入時欄位定義記成數值、小數 0 位，值 1 與 0 在 row_json 裡存成 true 與 false。
             // 舊版 JET 的明細在這種格子裡是 Excel 的數值 1 或 0，所以這裡轉成 1 或 0 寫出。
             var number = boolean ? 1m : 0m;
             numberLiteral = number.ToString(CultureInfo.InvariantCulture);
@@ -886,7 +888,8 @@ internal sealed partial class WorkingPaperWriter
         }
         else
         {
-            throw LocalEngineErrors.DatabaseCorrupt();
+            // 不是數字的內容，或 NaN 與無限大，照存下來的文字寫出。
+            return Text(value);
         }
 
         return new Step41ProjectedValue(
@@ -909,15 +912,10 @@ internal sealed partial class WorkingPaperWriter
                 DateTimeStyles.None,
                 out var date))
         {
-            // 換算不出日期的 Excel 日期儲存格，例如負的序列值，或其他程式寫進檔案的 NaN 與無限大，讀取器存下的是序列值的文字，不是日期；
+            // 換算不出日期的 Excel 日期儲存格，例如負的序列值，或其他程式寫進檔案的 NaN 與無限大，讀取器存下的是序列值的文字；
             // Excel 顯示成日曆上沒有的 1900-02-29 或 1900 年 1 月 0 日時，存下的是 Excel 顯示的年月日。
-            // 這是來源資料本來的樣子，照存下來的文字寫出；其他讀不成日期的內容才是資料庫的內容不對。
-            if (IsStoredDateSerial(value) || ExcelSerialDate.IsShownNonexistentDate(value))
-            {
-                return Text(value);
-            }
-
-            throw LocalEngineErrors.DatabaseCorrupt();
+            // 這些和其他讀不成日期的內容一樣，照存下來的文字寫出。
+            return Text(value);
         }
 
         if (!ExcelSerialDate.TryExcelDateSerial(date, out var serial))
@@ -932,21 +930,14 @@ internal sealed partial class WorkingPaperWriter
             RenderedText: value);
     }
 
-    // 讀取器存下的序列值文字是一般的數字，或 NaN、Infinity、-Infinity。
-    private static bool IsStoredDateSerial(string value) =>
-        double.TryParse(
-            value,
-            NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
-            CultureInfo.InvariantCulture,
-            out _);
-
     private static Step41ProjectedValue Time(
         string value,
         WorkingPaperStep41Column column)
     {
         if (!TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var time))
         {
-            throw LocalEngineErrors.DatabaseCorrupt();
+            // 讀不成時間的內容照存下來的文字寫出。
+            return Text(value);
         }
 
         return new Step41ProjectedValue(
@@ -1054,46 +1045,23 @@ internal sealed partial class WorkingPaperWriter
     /// </summary>
     private sealed class Step41SourceSpool : IDisposable
     {
-        private readonly FileStream _stream;
+        private readonly ExportSpoolFile _file;
         private readonly BinaryWriter _writer;
         private BinaryReader? _reader;
         private bool _completed;
         private bool _readStarted;
         private bool _disposed;
 
-        private Step41SourceSpool(FileStream stream)
+        private Step41SourceSpool(ExportSpoolFile file)
         {
-            _stream = stream;
-            _writer = new BinaryWriter(
-                stream,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                leaveOpen: true);
+            _file = file;
+            _writer = file.Writer;
         }
 
         private long RowCount { get; set; }
 
-        internal static Step41SourceSpool Create()
-        {
-            var path = Path.Combine(
-                Path.GetTempPath(),
-                $".jet-working-paper-step41-source-{Guid.NewGuid():N}.tmp");
-            var stream = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.ReadWrite,
-                FileShare.None,
-                bufferSize: 1024 * 1024,
-                FileOptions.SequentialScan | FileOptions.DeleteOnClose);
-            try
-            {
-                return new Step41SourceSpool(stream);
-            }
-            catch
-            {
-                stream.Dispose();
-                throw;
-            }
-        }
+        internal static Step41SourceSpool Create() =>
+            new(ExportSpoolFile.Create(".jet-working-paper-step41-source-", bufferSize: 1024 * 1024));
 
         internal void Append(WorkingPaperStep41SourceRow source)
         {
@@ -1140,12 +1108,7 @@ internal sealed partial class WorkingPaperWriter
                     "Step4-1 source spool 已完成。");
             }
 
-            _writer.Flush();
-            _stream.Position = 0;
-            _reader = new BinaryReader(
-                _stream,
-                Encoding.UTF8,
-                leaveOpen: true);
+            _reader = _file.StartReading(throwOnInvalidBytes: false);
             _completed = true;
         }
 
@@ -1179,21 +1142,7 @@ internal sealed partial class WorkingPaperWriter
                 return;
             }
             _disposed = true;
-            try
-            {
-                _reader?.Dispose();
-            }
-            finally
-            {
-                try
-                {
-                    _writer.Dispose();
-                }
-                finally
-                {
-                    _stream.Dispose();
-                }
-            }
+            _file.Dispose();
         }
 
         private static WorkingPaperStep41SourceRow ReadRow(BinaryReader reader)
@@ -1270,7 +1219,7 @@ internal sealed partial class WorkingPaperWriter
     /// </summary>
     private sealed class Step41ProjectedSpool : IDisposable
     {
-        private readonly FileStream _stream;
+        private readonly ExportSpoolFile _file;
         private readonly BinaryWriter _writer;
         private readonly IReadOnlyList<int> _rowHitPositions;
         private readonly double[] _maximums;
@@ -1280,15 +1229,12 @@ internal sealed partial class WorkingPaperWriter
         private bool _disposed;
 
         private Step41ProjectedSpool(
-            FileStream stream,
+            ExportSpoolFile file,
             IReadOnlyList<WorkingPaperStep41Column> columns,
             IReadOnlyList<int> rowHitPositions)
         {
-            _stream = stream;
-            _writer = new BinaryWriter(
-                stream,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                leaveOpen: true);
+            _file = file;
+            _writer = file.Writer;
             _rowHitPositions = rowHitPositions;
             _maximums = columns
                 .Select(column => ExcelDisplayWidth.Measure(column.Header))
@@ -1322,23 +1268,14 @@ internal sealed partial class WorkingPaperWriter
             IReadOnlyList<WorkingPaperStep41Column> columns,
             IReadOnlyList<int> rowHitPositions)
         {
-            var path = Path.Combine(
-                Path.GetTempPath(),
-                $".jet-working-paper-step41-{Guid.NewGuid():N}.tmp");
-            var stream = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.ReadWrite,
-                FileShare.None,
-                bufferSize: 1024 * 1024,
-                FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+            var file = ExportSpoolFile.Create(".jet-working-paper-step41-", bufferSize: 1024 * 1024);
             try
             {
-                return new Step41ProjectedSpool(stream, columns, rowHitPositions);
+                return new Step41ProjectedSpool(file, columns, rowHitPositions);
             }
             catch
             {
-                stream.Dispose();
+                file.Dispose();
                 throw;
             }
         }
@@ -1411,12 +1348,7 @@ internal sealed partial class WorkingPaperWriter
                     "Step4-1 projected spool 已完成。");
             }
 
-            _writer.Flush();
-            _stream.Position = 0;
-            _reader = new BinaryReader(
-                _stream,
-                Encoding.UTF8,
-                leaveOpen: true);
+            _reader = _file.StartReading(throwOnInvalidBytes: false);
             _completed = true;
         }
 
@@ -1476,21 +1408,7 @@ internal sealed partial class WorkingPaperWriter
                 return;
             }
             _disposed = true;
-            try
-            {
-                _reader?.Dispose();
-            }
-            finally
-            {
-                try
-                {
-                    _writer.Dispose();
-                }
-                finally
-                {
-                    _stream.Dispose();
-                }
-            }
+            _file.Dispose();
         }
 
         private void ThrowIfDisposed()

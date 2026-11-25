@@ -113,14 +113,13 @@
       var built = year + '-' + padded[2].padStart(2, '0') + '-' + padded[3].padStart(2, '0');
       return iso(day(year, Number(padded[2]), Number(padded[3]))) === built ? built : text;
     }
+    // 四位數年份在前的寫法，-、/、. 三種分隔符號都照寫出來的年份讀，年份 0001 到 9999；民國年也一樣三種符號都收。
     var match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(text) || /^(\d{4})(\d{2})(\d{2})$/.exec(text);
     if (!match && roc) {
-      match = /^(1\d{2})[/.](\d{1,2})[/.](\d{1,2})$/.exec(text) || /^(1\d{2})(\d{2})(\d{2})$/.exec(text);
+      match = /^(1\d{2})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(text) || /^(1\d{2})(\d{2})(\d{2})$/.exec(text);
       if (match) { match[1] = String(Number(match[1]) + 1911); }
     }
     if (match) {
-      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(text) && !/^\d{4}-\d{2}-\d{2}$/.test(text) &&
-          (Number(match[1]) < 1900 || Number(match[1]) > 2100)) { return text; }
       var expected = match[1].padStart(4, '0') + '-' + match[2].padStart(2, '0') + '-' + match[3].padStart(2, '0');
       return Number(match[1]) >= 1 && Number(match[1]) <= 9999 && iso(day(Number(match[1]), Number(match[2]), Number(match[3]))) === expected ? expected : text;
     }
@@ -176,7 +175,7 @@
     var selected = field(rule, state);
     return selected ? selected.label : Ui.missingConditionFieldName(state, rule, 'title');
   }
-  // 欄位下拉：同型別欄位與其他型別欄位都列出來，審計員在同一個下拉換欄位就換條件；換到其他型別由本模組重設運算子。
+  // 可用欄位依日期、金額、人員、會計科目與其他文字分組，供「加入子條件」的欄位選單列出。
   function groupedFields(state) {
     var all = fields(state);
     function group(label, predicate) { return { label: label, fields: all.filter(predicate) }; }
@@ -187,18 +186,6 @@
       group('會計科目', function (item) { return ['accountNumber', 'accountName'].indexOf(item.id) >= 0; }),
       group('其他文字', function (item) { return item.type === 'text' && special.indexOf(item.id) < 0; })]
       .filter(function (item) { return item.fields.length > 0; });
-  }
-  function fieldOptionsHtml(state, selectedId) {
-    var groups = groupedFields(state).map(function (group) {
-      return '<optgroup label="' + group.label + '">' + group.fields.map(function (item) {
-        var suffix = item.mapped || item.id === selectedId ? '' : '（' + Ui.GL_FIELD_UNMAPPED + Ui.GL_FIELD_NEXT_STEP + '）';
-        return '<option value="' + Ui.esc(item.id) + '"' + (item.id === selectedId ? ' selected' : '') + (item.mapped ? '' : ' disabled') + '>' +
-          Ui.esc(item.optionLabel + suffix) + '</option>';
-      }).join('') + '</optgroup>';
-    }).join('');
-    var available = fields(state).some(function (item) { return item.id === selectedId; });
-    var unavailable = selectedId && !available ? '<option value="' + Ui.esc(selectedId) + '" selected disabled>此欄位目前未配對，請重新選擇</option>' : '';
-    return unavailable + groups;
   }
   // Presentation groups share an input intent; the original operator remains authoritative.
   var editorViews = new WeakMap();
@@ -224,8 +211,8 @@
     var view = editorView(rule), tree = view.accountTree;
     if (!tree || tree.project !== state.project || tree.generation !== state.dataGeneration || tree.accountCategory !== state.accountCategory) {
       tree = { project: state.project, generation: state.dataGeneration, accountCategory: state.accountCategory,
-        open: false, categoryId: null, search: '', searchDraft: '', collapsed: {}, rows: [], cursor: null, nextCursor: null, sequence: 0,
-        pending: false, error: '', loaded: false, lastRequest: null };
+        open: false, categoryId: null, search: '', searchDraft: '', collapsed: {}, rows: [], cursor: null, nextCursor: null, previous: [], totalCount: null,
+        sequence: 0, pending: false, error: '', loaded: false, lastRequest: null };
       view.accountTree = tree;
     }
     return tree;
@@ -269,9 +256,16 @@
         inputAttributes: { 'data-account-tree-search': true, 'data-focus-key': focusKey + '-account-search' }, maxLength: Ui.SEARCH_TEXT_MAX_LENGTH, value: tree.searchDraft }) +
       '<p class="rule-field__hint">' + (hierarchy ? '選分類時包含下層分類的科目；' : '') + '勾選後寫入上方科目編號清單，不改變符合或排除方式。</p>' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="">查看全部科目</button>' + categoryRows +
-      '<p data-account-tree-status data-motion-key="' + Ui.esc('acct-status-' + motionId(rule)) + '" role="status">' + status + '</p>' + accounts +
-      (tree.nextCursor ? '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-more data-motion-key="' + Ui.esc('acct-more-' + motionId(rule)) + '"' +
-        (tree.pending ? ' disabled' : '') + '>載入下一頁科目</button>' : '') +
+      '<p data-account-tree-status data-motion-key="' + Ui.esc('acct-status-' + motionId(rule)) + '" role="status">' + status + '</p>' +
+      // 每頁的科目數和明細表相同，清單放在有高度上限的框裡捲動，分頁列留在框下方看得到的位置；
+      // 勾選後整段重畫時捲動位置照舊，換頁時清單先清空，新的一頁從頂端開始。
+      (accounts ? '<div class="account-tree__list" data-motion-key="' + Ui.esc('acct-list-' + motionId(rule)) +
+        '" data-preserve-scroll="' + Ui.esc('account-tree-' + motionId(rule)) + '">' + accounts + '</div>' : '') +
+      // 只有一頁時不畫分頁列，和共用分頁列只有一頁時不顯示相同；不留空的一格，選取區的間距才不變。
+      // 分頁列有自己的識別，出現與收起時和其他區塊一樣有動態。
+      (tree.previous.length || tree.nextCursor ? '<div class="account-tree__pager" data-motion-key="' + Ui.esc('acct-pager-' + motionId(rule)) + '">' +
+        Ui.pageControlsHtml(tree.previous.length + 1, tree.totalCount, { previousAttribute: 'data-account-tree-previous',
+          nextAttribute: 'data-account-tree-next', busy: tree.pending, canNext: !!tree.nextCursor }) + '</div>' : '') +
       // 錯誤與重新載入按鈕用同一元件，保留節點識別以沿用展開與收合動態。
       (tree.error ? Ui.loadFailureHtml(tree.error, tree.lastRequest ? { 'data-account-tree-retry': true } : null,
         { 'data-account-tree-error': true, 'data-motion-key': 'acct-error-' + motionId(rule) }) : '') +
@@ -306,30 +300,35 @@
       if (next.length > Ui.TYPED_SET_MAX_VALUES) { tree.error = limitMessage(); return false; }
       tree.error = ''; rule.values = next; changed(true); return true;
     }
-    function readPage(payload, selection) {
+    // previous 是換頁時這一頁之前走過的游標。換分類、搜尋、清除搜尋或勾選分類時不帶，從第一頁重新算頁數；
+    // 換頁時帶著，總頁數沿用第一頁讀回的總數。
+    function readPage(payload, selection, previous) {
       if (!active()) { return; }
       var sequence = ++tree.sequence;
       var asked = currentState(), askedView = asked.view, askedStep = asked.currentStepIndex;
       tree.categoryId = payload.categoryId; tree.search = payload.search || ''; tree.cursor = payload.cursor; tree.open = true;
       tree.pending = true; tree.error = ''; tree.rows = []; tree.nextCursor = null; tree.loaded = false;
-      tree.lastRequest = { payload: payload, selection: selection };
+      if (previous) { tree.previous = previous; } else { tree.previous = []; tree.totalCount = null; }
+      tree.lastRequest = { payload: payload, selection: selection, previous: previous || null };
       var request;
       try { request = global.JetApi.queryAccountMappingPage(payload); }
       catch (error) { request = Promise.reject(error); }
       redraw();
       // 回應回來時要不要用。之後又送了別的讀取時，這一筆只是過期，科目樹由後面那一筆負責。
       // 這一筆仍是最後一筆，但條件已經沒有科目樹、換了案件或資料，或審計員已經離開送出時的那一步：不用這個回應，
-      // 不改條件也不重畫，只把讀取中的記號收起；科目樹回到還沒讀取的樣子，不會一直寫「正在載入科目…」。
+      // 不改條件也不重畫，只把讀取中的記號收起；科目樹回到還沒讀取的樣子，不會一直寫「正在載入科目…」，也不留下之前的頁碼。
       function accepted() {
         if (tree.sequence !== sequence) { return false; }
         var current = currentState();
         if (active() && current.view === askedView && current.currentStepIndex === askedStep) { return true; }
-        tree.pending = false;
+        tree.pending = false; tree.previous = []; tree.totalCount = null;
         return false;
       }
       Promise.resolve(request).then(function (page) {
         if (!accepted()) { return; }
         tree.pending = false; tree.rows = page.rows || []; tree.nextCursor = page.nextCursor || null; tree.loaded = true;
+        // 後端只在第一頁算總數，之後各頁沿用。
+        if (page.totalCount != null) { tree.totalCount = page.totalCount; }
         if (selection !== null) {
           if (tree.nextCursor) { tree.error = limitMessage(); }
           else {
@@ -345,7 +344,7 @@
       });
     }
     function payload(categoryId, cursor) {
-      return { categoryId: categoryId || null, search: tree.search, pageSize: Ui.TYPED_SET_MAX_VALUES, cursor: cursor || null };
+      return { categoryId: categoryId || null, search: tree.search, pageSize: Ui.TABLE_PAGE_SIZE, cursor: cursor || null };
     }
     details.addEventListener('toggle', function () { tree.open = details.open; });
     root.querySelectorAll('[data-account-tree-category]').forEach(function (button) {
@@ -370,13 +369,19 @@
     Ui.bindSearchBox(root.querySelector('[data-account-tree-search-form]'), function (text) {
       tree.search = text; tree.searchDraft = text; readPage(payload(tree.categoryId, null), null);
     }, function (text) { tree.searchDraft = text; });
-    var more = root.querySelector('[data-account-tree-more]');
-    if (more) more.addEventListener('click', function () {
-      if (!tree.pending && tree.nextCursor) { readPage(payload(tree.categoryId, tree.nextCursor), null); }
+    var next = root.querySelector('[data-account-tree-next]');
+    if (next) next.addEventListener('click', function () {
+      if (!tree.pending && tree.nextCursor) { readPage(payload(tree.categoryId, tree.nextCursor), null, tree.previous.concat([tree.cursor])); }
+    });
+    var previousPage = root.querySelector('[data-account-tree-previous]');
+    if (previousPage) previousPage.addEventListener('click', function () {
+      if (!tree.pending && tree.previous.length) {
+        readPage(payload(tree.categoryId, tree.previous[tree.previous.length - 1]), null, tree.previous.slice(0, -1));
+      }
     });
     var retry = root.querySelector('[data-account-tree-retry]');
     if (retry) retry.addEventListener('click', function () {
-      if (tree.lastRequest) { readPage(tree.lastRequest.payload, tree.lastRequest.selection); }
+      if (tree.lastRequest) { readPage(tree.lastRequest.payload, tree.lastRequest.selection, tree.lastRequest.previous); }
     });
   }
   // 只比一邊的比較各自一個選項，一個選項只對一種比較方式；選項名稱直接取上面讀回用的 labels，
@@ -457,15 +462,60 @@
     rule.operator = operator;
   }
   var delimiterHint = '可用換行、半形或全形逗號、頓號與 Tab 分隔。';
-  // NumberStyles.Number accepts grouping commas and a leading OR trailing sign, not currency,
-  // parentheses or exponent notation. Keep permissive grouping; backend decimal/scaling remains authoritative.
-  function moneyNumber(raw) {
+  // 日期清單的純數字判斷照後端 DateNormalizer：decimal.TryParse 搭配 NumberStyles.Number，不檢查千分位位置，也不收括號。
+  function isPlainNumber(raw) {
     var text = String(raw == null ? '' : raw).trim();
-    if (text === '-') { return 0; }
+    if (text === '-') { return true; }
     var match = /^([+-]?)\s*((?:\d[\d,]*(?:\.\d*)?|\.\d+))\s*([+-]?)$/.exec(text);
-    if (!match || match[1] && match[3]) { return null; }
-    var number = Number((match[1] || match[3]) + match[2].replace(/,/g, ''));
-    return Number.isFinite(number) ? number : null;
+    return !!match && !(match[1] && match[3]) && Number.isFinite(Number((match[1] || match[3]) + match[2].replace(/,/g, '')));
+  }
+  // 金額照後端 MoneyScaling.TryParseScaled 的規則讀成放大後的整數（BigInt）；不是有效金額，或放大後超出後端 long 可存的範圍時回傳 null。
+  // 兩邊共用 tests/JET.Tests/Fixtures/amount-parsing.json 的固定答案。
+  // 去頭尾空白照 .NET string.Trim 的空白字元：包含 U+0085、不含 U+FEFF，和 JavaScript 的 trim 不同。
+  var MONEY_TRIM_CHARS = '\\t\\n\\v\\f\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000';
+  var MONEY_TRIM = new RegExp('^[' + MONEY_TRIM_CHARS + ']+|[' + MONEY_TRIM_CHARS + ']+$', 'g');
+  // 開頭最多一個正負號或左括號，後面緊接數字；尾端的正負號或右括號前面可以有半形空白。
+  var MONEY_SHAPE = /^([+-]|\()?(\d[\d,]*(?:\.\d*)?|\.\d+)([ \t\n\v\f\r]*)([+-]|\))?$/;
+  var SCALED_MIN = BigInt('-9223372036854775808'), SCALED_MAX = BigInt('9223372036854775807');
+  function scaledAmount(raw, moneyScale) {
+    var text = String(raw == null ? '' : raw).replace(MONEY_TRIM, '');
+    // 會計格式的 0：單獨一個半形連字號。
+    if (text === '-') { return BigInt(0); }
+    var match = MONEY_SHAPE.exec(text);
+    if (!match) { return null; }
+    var lead = match[1] || '', trail = match[4] || '';
+    // 括號要成對，而且不和正負號並用；開頭與尾端不能同時有正負號。
+    if ((lead === '(') !== (trail === ')')) { return null; }
+    if (lead && lead !== '(' && trail) { return null; }
+    var parts = match[2].split('.'), whole = parts[0], fraction = parts[1] || '';
+    // 千分位：第一組 1 到 3 位，其後每組剛好 3 位。
+    var groups = whole.split(',');
+    if (groups.length > 1 && (groups[0].length < 1 || groups[0].length > 3 ||
+        groups.slice(1).some(function (group) { return group.length !== 3; }))) { return null; }
+    var numerator = BigInt((groups.join('') + fraction) || '0') * BigInt(moneyScale);
+    var denominator = BigInt('1' + '0'.repeat(fraction.length));
+    var scaled = numerator / denominator;
+    // 四捨五入到整數，剛好一半時往遠離零的方向進位。
+    if ((numerator % denominator) * BigInt(2) >= denominator) { scaled += BigInt(1); }
+    if (lead === '-' || lead === '(' || trail === '-') { scaled = -scaled; }
+    return scaled < SCALED_MIN || scaled > SCALED_MAX ? null : scaled;
+  }
+  // 金額存放倍率由 project.load 提供；沒有時畫面不判斷金額，交給後端。
+  function projectMoneyScale(state) {
+    var scale = state && state.project ? state.project.moneyScale : undefined;
+    return typeof scale === 'number' && Number.isInteger(scale) && scale > 0 ? scale : null;
+  }
+  // 值清單算進上限的個數。金額清單和後端的數法相同：讀得成的值看放大取整後的值，1,000 與 1000 算一個，
+  // 讀不成的值照原文各算一個；送出的仍是原文，換算由後端做。文字照送出的原文數，不在 JavaScript 猜大小寫是否相同。
+  // 沒有金額存放倍率時，金額也照原文數。
+  function listCount(rule, state) {
+    var list = values(rule, state);
+    var moneyScale = fieldType(rule, state) === 'amount' && carrier(rule.operator, 'amount') === 'set' ? projectMoneyScale(state) : null;
+    if (moneyScale === null) { return list.length; }
+    return new Set(list.map(function (value) {
+      var scaled = scaledAmount(value, moneyScale);
+      return scaled === null ? 'text:' + value : 'scaled:' + scaled.toString();
+    })).size;
   }
   function warning(rule, state) {
     var selected = field(rule, state), value = wire(rule, state), mode = carrier(rule.operator, fieldType(rule, state));
@@ -474,7 +524,9 @@
     }
     if (selected && selected.type === 'amount' && !ignoresSign(rule.operator) && value.amountBasis === 'absolute') {
       var inputs = mode === 'set' ? value.values : mode === 'range' ? [value.from, value.to] : [value.value];
-      if (inputs.some(function (input) { var number = moneyNumber(input); return number !== null && number < 0; })) {
+      // 負數看放大取整後的值：-0.00004 放大後是 0，不算負數。
+      var moneyScale = projectMoneyScale(state);
+      if (moneyScale !== null && inputs.some(function (input) { var scaled = scaledAmount(input, moneyScale); return scaled !== null && scaled < BigInt(0); })) {
         return selected && selected.extra ? '比較基準是絕對值，但填了負數；要比較正負號請改選「含正負號」。' :
           '金額只比較絕對值，目前填了負數。請填正數；要限定方向請另加「借貸別」條件。';
       }
@@ -563,7 +615,7 @@
       extra.push('<label>金額比較基準<select data-value-key="amountBasis" aria-label="金額比較基準"><option value="absolute"' + (basis !== 'signed' ? ' selected' : '') + '>絕對值（不分借貸）</option><option value="signed"' + (basis === 'signed' ? ' selected' : '') + '>含正負號</option></select></label>');
     }
     if (type === 'text' && mode === 'value') { main += '<p class="rule-field__hint">此比較方式只收一個值；不會將逗號或多行內容拆成多個條件。</p>'; }
-    if (mode === 'set' || isDigitList(rule.operator)) { main += '<p class="rule-field__hint" data-value-count role="status">已輸入 ' + values(rule, state).length + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES + '</p>'; }
+    if (mode === 'set' || isDigitList(rule.operator)) { main += '<p class="rule-field__hint" data-value-count role="status">已輸入 ' + listCount(rule, state) + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES + '</p>'; }
     // 展開與收合要一致：提醒原地收放，標 data-collapsible；收起時保留原來的字（見 bind）。
     main += '<p class="form-notice form-notice--warning" data-value-warning data-collapsible role="status"' + (warning(rule, state) ? '' : ' hidden') + '>' + Ui.esc(warning(rule, state)) + '</p>';
     if (canIncludeBlank) {
@@ -631,25 +683,15 @@
     }); }
     root.querySelectorAll('[data-value-key]').forEach(function (control) {
       control.addEventListener(control.tagName === 'SELECT' || control.type === 'checkbox' ? 'change' : 'input', function () {
-        var key = control.getAttribute('data-value-key'), structural = key === 'field' || key === 'operator' || key === 'includeBlank' || key === 'amountBasis' || key === 'drCr';
-        if (key === 'field') {
-          var selected = fields(state).find(function (item) { return item.id === control.value; });
-          if (!selected) { return; }
-          delete rule.field; delete rule.fieldId;
-          rule[selected.extra ? 'fieldId' : 'field'] = selected.id;
-          rule.operator = selected.type === 'date' || !selected.extra && ['createdBy', 'approvedBy', 'accountNumber'].indexOf(selected.id) >= 0 ? 'in' : selected.type === 'text' ? 'contains' : 'equals';
-          rule.amountBasis = 'absolute';
-          rule.value = ''; rule.from = ''; rule.to = ''; rule.values = []; rule.includeBlank = false;
-        } else if (key === 'values') { rule.values = delimitedList(rule, state) ? splitDelimited(control.value) : control.value.split(/\r?\n/); }
+        // 欄位固定在條件列上；比較方式由上面的篩選方式與符合或排除兩個選單換，這裡只收值與選項。
+        var key = control.getAttribute('data-value-key'), structural = key === 'includeBlank' || key === 'amountBasis';
+        if (key === 'values') { rule.values = delimitedList(rule, state) ? splitDelimited(control.value) : control.value.split(/\r?\n/); }
         else if (key === 'daysOfMonth') { rule.values = splitDelimited(control.value); }
         else if (key === 'includeBlank') { rule.includeBlank = control.checked; }
-        else {
-          if (key === 'operator' && carrier(control.value, fieldType(rule, state)) !== carrier(rule.operator, fieldType(rule, state))) { rule.values = []; }
-          rule[key] = control.value;
-        }
+        else { rule[key] = control.value; }
         changed(structural);
         var counter = root.querySelector('[data-value-count]');
-        if (counter) { counter.textContent = '已輸入 ' + values(rule, state).length + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES; }
+        if (counter) { counter.textContent = '已輸入 ' + listCount(rule, state) + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES; }
         var notice = root.querySelector('[data-value-warning]');
         if (notice) {
           var noticeText = warning(rule, state);
@@ -753,8 +795,8 @@
       return '';
     }
     var inputs = mode === 'set' ? value.values : mode === 'range' ? [value.from, value.to] : mode === 'value' ? [value.value] : [];
-    // Count exactly what wire() sends; never guess case equivalence in JavaScript.
-    var count = isDigitList(rule.operator) ? values(rule, state).length : mode === 'set' ? inputs.length : 0;
+    // 個數照 listCount：文字照 wire() 送出的原文數，金額清單照放大取整後的值數。
+    var count = isDigitList(rule.operator) || mode === 'set' ? listCount(rule, state) : 0;
     if (count > Ui.TYPED_SET_MAX_VALUES) {
       // 子條件組的連接在畫面上只寫 AND 與 OR，提示照畫面上的字寫；後端 FieldValueConditions 同一句。
       return '每條最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值。請拆成多條條件，放進子條件組，用 ' +
@@ -770,18 +812,20 @@
       }
       return '';
     }
-    // 原因句寫出無法辨識的那個值。
+    // 原因句寫出無法辨識的那個值。每個值先照後端規則讀成放大後的整數，都讀得成才比上下限，比的是放大取整後的值。
     if (selected.type === 'amount') {
-      var badAmount = inputs.find(function (input) { return moneyNumber(input) === null; });
-      if (badAmount !== undefined) { return '金額「' + badAmount + '」不是數字'; }
-      if (mode === 'range' && moneyNumber(value.from) > moneyNumber(value.to)) { return '下限金額大於上限金額'; }
+      var moneyScale = projectMoneyScale(state);
+      var scaled = moneyScale === null ? [] : inputs.map(function (input) { return scaledAmount(input, moneyScale); });
+      var badIndex = scaled.indexOf(null);
+      if (badIndex >= 0) { return '金額「' + inputs[badIndex] + '」不是數字'; }
+      if (mode === 'range' && scaled.length === 2 && scaled[0] > scaled[1]) { return '下限金額大於上限金額'; }
     }
     var badDate = selected.type !== 'date' ? undefined : inputs.find(function (input) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) {
         // Recognizable invalid dates can be corrected here. Other invariant-culture formats
         // are forwarded unchanged to DateNormalizer; browser parsing must not redefine GL dates.
         // 純數字不是日期，在這裡就寫出無法辨識。
-        return /^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(input) || moneyNumber(input) !== null;
+        return /^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(input) || isPlainNumber(input);
       }
       var p = input.split('-').map(Number); return p[0] < 1 || iso(day(p[0], p[1], p[2])) !== input;
     });
@@ -793,6 +837,6 @@
     return { type: 'fieldValue', join: 'AND', field: type === 'date' ? 'glDate' : type === 'amount' ? 'amount' : 'description',
       operator: type === 'date' ? 'in' : type === 'text' ? 'contains' : 'equals', values: [], value: '', includeBlank: false, amountBasis: 'absolute', __valueType: type };
   }
-  Ui.FilterValues = { create: create, render: render, bind: bind, wire: wire, summary: summary, field: field, fieldTitle: fieldTitle, fields: fields, groupedFields: groupedFields, fieldOptionsHtml: fieldOptionsHtml, values: values, normalizeDate: normalizeDate, splitDelimited: splitDelimited, problem: problem, isDayOfMonth: isDayOfMonth,
+  Ui.FilterValues = { create: create, render: render, bind: bind, wire: wire, summary: summary, field: field, fieldTitle: fieldTitle, fields: fields, groupedFields: groupedFields, values: values, normalizeDate: normalizeDate, splitDelimited: splitDelimited, problem: problem, isDayOfMonth: isDayOfMonth,
     isZeroRun: isZeroRun, zeroRunDefault: zeroRunDefault };
 })(window);

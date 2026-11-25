@@ -37,6 +37,8 @@ internal sealed partial class LegacyReportWriter(
     // 舊版 JET 的 Step4：只有條件篩選的明細在匯出超過一百萬列時不執行 EntireColumn.AutoFit。
     private const long LegacyCriteriaAutoFitMaximumRows = 1_000_000;
     private readonly uint _continuationRowLimit = ExcelMaxRow;
+    // 資料驗證、預篩選與條件篩選報告收尾時的寫法；INF 不用這個欄位，一律照原樣寫出。
+    private readonly FormalWorkbookLayout _layout = FormalWorkbookLayout.SameAsExcel;
     private readonly int _progressRowInterval = DefaultProgressRowInterval;
     private readonly ReportTemplateCatalog _templates = ReportTemplateCatalog.Default;
     private readonly IFieldInfoFactsPort? _fieldInfoFactsPort;
@@ -73,6 +75,7 @@ internal sealed partial class LegacyReportWriter(
             sourceQualityFindings)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
+        _layout = options.Layout;
         if (progressRowInterval <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(progressRowInterval));
@@ -114,6 +117,7 @@ internal sealed partial class LegacyReportWriter(
             highRiskSummaryRows)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
+        _layout = options.Layout;
         if (progressRowInterval <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(progressRowInterval));
@@ -197,6 +201,7 @@ internal sealed partial class LegacyReportWriter(
             resultPageRdeValues)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
+        _layout = options.Layout;
         if (progressRowInterval <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(progressRowInterval));
@@ -211,6 +216,7 @@ internal sealed partial class LegacyReportWriter(
         SpreadsheetDocument document,
         Sheets sheets,
         string name,
+        SheetUsedRange usedRange,
         IReadOnlyList<ReportColumn>? columns = null,
         ReportSheetOptions? options = null,
         Func<uint, uint>? mapStyle = null)
@@ -225,7 +231,45 @@ internal sealed partial class LegacyReportWriter(
                 .Max() + 1U,
             Name = name
         });
-        return new ReportSheetWriter(name, part, columns, options, mapStyle);
+        return new ReportSheetWriter(name, part, usedRange, columns, options, mapStyle);
+    }
+
+    /// <summary>
+    /// 表頭在第 1 列、資料從第 2 列起往下寫的明細，第 <paramref name="part"/> 頁寫出的格子範圍。
+    /// 資料寫到第 <paramref name="rowLimit"/> 列就換到下一頁，前面的頁都寫滿，剩下的寫在最後一頁；
+    /// 每一列都寫滿 <paramref name="columnCount"/> 欄，沒有值的格子也寫出樣式，所以範圍是 A1 到最後一列的最後一欄。
+    /// 沒有資料時只有表頭。
+    /// </summary>
+    internal static SheetUsedRange PagedSheetUsedRange(long totalRows, int part, uint columnCount, uint rowLimit)
+    {
+        if (rowLimit < 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rowLimit));
+        }
+
+        var dataRows = PageRowCount(totalRows, part, rowLimit - 1U);
+        return SheetUsedRange.Table(dataRows + 1U, columnCount);
+    }
+
+    /// <summary>
+    /// 分頁明細第 <paramref name="part"/> 頁寫幾列資料：每頁最多 <paramref name="rowsPerPage"/> 列，
+    /// 前面的頁都寫滿，剩下的寫在最後一頁。第 1 頁一定存在，沒有資料時是 0 列；
+    /// 換頁只在還有下一列資料時發生，所以其他頁沒有資料表示沒有這一頁，呼叫端問這一頁時丟出例外。
+    /// </summary>
+    internal static uint PageRowCount(long totalRows, int part, uint rowsPerPage)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(totalRows);
+        ArgumentOutOfRangeException.ThrowIfLessThan(part, 1);
+        ArgumentOutOfRangeException.ThrowIfZero(rowsPerPage);
+        var remaining = totalRows - (long)(part - 1) * rowsPerPage;
+        if (remaining < 0 || (remaining == 0 && part > 1))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(part),
+                $"Page {part} has no rows: {totalRows} rows at {rowsPerPage} rows per page.");
+        }
+
+        return (uint)Math.Min(remaining, rowsPerPage);
     }
 
     private static void AddStat(
@@ -397,10 +441,12 @@ internal sealed partial class LegacyReportWriter(
         long markedRows = 0;
         long? MarkedRowsOfSheet() => markerColumn is null ? null : markedRows;
         var sheetName = SeriesName(baseName, part);
+        var columnCount = checked((uint)columns.Length);
         ReportSheetWriter? sheet = OpenRawSheet(
             document,
             sheets,
             sheetName,
+            PagedSheetUsedRange(spooledRows, part, columnCount, _continuationRowLimit),
             columns,
             rawWidths,
             styles,
@@ -424,6 +470,7 @@ internal sealed partial class LegacyReportWriter(
                         document,
                         sheets,
                         sheetName,
+                        PagedSheetUsedRange(spooledRows, part, columnCount, _continuationRowLimit),
                         columns,
                         rawWidths,
                         styles,
@@ -479,6 +526,7 @@ internal sealed partial class LegacyReportWriter(
         SpreadsheetDocument document,
         Sheets sheets,
         string name,
+        SheetUsedRange usedRange,
         IReadOnlyList<string> columns,
         IReadOnlyList<double> widths,
         WorkbookStyleMap? styles,
@@ -501,6 +549,7 @@ internal sealed partial class LegacyReportWriter(
             document,
             sheets,
             name,
+            usedRange,
             LegacyAutoFitColumns(widths, autoFitMode),
             new ReportSheetOptions(
                 PageMargins: StandardMargins,

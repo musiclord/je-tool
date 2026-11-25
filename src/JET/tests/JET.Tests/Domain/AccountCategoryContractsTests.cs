@@ -142,7 +142,7 @@ public sealed class AccountCategoryContractsTests
     }
 
     [Fact]
-    public void ResolveImportCategory_BlankUsesOthers_AndCustomLabelResolvesCaseInsensitively()
+    public void TryResolveImportCategory_BlankUsesOthers_AndCustomLabelResolvesCaseInsensitively()
     {
         var custom = new AccountCategory(
             "custom.0123456789abcdef0123456789abcdef",
@@ -154,16 +154,12 @@ public sealed class AccountCategoryContractsTests
             2,
             [.. AccountCategoryBuiltIns.All, custom]);
 
-        Assert.Equal(
-            AccountCategoryBuiltIns.OthersId,
-            AccountCategoryCatalog.ResolveImportCategory(snapshot, " ").CategoryId);
-        Assert.Equal(
-            custom.CategoryId,
-            AccountCategoryCatalog.ResolveImportCategory(snapshot, " contract ASSETS ").CategoryId);
+        Assert.True(AccountCategoryCatalog.TryResolveImportCategory(snapshot, " ", out var blank));
+        Assert.Equal(AccountCategoryBuiltIns.OthersId, blank.CategoryId);
+        Assert.True(AccountCategoryCatalog.TryResolveImportCategory(snapshot, " contract ASSETS ", out var byLabel));
+        Assert.Equal(custom.CategoryId, byLabel.CategoryId);
 
-        var error = Assert.Throws<JetActionException>(() =>
-            AccountCategoryCatalog.ResolveImportCategory(snapshot, "unknown"));
-        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        Assert.False(AccountCategoryCatalog.TryResolveImportCategory(snapshot, "unknown", out _));
     }
 
     [Fact]

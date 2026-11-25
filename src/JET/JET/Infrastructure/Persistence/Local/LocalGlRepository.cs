@@ -121,8 +121,9 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         await using var insert = database.CreateBulkRowWriter(connection, transaction, JetSchemaCatalog.GlTableName, TargetColumns);
 
         var errors = new ProjectionErrorCollector();
-        // 讀不成日期的值與年份不在 1900 到 2100 年之間的日期不擋確認配對，逐列記下來，提交後給畫面的日期提醒。
-        var dateNotices = new GlDateNoticeCollector();
+        // 讀不成日期的值、年份不在 1900 到 2100 年之間的日期，以及早於 1900-03-01、底稿寫成文字的日期不擋確認配對，
+        // 逐列記下來，和配對一起存下，給畫面的日期提醒；判斷無法辨識的原因時用和讀日期相同的案件設定。
+        var dateNotices = new GlDateNoticeCollector(dateOptions);
         // 讀不成日期的總帳日期另外照無法轉換的寫法記一份：整批沒有一列納入 GL 時，用它說明是哪些值讀不成日期。
         var unrecognizedGlDates = new ProjectionErrorCollector();
         var insertedCount = 0;
@@ -442,6 +443,14 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             transaction,
             committedMapping,
             cancellationToken);
+        // 日期提醒和配對在同一個交易寫下，重開案件時第三步列出的就是這次確認的提醒；
+        // 這次確認失敗而回復時，上一次的配對與提醒一起留著。
+        var notices = dateNotices.Notices();
+        await LocalMappingStateStore.SaveGlDateNoticesWithinAsync(
+            connection,
+            transaction,
+            notices,
+            cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(CancellationToken.None);
@@ -451,7 +460,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         return new ProjectionResult(insertedCount, [])
         {
             Warnings = warnings,
-            DateNotices = dateNotices.Notices(),
+            DateNotices = notices,
             GlTotals = new GlTotals(
                 pbcRowCount,
                 glRowCount,

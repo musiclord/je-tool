@@ -22,9 +22,9 @@ public sealed class QueryAccountMappingBlankPageHandler(
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "cursor_invalid");
         }
 
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
+        var pageSize = PageRequestReader.ReadPageSize(payload);
         var page = await Task.Run(
-            () => repositories.AccountMappingBlankPages.GetPageAsync(projectId, new PageRequest(cursor, Math.Clamp(pageSize <= 0 ? 200 : pageSize, 1, 200), IncludeTotalCount: string.IsNullOrEmpty(cursor)), cancellationToken),
+            () => repositories.AccountMappingBlankPages.GetPageAsync(projectId, new PageRequest(cursor, pageSize, IncludeTotalCount: string.IsNullOrEmpty(cursor)), cancellationToken),
             cancellationToken);
         return new
         {

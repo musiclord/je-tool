@@ -175,6 +175,11 @@ internal static class ReportWorkbookMetadataWorksheet
                 Number($"A{rowIndex}", index + 1),
                 Inline($"B{rowIndex}", chunks[index])) { RowIndex = rowIndex, Hidden = true });
         }
+        // 寫法和 Excel 存檔時相同的輸出檔，這張工作表也要有 dimension；其他輸出檔的這張工作表照原來的寫法。
+        if (FormalWorkbookArchive.LayoutOf(document) == FormalWorkbookLayout.SameAsExcel)
+        {
+            SheetUsedRange.RefreshDimension(worksheet);
+        }
         ExcelText.SaveWorksheet(worksheetPart);
 
         var nextSheetId = sheets.Elements<Sheet>()
@@ -213,12 +218,13 @@ internal static class ReportWorkbookMetadataWorksheet
         return result;
     }
 
-    private static Cell Inline(string reference, string value) => new()
+    /// <summary>JET 讀回用的紀錄一律寫成 inline string，讀回時只要讀這張工作表，不必載入整份共用字串表。</summary>
+    private static Cell Inline(string reference, string value)
     {
-        CellReference = reference,
-        DataType = CellValues.InlineString,
-        InlineString = ExcelText.VerbatimInlineString(value)
-    };
+        var cell = new Cell { CellReference = reference };
+        ExcelText.SetVerbatimInlineText(cell, value);
+        return cell;
+    }
 
     private static Cell Number(string reference, int value) => new()
     {

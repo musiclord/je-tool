@@ -1772,10 +1772,12 @@ test('mapping: date notices mark the wrong part of each value and say how the ro
   assert.equal(box.querySelectorAll('[data-action="preview-date-excluded"]').length, 1);
   assert.ok(fields[0].querySelector('[data-action="preview-date-excluded"].jet-view--preview') !== null);
 
-  // 訊息面板只留一則摘要，細節在配對區。
+  // 訊息面板只留一則摘要，細節在配對區。無法辨識的日期照舊版 IDEA JET 的說法，逐欄寫出對應的來源欄位與筆數；
+  // 其他需要留意的日期只寫筆數。
   const messages = f.store.getState().messages.filter(message => /日期/.test(message.text));
   assert.deepEqual(plain(messages.map(message => ({ text: message.text, level: message.level }))),
-    [{ text: 'GL 配對提醒：來源有 17 筆日期需要留意，明細在欄位配對的「日期提醒」。', level: 'warn' }]);
+    [{ text: 'GL 配對提醒：【總帳日期】對應的來源欄位「Date」有 14 筆無法辨識的日期；' +
+      '【傳票核准日】對應的來源欄位「Approved」有 1 筆無法辨識的日期；另有 2 筆日期需要留意。明細在欄位配對的「日期提醒」。', level: 'warn' }]);
 
   // 重新配對並再確認一次，這次沒有任何提醒：那一塊跟著消失。
   f.press('[data-action="remap-gl"]');
@@ -1804,6 +1806,111 @@ test('mapping: a date whose year has more than four digits says so and marks onl
   const value = box.querySelector('.date-notice__value').textContent;
   assert.match(value, /年份超過四位數/);
   assert.doesNotMatch(value, /不是日期/);
+});
+
+// 三位數年份與年份不在 1900 到 2100 年的帶時間寫法，各自寫出自己的原因，不退回「不是日期」或「日曆上沒有這一天」。
+test('mapping: a three-digit year and a worded date outside 1900 to 2100 each name their own reason', async () => {
+  const f = journey({ draft: DUAL });
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ dateNotices: [
+    { field: 'approvalDate', label: '傳票核准日', sourceColumn: 'Approved', kind: 'unrecognized', handling: 'notUsed', count: 2, omittedValueRowCount: 0,
+      values: [
+        { value: '114/6/11', count: 1, markStart: 0, markLength: 3, problem: 'yearTooShort', rows: [{ source: null, row: 2 }] },
+        { value: '1899/6/11 08:30', count: 1, markStart: 0, markLength: 4, problem: 'looseYearOutOfRange', rows: [{ source: null, row: 3 }] },
+      ] },
+  ] }));
+  await settleAll();
+  f.timers.run();
+
+  const box = f.need('[data-bind="mapping-date-notices"]');
+  assert.deepEqual(box.querySelectorAll('.date-specimen mark').map(node => node.textContent), ['114', '1899']);
+  const values = box.querySelectorAll('.date-notice__value').map(node => node.textContent);
+  assert.match(values[0], /年份不到四位數/);
+  assert.match(values[1], /這種寫法只收 1900 到 2100 年/);
+  for (const text of values) {
+    assert.doesNotMatch(text, /不是日期/);
+    assert.doesNotMatch(text, /日曆上沒有這一天/);
+  }
+});
+
+// 1900-01-01 到 1900-02-28 的日期讀得成、年份也不算不尋常，但底稿把它們寫成文字：
+// 日期提醒另列一則，寫筆數、底稿寫成文字與照來源資料保留，值旁邊寫早於 1900-03-01。
+test('mapping: dates before 1900-03-01 within 1900 say they are written as text in the working paper', async () => {
+  const f = journey({ draft: DUAL });
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ dateNotices: [
+    { field: 'approvalDate', label: '傳票核准日', sourceColumn: 'Approved', kind: 'textInWorkingPaper', handling: 'kept', count: 2, omittedValueRowCount: 0,
+      values: [
+        { value: '1900-01-15', count: 1, markStart: 0, markLength: 10, problem: null, rows: [{ source: null, row: 2 }] },
+        { value: '1900/2/28', count: 1, markStart: 0, markLength: 9, problem: null, rows: [{ source: null, row: 3 }] },
+      ] },
+  ] }));
+  await settleAll();
+  f.timers.run();
+
+  const box = f.need('[data-bind="mapping-date-notices"]');
+  const head = box.querySelector('.date-notice__head').textContent;
+  assert.match(head, /2 筆底稿寫成文字/);
+  assert.match(head, /照來源資料保留/);
+  const values = box.querySelectorAll('.date-notice__value').map(node => node.textContent);
+  assert.equal(values.length, 2);
+  for (const text of values) {
+    assert.match(text, /早於 1900-03-01/);
+    assert.doesNotMatch(text, /年份不在 1900 到 2100 年之間/);
+    assert.doesNotMatch(text, /不是日期/);
+  }
+  assert.equal(box.querySelectorAll('[data-action="preview-date-excluded"]').length, 0);
+});
+
+// 沒有無法辨識的日期，只有年份不尋常或底稿寫成文字的日期時，訊息面板照原本的說法只寫筆數。
+test('mapping: the message keeps the plain count when no date is unrecognized', async () => {
+  const f = journey({ draft: DUAL });
+  f.press('[data-action="commit-gl"]');
+  f.last('mappingCommitGl').resolve(commitReply({ dateNotices: [
+    { field: 'approvalDate', label: '傳票核准日', sourceColumn: 'Approved', kind: 'unusualYear', handling: 'kept', count: 1, omittedValueRowCount: 0,
+      values: [{ value: '9999-12-31', count: 1, markStart: 0, markLength: 4, problem: null, rows: [{ source: null, row: 2 }] }] },
+    { field: 'approvalDate', label: '傳票核准日', sourceColumn: 'Approved', kind: 'textInWorkingPaper', handling: 'kept', count: 2, omittedValueRowCount: 0,
+      values: [{ value: '1900-01-15', count: 2, markStart: 0, markLength: 10, problem: null, rows: [{ source: null, row: 3 }, { source: null, row: 4 }] }] },
+  ] }));
+  await settleAll();
+  f.timers.run();
+
+  const messages = f.store.getState().messages.filter(message => /日期/.test(message.text));
+  assert.deepEqual(plain(messages.map(message => ({ text: message.text, level: message.level }))),
+    [{ text: 'GL 配對提醒：來源有 3 筆日期需要留意，明細在欄位配對的「日期提醒」。', level: 'warn' }]);
+});
+
+// 確認配對時的日期提醒和配對一起存在案件資料庫，重開案件時第三步摘要的同一個位置照樣列出，
+// 訊息面板那句「明細在欄位配對的「日期提醒」」才找得到。開案不再多寫一則訊息。
+// 後端存下、讀回與清除由 GlDateNoticeReopenTests 核對。
+test('mapping: a reopened case shows the date notices saved with the confirmed mapping', () => {
+  const f = journey();
+  const reopen = dateNotices => f.window.JetUi.applyLoadedProject({ project: { projectId: 'reopened-notices', currentStep: 2 },
+    importState: { gl: { batchId: 'gl-n', columns: GL_COLUMNS, rowCount: 3 } },
+    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', committedUtc: '2025-12-31T00:00:00Z',
+      ...(dateNotices ? { dateNotices } : {}) } } },
+  { stayOnCurrentStep: true });
+  reopen([
+    { field: 'glDate', label: '總帳日期', sourceColumn: 'Date', kind: 'unrecognized', handling: 'excluded', count: 2, omittedValueRowCount: 0,
+      values: [{ value: '2025-13-45', count: 2, markStart: 5, markLength: 2, problem: 'noSuchDate',
+        rows: [{ source: null, row: 3 }, { source: null, row: 8 }] }] },
+  ]);
+
+  const box = f.need('[data-bind="mapping-date-notices"]');
+  const fields = box.querySelectorAll('.date-notice__field');
+  assert.equal(fields.length, 1);
+  const head = fields[0].querySelector('.date-notice__head').textContent;
+  assert.match(head, /總帳日期/); assert.match(head, /來源欄「Date」/); assert.match(head, /2 筆無法辨識/);
+  assert.deepEqual(box.querySelectorAll('.date-specimen').map(node => node.textContent), ['2025-13-45']);
+  assert.match(fields[0].querySelector('.date-notice__value').textContent, /第 3、8 列/);
+  assert.equal(box.querySelectorAll('[data-action="preview-date-excluded"]').length, 1);
+  assert.deepEqual(plain(f.store.getState().messages.filter(message => /日期/.test(message.text))), []);
+
+  // 沒有存下提醒的案件（確認配對時沒有提醒，或開案回應沒有這一項），摘要裡沒有這一塊。
+  reopen([]);
+  assert.equal(f.$('[data-bind="mapping-date-notices"]'), null);
+  reopen(null);
+  assert.equal(f.$('[data-bind="mapping-date-notices"]'), null);
 });
 
 // 改選另一個來源欄時勾選保留，改填新的來源欄；重新匯入後新資料沒有那個來源欄時勾選跟著消失。

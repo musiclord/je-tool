@@ -12,6 +12,21 @@
     delete copy.name; delete copy.rationale;
     return canonical(copy);
   }
+  // 科目清單只回事先準備好的那一頁。照準備時的請求（每頁 100 個、不帶分類）一定回它；
+  // 這一頁已列出全部科目（沒有下一頁）時，第四步與第五步每頁 200 個以內的請求也回它。指定分類時只列出這一頁裡分類相同的科目；
+  // 這個分類有下層分類時，預覽不推算下層包含哪些科目，照樣拒絕。帶搜尋字或游標的請求一律拒絕。
+  function accountMappingPage(bundle, p) {
+    const page = bundle.accountMappingPage;
+    if (!page || Object.keys(p).some(key => !['cursor', 'pageSize', 'search', 'categoryId'].includes(key)) || p.cursor != null || p.search) return null;
+    if (p.categoryId == null && (p.pageSize == null || p.pageSize === 100)) return structuredClone(page);
+    const rows = page.rows || [];
+    if (page.nextCursor != null || !Number.isInteger(p.pageSize) || p.pageSize < rows.length || p.pageSize > 200) return null;
+    if (p.categoryId == null) return structuredClone(page);
+    const categories = (bundle.loaded && bundle.loaded.accountCategory && bundle.loaded.accountCategory.categories) || [];
+    if (categories.some(category => category.parentCategoryId === p.categoryId)) return null;
+    const matched = rows.filter(row => row.categoryId === p.categoryId);
+    return structuredClone({ ...page, rows: matched, nextCursor: null, totalCount: matched.length });
+  }
   function dispatch(bundle, action, payload) {
     const p = payload || {};
     if (action === 'system.ping') return { devToolsEnabled: false };
@@ -23,10 +38,10 @@
       if (!prepared) throw new Error('此來源值查詢尚未準備合成回應；預覽不會自行判定代碼是否相同。');
       return structuredClone(prepared.response);
     }
-    if (action === 'query.accountMappingPage' && bundle.accountMappingPage &&
-        Object.keys(p).every(key => ['cursor', 'pageSize', 'search'].includes(key)) &&
-        p.cursor == null && (p.pageSize == null || p.pageSize === 100) && !p.search)
-      return structuredClone(bundle.accountMappingPage);
+    if (action === 'query.accountMappingPage') {
+      const accounts = accountMappingPage(bundle, p);
+      if (accounts) return accounts;
+    }
     const allowed = ['filter.preview', 'query.filterVoucherPage', 'query.filterVoucherRowsPage'];
     if (!allowed.includes(action)) throw new Error('此操作需在 JET 桌面程式執行；目前頁面僅供畫面預覽。');
     const keys = ['populationScope', 'scenario'];

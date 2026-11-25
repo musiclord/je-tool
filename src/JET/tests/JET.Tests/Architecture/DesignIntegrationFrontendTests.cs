@@ -281,7 +281,7 @@ public sealed class DesignIntegrationFrontendTests
     [
         "app-shell", "app-main", "app-body", "project-picker", "toc-col", "messages", "content",
         "stepflow", "stepflow-item", "stepflow-item__body", "panel", "rule-card", "filter-workspace",
-        "map-grid-wrap", "map-grid", "preview-table", "voucher-table",
+        "map-grid-wrap", "map-grid", "preview-table", "voucher-table", "account-tree__list",
         "data-preview", "data-preview__body", "data-preview__table", "overview", "overview-modal", "modal__card"
     ];
 

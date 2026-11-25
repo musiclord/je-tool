@@ -125,6 +125,104 @@ test('date lists follow the shared date fixture under both ROC settings', () => 
   assert.deepEqual(mismatches, []);
 });
 
+// 前後端讀同一份金額固定答案 tests/JET.Tests/Fixtures/amount-parsing.json，
+// C# 的 MoneyScalingTests 與 TypedFieldRuleValidationTests 讀同一份；一邊改了規則另一邊就失敗。
+// 畫面照案件的金額存放倍率把值讀成放大後的整數：讀不成時寫出不是數字，兩端都讀得成才比上下限，負數提醒看放大後的值。
+test('amount conditions follow the shared amount fixture', () => {
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '../JET.Tests/Fixtures/amount-parsing.json'), 'utf8'));
+  assert.ok(fixture.cases.length > 50 && fixture.ranges.length > 5, 'the shared fixture lists every amount case from both sides');
+  const rule = { type: 'fieldValue', field: 'amount', operator: 'equals', amountBasis: 'absolute', value: '' };
+  const f = dateFixture(rule);
+  const state = f.store.getState();
+  state.project.moneyScale = fixture.moneyScale;
+  const values = f.window.JetUi.FilterValues;
+  const mismatches = [];
+  for (const item of fixture.cases) {
+    const expected = item.scaled === null ? '金額「' + item.raw + '」不是數字' : '';
+    const actual = values.problem({ ...rule, value: item.raw }, state);
+    if (actual !== expected) mismatches.push(JSON.stringify(item.raw) + '：預期「' + expected + '」，實際「' + actual + '」');
+    if (item.scaled === null) continue;
+    const warned = values.render({ ...rule, value: item.raw }, state, 'value-editor').includes('填了負數');
+    if (warned !== item.scaled.startsWith('-')) mismatches.push(JSON.stringify(item.raw) + '：負數提醒預期 ' + item.scaled.startsWith('-') + '，實際 ' + warned);
+  }
+  const rangeAnswers = { invalidFrom: range => '金額「' + range.from + '」不是數字', invalidBoth: range => '金額「' + range.from + '」不是數字',
+    invalidTo: range => '金額「' + range.to + '」不是數字', reversed: () => '下限金額大於上限金額', ok: () => '' };
+  for (const range of fixture.ranges) {
+    assert.ok(rangeAnswers[range.result], range.result);
+    const expected = rangeAnswers[range.result](range);
+    const actual = values.problem({ ...rule, operator: 'between', from: range.from, to: range.to }, state);
+    if (actual !== expected) mismatches.push(range.from + ' 至 ' + range.to + '：預期「' + expected + '」，實際「' + actual + '」');
+  }
+  assert.deepEqual(mismatches, []);
+});
+
+// 「指定金額」清單的 100 個值上限和後端同一種數法：讀得成的金額看依案件金額存放倍率放大取整後的值，
+// 所以 1,000 與 1000 算一個值，倍率 100 時 2000.004 與 2000 也算一個值；讀不成金額的值照原文各算一個。
+// 送出的清單仍是審計員輸入的原文，換算交給後端。攸關資料元素的金額欄位也一樣。
+test('amount lists count the value limit by scaled amounts like the backend', () => {
+  const hundred = Array.from({ length: 100 }, (_, i) => String((i + 1) * 1000));
+  const rule = { type: 'fieldValue', field: 'amount', operator: 'in', amountBasis: 'absolute', values: [] };
+  const f = dateFixture(rule);
+  const state = f.store.getState();
+  state.project.moneyScale = 100;
+  const values = f.window.JetUi.FilterValues;
+  const limit = { in: '每條最多 100 個值。請拆成多條條件，放進子條件組，用 OR 連接。',
+    notIn: '每條最多 100 個值。請拆成多條條件，放進子條件組，用 AND 連接。' };
+  for (const operator of ['in', 'notIn']) {
+    const typed = hundred.concat(['1,000', '2000.004']);
+    const merged = { ...rule, operator, values: typed };
+    assert.equal(values.problem(merged, state), '', operator + '：102 個原文只有 100 個不同金額');
+    assert.deepEqual(plain(values.wire(merged, state).values), typed, operator + '：送出審計員輸入的原文');
+    assert.match(values.render(merged, state, 'value-editor'), /已輸入 100 個值，上限 100/, operator);
+    assert.equal(values.problem({ ...merged, values: typed.concat(['101,000.00']) }, state), limit[operator], operator + '：第 101 個不同金額');
+    // 讀不成金額的值照原文數，大小寫不同算兩個；超過上限時先寫上限，和後端相同。
+    const invalid = hundred.slice(0, 99);
+    assert.equal(values.problem({ ...merged, values: invalid.concat(['abc', 'ABC']) }, state), limit[operator], operator + '：讀不成的值各算一個');
+    assert.equal(values.problem({ ...merged, values: invalid.concat(['abc']) }, state), '金額「abc」不是數字', operator);
+  }
+
+  // 在畫面上貼上清單時，計數也照放大後的值更新。
+  rule.values = hundred.slice(0, 1); f.draw();
+  const list = f.$('[data-value-key="values"]');
+  list.value = hundred.concat(['1,000', '2000.004']).join('\n'); list.fire('input');
+  assert.equal(f.$('[data-value-count]').textContent, '已輸入 100 個值，上限 100');
+  list.value = hundred.concat(['1,000', '101000']).join('\n'); list.fire('input');
+  assert.equal(f.$('[data-value-count]').textContent, '已輸入 101 個值，上限 100');
+
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: { rdeFields: [
+    { fieldId: 'rde.amount', sourceColumn: 'Amount', label: '合成金額', valueType: 'amount' }] } });
+  const rde = { type: 'fieldValue', fieldId: 'rde.amount', operator: 'in', amountBasis: 'absolute', values: hundred.concat(['1,000']) };
+  assert.equal(values.problem(rde, f.store.getState()), '');
+  assert.equal(values.problem({ ...rde, values: rde.values.concat(['101000']) }, f.store.getState()), limit.in);
+});
+
+// 日期的純數字判斷和金額讀法分開：帶千分位的數字即使千分位位置不對，仍是無法辨識的日期，和後端 DateNormalizer 相同。
+test('plain numbers with commas stay unrecognizable dates', () => {
+  const rule = { type: 'fieldValue', field: 'glDate', operator: 'on', value: '' };
+  const f = dateFixture(rule);
+  const state = f.store.getState();
+  for (const value of ['12,31', '1,234']) {
+    assert.equal(f.window.JetUi.FilterValues.problem({ ...rule, value }, state), '日期「' + value + '」無法辨識，請以 2026-12-31 的格式輸入', value);
+  }
+});
+
+// 用「-」分隔的日期和用「/」分隔的一樣：四位數年份照寫出來的年份讀，不限 1900 到 2100 年；
+// 民國年開啟時三位數民國年換成西元。關閉時三位數年份讀不成日期，照原文送出並寫出無法辨識。
+test('date lists read hyphenated dates and ROC years like slashed ones', () => {
+  const rule = { type: 'fieldValue', field: 'glDate', operator: 'in', values: ['1899-6-11', '2101-6-11', '114-6-11', '114-06-11'] };
+  const f = dateFixture(rule);
+  const state = f.store.getState();
+  state.project.rocDateEnabled = true;
+  assert.deepEqual(plain(f.window.JetUi.FilterValues.wire(rule, state).values),
+    ['1899-06-11', '2101-06-11', '2025-06-11']);
+  assert.equal(f.window.JetUi.FilterValues.problem(rule, state), '');
+
+  state.project.rocDateEnabled = false;
+  const off = { ...rule, values: ['114-6-11'] };
+  assert.deepEqual(plain(f.window.JetUi.FilterValues.wire(off, state).values), ['114-6-11']);
+  assert.equal(f.window.JetUi.FilterValues.problem(off, state), '日期「114-6-11」無法辨識，請以 2026-12-31 的格式輸入');
+});
+
 // 沒有四位數年份或沒有日的寫法視為無法辨識的日期：前端不自行補齊，保留原文送出，
 // 由後端逐值寫出無法辨識；寫出年份與日的英文寫法也原樣交給後端判斷。
 test('date lists keep incomplete dates as typed for the backend to reject', () => {
@@ -188,7 +286,7 @@ test('account search waits for submission and shares load errors and category la
   assert.equal(f.requests.length, 0);
   form.fire('submit');
   const request = f.request('queryAccountMappingPage');
-  assert.deepEqual(plain(request.payload), { categoryId: null, search: '1103', pageSize: 100, cursor: null });
+  assert.deepEqual(plain(request.payload), { categoryId: null, search: '1103', pageSize: 200, cursor: null });
   request.reject(new Error('合成來源失敗')); await settle(); await settle();
   const retry = f.$('[data-account-tree-retry]');
   assert.equal(retry.textContent, '重新載入');

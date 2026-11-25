@@ -150,7 +150,7 @@ public sealed class CompletenessEligibilitySupportTests
         var eligibility = CompletenessEligibilitySupport.ToWireSummary(run)
             .GetProperty("completenessTest").GetProperty("eligibility");
         Assert.True(eligibility.GetProperty("isEligible").GetBoolean());
-        // 提醒照實說明比對的是確認配對時算出的數字，不用「控制總數」這個術語。
+        // 提醒的開頭寫出是哪一項檢查，不用「控制總數」這個術語。
         // 新案件確認 GL 欄位配對時一定會算出這組數字；
         // 萬一缺了，提醒和核對未通過相同，請審計員重新確認 GL 欄位配對。
         Assert.StartsWith("存入筆數與合計核對未通過：", eligibility.GetProperty("warning").GetString(), StringComparison.Ordinal);

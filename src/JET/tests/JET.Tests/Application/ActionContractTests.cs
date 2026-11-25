@@ -624,7 +624,10 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             // 第五步依後端算好的清單，不替 GL 中一定有值的欄位提供「空白」的比較方式，GL 配對多帶 neverBlankGlFields。
             "neverBlankGlFields",
             // 尾數 0 的個數照 IDEA 版由 GL 算出，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡，GL 配對多帶 zerosThreshold。
-            "zerosThreshold");
+            "zerosThreshold",
+            // 確認配對時的日期提醒隨配對存在案件資料庫，重開案件後第三步照樣列出，GL 配對多帶 dateNotices。
+            "dateNotices");
+        Assert.Equal(JsonValueKind.Array, glMapping.GetProperty("dateNotices").ValueKind);
         JsonShape.Element(JsonShape.Arr(glMapping, "fillDownFields"), field =>
             Assert.Equal(JsonValueKind.String, field.ValueKind));
         Assert.Equal(JsonValueKind.Number, glMapping.GetProperty("fillDownCount").ValueKind);
@@ -767,7 +770,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Number(data, "totalCount");
         // 每列多帶傳票核准日；
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
-            JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "description"));
+            // 「核准日不在期間」裡讀不成日期的核准日另帶來源原文 approvalDateRawValue，其他類別是 null。
+            JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "approvalDateRawValue", "description"));
     }
 
     [Fact]

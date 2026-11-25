@@ -1309,17 +1309,21 @@
     );
   }
 
-  // 確認配對後的日期提醒：來源的日期有讀不成日期的值，或年份不尋常的日期。配對照常完成，
+  // 確認配對後的日期提醒：來源的日期有讀不成日期的值、年份不尋常的日期，或早於 1900-03-01、底稿寫成文字的日期。配對照常完成，
   // 這一塊只說明是哪個欄位的哪些值、問題在值的哪一段，以及 JET 怎麼處理。
   var DATE_PROBLEM_TEXT = {
     number: '只有數字，看不出年月日',
     noSuchDate: '日曆上沒有這一天',
     ambiguousOrder: '分不出年月日的順序',
     yearTooLong: '年份超過四位數',
+    yearTooShort: '年份不到四位數',
+    looseYearOutOfRange: '這種寫法只收 1900 到 2100 年',
     notDate: '不是日期'
   };
   var DATE_UNUSUAL_YEAR_TEXT = '年份不在 1900 到 2100 年之間';
-  var DATE_KIND_TEXT = { unrecognized: '無法辨識', unusualYear: '年份不尋常' };
+  // 早於 1900-03-01 的日期在底稿寫成文字，不寫成日期儲存格；年份早於 1900 的已列在年份不尋常，不在這一種。
+  var DATE_TEXT_IN_WORKING_PAPER_TEXT = '早於 1900-03-01';
+  var DATE_KIND_TEXT = { unrecognized: '無法辨識', unusualYear: '年份不尋常', textInWorkingPaper: '底稿寫成文字' };
   var DATE_HANDLING_TEXT = {
     excluded: '這些分錄列入 GL(未納入測試)',
     notUsed: '這幾格當成沒有日期',
@@ -1328,6 +1332,22 @@
 
   function dateNoticeTotal(notices) {
     return (notices || []).reduce(function (sum, notice) { return sum + (notice.count || 0); }, 0);
+  }
+
+  // 確認配對後訊息面板的那一則摘要。有無法辨識的日期時照舊版 IDEA JET 的說法，逐欄寫出對應的來源欄位與筆數；
+  // 年份不尋常與底稿寫成文字的日期只寫合計筆數。沒有無法辨識的日期時只寫合計筆數。
+  function dateNoticeMessage(label, notices) {
+    var unrecognized = notices.filter(function (notice) { return notice.kind === 'unrecognized'; });
+    if (!unrecognized.length) {
+      return label + ' 配對提醒：來源有 ' + Ui.countText(dateNoticeTotal(notices)) + ' 筆日期需要留意，明細在欄位配對的「日期提醒」。';
+    }
+    var parts = unrecognized.map(function (notice) {
+      return '【' + notice.label + '】對應的來源欄位「' + notice.sourceColumn + '」有 ' +
+        Ui.countText(notice.count || 0) + ' 筆無法辨識的日期';
+    });
+    var others = notices.filter(function (notice) { return notice.kind !== 'unrecognized'; });
+    if (others.length) { parts.push('另有 ' + Ui.countText(dateNoticeTotal(others)) + ' 筆日期需要留意'); }
+    return label + ' 配對提醒：' + parts.join('；') + '。明細在欄位配對的「日期提醒」。';
   }
 
   // 值照原文顯示，只把後端指的那一段包進 mark；位置不合理時標整個值。
@@ -1372,7 +1392,9 @@
               : '') +
           '</p>' +
           '<ul class="date-notice__values">' + values.map(function (value) {
-            var why = notice.kind === 'unusualYear' ? DATE_UNUSUAL_YEAR_TEXT : (DATE_PROBLEM_TEXT[value.problem] || DATE_PROBLEM_TEXT.notDate);
+            var why = notice.kind === 'unusualYear' ? DATE_UNUSUAL_YEAR_TEXT
+              : notice.kind === 'textInWorkingPaper' ? DATE_TEXT_IN_WORKING_PAPER_TEXT
+              : (DATE_PROBLEM_TEXT[value.problem] || DATE_PROBLEM_TEXT.notDate);
             var rows = dateRowsText(value);
             return '<li class="date-notice__value">' + dateSpecimenHtml(value) +
               '<span class="date-notice__why">' + Ui.esc(why) + '</span>' +
@@ -2501,7 +2523,7 @@
             committed.fillDownCount = data.fillDownCount || 0;
             // 這次投影由 GL 借方平均算出的尾數 0 的個數，第四步卡片與第五步預設跟著更新。
             committed.zerosThreshold = data.zerosThreshold || null;
-            // 這次投影遇到的日期提醒，只在這次確認之後顯示。
+            // 這次投影遇到的日期提醒。後端把它和配對一起存下，重開案件時從開案的回應帶回同一份。
             committed.dateNotices = Array.isArray(data.dateNotices) ? data.dateNotices : [];
           }
           Store.setMappingCommitted(kind, committed);
@@ -2515,8 +2537,7 @@
           });
           // 日期提醒的明細在配對區，訊息面板只留一則摘要。
           if (kind === 'gl' && committed.dateNotices.length) {
-            Store.addMessage(label + ' 配對提醒：來源有 ' + Ui.countText(dateNoticeTotal(committed.dateNotices)) +
-              ' 筆日期需要留意，明細在欄位配對的「日期提醒」。', 'warn');
+            Store.addMessage(dateNoticeMessage(label, committed.dateNotices), 'warn');
           }
           focusMapping('[data-action="remap-' + kind + '"]');
           return data;

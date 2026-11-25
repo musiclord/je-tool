@@ -12,6 +12,8 @@ public static class SupportEventNames
     public const string HistoryStarted = "support.history_started";
     public const string HistoryGap = "support.history_gap";
     public const string CaseOpened = "support.case_opened";
+    // 開啟或建立另一個案件時，後端自己離開了前一個案件；記在離開的那個案件。
+    public const string CaseLeft = "support.case_left";
 
     // 操作監看模組寫的事件：長時間操作、跑太久或沒有正常結束的 SQL，以及匯出進度。
     public const string ActionStillRunning = "action.still_running";

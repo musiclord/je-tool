@@ -127,6 +127,7 @@ internal static class ReportTemplatePackage
     /// 新增的資料工作表要用寫出程式自己的樣式時，只能用 <see cref="WorkbookStyleMap"/> 把樣式接在樣式表最後面，取得新索引；
     /// 鎖定與不鎖定的樣式，由 editor 複製範本既有的樣式再改保護設定而來。
     /// <paramref name="fill"/> 結束時，所列的工作表必須每一張都改寫過，否則丟出例外。
+    /// <paramref name="layout"/> 決定收尾時小活頁簿其餘的項目要不要整理成 Excel 存檔時的寫法，見 <see cref="FormalWorkbookLayout"/>。
     /// </summary>
     internal static Task<ExportStats> FillDirectAsync(
         ReportTemplateCatalog catalog,
@@ -134,7 +135,8 @@ internal static class ReportTemplatePackage
         Stream output,
         IReadOnlyCollection<string> allowedWorksheetNames,
         Func<DirectTemplateWorkbookEditor, CancellationToken, IReadOnlyList<SheetStat>> fill,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        FormalWorkbookLayout layout = FormalWorkbookLayout.SameAsExcel)
     {
         ArgumentNullException.ThrowIfNull(fill);
 
@@ -144,6 +146,7 @@ internal static class ReportTemplatePackage
             output,
             allowedWorksheetNames,
             (editor, ct) => Task.FromResult(fill(editor, ct)),
+            layout,
             cancellationToken);
     }
 
@@ -157,7 +160,8 @@ internal static class ReportTemplatePackage
         Stream output,
         IReadOnlyCollection<string> allowedWorksheetNames,
         Func<DirectTemplateWorkbookEditor, CancellationToken, Task<IReadOnlyList<SheetStat>>> fill,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        FormalWorkbookLayout layout = FormalWorkbookLayout.SameAsExcel)
     {
         ArgumentNullException.ThrowIfNull(fill);
 
@@ -167,6 +171,7 @@ internal static class ReportTemplatePackage
             output,
             allowedWorksheetNames,
             fill,
+            layout,
             cancellationToken);
     }
 
@@ -176,6 +181,7 @@ internal static class ReportTemplatePackage
         Stream output,
         IReadOnlyCollection<string> allowedWorksheetNames,
         Func<DirectTemplateWorkbookEditor, CancellationToken, Task<IReadOnlyList<SheetStat>>> fill,
+        FormalWorkbookLayout layout,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(catalog);
@@ -204,7 +210,7 @@ internal static class ReportTemplatePackage
             output.SetLength(0);
             // 失敗或取消時不把活頁簿其餘的項目複製過去，output 寫到一半就丟掉；
             // 離開這一段時只放掉還開著的工作表項目並關閉壓縮檔。
-            using var archive = new FormalWorkbookArchive(output);
+            using var archive = new FormalWorkbookArchive(output, layout);
             using (var target = SpreadsheetDocument.Open(
                        workbook,
                        true,
@@ -242,13 +248,13 @@ internal static class ReportTemplatePackage
             // 範本也已經複製到記憶體。這裡剩下的磁碟已滿與沒有權限，來自寫出程式放在 Windows 暫存資料夾裡的暫存檔。
             throw writeFailure;
         }
-        catch (Exception exception) when (exception is IOException
-                                           or UnauthorizedAccessException
-                                           or OpenXmlPackageException
+        catch (Exception exception) when (exception is OpenXmlPackageException
                                            or FileFormatException
                                            or InvalidDataException
                                            or XmlException)
         {
+            // 只有範本內容不合格式時才請審計員重新下載 JET。其他沒有歸類的讀寫錯誤和範本無關，
+            // 原樣往外丟，和其他意外錯誤顯示同一句通用的訊息。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $"無法填入 JET 內附的範本「{templateName}」。請重新下載 JET 後再匯出。",

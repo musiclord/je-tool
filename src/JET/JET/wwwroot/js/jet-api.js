@@ -69,7 +69,7 @@
     });
   }
 
-  // host→web 事件訂閱表（主程式進度事件：信封 { event, data }、無 requestId）
+  // host→web 事件訂閱表（主程式進度事件：信封 { event, requestId, data }；不屬於任何請求的事件沒有 requestId）
   var eventHandlers = Object.create(null);
 
   function receive(event) {
@@ -87,6 +87,10 @@
     }
 
     if (message.event) {
+      // 送出這則進度的請求已經有了結果，或根本不是這個畫面送的：進度已經過時，交給畫面會蓋過下一項作業的進度。
+      if (message.requestId && !pending[message.requestId]) {
+        return;
+      }
       var handlers = eventHandlers[message.event];
       if (handlers) {
         handlers.slice().forEach(function (handler) {

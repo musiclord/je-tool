@@ -198,6 +198,66 @@ public sealed class DateNormalizerTests
         Assert.Equal(expected, offResult);
     }
 
+    // 日期時間帶時差或 Z 時，取文字裡寫的那一天，不換成這台電腦的時間。+14:00 與 -12:00 換成任何時區的時間，
+    // 至少有一個會換到前一天或後一天，所以不論電腦設在哪個時區，換算時間的寫法都會讓這組案例失敗。
+    [Theory]
+    [InlineData("2024-01-05T00:30:00+14:00")]
+    [InlineData("2024-01-05T23:30:00-12:00")]
+    [InlineData("2024-01-05T00:30:00+09:00")]
+    [InlineData("2024-01-05T20:00:00Z")]
+    public void TryNormalize_DateTimeWithOffset_TakesTheWrittenDate(string raw)
+    {
+        Assert.True(DateNormalizer.TryNormalize(raw, RocOn, out var onResult));
+        Assert.Equal("2024-01-05", onResult);
+        Assert.True(DateNormalizer.TryNormalize(raw, RocOff, out var offResult));
+        Assert.Equal("2024-01-05", offResult);
+    }
+
+    // 年份在前、四位數年份、用「-」分隔的寫法和用「/」分隔的一樣，照寫出來的年份讀成日期，年份可以是 0001 到 9999；
+    // 分隔符號混用也和「/」「.」混用一樣接受。答案都是手寫的年月日。
+    [Theory]
+    [InlineData("1899-6-11", "1899-06-11")]
+    [InlineData("2101-6-11", "2101-06-11")]
+    [InlineData("1000-1-1", "1000-01-01")]
+    [InlineData("0001-1-1", "0001-01-01")]
+    [InlineData("1899-06/11", "1899-06-11")]
+    public void TryNormalize_YearFirstHyphenDates_ReadEveryYearLikeSlashDates(string raw, string expected)
+    {
+        Assert.True(DateNormalizer.TryNormalize(raw, RocOn, out var onResult));
+        Assert.Equal(expected, onResult);
+        Assert.True(DateNormalizer.TryNormalize(raw, RocOff, out var offResult));
+        Assert.Equal(expected, offResult);
+    }
+
+    // 民國年開啟時，用「-」分隔的三位數民國年和用「/」分隔的一樣換成西元（114 + 1911 = 2025）；關閉時讀不成日期。
+    [Theory]
+    [InlineData("114-6-11", "2025-06-11")]
+    [InlineData("114-06-11", "2025-06-11")]
+    [InlineData("100-1-1", "2011-01-01")]
+    [InlineData("199-12-31", "2110-12-31")]
+    [InlineData("113-2-29", "2024-02-29")]   // 民國 113 年是西元 2024 年，閏年
+    public void TryNormalize_RocYearWithHyphen_ConvertsOnlyWhenRocIsOn(string raw, string expected)
+    {
+        Assert.True(DateNormalizer.TryNormalize(raw, RocOn, out var onResult));
+        Assert.Equal(expected, onResult);
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out var offResult));
+        Assert.Null(offResult);
+    }
+
+    // 帶時間、寫成年月日或英文月份的寫法仍只收 1900 到 2100 年，年份在這之外時兩種設定都讀不成日期。
+    [Theory]
+    [InlineData("1899/06/11 00:00:00")]
+    [InlineData("2101-06-11T08:30:00")]
+    [InlineData("1895年2月2日")]
+    [InlineData("1899-6-11 08:30")]
+    public void TryNormalize_TimeOrWordedDatesOutside1900Through2100_StayUnrecognized(string raw)
+    {
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out var onResult));
+        Assert.Null(onResult);
+        Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out var offResult));
+        Assert.Null(offResult);
+    }
+
     [Fact]
     public void TryNormalize_BlankIsLegalNoDate()
     {
@@ -223,7 +283,56 @@ public sealed class DateNormalizerTests
     {
         Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out _));
 
-        Assert.Equal(new DateProblem(kind, start, length), DateNormalizer.DescribeUnrecognized(raw));
+        Assert.Equal(new DateProblem(kind, start, length), DateNormalizer.DescribeUnrecognized(raw, RocOff));
+    }
+
+    // 原因照案件的民國年選項與那一年實際的天數判斷，和讀日期用同一套寫法。每個案例先確認這個值在那個設定下讀不成日期。
+    // 位置都是手算的：三位數年份標年份；日曆上沒有的那一天標月或日，年份是 0 時標年份；
+    // 帶時間、寫成年月日或英文月份的寫法年份不在 1900 到 2100 年時，標出原文裡的四位數年份。
+    [Theory]
+    [InlineData("114/6/11", false, DateProblemKind.YearTooShort, 0, 3)]
+    [InlineData("114-6-11", false, DateProblemKind.YearTooShort, 0, 3)]
+    [InlineData("200/6/11", true, DateProblemKind.YearTooShort, 0, 3)]
+    [InlineData("112/2/29", true, DateProblemKind.NoSuchDate, 6, 2)]    // 民國 112 年是 2023 年，2 月只有 28 天
+    [InlineData("114/2/29", true, DateProblemKind.NoSuchDate, 6, 2)]
+    [InlineData("1900/2/29", true, DateProblemKind.NoSuchDate, 7, 2)]   // 1900 年不是閏年
+    [InlineData("2025/2/29", true, DateProblemKind.NoSuchDate, 7, 2)]
+    [InlineData("1140230", true, DateProblemKind.NoSuchDate, 5, 2)]
+    [InlineData("1141315", true, DateProblemKind.NoSuchDate, 3, 2)]
+    [InlineData("20250230", true, DateProblemKind.NoSuchDate, 6, 2)]
+    [InlineData("01140230", true, DateProblemKind.NoSuchDate, 6, 2)]
+    [InlineData("0000/6/11", true, DateProblemKind.NoSuchDate, 0, 4)]   // 沒有 0 年
+    [InlineData("2025/02/30 08:00", true, DateProblemKind.NoSuchDate, 8, 2)]
+    [InlineData("2025/13/05 08:00", true, DateProblemKind.NoSuchDate, 5, 2)]
+    [InlineData("1141315", false, DateProblemKind.Number, 0, 7)]        // 民國年關閉時只是七位數的數字
+    [InlineData("1899/6/11 08:30", true, DateProblemKind.LooseYearOutOfRange, 0, 4)]
+    [InlineData("1895年2月2日", true, DateProblemKind.LooseYearOutOfRange, 0, 4)]
+    [InlineData("Jan 1, 1899", true, DateProblemKind.LooseYearOutOfRange, 7, 4)]
+    public void DescribeUnrecognized_FollowsTheRocSettingAndTheDaysOfThatYear(
+        string raw, bool rocEnabled, DateProblemKind kind, int start, int length)
+    {
+        var options = rocEnabled ? RocOn : RocOff;
+        Assert.False(DateNormalizer.TryNormalize(raw, options, out _));
+
+        Assert.Equal(new DateProblem(kind, start, length), DateNormalizer.DescribeUnrecognized(raw, options));
+    }
+
+    // 日期後面接時間或時差時，原因和不接時的同一種寫法相同：日曆上沒有的那一天標出月或日，年份多打標出年份；
+    // 三位數年份接時間時讀不成日期，不論民國年選項開或關都標出年份。每個案例先確認這個值在那個設定下讀不成日期，位置都是手算的。
+    [Theory]
+    [InlineData("2025-02-30T08:00:00Z", true, DateProblemKind.NoSuchDate, 8, 2)]
+    [InlineData("2025-02-30T08:00:00+08:00", true, DateProblemKind.NoSuchDate, 8, 2)]
+    [InlineData("2025-13-05T08:00:00Z", false, DateProblemKind.NoSuchDate, 5, 2)]
+    [InlineData("99999-02-01T08:30:00Z", true, DateProblemKind.YearTooLong, 0, 5)]
+    [InlineData("114/6/11 08:30", true, DateProblemKind.YearTooShort, 0, 3)]
+    [InlineData("114/6/11 08:30", false, DateProblemKind.YearTooShort, 0, 3)]
+    public void DescribeUnrecognized_DateWithTimeOrOffset_GivesTheSameReasonAsWithout(
+        string raw, bool rocEnabled, DateProblemKind kind, int start, int length)
+    {
+        var options = rocEnabled ? RocOn : RocOff;
+        Assert.False(DateNormalizer.TryNormalize(raw, options, out _));
+
+        Assert.Equal(new DateProblem(kind, start, length), DateNormalizer.DescribeUnrecognized(raw, options));
     }
 
     // 年份多打成五位數以上時，JET 不猜它是哪一年，仍是無法辨識的日期；只標出年份那一段，問題種類是年份超過四位數。
@@ -244,7 +353,7 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
         Assert.False(DateNormalizer.TryNormalize(raw, RocOff, out _));
 
-        Assert.Equal(new DateProblem(DateProblemKind.YearTooLong, start, length), DateNormalizer.DescribeUnrecognized(raw));
+        Assert.Equal(new DateProblem(DateProblemKind.YearTooLong, start, length), DateNormalizer.DescribeUnrecognized(raw, RocOn));
     }
 
     // 全形數字不是常見的日期寫法，半形與全形混用也一樣：兩種民國年設定都讀不成日期，
@@ -265,7 +374,7 @@ public sealed class DateNormalizerTests
         {
             readWithRoc = DateNormalizer.TryNormalize(raw, RocOn, out _);
             readWithoutRoc = DateNormalizer.TryNormalize(raw, RocOff, out _);
-            problem = DateNormalizer.DescribeUnrecognized(raw);
+            problem = DateNormalizer.DescribeUnrecognized(raw, RocOn);
         });
 
         Assert.Null(error);

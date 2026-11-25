@@ -190,6 +190,7 @@ internal static class ActionShapeJourney
             var glExport = await Demo("demo.exportGlFile");
             var tbExport = await Demo("demo.exportTbFile");
             var glPath = Track(SyntheticGl(glExport.GetProperty("filePath").GetString()!));
+            var unreadableApprovalGlPath = Track(SyntheticGl(glExport.GetProperty("filePath").GetString()!, unreadableApprovalDate: true));
             var tbPath = tbExport.GetProperty("filePath").GetString()!;
             shell.NextFiles = [];
             await Send("host.selectFiles", new { title = "選擇 GL 來源檔（可多選）", extensions = SourceExtensions });
@@ -839,9 +840,16 @@ internal static class ActionShapeJourney
             await Send("project.listLocal");
 
             // 審計員打開一開始建的另一個案件，只匯入了總帳就從前面那份底稿帶入配對：只帶入 GL，tb 回 null。
-            await Send("project.load", new { projectId = undatedProject.GetProperty("projectId").GetString() });
+            var undatedProjectId = undatedProject.GetProperty("projectId").GetString();
+            await Send("project.load", new { projectId = undatedProjectId });
             await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx");
             await Send("mapping.restoreDraft", new { filePath = workingPaperCopy });
+            // 審計員改匯入另一份總帳，其中一筆傳票核准日讀不成日期，確認配對後重開案件：GL 配對帶回這次確認的日期提醒。
+            // 第四步「核准日不在期間」的明細裡，這一列的傳票核准日是空的，另帶來源那一格的原文。
+            await ImportAsync("import.gl.fromFile", unreadableApprovalGlPath, "合成總帳（核准日讀不成）.xlsx");
+            await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, new JsonArray()));
+            await Send("project.load", new { projectId = undatedProjectId });
+            await PagedAsync("query.blankRecordsPage", new JsonObject { ["category"] = "approvalDateNotInPeriod" }, "voucherNumber", "SHAPE");
             await Send("host.exitApp");
         }
 
@@ -1150,8 +1158,10 @@ internal static class ActionShapeJourney
     /// 一個整欄空白的欄，以及另一種配對方式用的借方金額、貸方金額、分錄來源與過帳狀態（每七筆有一筆未過帳）；三筆資料的總帳日期清空
     /// （來源資料品質）；另外三筆金額加 1（借貸不平與完整性差異）；再加一張借記 9999 的傳票 SHAPE-9999，這個科目不在試算表與
     /// 科目配對檔（完整性差異與科目配對差異），貸方那一列的攸關金額空白。每種差異都超過一筆，清單才有第二頁。
+    /// <paramref name="unreadableApprovalDate"/> 為 true 時，另把一筆傳票核准日改成讀不成的日期，只給最後那個另建的案件用，
+    /// 前面整段流程的資料不變。
     /// </summary>
-    private static string SyntheticGl(string demoPath)
+    private static string SyntheticGl(string demoPath, bool unreadableApprovalDate = false)
     {
         var path = Path.Combine(Path.GetTempPath(), $"jet-shape-gl-{Guid.NewGuid():N}.xlsx");
         using (var workbook = new XLWorkbook(demoPath))
@@ -1195,6 +1205,14 @@ internal static class ActionShapeJourney
                 var amount = sheet.Cell(row, headers["金額"]);
                 amount.Value = (amount.Value.IsNumber ? amount.Value.GetNumber() : double.Parse(amount.GetString(), CultureInfo.InvariantCulture)) + 1;
             }
+
+            // 另一個案件用的版本多一筆傳票核准日是沒有這一天的日期：確認配對時這一格當成沒有核准日，
+            // 重開案件時 GL 配對帶回這則日期提醒，第四步「核准日不在期間」的明細也帶這一格的來源原文。
+            if (unreadableApprovalDate)
+            {
+                sheet.Cell(6, headers["傳票核准日"]).Value = "2025-02-30";
+            }
+
             for (var line = 1; line <= 2; line++)
             {
                 var row = lastRow + line;

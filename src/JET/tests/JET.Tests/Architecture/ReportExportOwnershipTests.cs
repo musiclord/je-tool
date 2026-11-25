@@ -86,6 +86,90 @@ public sealed class ReportExportOwnershipTests
     }
 
     [Fact]
+    public void ExportTemporaryFiles_OpenOnlyThroughExportSpoolFile()
+    {
+        // 匯出放在 Windows 暫存資料夾、關閉即刪的暫存檔，只能從同一個地方建立與放掉：
+        // 放掉時不丟出新的錯誤、檔案一定關閉刪除，這個做法只寫在一處。
+        var product = ProductSources.ProductRoot;
+        var openers = Directory
+            .EnumerateFiles(product, "*.cs", SearchOption.AllDirectories)
+            .Select(file => Path.GetRelativePath(product, file).Replace('\\', '/'))
+            .Where(relative => relative.Split('/')[0] is not ("bin" or "obj"))
+            .Where(relative => File.ReadAllText(Path.Combine(product, relative))
+                .Contains("FileOptions.DeleteOnClose", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(new[] { "Infrastructure/Export/ExportSpoolFile.cs" }, openers);
+    }
+
+    [Fact]
+    public void OpenXmlWriterCreate_IsCalledOnlyByWorkingPaperWriter()
+    {
+        // 報告的工作表經 FormalWorkbookArchive.OpenWorksheetWriter 寫出，寫法和 Excel 存檔時相同。
+        // OpenXmlWriter.Create 寫出的 XML 帶 BOM、主要命名空間一律加前綴 x，所以產品程式不直接用它。
+        // 工作底稿的輸出維持原本的寫法，續頁與改寫封面這兩處照舊使用。
+        var product = ProductSources.ProductRoot;
+        var callers = Directory
+            .EnumerateFiles(product, "*.cs", SearchOption.AllDirectories)
+            .Select(file => Path.GetRelativePath(product, file).Replace('\\', '/'))
+            .Where(relative => relative.Split('/')[0] is not ("bin" or "obj"))
+            .Where(relative => File.ReadAllText(Path.Combine(product, relative))
+                .Contains("OpenXmlWriter.Create(", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "Infrastructure/Export/WorkingPaperWriter.Template.cs",
+                "Infrastructure/Export/WorkingPaperWriter.cs"
+            },
+            callers);
+    }
+
+    [Fact]
+    public void WorksheetContentStream_IsOpenedOnlyForWorkingPaperWriters()
+    {
+        // FormalWorkbookArchive.OpenWorksheetContent 回傳工作表內容的原始串流，寫進去的 XML 不經過 SpreadsheetXmlWriter：
+        // 不會數共用字串的格數，也不保證沒有 BOM 與前綴。報告的工作表一律用 OpenWorksheetWriter，
+        // 只有維持原本寫法的工作底稿直接開這個串流：續頁，以及在範本工作表上加列的 overlay。
+        // 一般的 XmlWriter.Create 也一樣，只有 SpreadsheetXmlWriter 本身與底稿的 overlay 使用。
+        var product = ProductSources.ProductRoot;
+        var sources = Directory
+            .EnumerateFiles(product, "*.cs", SearchOption.AllDirectories)
+            .Select(file => Path.GetRelativePath(product, file).Replace('\\', '/'))
+            .Where(relative => relative.Split('/')[0] is not ("bin" or "obj"))
+            .Order(StringComparer.Ordinal)
+            .Select(relative => (Path: relative, Text: File.ReadAllText(Path.Combine(product, relative))))
+            .ToArray();
+        var plainXmlWriter = new System.Text.RegularExpressions.Regex(
+            @"(?<![A-Za-z0-9_])XmlWriter\.Create\(",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        Assert.Equal(
+            new[]
+            {
+                "Infrastructure/Export/DirectTemplateWorksheetOverlay.cs",
+                "Infrastructure/Export/WorkingPaperWriter.cs"
+            },
+            sources
+                .Where(source => source.Text.Contains("FormalWorkbookArchive.OpenWorksheetContent(", StringComparison.Ordinal))
+                .Select(source => source.Path)
+                .ToArray());
+        Assert.Equal(
+            new[]
+            {
+                "Infrastructure/Export/DirectTemplateWorksheetOverlay.cs",
+                "Infrastructure/Export/SpreadsheetXmlWriter.cs"
+            },
+            sources
+                .Where(source => plainXmlWriter.IsMatch(source.Text))
+                .Select(source => source.Path)
+                .ToArray());
+    }
+
+    [Fact]
     public void AuditCoreReportPort_DoesNotCarryContentWriterDelegates()
     {
         var source = ReadProduct("AuditCore", "ReportExportProgram.cs");

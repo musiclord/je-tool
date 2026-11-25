@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace JET.Infrastructure;
@@ -186,7 +185,7 @@ internal sealed partial class WorkingPaperWriter
     /// </summary>
     private sealed class WorkingPaperDisplaySpool : IDisposable
     {
-        private readonly FileStream _stream;
+        private readonly ExportSpoolFile _file;
         private readonly BinaryWriter _writer;
         private readonly double[] _minimumWidths;
         private readonly double[] _maximums;
@@ -196,16 +195,13 @@ internal sealed partial class WorkingPaperWriter
         private bool _disposed;
 
         private WorkingPaperDisplaySpool(
-            FileStream stream,
+            ExportSpoolFile file,
             IReadOnlyList<string?> headers,
             IReadOnlyList<double> minimumWidths)
         {
             ValidateDisplaySchema(headers, minimumWidths);
-            _stream = stream;
-            _writer = new BinaryWriter(
-                stream,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                leaveOpen: true);
+            _file = file;
+            _writer = file.Writer;
             _minimumWidths = minimumWidths.ToArray();
             _maximums = headers.Select(ExcelDisplayWidth.Measure).ToArray();
         }
@@ -236,23 +232,14 @@ internal sealed partial class WorkingPaperWriter
             IReadOnlyList<string?> headers,
             IReadOnlyList<double> minimumWidths)
         {
-            var path = Path.Combine(
-                Path.GetTempPath(),
-                $".jet-working-paper-display-{Guid.NewGuid():N}.tmp");
-            var stream = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.ReadWrite,
-                FileShare.None,
-                bufferSize: 1024 * 1024,
-                FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+            var file = ExportSpoolFile.Create(".jet-working-paper-display-", bufferSize: 1024 * 1024);
             try
             {
-                return new WorkingPaperDisplaySpool(stream, headers, minimumWidths);
+                return new WorkingPaperDisplaySpool(file, headers, minimumWidths);
             }
             catch
             {
-                stream.Dispose();
+                file.Dispose();
                 throw;
             }
         }
@@ -309,12 +296,7 @@ internal sealed partial class WorkingPaperWriter
                     "WorkingPaper display spool is already complete.");
             }
 
-            _writer.Flush();
-            _stream.Position = 0;
-            _reader = new BinaryReader(
-                _stream,
-                Encoding.UTF8,
-                leaveOpen: true);
+            _reader = _file.StartReading(throwOnInvalidBytes: false);
             _completed = true;
         }
 
@@ -375,21 +357,7 @@ internal sealed partial class WorkingPaperWriter
                 return;
             }
             _disposed = true;
-            try
-            {
-                _reader?.Dispose();
-            }
-            finally
-            {
-                try
-                {
-                    _writer.Dispose();
-                }
-                finally
-                {
-                    _stream.Dispose();
-                }
-            }
+            _file.Dispose();
         }
 
         private void ThrowIfDisposed()

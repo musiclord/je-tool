@@ -13,6 +13,8 @@ namespace JET.Domain;
 /// 讀取 project.json 時明確拒絕，不回退固定種子或舊排序法。
 /// CalendarImported 是日期檔成功 replace 的持久 marker；新案件一律明寫 false，讓合法零筆匯入與
 /// 從未匯入可區分。缺欄位時一律視為尚未匯入。
+/// 首次發布時寫的設定檔另有進位方式 roundingMode 欄位。金額的進位方式固定寫在 MoneyScaling，不是案件設定，
+/// 所以讀取時不理會這一欄，存檔時也不再寫出；設定檔版本仍是第 2 版。
 /// </summary>
 public sealed record ProjectDocument(
     string ProjectId,
@@ -23,7 +25,6 @@ public sealed record ProjectDocument(
     string PeriodEnd,
     string? LastAccountingPeriodDate,
     int MoneyScale,
-    string RoundingMode,
     DateTimeOffset CreatedUtc,
     int CurrentStep,
     int SchemaVersion,
@@ -36,7 +37,6 @@ public sealed record ProjectDocument(
     bool? CalendarImported = null)
 {
     public const int DefaultMoneyScale = 10_000;
-    public const string DefaultRoundingMode = "AwayFromZero";
     /// <summary>
     /// 案件設定檔的格式版本。比它舊的設定檔是發布前的 JET 寫的，不再讀取；
     /// 之後改了設定檔的格式，仍要讀得出第 2 版的設定檔。
@@ -94,7 +94,6 @@ public sealed record ProjectDocument(
             periodEnd,
             lastAccountingPeriodDate,
             DefaultMoneyScale,
-            DefaultRoundingMode,
             createdUtc,
             CurrentStep: 1,
             CurrentSchemaVersion,

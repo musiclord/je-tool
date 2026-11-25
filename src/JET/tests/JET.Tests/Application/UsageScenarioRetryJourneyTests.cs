@@ -81,9 +81,9 @@ public sealed class UsageScenarioRetryJourneyTests
 
         var error = await Record.ExceptionAsync(() => host.DispatchAsync("export.workingPaperStream", payload));
         Assert.NotNull(error);
-        // The public export boundary sanitizes I/O exceptions; the armed publisher proves
-        // the injected failure occurred during writing instead of depending on leaked text.
-        Assert.IsType<JetActionException>(error);
+        // 寫出途中的讀寫錯誤和範本無關，畫面收到的是共用的意外錯誤訊息，不洩漏例外的原文；
+        // 故意設下的失敗確實發生在寫出工作表的時候。
+        Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, JET.Bridge.JetWebMessageBridge.ToErrorDto(error).Message);
         Assert.True(events.FailedDuringWriting);
         Assert.Equal(oldFile, await File.ReadAllBytesAsync(path));
         Assert.Equal(oldManifest, await File.ReadAllBytesAsync(manifest));

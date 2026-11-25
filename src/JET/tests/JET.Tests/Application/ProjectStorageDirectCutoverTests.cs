@@ -98,7 +98,6 @@ public sealed class ProjectStorageDirectCutoverTests
             "2025-12-31",
             null,
             ProjectDocument.DefaultMoneyScale,
-            ProjectDocument.DefaultRoundingMode,
             new DateTimeOffset(2025, 1, 2, 3, 4, 5, TimeSpan.Zero),
             0,
             ProjectDocument.CurrentSchemaVersion);

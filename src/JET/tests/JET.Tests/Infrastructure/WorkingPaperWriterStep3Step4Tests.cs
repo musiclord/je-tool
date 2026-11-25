@@ -19,11 +19,13 @@ public sealed class WorkingPaperWriterStep3Step4Tests
 {
     // ================= 案件資料庫的內容讀不出來時的回報 =================
 
+    // 欄位型態是匯入時照儲存格型別記下的，來源的內容本來就可能不合型態。傳票摘要的欄位型態改成數值、日期或時間後，
+    // 存下的摘要文字都不合這些型態；底稿第 4-1 頁照存下來的文字寫成文字儲存格，匯出照常完成，不報案件資料庫損壞。
     [Theory]
     [InlineData("number")]
     [InlineData("date")]
     [InlineData("time")]
-    public async Task Step41StoredValueThatDoesNotMatchFieldType_IsReportedAsDatabaseCorruption(string kind)
+    public async Task Step41StoredValueThatDoesNotMatchFieldType_IsWrittenAsTheStoredText(string kind)
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -38,11 +40,28 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             Assert.True(await command.ExecuteNonQueryAsync() > 0);
         }
 
-        var error = await Assert.ThrowsAsync<JetActionException>(() => WriteDemoAndReadAsync(host, context.ProjectId));
+        var storedDescriptions = (await DemoProjectPipeline.QueryStringListAsync(host, context.ProjectId,
+                "SELECT DISTINCT description FROM gl WHERE description IS NOT NULL AND description <> '';"))
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
 
-        Assert.Equal(JetErrorCodes.DatabaseCorrupt, error.Code);
-        Assert.Contains("備份", error.Message);
-        Assert.DoesNotContain("重新下載", error.Message);
+        using var workbook = await WriteDemoAndReadAsync(host, context.ProjectId);
+
+        var sheet = workbook.Worksheet(Step41Sheet);
+        var descriptionColumn = sheet.Row(5).CellsUsed()
+            .Single(cell => cell.GetString() == "傳票摘要_JE")
+            .Address.ColumnNumber;
+        // 示範資料有些分錄沒有摘要，那幾格照舊留白；有摘要的格子都是文字儲存格，內容是存下來的摘要。
+        var written = Enumerable.Range(6, sheet.LastRowUsed()!.RowNumber() - 5)
+            .Select(row => sheet.Cell(row, descriptionColumn))
+            .Where(cell => cell.DataType != XLDataType.Blank)
+            .ToList();
+        Assert.NotEmpty(written);
+        Assert.All(written, cell =>
+        {
+            Assert.Equal(XLDataType.Text, cell.DataType);
+            Assert.Contains(cell.GetString(), storedDescriptions);
+        });
     }
 
     [Theory]
@@ -792,6 +811,170 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         using var workbook = new XLWorkbook(stream);
         var sheet = workbook.Worksheet(Step41Sheet);
         Assert.Equal(new DateTime(2025, 3, 6), sheet.Cell(6, approverColumn).GetDateTime());
+        int[] textRows = [7, 8, 9];
+        Assert.Equal(
+            ["Text|NaN", "Text|Infinity", "Text|-Infinity"],
+            textRows.Select(row => sheet.Cell(row, approverColumn).DataType + "|" + sheet.Cell(row, approverColumn).GetString()));
+    }
+
+    // 其他程式產生的 xlsx 用 t="d" 的儲存格寫日期的文字，也可能寫進不是日期的內容。PBC-GL 照原文存下，
+    // 底稿第 4-1 頁照存下來的文字寫成文字儲存格，匯出照常完成；讀得成日期的 2025-03-06 也照原文寫成文字。
+    [Fact]
+    public async Task Step41_DateTypedCellThatIsNotADate_ExportsWithTheStoredText()
+    {
+        string[] written = ["2025-03-06", "abc", "2025-02-30", "13:45"];
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns(
+                    "傳票號碼",
+                    "傳票項次",
+                    "傳票日期",
+                    "核准日期",
+                    "科目代號",
+                    "科目名稱",
+                    "摘要",
+                    "金額",
+                    "借方旗標",
+                    "核准人員");
+                for (var index = 0; index < written.Length; index++)
+                {
+                    gl.AddRow(
+                        $"DOC-{index + 1:D4}", "01", "2025-03-05", "2025-03-06", "1101", "現金", $"命中 SEQ-{index + 1:D4}",
+                        1m, index == 0 ? 1 : 0, new DateTypedCell(written[index]));
+                }
+            },
+            validateForDownstream: true);
+        await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new
+            {
+                populationScope = GlPopulationScopeValues.AuditPeriod,
+                scenarios = new[]
+                {
+                    new
+                    {
+                        name = "t=d 的儲存格",
+                        rationale = "匯出不能因為這一格失敗",
+                        groups = new[]
+                        {
+                            new
+                            {
+                                join = "and",
+                                conditions = new[]
+                                {
+                                    new
+                                    {
+                                        join = "and",
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+
+        var context = await CurrentContextForAsync(host, projectId);
+        var plan = await CurrentPlanForAsync(host, context);
+        await using var stream = new MemoryStream();
+        var exportError = await Record.ExceptionAsync(() =>
+            ((IWorkingPaperPlanWriter)BuildWriter(host)).WriteAsync(stream, context, plan, CancellationToken.None));
+        Assert.Null(exportError);
+
+        var approverColumn = plan.Step41Columns
+            .Select(column => column.Header)
+            .ToList()
+            .IndexOf("傳票核准人員_JE") + 1;
+        Assert.True(approverColumn > 0);
+        stream.Position = 0;
+        using var workbook = new XLWorkbook(stream);
+        var sheet = workbook.Worksheet(Step41Sheet);
+        Assert.Equal(
+            written.Select(text => "Text|" + text),
+            Enumerable.Range(6, written.Length)
+                .Select(row => sheet.Cell(row, approverColumn).DataType + "|" + sheet.Cell(row, approverColumn).GetString()));
+    }
+
+    // 其他程式產生的 xlsx 可能在沒有套日期格式的數值儲存格寫 NaN 或無限大，讀取器照原文存下「NaN」「Infinity」「-Infinity」。
+    // 這不是數值，底稿第 4-1 頁照存下來的文字寫成文字儲存格，匯出照常完成；同一欄的 1001 仍寫成數值儲存格。
+    [Fact]
+    public async Task Step41_NumberCellThatIsNaNOrInfinity_IsWrittenAsTheStoredText()
+    {
+        double[] written = [1001d, double.NaN, double.PositiveInfinity, double.NegativeInfinity];
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns(
+                    "傳票號碼",
+                    "傳票項次",
+                    "傳票日期",
+                    "核准日期",
+                    "科目代號",
+                    "科目名稱",
+                    "摘要",
+                    "金額",
+                    "借方旗標",
+                    "核准人員");
+                for (var index = 0; index < written.Length; index++)
+                {
+                    gl.AddRow(
+                        $"DOC-{index + 1:D4}", "01", "2025-03-05", "2025-03-06", "1101", "現金", $"命中 SEQ-{index + 1:D4}",
+                        1m, index == 0 ? 1 : 0, written[index]);
+                }
+            },
+            validateForDownstream: true);
+        await host.DispatchAsync(
+            "filter.commit",
+            JsonSerializer.Serialize(new
+            {
+                populationScope = GlPopulationScopeValues.AuditPeriod,
+                scenarios = new[]
+                {
+                    new
+                    {
+                        name = "不是有限數值的數值儲存格",
+                        rationale = "匯出不能因為這一格失敗",
+                        groups = new[]
+                        {
+                            new
+                            {
+                                join = "and",
+                                conditions = new[]
+                                {
+                                    new
+                                    {
+                                        join = "and",
+                                        type = "fieldValue", field = "description", @operator = "contains", values = new[] { "命中" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+
+        var context = await CurrentContextForAsync(host, projectId);
+        var plan = await CurrentPlanForAsync(host, context);
+        await using var stream = new MemoryStream();
+        var exportError = await Record.ExceptionAsync(() =>
+            ((IWorkingPaperPlanWriter)BuildWriter(host)).WriteAsync(stream, context, plan, CancellationToken.None));
+        Assert.Null(exportError);
+
+        var approverColumn = plan.Step41Columns
+            .Select(column => column.Header)
+            .ToList()
+            .IndexOf("傳票核准人員_JE") + 1;
+        Assert.True(approverColumn > 0);
+        stream.Position = 0;
+        using var workbook = new XLWorkbook(stream);
+        var sheet = workbook.Worksheet(Step41Sheet);
+        Assert.Equal(XLDataType.Number, sheet.Cell(6, approverColumn).DataType);
+        Assert.Equal(1001d, sheet.Cell(6, approverColumn).GetDouble());
         int[] textRows = [7, 8, 9];
         Assert.Equal(
             ["Text|NaN", "Text|Infinity", "Text|-Infinity"],

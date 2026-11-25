@@ -317,7 +317,6 @@ public sealed class ExportValidationReportsTypedSeamTests
         PeriodEnd: "2025-12-31",
         LastAccountingPeriodDate: "2024-12-31",
         MoneyScale: ProjectDocument.DefaultMoneyScale,
-        RoundingMode: ProjectDocument.DefaultRoundingMode,
         CreatedUtc: DateTimeOffset.UnixEpoch,
         CurrentStep: 4,
         SchemaVersion: ProjectDocument.CurrentSchemaVersion);

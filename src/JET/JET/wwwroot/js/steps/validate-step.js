@@ -15,21 +15,8 @@
   }
   var differencePrecisionNote = '差額顯示為「不足 0.01」時，完整數字請見驗證報告。';
 
-  function withControlTotals(validation, detail) {
-    var totals = validation.completenessTest.storedTotals || {}, source = totals.eligibleSource || {}, target = totals.gl || {};
-    var control = {
-      kind: 'table',
-      // 兩欄都是 JET 自己算的數字，一欄在確認配對時算出，一欄在存下後重新計算；不比對來源檔本身。
-      columns: ['核對項目', '確認配對時算出', '存下後重新計算'],
-      numeric: [1, 2],
-      rows: [['分錄筆數', Ui.countText(source.rowCount), Ui.countText(target.rowCount)],
-        ['借方合計', Ui.money(source.totalDebit), Ui.money(target.totalDebit)],
-        ['貸方合計', Ui.money(source.totalCredit), Ui.money(target.totalCredit)]]
-    };
-    return { kind: 'sections', sections: detail ? [control, detail] : [control] };
-  }
-
-  // 完整性測試的第一個檢查：存下的分錄筆數與借貸合計，和確認配對時算出的是否一致。後端 storedTotals 缺漏時所有值為 null，不算不符。
+  // 完整性測試在背後先核對存下的分錄筆數與借貸合計，和確認配對時算出的是否一致；畫面只在不一致時提示。
+  // 後端 storedTotals 缺漏時所有值為 null，不算不符。
   function controlTotalsMismatch(validation) {
     var storedTotals = validation.completenessTest.storedTotals;
     return !!storedTotals && (storedTotals.rowCountMatch === false || storedTotals.amountMatch === false);
@@ -374,6 +361,13 @@
   // 「核准日不在期間」的明細多一欄傳票核准日，接在總帳日期後面，審計員才看得出核准日落在哪一天；其他類別不顯示這一欄。
   function showsApprovalDate(category) { return category === 'approvalDateNotInPeriod'; }
 
+  // 讀不成日期的傳票核准日在 GL 也是空的；後端另帶來源那一格的原文，這一格寫「無法辨識：」加原文，和空白分開。
+  // 分頁表格寫入儲存格前會跳脫文字，原文不會被當成標記。
+  function approvalDateCell(r) {
+    if (r.approvalDate) { return r.approvalDate; }
+    return r.approvalDateRawValue ? '無法辨識：' + r.approvalDateRawValue : '';
+  }
+
   // 空值子項對應後端 category 與固定的「異常類別」顯示字；id 形如 null-<category>，動態註冊進 DETAIL_PAGE_SPECS
   // （columns 與既有空值 table 欄序對齊）。空白摘要只在預篩選訊號那一處呈現，這裡不註冊它的明細頁。
   function blankPageSpec(category, categoryLabel) {
@@ -382,7 +376,7 @@
       function (r) { return r.accountNumber || ''; },
       function (r) { return r.glDate || ''; }
     ];
-    if (showsApprovalDate(category)) { columns.push(function (r) { return r.approvalDate || ''; }); }
+    if (showsApprovalDate(category)) { columns.push(approvalDateCell); }
     columns.push(
       function (r) { return r.description || ''; },
       function () { return categoryLabel; });
@@ -491,8 +485,8 @@
   var VALIDATION_ITEMS = [
     {
       title: '完整性測試',
-      // 照實說明第一項比對的對象。最後一句寫要確認什麼，不寫「可能」。
-      desc: '先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。再比對各科目的總帳本期借貸淨額與年度變動金額。金額不符時，要確認 GL 分錄是否完整。',
+      // 說明寫審計員看得到的逐科目比對；JET 自己的寫入核對在背後做，不寫在說明裡。最後一句寫要確認什麼，不寫「可能」。
+      desc: '比對各科目的 GL 本期借貸淨額與 TB 年度變動金額。金額不符時，要確認 GL 分錄是否完整。',
       status: function (v) {
         if (!v) { return null; }
         var eligibility = Ui.completenessEligibility(v);
@@ -522,7 +516,7 @@
               Ui.moneyDifference(d.diff)
             ];
           });
-          return withControlTotals(v, {
+          return {
             kind: 'table',
             columns: ['科目編號', '科目名稱', 'TB 金額', 'GL 金額', '差額'],
             numeric: [2, 3, 4],
@@ -531,12 +525,12 @@
             rows: rows,
             prefix: [eligibility.reason || eligibility.warning, differencePrecisionNote].filter(Boolean).join(' '),
             pageQuery: 'completeness'
-          });
+          };
         }
         if (!eligibility.isEligible || eligibility.warning) {
-          return withControlTotals(v, { kind: 'reason', text: eligibility.reason || eligibility.warning });
+          return { kind: 'reason', text: eligibility.reason || eligibility.warning };
         }
-        return withControlTotals(v, null);
+        return null;
       }
     },
     {

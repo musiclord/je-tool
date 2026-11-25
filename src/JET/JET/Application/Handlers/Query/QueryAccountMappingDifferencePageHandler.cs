@@ -16,8 +16,8 @@ public sealed class QueryAccountMappingDifferencePageHandler(ProjectSession sess
         var cursor = PayloadReader.GetOptionalString(payload, "cursor");
         if (PageCursor.IsMalformed(cursor))
             throw new JetActionException(JetErrorCodes.InvalidPayload, "無法接續上一頁，請重新列出科目。");
-        var pageSize = PayloadReader.GetOptionalInt(payload, "pageSize") ?? PageRequest.DefaultPageSize;
-        var page = await repositories.AccountMappingDifferences.GetPageAsync(projectId, kind, new PageRequest(cursor, Math.Clamp(pageSize <= 0 ? 200 : pageSize, 1, 200), IncludeTotalCount: string.IsNullOrEmpty(cursor)), cancellationToken);
+        var pageSize = PageRequestReader.ReadPageSize(payload);
+        var page = await repositories.AccountMappingDifferences.GetPageAsync(projectId, kind, new PageRequest(cursor, pageSize, IncludeTotalCount: string.IsNullOrEmpty(cursor)), cancellationToken);
         return new
         {
             kind,

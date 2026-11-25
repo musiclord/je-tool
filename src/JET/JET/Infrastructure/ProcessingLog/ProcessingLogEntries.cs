@@ -663,7 +663,12 @@ internal static class ProcessingLogEntries
 
     private static string DateNotice(JsonElement notice)
     {
-        var kind = Text(notice, "kind") == "unusualYear" ? "年份不在 1900 到 2100 年之間" : "讀不成日期";
+        var kind = Text(notice, "kind") switch
+        {
+            "unusualYear" => "年份不在 1900 到 2100 年之間",
+            "textInWorkingPaper" => "日期早於 1900-03-01、底稿寫成文字",
+            _ => "讀不成日期"
+        };
         var handling = Text(notice, "handling") switch
         {
             "excluded" => "整列列入 GL(未納入測試)",
