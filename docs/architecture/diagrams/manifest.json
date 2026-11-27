@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "scope": "frozen-snapshot-redraw-not-current-product",
-  "snapshotRun": "2026-11-16-head-63d5d74",
+  "snapshotRun": "2026-11-27-head-018a21d",
   "snapshot": {
-    "source": "je-tool committed tree at 63d5d748319d8a263d03b45fba5a392fb26e05d1 (git archive; working-tree edits excluded)",
-    "commit": "63d5d748319d8a263d03b45fba5a392fb26e05d1",
-    "createdUtc": "2026-11-16T05:57:18.1580300Z"
+    "source": "je-tool committed tree at 018a21de61bbda23b461d7dd70e868922f45b65c (git archive; working-tree edits excluded)",
+    "commit": "018a21de61bbda23b461d7dd70e868922f45b65c",
+    "createdUtc": "2026-11-27T08:13:36.2190030Z"
   },
-  "redrawDate": "2026-11-16",
+  "redrawDate": "2026-11-27",
   "versions": {
     "repowise": "0.56.0",
     "roslyn": "5.9.0.0",
@@ -22,7 +22,7 @@
       "candidate": "archify/filter-save/candidate.json",
       "html": "archify/filter-save/filter-save.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -38,7 +38,7 @@
       "candidate": "archify/tb-import/candidate.json",
       "html": "archify/tb-import/tb-import.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -54,7 +54,7 @@
       "candidate": "archify/workpaper/candidate.json",
       "html": "archify/workpaper/workpaper.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -70,7 +70,7 @@
       "candidate": "archify/intake-dataflow/candidate.json",
       "html": "archify/intake-dataflow/intake-dataflow.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -86,7 +86,7 @@
       "candidate": "archify/audit-dataflow/candidate.json",
       "html": "archify/audit-dataflow/audit-dataflow.html",
       "finalize": {
-        "review": "review-5",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -102,12 +102,12 @@
       "candidate": "archify/deployment/candidate.json",
       "html": "archify/deployment/deployment.html",
       "finalize": {
-        "review": "review-3",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
       },
-      "finalizedHtmlSha256": "1e79612da485c0186bfdcf16eb10e3f2010a033676f769176b8f2b677a96af3f",
+      "finalizedHtmlSha256": "6ee8042c9fa4f68a4251f5cefbfee38c29c8005675b301b2e446a54cadca8bb2",
       "candidateSha256": "79e15659a05da9e00bd589470e0bf02854b6183614870baeb071e4a4740a607d",
       "htmlSha256": "842826710058885800b1b454a554fb5c97ddc39a9878a4908b337bb1e679e774"
     },
@@ -118,7 +118,7 @@
       "candidate": "archify/maintenance/candidate.json",
       "html": "archify/maintenance/maintenance.html",
       "finalize": {
-        "review": "review-5",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -134,7 +134,7 @@
       "candidate": "archify/action-sequence/candidate.json",
       "html": "archify/action-sequence/action-sequence.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -150,7 +150,7 @@
       "candidate": "archify/import-sequence/candidate.json",
       "html": "archify/import-sequence/import-sequence.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -166,7 +166,7 @@
       "candidate": "archify/workpaper-sequence/candidate.json",
       "html": "archify/workpaper-sequence/workpaper-sequence.html",
       "finalize": {
-        "review": "review-6",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -182,7 +182,7 @@
       "candidate": "archify/bridge-classes/candidate.json",
       "html": "archify/bridge-classes/bridge-classes.html",
       "finalize": {
-        "review": "review-3",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -198,7 +198,7 @@
       "candidate": "archify/action-handler-contract/candidate.json",
       "html": "archify/action-handler-contract/action-handler-contract.html",
       "finalize": {
-        "review": "review-2",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -214,14 +214,14 @@
       "candidate": "archify/filter-types/candidate.json",
       "html": "archify/filter-types/filter-types.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
       },
-      "finalizedHtmlSha256": "cd94575ab545d1dae002e5e7e20c8f05cf19a7189f48ad9cf3ac494018d45a8c",
-      "candidateSha256": "f71b1d424b0841221bf5909721b142dfbfff8f80472c8b577e07a6b3b529479f",
-      "htmlSha256": "76d804e0eb1f089af7dc675d07a349090656cf18c9b9cbeef08b3199d5551e70"
+      "finalizedHtmlSha256": "3cc5716ec21ca702a9561f96b6e11f0cc4aebb18b35a7e20f1697da23c6177e6",
+      "candidateSha256": "6189d3d7a635812b14bb17cee25f1f27b96d4dab9df9112285b67ffa72515f13",
+      "htmlSha256": "f2e1f076b6508dcd196a6584f8991f7fd1c2568dbefc3e8076c6ad7366d16e08"
     },
     {
       "id": "filter-types-contracts",
@@ -230,7 +230,7 @@
       "candidate": "archify/filter-types-contracts/candidate.json",
       "html": "archify/filter-types-contracts/filter-types-contracts.html",
       "finalize": {
-        "review": "review-3",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -246,7 +246,7 @@
       "candidate": "archify/import-classes/candidate.json",
       "html": "archify/import-classes/import-classes.html",
       "finalize": {
-        "review": "review-3",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -262,7 +262,7 @@
       "candidate": "archify/import-classes-write/candidate.json",
       "html": "archify/import-classes-write/import-classes-write.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -278,7 +278,7 @@
       "candidate": "archify/export-classes/candidate.json",
       "html": "archify/export-classes/export-classes.html",
       "finalize": {
-        "review": "review-4",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -294,7 +294,7 @@
       "candidate": "archify/export-classes-write/candidate.json",
       "html": "archify/export-classes-write/export-classes-write.html",
       "finalize": {
-        "review": "review-2",
+        "review": "review-1",
         "quality": "showcase",
         "version": "3.2.0",
         "ok": true
@@ -310,7 +310,7 @@
       "candidate": "archify/import-erd/candidate.json",
       "html": "archify/import-erd/import-erd.html",
       "finalize": {
-        "review": "review-6",
+        "review": "review-1",
         "quality": "standard",
         "version": "3.2.0",
         "ok": true
@@ -326,7 +326,7 @@
       "candidate": "archify/import-rows-erd/candidate.json",
       "html": "archify/import-rows-erd/import-rows-erd.html",
       "finalize": {
-        "review": "review-2",
+        "review": "review-1",
         "quality": "standard",
         "version": "3.2.0",
         "ok": true
@@ -342,7 +342,7 @@
       "candidate": "archify/projection-erd/candidate.json",
       "html": "archify/projection-erd/projection-erd.html",
       "finalize": {
-        "review": "review-3",
+        "review": "review-1",
         "quality": "standard",
         "version": "3.2.0",
         "ok": true
@@ -358,7 +358,7 @@
       "candidate": "archify/gl-rde-erd/candidate.json",
       "html": "archify/gl-rde-erd/gl-rde-erd.html",
       "finalize": {
-        "review": "review-2",
+        "review": "review-1",
         "quality": "standard",
         "version": "3.2.0",
         "ok": true
@@ -374,7 +374,7 @@
       "candidate": "archify/rules-erd/candidate.json",
       "html": "archify/rules-erd/rules-erd.html",
       "finalize": {
-        "review": "review-5",
+        "review": "review-1",
         "quality": "standard",
         "version": "3.2.0",
         "ok": true
@@ -390,7 +390,7 @@
       "candidate": "archify/filter-results-erd/candidate.json",
       "html": "archify/filter-results-erd/filter-results-erd.html",
       "finalize": {
-        "review": "review-3",
+        "review": "review-1",
         "quality": "standard",
         "version": "3.2.0",
         "ok": true
@@ -401,19 +401,19 @@
     },
     {
       "id": "system-erd",
-      "title": "SQLite：結果狀態與操作紀錄",
+      "title": "SQLite：案件設定、結果狀態與操作紀錄",
       "type": "erd",
       "candidate": "archify/system-erd/candidate.json",
       "html": "archify/system-erd/system-erd.html",
       "finalize": {
-        "review": "review-3",
+        "review": "review-4",
         "quality": "standard",
         "version": "3.2.0",
         "ok": true
       },
-      "finalizedHtmlSha256": "1e1a6c2989fc576172583790e2cce6ba8fc22214a67e65c96a36f91eef1ceb99",
-      "candidateSha256": "80f545ba079616886f79fabfee1b411ba2feda0da9c3a4366c83e9b82670e4f4",
-      "htmlSha256": "8a47816dca76d374d82900007dcae5d22b385cc957ef73edb0989d9123509217"
+      "finalizedHtmlSha256": "c4ffb0d86cfe9a41e4049636a27cafeef392bdc7fd34110ddd9ce0ab3044a395",
+      "candidateSha256": "8d174e7375fccf635333f2dd8fc13bb620be4874e44f1645900854ec7a03f711",
+      "htmlSha256": "b122be6b2c4547bb10717193615af4e68fec38faeb21866847ac67fba0a372b7"
     }
   ],
   "readingOrder": [
@@ -498,8 +498,8 @@
   "likec4Model": "likec4/jet.c4",
   "likec4Export": {
     "html": "likec4/index.html",
-    "sourceSha256": "d582c42014c8cc91f8236eda83dc0a0afea24ebb3b36cda1b0330dd0c4eda7d7",
-    "portableSha256": "78b6506490e24c1947beca206b334142622c0e0f1b4a79392bc78ab269c1eee8",
+    "sourceSha256": "e0527aeafb936c10ce1dd9bfde0760f26e0c587c41c54730b6f73500ca94ad08",
+    "portableSha256": "ce1e00409957c7841af587f6bacad4c4d9401bb93ccb8f59edb01587bb542a53",
     "rewrittenLocalLinks": 56,
     "transformation": "Rewrite local links relative to the package root, inline the favicon and insert likec4/jet-theme.css; keep the model and layout.",
     "themeConfig": "likec4/likec4.config.json"
@@ -594,11 +594,11 @@
     },
     {
       "path": "archify/filter-types/candidate.json",
-      "sha256": "f71b1d424b0841221bf5909721b142dfbfff8f80472c8b577e07a6b3b529479f"
+      "sha256": "6189d3d7a635812b14bb17cee25f1f27b96d4dab9df9112285b67ffa72515f13"
     },
     {
       "path": "archify/filter-types/filter-types.html",
-      "sha256": "76d804e0eb1f089af7dc675d07a349090656cf18c9b9cbeef08b3199d5551e70"
+      "sha256": "f2e1f076b6508dcd196a6584f8991f7fd1c2568dbefc3e8076c6ad7366d16e08"
     },
     {
       "path": "archify/filter-types-contracts/candidate.json",
@@ -694,11 +694,11 @@
     },
     {
       "path": "archify/system-erd/candidate.json",
-      "sha256": "80f545ba079616886f79fabfee1b411ba2feda0da9c3a4366c83e9b82670e4f4"
+      "sha256": "8d174e7375fccf635333f2dd8fc13bb620be4874e44f1645900854ec7a03f711"
     },
     {
       "path": "archify/system-erd/system-erd.html",
-      "sha256": "8a47816dca76d374d82900007dcae5d22b385cc957ef73edb0989d9123509217"
+      "sha256": "b122be6b2c4547bb10717193615af4e68fec38faeb21866847ac67fba0a372b7"
     },
     {
       "path": "archify/tb-import/candidate.json",
@@ -726,23 +726,23 @@
     },
     {
       "path": "connections.html",
-      "sha256": "5d5b5ba06dccb1b45d6cdc46f23498879cb90b5455f63474e1ff1ec61df96aae"
+      "sha256": "e23f32e3875ae2c635fe61cb7f224a3864cdeb6313859236c653d838dfa634c3"
     },
     {
       "path": "evidence/class-relations.json",
-      "sha256": "c885a05db8772c558fb8203fc0cb1c48b3cb6b78ed555e971d7b9f4a4fa61b61"
+      "sha256": "55663dd7e39c162d65bd7ada9ca8bd8169fada2a1728da1f5f68e4fd70cc2fe0"
     },
     {
       "path": "evidence/class-signatures.json",
-      "sha256": "4d46ad58bd353b349b8ed7d3a959422475353f539a7ab8fc473a1eba754b295e"
+      "sha256": "e465934f1e2196bcad2b0013c3d4f8af25025094fcbceaf669d5a232ee13f3a8"
     },
     {
       "path": "evidence/connection-evidence.json",
-      "sha256": "56cf2170cbe001d664e9cbda79a20c819f029eca9a9ffb2b310acacb04427db1"
+      "sha256": "a4d0ef06dbe2bec324322e4ae2a3f29493cf2c3642f172ab417dd5b5bcf6b1e7"
     },
     {
       "path": "evidence/diagram-bindings.json",
-      "sha256": "f626ffb4201f6f8cbf7aae14937fa8f7625175187189a8605ce1a5084c303b9e"
+      "sha256": "da641ed18a7ebd2af49ee751d486de4faaa079d3d95e6117dabaee8c96844496"
     },
     {
       "path": "evidence/dynamic-view-pairs.json",
@@ -750,35 +750,35 @@
     },
     {
       "path": "evidence/member-sources.json",
-      "sha256": "a134647182dea0f2dcb49869effab54e81b65ad469b43f2c236093b1ad22cf35"
+      "sha256": "430cfa71a39f6549f76989cc3df62c71ccb6825915d8685412bc5727cf990b8a"
     },
     {
       "path": "evidence/normalized-relations.json",
-      "sha256": "025c3abd89d8a1aae075b02ae764cae68732b797a9c621fdcc4189fb25a82abf"
+      "sha256": "882d2a2655a59194727568df2a041e84316c7c1e60e2f74032a57386ce714a9c"
     },
     {
       "path": "evidence/source-excerpts.json",
-      "sha256": "6a7804bb4c4ebec761f40bfb5382c26cb427427f8d6b243f64f016332d6593ee"
+      "sha256": "653ceb4e8c4496f20b8e00dd4ad26f2601d03eea2ef06141178976bd4865cdec"
     },
     {
       "path": "evidence/source-manifest.json",
-      "sha256": "890c63c9630a11146379a6fc363cd3923ab51e015771bbb0a5f7d92c2b1c5aee"
+      "sha256": "63b0b7237a8133a00434723ad06f0c62d92a312c8fceda1a44ce8961fa3d82e9"
     },
     {
       "path": "evidence/sqlite-schema.json",
-      "sha256": "9fe9167333f06bcfa51b2e9baa812f7e6977f0c36d71040d5d32462f6b8385f5"
+      "sha256": "a732756c61e8bf867488d1a0a7879c0cc03761e0bd82338396edacc82bfc1397"
     },
     {
       "path": "evidence/verified-facts.json",
-      "sha256": "b89db5763eb6c7e05095e5f4898119a3d59c3bed62e25a46309426463459af3b"
+      "sha256": "af4955376508d65fc88965c4ed4a824f9941c675376ea3edb400776c86c812be"
     },
     {
       "path": "evidence.html",
-      "sha256": "8240f38d082404c1237fd47693b5e7d0ebc19e8ae8fc06d0d48145addd7d6c38"
+      "sha256": "8ab54037f3b4e2bd910f99be889277b008d892eed09e1aa552505f5072bc89e0"
     },
     {
       "path": "index.html",
-      "sha256": "710d7ffa03df9a540d3a794165adfafae4fbf87b5c72339fbdac852ee917d251"
+      "sha256": "4bad2b6f46e87d7b786f0d885acd98f53c47d6cc67421be7c48de98479f8aaa0"
     },
     {
       "path": "licenses/archify-LICENSE.txt",
@@ -790,7 +790,7 @@
     },
     {
       "path": "likec4/index.html",
-      "sha256": "78b6506490e24c1947beca206b334142622c0e0f1b4a79392bc78ab269c1eee8"
+      "sha256": "ce1e00409957c7841af587f6bacad4c4d9401bb93ccb8f59edb01587bb542a53"
     },
     {
       "path": "likec4/jet-theme.css",
@@ -810,11 +810,11 @@
     },
     {
       "path": "schema.html",
-      "sha256": "4e48eaa1ee354ce3b14563d16ff96b9aacbaf5ddeffc11bc62e6fda63341e63c"
+      "sha256": "6a6ab7e96ffdca58378b92c731614b6e3593f54d088b133586fe8aaac3268be7"
     },
     {
       "path": "types.html",
-      "sha256": "c218cdd6307f639bb9d5151183f107b3200bfc8cf9f572f0fb57918a5946b251"
+      "sha256": "638e509756da378996180dd102ffb81c5780ca669bb38142ed39346d43f83f01"
     }
   ],
   "limitations": [

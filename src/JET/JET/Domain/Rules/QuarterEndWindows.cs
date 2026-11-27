@@ -16,7 +16,7 @@ public static class QuarterEndWindows
 {
     public const int MinWindowDays = 1;
 
-    /// <summary>一季約 92 天；超過即跨季重疊，無審計意義，作為輸入上界。</summary>
+    /// <summary>一季約 92 天；超過就會和其他季的視窗重疊，所以作為輸入上界。</summary>
     public const int MaxWindowDays = 92;
 
     private static readonly (int Month, int Day)[] CalendarQuarterEnds =

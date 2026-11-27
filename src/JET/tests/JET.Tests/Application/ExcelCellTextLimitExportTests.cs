@@ -107,7 +107,7 @@ public sealed class ExcelCellTextLimitExportTests
         Assert.Equal(expected, Warnings(exported));
     }
 
-    /// <summary>給審計員看的句子逐字寫在這裡，當成獨立的預期值；這裡的檔案都不超過五張工作表。</summary>
+    /// <summary>給使用者看的句子逐字寫在這裡，當成獨立的預期值；這裡的檔案都不超過五張工作表。</summary>
     private static string ExpectedWarning(string fileName, IReadOnlyList<(string Sheet, int Count)> sheets) =>
         $"檔案「{fileName}」有 {sheets.Sum(sheet => sheet.Count)} 個儲存格的文字超過 Excel 每格 32,767 字的上限，"
         + "已寫到上限並在儲存格結尾註明已截斷："

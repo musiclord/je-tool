@@ -13,7 +13,7 @@
     // 日曆選項的入口、選項與讀回用同一個詞。
     isWeekend: '在週末', isNotWeekend: '不在週末', isHoliday: '在國定假日', isNotHoliday: '不在國定假日',
     isMakeupDay: '在補班日', isNotMakeupDay: '不在補班日', isNonBusinessDay: '在非營業日', isNotNonBusinessDay: '不在非營業日',
-    // 舊版「特定數字篩選」的包含與排除，名稱照用。
+    // 包含與排除的名稱照舊版的「特定數字篩選」。
     containsDigits: '整數部分包含', notContainsDigits: '整數部分不包含',
     endsWithDigits: '整數尾數符合', notEndsWithDigits: '整數尾數不符合',
     // 尾數連續多個 0：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
@@ -68,7 +68,7 @@
   // 整數尾數與整數部分包含的值都是逗號分隔的數字，輸入、計數與檢查相同。
   function isDigitList(op) { return isTail(op) || isDigitContains(op); }
   function isZeroRun(op) { return op === 'endsWithZeros' || op === 'notEndsWithZeros'; }
-  // 尾數連續多個 0 加入時預設的個數：第四步預篩選由 GL 借方平均算出的個數；還沒確認 GL 配對時留空，由審計員填。
+  // 尾數連續多個 0 加入時預設的個數：第四步預篩選由 GL 借方平均算出的個數；還沒確認 GL 配對時留空，由使用者填。
   function zeroRunDefault() { var zeros = Ui.trailingZeroDigits(); return zeros ? String(zeros) : ''; }
   // 尾數比對與尾數連續多個 0 都只看整數部分、忽略正負號，不接金額比較基準。
   function ignoresSign(op) { return isTail(op) || isZeroRun(op) || isDigitContains(op); }
@@ -316,7 +316,7 @@
       catch (error) { request = Promise.reject(error); }
       redraw();
       // 回應回來時要不要用。之後又送了別的讀取時，這一筆只是過期，科目樹由後面那一筆負責。
-      // 這一筆仍是最後一筆，但條件已經沒有科目樹、換了案件或資料，或審計員已經離開送出時的那一步：不用這個回應，
+      // 這一筆仍是最後一筆，但條件已經沒有科目樹、換了案件或資料，或使用者已經離開送出時的那一步：不用這個回應，
       // 不改條件也不重畫，只把讀取中的記號收起；科目樹回到還沒讀取的樣子，不會一直寫「正在載入科目…」，也不留下之前的頁碼。
       function accepted() {
         if (tree.sequence !== sequence) { return false; }
@@ -439,7 +439,7 @@
     });
   }
   function excluded(rule, mode) { return !!mode && (rule.operator === mode.no || rule.operator === 'notEquals'); }
-  // 文字欄位的否定比較預設把欄位空白的分錄也列入，審計員可以取消；日期與金額預設不列入。
+  // 文字欄位的否定比較預設把欄位空白的分錄也列入，使用者可以取消；日期與金額預設不列入。
   function blankIncludedByDefault(type, operator) {
     return type === 'text' && ['notEquals', 'notContains', 'notStartsWith', 'notEndsWith', 'notIn'].indexOf(operator) >= 0;
   }
@@ -554,7 +554,7 @@
           //已選的條件照樣顯示。
           var listKey = !item ? null : item.key === 'holiday' ? 'holidayCalendar' : item.key === 'makeup' ? 'makeupCalendar' : null;
           var blocked = !!listKey && choice !== item && !Ui.rulePrerequisiteMet(state, listKey);
-          // 一定有值的欄位不列「空白」這一項；已存的條件選了它時照樣顯示，審計員看得到要改的是哪一條。
+          // 一定有值的欄位不列「空白」這一項；已存的條件選了它時照樣顯示，使用者看得到要改的是哪一條。
           if (item && item.key === 'blank' && choice !== item && neverBlank(rule, state)) { return ''; }
           return item ? '<option value="' + item.key + '"' + (choice === item && !view.periodEnd ? ' selected' : '') + (blocked ? ' disabled' : '') + '>' +
             item.label + (blocked ? '（' + Ui.esc(Ui.rulePrerequisiteReason(state, listKey)) + '）' : '') + '</option>' : '';

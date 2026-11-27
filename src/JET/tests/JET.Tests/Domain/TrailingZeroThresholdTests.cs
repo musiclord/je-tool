@@ -4,14 +4,14 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數，照 IDEA 版 JET 的 R4 由 GL 決定：
+/// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數，照舊版 R4 由 GL 決定：
 /// 借方金額合計除以金額倍率、再除以列入 GL 的筆數取整數部分，位數減一，至少 1 個、最多 12 個。預期值逐一手算，不由被測程式算出。
 /// </summary>
 public sealed class TrailingZeroThresholdTests
 {
-    // 0 的個數照 IDEA 版由 GL 算出，這裡核對算法。
+    // 0 的個數照舊版由 GL 算出，這裡核對算法。
     [Theory]
-    // IDEA 版說明的例子：借方平均 2,391,281 篩 000,000。兩筆分錄、借方合計 4,782,562，貸方那一筆算 0。
+    // 舊版說明的例子：借方平均 2,391,281 篩 000,000。兩筆分錄、借方合計 4,782,562，貸方那一筆算 0。
     [InlineData(4_782_562L * 10_000, 2L, 10_000, 6)]
     // 平均剛好 1,000,000：7 位數，6 個 0。
     [InlineData(2_000_000L * 10_000, 2L, 10_000, 6)]
@@ -21,7 +21,7 @@ public sealed class TrailingZeroThresholdTests
     [InlineData(300L * 100, 3L, 100, 2)]
     // 平均 99：2 位數，1 個 0。
     [InlineData(99L * 100, 1L, 100, 1)]
-    // 平均 9：IDEA 版算出 0 個 0、每一筆都會選進來；JET 至少 1 個。
+    // 平均 9：舊版算出 0 個 0、每一筆都會選進來；JET 至少 1 個。
     [InlineData(9L * 100, 1L, 100, 1)]
     // 平均 0.5 元：整數部分是 0，仍是 1 個。
     [InlineData(50L, 1L, 100, 1)]
@@ -30,7 +30,7 @@ public sealed class TrailingZeroThresholdTests
     [InlineData(0L, 5L, 10_000, 1)]
     // 平均 10^12：13 位數，12 個 0，剛好是上限。
     [InlineData(1_000_000_000_000L * 100, 1L, 100, 12)]
-    // 平均 10^13：14 位數，IDEA 版算出 13 個，JET 最多 12 個。
+    // 平均 10^13：14 位數，舊版算出 13 個，JET 最多 12 個。
     [InlineData(10_000_000_000_000L * 100, 1L, 100, 12)]
     public void FromGlTotals_UsesTheDigitsOfTheDebitAverageMinusOne(long debitScaled, long rowCount, int moneyScale, int expected)
     {

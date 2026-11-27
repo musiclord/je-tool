@@ -52,7 +52,7 @@ public sealed class PrepStartDateReadbackTests
         var oldPaper = File.ReadAllBytes(paperPath);
 
         await host.DispatchAsync("project.update", """{"prepStartDate":"2025-12-31"}""");
-        // 上游修改會清除下游：改財報準備日會清掉已存情境，審計員重新儲存後才以新日期讀回。
+        // 上游修改會清除下游：改財報準備日會清掉已存情境，重新儲存後才以新日期讀回。
         var cleared = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
         Assert.Empty(cleared.GetProperty("filterScenarios").EnumerateArray());
         Assert.Equal(oldPaper, File.ReadAllBytes(paperPath));

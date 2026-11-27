@@ -1,7 +1,7 @@
 'use strict';
 // 案件清單的情境測試。
 //
-// 審計員的操作：開啟 JET 看到本機案件清單；按「重新整理案件清單」，成功與失敗；刪除一個案件，失敗、成功、
+// 使用者的操作：開啟 JET 看到本機案件清單；按「重新整理案件清單」，成功與失敗；刪除一個案件，失敗、成功、
 // 資料夾沒刪乾淨；開一個會失敗的案件後輸出支援日誌；清單還在讀取時想開案或新增案件；按「退出」但視窗關不掉，回到案件清單；
 // 開著 JET 切到其他程式再回來。
 //
@@ -39,7 +39,7 @@ test('JET starts from the local list only, and refreshing asks only for the loca
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案', '合成乙案']);
   assert.ok(f.$('[data-motion-list="online"]') === null, 'there is no online list');
   assert.ok(f.$('[data-action="picker-sync-online"]') === null, 'there is no online sync button');
-  // 重新整理的按鈕和後端請審計員按的按鈕同名，逐字比對。
+  // 重新整理的按鈕和後端請使用者按的按鈕同名，逐字比對。
   assert.equal(f.$('[data-action="picker-refresh-local"]').textContent, '重新整理案件清單');
 
   f.click('[data-action="picker-refresh-local"]');
@@ -246,7 +246,7 @@ test('when the window cannot close after leaving the case, the auditor is back o
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
 });
 
-// 審計員開著 JET 切到 Excel 等其他程式：視窗不在前景時玻璃改成不透明（app.css 的 html.window-inactive），回到 JET 時恢復。
+// 使用者開著 JET 切到 Excel 等其他程式：視窗不在前景時玻璃改成不透明（app.css 的 html.window-inactive），回到 JET 時恢復。
 // Apple 人機介面指引 Windows：不在作用中的視窗不使用 vibrancy。
 test('switching to another program flattens the glass, coming back restores it, and nothing is sent', async () => {
   const f = await boot([LOCAL_A]);

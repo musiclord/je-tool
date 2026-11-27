@@ -167,7 +167,7 @@ public sealed class MappingValidatorTests
     [Fact]
     public void Tb_OpenCloseMode_MissingClosing_Reported()
     {
-        // OpenClose 需要 openingBalance + closingBalance 兩欄；缺 closing → 擋下（legacy SA=2）。
+        // OpenClose 需要 openingBalance 與 closingBalance 兩欄，缺 closing 時擋下。
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
@@ -189,7 +189,7 @@ public sealed class MappingValidatorTests
     [Fact]
     public void Tb_OpenCloseBySideMode_MissingOneOfFour_Reported()
     {
-        // OpenCloseBySide 需要期初借貸 + 期末借貸四欄；缺期末貸 → 擋下（legacy SA=4）。
+        // OpenCloseBySide 需要期初借貸與期末借貸四欄，缺期末貸時擋下。
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {

@@ -76,7 +76,7 @@ public sealed class VoucherConditionSqlSemanticsTests
     public async Task UnexpectedPairAndRevenueWithoutCounterpart_ExcludeBlankRevenue_WithoutChangingCashOrZeroDebitRules(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, PairSeed);
-        // 照舊版 IDEA R3：未預期借貸組合要求傳票裡至少有一筆金額大於 0 的分錄。
+        // 照舊版 R3：未預期借貸組合要求傳票裡至少有一筆金額大於 0 的分錄。
         // ZERO-R 只有 0 元應收借方與收入貸方，沒有正金額分錄，不命中。
         // ZERO-P：0 元應收借方之外還有其他科目的正金額借方，0 元應收照樣不算正常對方科目，所以命中；零元邊界由它核對。
         Assert.Equal(new[] { "BAD|2", "ZERO-P|3" }, await HitsAsync(fixture,

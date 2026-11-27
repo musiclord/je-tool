@@ -129,7 +129,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         var insertedCount = 0;
         // 只指定一側的代碼時，人工/自動清單代碼有沒有出現在來源裡，逐列記錄，提交後給不擋的提醒。
         var manualAutoCodes = new ManualAutoListedCodeAudit(spec);
-        // 審計員勾選的欄位把空白補成同一來源內上一列的值；暫存表不動，只改交給投影器的那一列。
+        // 使用者勾選的欄位把空白補成同一來源內上一列的值；暫存表不動，只改交給投影器的那一列。
         var fillDown = GlStagingFillDown.Create(spec);
         // 累計存入筆數與合計核對要用的數字：每讀一列暫存表，來源列數加一；每成功寫入一筆，累加借方與貸方總額。
         long pbcRowCount = 0;
@@ -162,7 +162,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 var values = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(3), JsonOptions)
                     ?? [];
 
-                // 交給 GlRowProjector 的列號是來源檔裡的列號，錯誤訊息才會指到審計員在檔案裡看到的那一列。
+                // 交給 GlRowProjector 的列號是來源檔裡的列號，錯誤訊息才會指到使用者在檔案裡看到的那一列。
                 var stagingRow = new StagingRow(sourceRowNumber, fillDown is null ? values : fillDown.Apply(sourceNo, values));
 
                 if (!GlRowProjector.TryProject(

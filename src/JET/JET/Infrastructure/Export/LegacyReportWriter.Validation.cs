@@ -1125,8 +1125,7 @@ internal sealed partial class LegacyReportWriter
         CancellationToken cancellationToken,
         Action<WorkingPaperProgress>? progress)
     {
-        // 舊版 JET 將不平傳票清單回接 #GL# 並 IncludeAllPFields；
-        // 因此 V_Report 6 必須是所有命中傳票的完整原始 GL 分錄，而非每傳票一列 aggregate。
+        // 照舊版，V_Report 6 列出所有不平傳票的完整原始 GL 分錄，不是每張傳票彙總成一列。
         // 分頁查詢的每一頁都要重新彙總全部傳票的借貸；這裡用一個查詢讀完全部 entry_id，哪些傳票不平只算一次，
         // 讀出的分錄與順序和逐頁讀完相同。
         var entryIds = new BufferedEntryIds(ct =>

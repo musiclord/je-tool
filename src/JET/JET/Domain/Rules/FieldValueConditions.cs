@@ -192,7 +192,7 @@ public static partial class FilterScenarioValidator
             errors.Add($"{label}：此欄位不適用此比較方式");
             return;
         }
-        // 「非空白」與「空白也列入」在一定有值的欄位上不改變結果，已存的情境照樣能用；只有「空白」一定是 0 筆，要請審計員改。
+        // 「非空白」與「空白也列入」在一定有值的欄位上不改變結果，已存的情境照樣能用；只有「空白」一定是 0 筆，要請使用者改。
         if (rule.TypedOperator == "isBlank" && FieldValueConditions.IsNeverBlank(rule, context.NeverBlankGlFields))
         {
             errors.Add($"{label}：{FieldValueConditions.NeverBlankReason(rule.Field!)}");

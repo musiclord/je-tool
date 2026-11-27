@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
-/// <summary>正式報告發布的結果：發布的報告，以及寫不進操作紀錄時給審計員的提醒（寫進去時是 null）。</summary>
+/// <summary>正式報告發布的結果：發布的報告，以及寫不進操作紀錄時給使用者的提醒（寫進去時是 null）。</summary>
 internal sealed record AuditedReportPublication(IReadOnlyList<Report> Reports, string? OperationLogWarning);
 
 /// <summary>

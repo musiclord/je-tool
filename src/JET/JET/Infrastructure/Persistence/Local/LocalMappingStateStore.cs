@@ -57,7 +57,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
 
     /// <summary>
     /// 確認 GL 配對時存下的日期提醒放在 <c>schema_info</c> 的這一列，值是日期提醒清單的 JSON。
-    /// 日期提醒只是讓審計員回頭看的說明，不參與任何計算，也不寫進報告與底稿，所以放在 schema_info，不另建資料表。
+    /// 日期提醒只是讓使用者回頭看的說明，不參與任何計算，也不寫進報告與底稿，所以放在 schema_info，不另建資料表。
     /// </summary>
     internal const string GlDateNoticesKey = "gl_date_notices";
 

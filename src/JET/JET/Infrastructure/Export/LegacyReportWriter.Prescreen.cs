@@ -240,7 +240,7 @@ internal sealed partial class LegacyReportWriter
                         "xxxx/xx/xx",
                         context.Project.PrepStartDate ?? "N/A",
                         StringComparison.Ordinal);
-                // 照 IDEA 版寫那次預篩選由 GL 借方平均算出的個數，範本 C11 是「設定連續0的位數為：」。
+                // 照舊版寫那次預篩選由 GL 借方平均算出的個數，範本 C11 是「設定連續0的位數為：」。
                 var zeroText = ReadTemplateCellText(part, "C11")
                     + projection.ZerosThreshold
                         .ToString(CultureInfo.InvariantCulture);

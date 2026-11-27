@@ -48,7 +48,7 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
                 extension,
                 mode));
 
-        // Excel 檔有多個工作表時，畫面請審計員選科目配對所在的工作表，例如工作底稿的「自動化工具-科目配對資訊」；
+        // Excel 檔有多個工作表時，畫面請使用者選科目配對所在的工作表，例如工作底稿的「自動化工具-科目配對資訊」；
         // 沒有指定時讀第一個工作表。
         var sheetName = PayloadReader.GetOptionalString(payload, "sheetName");
         if (sheetName is not null && extension != ".xlsx")
@@ -81,7 +81,7 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
                 {
                     // 舊版 JET 的科目配對範本，標頭在第 3 列、資料從第 4 列開始；
                     // 標頭在第 1 列的檔案（例如工作底稿的「自動化工具-科目配對資訊」工作表、一般 CSV）照第 1 列讀。只在第 1 列無法辨識時回退兩列。
-                    // 這兩列是舊範本固定的版面，不是審計員指定的欄名列。
+                    // 這兩列是舊範本固定的版面，不是使用者指定的欄名列。
                     effectiveRequest = request with { LeadingRowsToSkip = 2, FixedLeadingRows = true };
                     columns = await _reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
                     projection = JetAuditProgram.PrepareAccountMappingProjection(columns, categorySnapshot);

@@ -6,7 +6,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 處理紀錄的檔案：每個案件 GL 與 TB 各一份，放在案件資料夾，檔名是「案件名稱_GL處理紀錄.txt」與「案件名稱_TB處理紀錄.txt」。
-/// 和 IDEA 的歷程紀錄一樣用 UTF-8 加 BOM、Windows 換行，記事本與 Excel 都能直接開；檔案只往後加，不改寫已經寫下的內容。
+/// 和舊版的歷程紀錄一樣用 UTF-8 加 BOM、Windows 換行，記事本與 Excel 都能直接開；檔案只往後加，不改寫已經寫下的內容。
 /// </summary>
 internal static class ProcessingLogFile
 {

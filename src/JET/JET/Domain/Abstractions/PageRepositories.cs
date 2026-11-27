@@ -13,7 +13,7 @@ public interface ISourceQualityPageRepository
 }
 
 /// <summary>
-/// 空值/期外日期紀錄的 keyset 分頁回取。沒有指定排序時依 entry_id(PK) 升冪，也可依審計員選的欄位排序。
+/// 空值與期外日期紀錄的 keyset 分頁回取。沒有指定排序時依 entry_id(PK) 升冪，也可依使用者選的欄位排序。
 /// <c>category</c> 決定 WHERE 述詞(白名單列舉,非任意字串);approvalDateNotInPeriod 需期間。
 /// </summary>
 public interface IBlankRecordsPageRepository
@@ -55,7 +55,7 @@ public interface ICompletenessAccountPageRepository
 
 /// <summary>
 /// 科目配對檔分類欄留白的科目 keyset 分頁（排序鍵 account_number ASC）。留白已依 legacy 投影為 Others，
-/// 這裡只是讓審計員看到哪些科目沒填，不影響篩選結果。
+/// 這裡只是讓使用者看到哪些科目沒填，不影響篩選結果。
 /// </summary>
 public interface IAccountMappingBlankPageRepository
 {

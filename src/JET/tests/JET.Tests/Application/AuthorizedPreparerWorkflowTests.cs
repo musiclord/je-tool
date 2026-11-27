@@ -68,7 +68,7 @@ public sealed class AuthorizedPreparerWorkflowTests
             var preview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparer\"}");
             Assert.Empty(preview.GetProperty("rows").EnumerateArray());
             // 上游修改會清除下游：移除授權名單會清掉已存情境，重新匯入也不會自動恢復；
-            // 審計員重新儲存情境後才有命中。
+            // 重新儲存情境後才有命中。
             Assert.Empty(reopened.GetProperty("filterScenarios").EnumerateArray());
             await host.DispatchAsync("import.authorizedPreparer.clear");
             await ImportAsync(host, path, "員工代碼");

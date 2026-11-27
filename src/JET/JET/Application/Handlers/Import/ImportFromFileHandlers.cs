@@ -130,7 +130,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                         item.Request.SheetName,
                         item.Request.EncodingName,
                         item.Request.Delimiter?.ToString(),
-                        // 欄名在第幾列：只有審計員指定第 2 列以後才記下來；第 1 列就是預設的讀法，不另外記。
+                        // 欄名在第幾列：只有使用者指定第 2 列以後才記下來；第 1 列就是預設的讀法，不另外記。
                         HeaderRow: item.Request.LeadingRowsToSkip > 0 ? item.Request.LeadingRowsToSkip + 1 : null);
 
                     // 讀檔途中推播 import.progress；沒有完成事件，是否完成看這個 action 的回應。
@@ -206,7 +206,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             columns = batch.Columns,
             sources = ImportStateShapes.ToSourceList(batch.Sources),
             // warnings 是這次全部的提醒，畫面記進訊息面板；開著的來源檔那幾則另外列一份，
-            // 畫面放在匯入結果旁，審計員不必打開訊息面板就看得到。
+            // 畫面放在匯入結果旁，使用者不必打開訊息面板就看得到。
             warnings,
             openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,

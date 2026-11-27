@@ -21,7 +21,7 @@ internal sealed record CompletenessEligibilityDecision(
     string? Warning = null);
 
 /// <summary>
-/// 分開判定驗證結果可用性與審計差異。審計員可以說明差異並繼續篩選。
+/// 分開判定驗證結果可用性與 GL 和 TB 的差異。有差異時使用者仍可以繼續篩選。
 /// 只有缺漏、過期或損壞的結果禁止沿用；差異保留為警示，不冒充完整性通過。
 /// </summary>
 internal static class CompletenessEligibility
@@ -36,11 +36,11 @@ internal static class CompletenessEligibility
         "目前完整性驗證結果不完整，請重新執行資料驗證。";
 
     // 提醒的開頭寫哪一項沒通過，和卡片上的狀態字一致；接著寫是 JET 存下的 GL 有誤，以及回哪一步、按哪個按鈕。
-    // 怎麼比對的不寫在畫面上，也不請審計員輸出支援日誌。
+    // 怎麼比對的不寫在畫面上，也不請使用者輸出支援日誌。
     private const string StoredTotalsMismatchReason =
         "存入筆數與合計核對未通過：JET 存下的 GL 分錄筆數或金額有誤。請回第三步「GL 欄位配對」按「重新確認配對」，再重新執行驗證。";
 
-    // 接在 GL 與 TB 逐科目比對的提醒後面。差異來自案件資料，審計員可以在底稿說明；JET 自己存錯時沒有原因可說明，不接這句。
+    // 接在 GL 與 TB 逐科目比對的提醒後面。差異來自案件資料時，使用者可以說明原因；JET 自己存錯時沒有原因可說明，所以不接這句。
     private const string ContinueWithExplanationSuffix = " 審計員可說明差異原因並繼續篩選與匯出。";
 
     internal static CompletenessEligibilityDecision Evaluate(CompletenessEligibilityFacts facts)
@@ -66,7 +66,7 @@ internal static class CompletenessEligibility
 
         var warnings = new List<string>();
         // 確認 GL 欄位配對時一定會算出存入筆數與合計；萬一資料異常缺了這組數字，提醒和核對未通過相同，
-        // 請審計員重新確認 GL 欄位配對。
+        // 請使用者重新確認 GL 欄位配對。
         if (facts.StoredRowCountMatch is not true || facts.StoredAmountMatch is not true)
         {
             warnings.Add(StoredTotalsMismatchReason);
@@ -98,7 +98,7 @@ internal static class CompletenessEligibility
 
 public static partial class JetAuditProgram
 {
-    /// <summary>提供驗證結果可用性與審計差異提醒的共用判定入口。</summary>
+    /// <summary>提供驗證結果可用性與差異提醒的共用判定入口。</summary>
     internal static CompletenessEligibilityDecision EvaluateCompletenessEligibility(
         CompletenessEligibilityFacts facts) =>
         CompletenessEligibility.Evaluate(facts);

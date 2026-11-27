@@ -10,7 +10,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// TB legacy 金額模式 OpenClose（SA=2）與 OpenCloseBySide（SA=4）寫進 tb 的測試。
+/// TB 金額模式 OpenClose 與 OpenCloseBySide 寫進 tb 的測試，兩種模式的換算照舊版。
 /// 投影純函式是 <see cref="TbRowProjector"/>，此處驗「值真的寫進 tb」。
 /// oracle：規格手算（closing−opening；(cdr−ccr)−(odr−ocr)）× scale=10000。斷言鎖值＋身分（科目碼）。
 /// </summary>

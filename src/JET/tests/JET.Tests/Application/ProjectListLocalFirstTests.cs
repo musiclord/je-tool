@@ -45,7 +45,7 @@ public sealed class ProjectListLocalFirstTests
     /// <summary>
     /// 以前建立的 DuckDB 與 SQL Server 案件不列出，資料夾也不動。設定檔讀得通時看記錄的種類；
     /// 讀不通時看設定檔原文記錄的種類，連原文都讀不通就看資料夾裡是不是只有以前的 DuckDB 資料庫檔。
-    /// 判斷不出來或確定是 SQLite 的案件，讀不通時仍列成錯誤列，審計員才找得到它、能刪除。
+    /// 判斷不出來或確定是 SQLite 的案件，讀不通時仍列成錯誤列，使用者才找得到它、能刪除。
     /// </summary>
     [Fact]
     public async Task ProjectListLocal_HidesRetiredProviderCases_AndStillListsUnreadableOtherCases()
@@ -82,7 +82,7 @@ public sealed class ProjectListLocalFirstTests
     }
 
     /// <summary>
-    /// 以前的 DuckDB 與 SQL Server 案件不列在清單上。審計員用同一個名稱建立 SQLite 案件時，
+    /// 以前的 DuckDB 與 SQL Server 案件不列在清單上。使用者用同一個名稱建立 SQLite 案件時，
     /// 訊息要說出名稱被以前的案件佔用與能怎麼做，不能只說「已存在」，也不能報那個看不到的案件的設定檔錯誤；
     /// 資料夾照樣不動。
     /// </summary>

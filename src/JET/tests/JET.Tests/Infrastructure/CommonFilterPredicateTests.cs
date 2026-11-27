@@ -148,7 +148,7 @@ public sealed class CommonFilterPredicateTests
             (Rule(FilterConditionType.RevenueWithoutNormalCounterpart), ["K04"]),
             // 唯一 is_manual=1 的 Revenue 列在 K02；其餘 4101 列 is_manual=0。
             (Rule(FilterConditionType.ManualRevenueEntry), ["K02"]),
-            // 尾數比對＝整數化金額(捨小數)末 k 位與樣態相等,等價 legacy @Right(@Str(@int(x),1,0),k)=pattern。
+            // 尾數比對是把金額捨去小數取整數後，看末 k 位是否和樣態相同，和舊版的比對相同。
             // 位數 ≥ k 才可能以 k 位樣態結尾；位數 < k 時字串短於樣態、長度不符不相等：
             // K08(整數 0) 不命中 000000，K09(整數 39) 僅 2 位、不命中 000039。多樣態任一相等即命中。
             // 這裡用「特定尾數」卡片加入的寫法。
@@ -156,8 +156,8 @@ public sealed class CommonFilterPredicateTests
             (Tail("000000"), ["K07"]),
             (Tail("999999","000000"), ["K06","K07"]),
             (Tail("000039"), []),
-            // k=1 邊界（無長度下界，等價 @Right(@Str(@int(x),1,0),1)）：K08(0.39，整數 0) 對樣態 "0" 命中——
-            // 純機械比對，不因金額小而排除；由審計員判斷是否採用。
+            // k=1 邊界沒有長度下界：K08(0.39，整數 0) 對樣態 "0" 命中。
+            // 這是純機械比對，不因金額小而排除。
             (Tail("0"), ["K01","K02","K03","K04","K05","K07","K08"]),
             (Tail("9"), ["K06","K09"]),
             // K01（甲=甲）、K04（乙=乙）命中；K02（乙≠丙）不命中，其他傳票沒有核准人員。

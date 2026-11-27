@@ -39,7 +39,7 @@ public sealed class ActionDispatcher
         IProjectDatabaseCheckpoint? databaseCheckpoint = null,
         // 操作監看模組：只記錄步驟、SQL 與花掉的時間，不改變執行與結果；null 時不監看。
         IOperationMonitor? operationMonitor = null,
-        // 處理紀錄模組：操作成功後把處理經過寫給審計員看，不改變執行與結果；null 時不寫。
+        // 處理紀錄模組：操作成功後把處理經過寫給使用者看，不改變執行與結果；null 時不寫。
         IProcessingLog? processingLog = null)
     {
         var map = new Dictionary<string, IApplicationActionHandler>(StringComparer.Ordinal);

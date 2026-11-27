@@ -140,15 +140,15 @@
   var SEARCH_TEXT_MAX_LENGTH = 400;
   // 既定門檻；只供預設值與文案使用，不在前端判斷命中。
   // preparerMaxEntries 與 accountMaxEntries 是第五步欄位條件裡「編製分錄較少的人員」「較少使用的科目」加入時預設的筆數，
-  // 審計員可以改。第四步照舊版不挑出 11 筆以下的人員與科目。
+  // 使用者可以改。第四步照舊版不挑出 11 筆以下的人員與科目。
   // 「分錄金額中有連續 0 的尾數」的 0 的個數不是固定值，由後端依 GL 的借方平均算出，見下面的 trailingZeroDigits。
   var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11 };
-  // 三種展示用途各自命名，和後端 query.*Page 預設的 200 列分開，也不和審計門檻共用。
+  // 三種展示用途各自命名，和後端 query.*Page 預設的 200 列分開，也不和上面的既定門檻共用。
   var RESULT_PREVIEW_PAGE_SIZE = 50;
   var TABLE_PAGE_SIZE = 200;
   var REPORT_HISTORY_PAGE_SIZE = 50;
 
-  // 金額方式名稱不用「＋」連接，免得被讀成相加：TB 沿用 legacy 的按鈕名稱，GL 只有雙欄方式用 legacy 名稱。
+  // 金額方式名稱不用「＋」連接，免得被讀成相加：TB 沿用舊版的按鈕名稱，GL 只有雙欄方式用舊版的名稱。
   // note 是選取後顯示的計算說明，只給要相減或依正負號判斷的方式；直接取用一欄的方式沒有說明。
   var GL_MODES = [
     { value: 'dual', label: '分別設定借貸金額', note: '配對借方與貸方金額欄位後，以借方減去貸方，計算金額。' },
@@ -167,7 +167,7 @@
   // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes；
   // group 是前端呈現 metadata。
   // 每種型別需要什麼前置條件寫在下面的 FILTER_RULE_PREREQUISITES。
-  // group 只有 'common' 會用到（風險樣態下拉的「常用篩選條件」分組），畫面分組用的是四個家族（filter-step 的 RULE_FAMILIES）；
+  // group 只有 'common' 會用到（樣態下拉的「常用篩選條件」分組），畫面分組用的是四個家族（filter-step 的 RULE_FAMILIES）；
   // 其餘 group 值畫面不讀。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
     { value: 'fieldValue', label: '欄位值比較', group: 'field' },
@@ -299,7 +299,7 @@
     if (zeros) { return '金額尾數連續 ' + zeros + ' 個 0'; }
     var rule = prescreenRule(key); return rule ? rule.label : key;
   }
-  // 「分錄金額中有連續 0 的尾數」的 0 的個數：後端照 IDEA 版由 GL 借方金額合計除以全部分錄筆數算出，
+  // 「分錄金額中有連續 0 的尾數」的 0 的個數：後端照舊版由 GL 借方金額合計除以全部分錄筆數算出，
   // 跟著已確認的 GL 配對；第五步「尾數連續多個 0」加入時也預設這個個數。還沒確認 GL 配對時是 null。
   function trailingZeroDigits() {
     var state = Store.getState();
@@ -331,7 +331,7 @@
   var GL_FIELD_NEXT_STEP = '，請回第三步欄位配對補上';
 
   // AuditCore PrescreenPositioningRenderer 的逐字鏡像。有預篩選結果時一律用後端回傳的 positioning（回放已存的摘要時後端也會補上）；
-  // 還沒有預篩選結果時（例如流程總覽、第四步卡片與匯出面）用這份同樣的文字。文字由 mirror 守衛逐欄比對，前端不得自行改寫審計定位。
+  // 還沒有預篩選結果時（例如流程總覽、第四步卡片與匯出面）用這份同樣的文字。文字由 mirror 守衛逐欄比對，前端不得自行改寫。
   var PRESCREEN_POSITIONING_COPY = {
     aggregateGuidance: '查看編製人員與較少使用科目的分錄筆數及金額。',
     signalGuidance: '符合條件的分錄供初步查核；請在「進階條件篩選」設定本案的測試範圍。',
@@ -364,7 +364,7 @@
     { type: 'accountPair', mode: 'exact', label: '借方是 A 且貸方是 B（舊格式）', hint: '同一張傳票同時有 A 借方與 B 貸方；結果列出符合的借方與貸方分錄。', legacy: true }
   ];
 
-  // 第五步右側「從情境範例開始」的情境範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽。
+  // 第五步右側「從情境範例開始」的情境範例：一鍵把草稿換成常見的篩選情境，使用者再改數值或直接預覽。
   // 純前端資料；套用時由 filter-step 的 applyTemplate 深拷貝規則。範例裡的規則不打卡片標記；
   // commonCard 指定的卡片照一般點卡片的方式帶入，帶有那張卡的標記。
   // 前置條件不另外標：filter-step 依範例裡每一條條件查上面的規則需求表，停用並寫原因。
@@ -629,7 +629,7 @@
   }
 
   // 後端的 UTC ISO 時間轉成當地的年月日時分（24 小時制）。總覽與第六步共用這一個格式；
-  // 沒有時間或無法解析時回傳固定說明，不把原始字串直接顯示給審計員。
+  // 沒有時間或無法解析時回傳固定說明，不把原始字串直接顯示給使用者。
   function formatDateTime(iso) {
     if (!iso) { return '尚無紀錄'; }
     var date = new Date(iso);
@@ -666,7 +666,7 @@
   // 失敗與取消在括號裡附總耗時，有 busyDetail 時再附最後進度；被擋下與「另一項作業還在進行」沒有開始做事，不附耗時。
   // 失敗與被擋下時一律在目前步驟顯示提示框（見 state.operationFailure），除非 options.inlineError 表示
   // 這個操作已把錯誤寫在自己的就地錯誤框；onError 只是收到錯誤後的處理，不影響提示框。
-  // 審計員自己取消與「另一項作業還在進行」也會呼叫 onError，但都不算失敗（見 isCancelledOrInProgress）：
+  // 使用者自己取消與「另一項作業還在進行」也會呼叫 onError，但都不算失敗（見 isCancelledOrInProgress）：
   // 這裡只在訊息面板記一則，要把原因寫進錯誤框的呼叫端先用那個函式排除。
   // options.refresh 由呼叫點宣告完成後刷新；refreshWhen 可為 success 或 settled（預設 settled）。
   // refresh 一律等主作業解除 busy 後才執行，且 refresh 失敗只另記訊息，不改寫主作業結果。
@@ -709,13 +709,13 @@
   // 「另一項作業還在進行」的唯一寫法。
   var OTHER_OPERATION_RUNNING = '另一項作業還在進行，請等它完成後再試。';
 
-  // 審計員自己取消，或 JET 回覆另一項作業還在進行，都不是這次操作失敗：不寫進錯誤框、不標成失敗，
+  // 使用者自己取消，或 JET 回覆另一項作業還在進行，都不是這次操作失敗：不寫進錯誤框、不標成失敗，
   // 畫面留在操作開始前的樣子，訊息面板由 Ui.run 記一則。要不要當成失敗只看這個函式，各處不自己比對錯誤代碼。
   function isCancelledOrInProgress(error) {
     return !!error && (error.code === 'operation_cancelled' || error.code === 'operation_in_progress');
   }
 
-  // JavaScript 內建的程式錯誤（TypeError 這類）是程式本身的問題，英文原文不給審計員看，畫面不露出系統用詞。
+  // JavaScript 內建的程式錯誤（TypeError 這類）是程式本身的問題，英文原文不給使用者看，畫面不露出系統用詞。
   // 這時和錯誤沒有訊息時一樣，改寫呼叫端給的說明，沒有就寫後端非預期錯誤的同一句；後端回的錯誤與前端自己寫的說明照原句。
   var UNEXPECTED_ERROR_MESSAGE = '發生非預期的錯誤，此操作未完成。請再試一次。';
 
@@ -753,7 +753,7 @@
   // 所以呼叫端自己的進行中記號、事件訂閱、要拿掉哪些東西的預告，以及清掉上一次錯誤，都寫在 promiseFactory 裡面，
   // 不寫在呼叫 run 之前：promiseFactory 只在這次作業真的開始時執行，寫在外面的東西被擋下時沒有人收。
   // 作業開始時只通知忙碌狀態，不重畫中央面板；記號要馬上畫出來時，promiseFactory 自己呼叫 Store.touch()。
-  // 審計員已經改了畫面上的控制項（勾選、下拉選單、輸入框）才呼叫 run 時，用 options.onBlocked 把控制項改回去；
+  // 使用者已經改了畫面上的控制項（勾選、下拉選單、輸入框）才呼叫 run 時，用 options.onBlocked 把控制項改回去；
   // 它只在這次作業沒有開始時呼叫。
   function run(label, promiseFactory, options) {
     options = options || {};
@@ -1041,7 +1041,7 @@
     return parts.join('；');
   }
 
-  /* ---- 案件層契約鏡像的讀取輔助（純讀取，不重算任何審計語意） -------------- */
+  /* ---- 案件層契約鏡像的讀取輔助（純讀取，不重算任何結果） -------------- */
 
   // 目前案件的科目分類；project.load 尚未回傳時退回內建五類，讓畫面有可讀初值。
   // 這只是顯示用退路：保存與判定一律以後端科目分類的 revision 為準。
@@ -1373,7 +1373,7 @@
         }).catch(function (error) {
           if (!current()) { return; }
           if (previous) { state.sort = previous.sort; state.search = previous.search; applySortMarks(); applySearchBox(); }
-          // 後端回 stale_result 是手上的接續位置不能再用，原因句也請審計員從第一頁重新載入：
+          // 後端回 stale_result 是手上的接續位置不能再用，原因句也請使用者從第一頁重新載入：
           // 「重新載入」改讀第一頁，排序與搜尋不變。其他原因照樣重送失敗的那一頁。
           state.retryRequest = !reset && error && error.code === 'stale_result'
             ? { reset: true, target: 0, label: label, previous: null, sort: requested.sort, search: requested.search } : requested;
@@ -1499,7 +1499,7 @@
 
   // 「可否繼續後續步驟」只鏡射 validate.run 後端的判定（completenessTest.eligibility）。摘要缺少這個欄位
   // 時 fail closed 並要求重跑；不得在前端用控制總數或逐科目比對的原始結果重算第二份判定。
-  // 從未執行資料驗證時沒有東西可以「重新」執行，改請審計員先執行。
+  // 從未執行資料驗證時沒有東西可以「重新」執行，改請使用者先執行。
   function completenessEligibility(validation) {
     if (!validation) {
       return { isEligible: false, reason: COMPLETENESS_FIRST_RUN_REASON };
@@ -1525,7 +1525,7 @@
       case 1:
         if (!state.project) { missing.push('建立或開啟案件'); }
         break;
-      // 沒有 TB 也能往下做，逐科目比對由資料驗證寫無法執行和原因，審計員在底稿說明。
+      // 沒有 TB 也能往下做，逐科目比對由資料驗證寫無法執行和原因。
       case 2:
         if (!state.importState.gl) { missing.push('匯入 PBC-GL'); }
         break;
@@ -1585,7 +1585,7 @@
   }
 
   // 步驟 index 是否完成。前四步沿用下一步的進入條件；第五步看情境是否齊備，不因第六步可以只看版本紀錄而算完成，
-  // 但沒有情境就產生了目前版本的工作底稿時算完成，因為審計員已經選擇不篩選、改在底稿說明；
+  // 但沒有情境就產生了目前版本的工作底稿時算完成，因為使用者已經選擇不篩選；
   // 最後一步看是否已有目前版本的工作底稿。
   function stepComplete(state, index) {
     var last = Store.STEPS.length - 1;
@@ -1824,7 +1824,7 @@
 
   // 第五步已儲存情境與第六步情境選項列出的動機；沒有要列的回傳空字串。存進情境與寫進底稿第三步的動機不變，這裡只決定畫面列什麼。
   // 有卡片時自動產生的動機只列前五張卡的評估說明，只寫卡片名稱或「自訂：」加條件的那幾行不列，
-  // 因為下方已經列出條件；審計員改寫過的動機整段列出。動機是否自動產生看編輯來源的 rationaleIsAutomatic。
+  // 因為下方已經列出條件；使用者改寫過的動機整段列出。動機是否自動產生看編輯來源的 rationaleIsAutomatic。
   function scenarioRationaleText(scenario) {
     var text = String((scenario && scenario.rationale) || '');
     if (isGeneratedRationale(text)) { return ''; }
@@ -2313,7 +2313,7 @@
     });
   }
 
-  // 案件已經建立、但沒有開啟時，寫在案件清單上方的說明。審計員自己取消，或 JET 回覆另一項作業還在進行，都不是失敗，不寫原因；
+  // 案件已經建立、但沒有開啟時，寫在案件清單上方的說明。使用者自己取消，或 JET 回覆另一項作業還在進行，都不是失敗，不寫原因；
   // 真的失敗才寫原因，沒有原因時不寫「未知錯誤」。
   function createdButNotOpenedText(projectId, error) {
     var nextStep = '請從案件清單開啟這個案件。';
@@ -2325,7 +2325,7 @@
   }
 
   // 建立案件成功後接著開啟它。後端建立案件時已經把它當成目前開啟的案件，並握著它的案件鎖；沒有開啟成功時畫面上卻沒有案件，
-  // 所以不留在建立表單：照離開案件的做法請後端放掉它，回到案件清單，在清單上方說明案件已經建立，審計員從清單開啟。
+  // 所以不留在建立表單：照離開案件的做法請後端放掉它，回到案件清單，在清單上方說明案件已經建立，使用者從清單開啟。
   // 案件已經建立，所以這則說明是琥珀色提示，不是錯誤框。放不掉案件時和按「回首頁」放不掉一樣，留在目前畫面。
   // 已經有別的作業在進行時這次不會開始，什麼都不做。
   function openCreatedProject(projectId) {
@@ -2431,7 +2431,7 @@
   }
 
   // 已儲存情境無法套用目前規則時的說明：先說狀態，逐筆列出哪個情境、哪裡不符合，最後只說一次下一步。
-  // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明，請審計員按「重新檢查並儲存情境」列出清單。
+  // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明，請使用者按「重新檢查並儲存情境」列出清單。
   // 提示避免專業術語、不寫太長，所以下一步只在最後寫一次。
   function filterScenarioProblemsHtml(state) {
     var check = state.filterScenarioCheck;
@@ -2486,7 +2486,7 @@
         projectedRowCount: null
       });
     } else if (previousMapping.gl && data.importState && data.importState.gl) {
-      // 重新匯入後還沒重新確認：帶回上次確認的配對當草稿，審計員檢查後按確認即可，不必逐欄重選。
+      // 重新匯入後還沒重新確認：帶回上次確認的配對當草稿，使用者檢查後按確認即可，不必逐欄重選。
       Store.setMappingCommitted('gl', null);
       Store.restorePreviousMapping('gl', {
         mapping: previousMapping.gl.mapping || {},
@@ -2669,7 +2669,7 @@
         ? '時間未知'
         : generated.toLocaleString('zh-Hant', { hour12: false });
       var bytesText = fileSizeMbText(report.bytes);
-      // 檔案狀態只是提醒：審計員在 JET 之外改過或刪了檔案都不擋，重新匯出就好。
+      // 檔案狀態只是提醒：使用者在 JET 之外改過或刪了檔案都不擋，重新匯出就好。
       var fileStateText = report.fileState === 'modifiedOutside'
         ? '已在 JET 之外修改'
         : (report.fileState === 'missing' ? '檔案不存在，重新匯出即可' : '');
@@ -2793,7 +2793,7 @@
 
   /* ---- 共用：依後端回應建立表格列 ------------------------------------------ */
 
-  // 分頁與等待狀態由 bindPagedTable 處理；此函式只建立列，不計算查核結果。
+  // 分頁與等待狀態由 bindPagedTable 處理；此函式只建立列，不計算結果。
   // columns：每欄一個取值函式 row→cell，或 { cell: fn, className } 另帶 td 的 class。
   // 欄序與顯示由呼叫端決定；一律 esc 後插入，前端不做業務轉換，顯示內容由後端決定。
   function appendRowsToTbody(tbody, rows, columns) {

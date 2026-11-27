@@ -76,10 +76,10 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本，可以升版的就升版，無法升版的就拒絕。
             // 開案不建立新的資料庫：本機案件的資料庫不見或沒有內容時，比照無法開啟的案件回報。
             SupportOperationStage.Enter("database_open");
-            // 上一次建案在資料庫建好之前中斷時，審計員沒有拿到這個案件，這裡照建案的做法把資料庫建完：
+            // 上一次建案在資料庫建好之前中斷時，使用者沒有拿到這個案件，這裡照建案的做法把資料庫建完：
             // 種子重新產生，建案者取目前的 Windows 身分，金額存放倍率與民國年選項用建案的預設值。
             // 設定檔裡的這些值不採用，以免用記事本做出中斷的建案，就能指定種子或冒用建案者。
-            // 查核期間與期末財報準備日是建案時審計員填的，照設定檔；每週休息日照建案時的沒有設定。
+            // 查核期間與期末財報準備日是建案時使用者填的，照設定檔；每週休息日和建案時一樣不設定。
             var settingsCreatedHere = false;
             var openingDocument = document;
             await repositories.DatabaseInitializer.EnsureExistingAsync(
@@ -101,7 +101,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                 cancellationToken);
 
             // 查核期間、隨機種子這些設定以案件資料庫為準。設定檔在 JET 以外被改過時，之後整個開案都用資料庫的值，
-            // 記下上次開啟時間的那一次存檔也一併把設定檔改回；回應列出改回的項目，畫面提醒審計員。
+            // 記下上次開啟時間的那一次存檔也一併把設定檔改回；回應列出改回的項目，畫面提醒使用者。
             // 剛補完建案時，資料庫的設定是這裡產生的，不算設定檔被改過，不提醒。
             var recordedSettings = await repositories.ProjectSettings.ReadAsync(document.ProjectId, cancellationToken);
             IReadOnlyList<string> settingsRestored = settingsCreatedHere ? [] : recordedSettings.DifferingItems(document);
@@ -416,7 +416,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     }
 
     /// <summary>
-    /// 日期提醒只是讓審計員回頭看的說明，存下的內容讀不出來時當成沒有，不擋開案；重新確認配對就會再存一份。
+    /// 日期提醒只是讓使用者回頭看的說明，存下的內容讀不出來時當成沒有，不擋開案；重新確認配對就會再存一份。
     /// 支援日誌只記步驟代號與例外的型別、位置，不寫存下的內容。
     /// </summary>
     private async Task<IReadOnlyList<GlDateNotice>> ReadGlDateNoticesAsync(

@@ -4,7 +4,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 匯出報告、底稿與工作檔時，檔案寫不進去的兩種情形：所在磁碟已滿，以及沒有寫入權限。
-/// 這兩種情形重新下載 JET 也沒有用，所以轉成寫明是哪裡、原因與審計員接下來能做什麼的訊息，不說成範本無法讀取或填入。
+/// 這兩種情形重新下載 JET 也沒有用，所以轉成寫明是哪裡、原因與使用者接下來能做什麼的訊息，不說成範本無法讀取或填入。
 /// 案件資料夾裡的輸出檔、案件位置裡的報告鎖檔，以及 Windows 暫存資料夾裡的暫存檔，各用各的句子，
 /// 呼叫端依例外來自哪一種檔案選用。磁碟已滿依 Windows 的錯誤碼判斷；其他例外不轉。
 /// </summary>
@@ -18,7 +18,7 @@ internal static class ExportFileWriteErrors
 
     /// <summary>
     /// 例外來自案件資料夾裡的輸出檔時使用：從這個例外一路往 InnerException 找磁碟已滿或沒有寫入權限，
-    /// 找到時回傳給審計員看的錯誤；找不到時回 null。
+    /// 找到時回傳給使用者看的錯誤；找不到時回 null。
     /// </summary>
     internal static JetActionException? TryTranslate(Exception exception) =>
         Translate(exception, DiskFull, NoWriteAccess);

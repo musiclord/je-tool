@@ -34,7 +34,7 @@ internal sealed partial class LegacyReportWriter(
 {
     private const int DefaultProgressRowInterval = 10_000;
     private const uint ExcelMaxRow = ExcelWorksheetConstraints.MaxRows;
-    // 舊版 JET 的 Step4：只有條件篩選的明細在匯出超過一百萬列時不執行 EntireColumn.AutoFit。
+    // 照舊版，只有條件篩選的明細在匯出超過一百萬列時不自動調整欄寬。
     private const long LegacyCriteriaAutoFitMaximumRows = 1_000_000;
     private readonly uint _continuationRowLimit = ExcelMaxRow;
     // 資料驗證、預篩選與條件篩選報告收尾時的寫法；INF 不用這個欄位，一律照原樣寫出。
@@ -352,8 +352,8 @@ internal sealed partial class LegacyReportWriter(
                     cancellationToken)
                 .ConfigureAwait(false)
             : Enumerable.Repeat(LegacyReportStyles.RawBody, rawColumns.Count).ToArray();
-        // 符合標記在舊版是 IDEA 資料庫裡的文字欄（Final_TAG），跟著其他欄一起匯出，
-        // 所以在 IDEA 匯出的明細頁用文字欄的樣式，和 R5 的人工旗標欄相同。
+        // 符合標記在舊版是資料表裡的文字欄（Final_TAG），跟著其他欄一起匯出，
+        // 所以明細頁用 ExportDatabase 外觀時，這一欄用文字欄的樣式，和 R5 的人工旗標欄相同。
         var markerStyles = markerColumn is null
             ? Array.Empty<uint>()
             : new[]
@@ -362,8 +362,8 @@ internal sealed partial class LegacyReportWriter(
                     ? LegacyReportStyles.ExportDatabaseText
                     : LegacyReportStyles.RawBody
             };
-        // 舊版的攸關資料元素欄是把來源欄改名加 _JE，明細頁再由 IDEA 匯出整個資料庫
-        // （Z_ExportDatabaseXLSX 的 IncludeAllFields），所以在 IDEA 匯出的明細頁和它的來源欄同一種樣式；
+        // 舊版的攸關資料元素欄是把來源欄改名加 _JE，再和整份資料一起匯出成明細頁，
+        // 所以明細頁用 ExportDatabase 外觀時，這種欄和它的來源欄用同一種樣式；
         // 找不到來源欄時，和沒有欄位定義的來源欄一樣用一般樣式。
         var bodyStyles = sourceStyles
             .Concat(customFields.Select(field =>

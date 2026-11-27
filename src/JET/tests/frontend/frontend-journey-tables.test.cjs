@@ -1,15 +1,15 @@
 'use strict';
-// 審計員情境測試：明細表與右側資料預覽。
+// 明細表與右側資料預覽的情境測試。
 // 資料明細每頁 200 筆，可往前或往後換頁。
 //
 // 本檔分兩部分，每個測試都載入正式的 wwwroot 腳本，操作畫面後看送出的請求、畫出的節點與 Store 狀態。
 //
 // 第一部分　「明細表：翻頁、排序、查號碼與金額」
-//   審計員在第四步與第五步的各種明細表點表頭排序、輸入號碼查看、按清除；讀取中又按了兩次「搜尋」；讀取失敗；
+//   使用者在第四步與第五步的各種明細表點表頭排序、輸入號碼查看、按清除；讀取中又按了兩次「搜尋」；讀取失敗；
 //   看各處的金額；看各處一頁讀幾筆。
 //
 // 第二部分　「右側資料預覽」
-//   審計員切換資料表；讀取失敗後重試；讀取途中切到別的資料表；重新匯入或換案件時舊請求晚到；
+//   使用者切換資料表；讀取失敗後重試；讀取途中切到別的資料表；重新匯入或換案件時舊請求晚到；
 //   視窗縮窄再拉寬，期間自己收合或展開；用鍵盤操作「其他資料」選單。
 //
 // 斷言原則：只有固定的畫面用字逐字比對；其他畫面文字只比對意思。
@@ -177,7 +177,7 @@ test('approval dates outside the period load the first 200 rows on opening even 
 });
 
 // 「核准日不在期間」的明細裡，讀不成日期的傳票核准日寫「無法辨識：」加上來源原文，空白的核准日照樣空白，
-// 審計員分得出是哪一種；異常類別兩者都是「核准日不在期間」。後端只在讀不成時帶原文，由 ApprovalDateOutOfPeriodBlankTests 核對。
+// 使用者分得出是哪一種；異常類別兩者都是「核准日不在期間」。後端只在讀不成時帶原文，由 ApprovalDateOutOfPeriodBlankTests 核對。
 test('approval date out of period detail marks unreadable source text apart from blank', async () => {
   const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 3; data.blankRecordsTest.blankRows = []; });
   const detail = f.detailOf('null-approvalDateNotInPeriod');
@@ -587,7 +587,7 @@ test('money shows two decimals on step five voucher lists, entry details and the
   assert.match(rows[1].textContent, /—/, 'a missing amount shows a dash instead of 0.00');
   assert.doesNotMatch(rows[1].textContent, /0\.00/);
 
-  // 已儲存情境：條件讀回保留審計員輸入的值，不加千分位、不補小數；高風險條件彙總的金額照畫面格式。
+  // 已儲存情境：條件讀回保留使用者輸入的值，不加千分位、不補小數；高風險條件彙總的金額照畫面格式。
   const s = F.savedBlankDescription('合成金額'); s.source = 'custom'; delete s.editorOrigins;
   s.groups = [{ join: 'AND', matchScope: 'row', conditions: [{ type: 'fieldValue', join: 'AND', field: 'amount', operator: 'greaterThanOrEqual',
     value: '1234.5', amountBasis: 'absolute' }] }];
@@ -968,7 +968,7 @@ test('the preview folds at 1360 pixels and keeps the auditor\'s own choice until
 
   // 自動收合後自己展開：留在展開；拉寬仍展開；再縮窄才自動收合。
   narrow.$('.data-preview__rail').fire('click'); assert.equal(collapsed(), false);
-  // 自己展開後又自己收合：這是審計員的選擇，拉寬也不自動展開。
+  // 自己展開後又自己收合：這是使用者的選擇，拉寬也不自動展開。
   narrow.$('.data-preview__collapse').fire('click'); assert.equal(collapsed(), true);
   media.change(false); assert.equal(collapsed(), true, "the auditor's own fold survives widening");
   narrow.$('.data-preview__rail').fire('click'); assert.equal(collapsed(), false);

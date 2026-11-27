@@ -629,7 +629,7 @@ public sealed class CsvTableReaderTests
                 () => reader.ReadColumnsAsync(new TabularSourceRequest(path, EncodingName: "utf-8"), CancellationToken.None));
 
             Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
-            // 訊息裡的編碼寫成審計員常見的 UTF-8，不寫程式內部的小寫代號；也檢查訊息寫出讀取時用的編碼。
+            // 訊息裡的編碼寫成使用者常見的 UTF-8，不寫程式內部的小寫代號；也檢查訊息寫出讀取時用的編碼。
             Assert.Contains("UTF-8", ex.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("utf-8", ex.Message, StringComparison.Ordinal);
             Assert.Contains("改選編碼", ex.Message, StringComparison.Ordinal);

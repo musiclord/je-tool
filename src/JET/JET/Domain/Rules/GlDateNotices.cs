@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>確認 GL 配對時，一個日期值需要讓審計員知道的情形。</summary>
+/// <summary>確認 GL 配對時，一個日期值需要讓使用者知道的情形。</summary>
 public enum GlDateIssueKind
 {
     /// <summary>讀不成日期。這個值不當成日期使用。</summary>

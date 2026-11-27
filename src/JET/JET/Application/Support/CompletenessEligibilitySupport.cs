@@ -6,7 +6,7 @@ namespace JET.Application;
 
 /// <summary>
 /// 讀出目前驗證結果摘要裡記的原始數字與狀態，交給 AuditCore 分別判斷兩件事：這份結果能不能用，以及要不要提醒有差異。
-/// 後續步驟的 handler 都從這裡取驗證結果；驗證已經完成時，查出的審計差異不擋篩選與匯出。
+/// 後續步驟的 handler 都從這裡取驗證結果；驗證已經完成時，查出的差異不擋篩選與匯出。
 /// </summary>
 internal static class CompletenessEligibilitySupport
 {

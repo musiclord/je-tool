@@ -37,7 +37,7 @@ public sealed class IndependentWorkingPaperWorkflowTests
         await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = setup.ProjectId }));
         // 上游修改會清除下游：行事曆修改清掉已存情境，篩選回到從未執行；
-        // 審計員重新儲存後即可直接匯出底稿。
+        // 重新儲存後即可直接匯出底稿。
         Assert.False(loaded.GetProperty("staleState").GetProperty("filter").GetBoolean());
         Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         Assert.False(loaded.GetProperty("staleState").GetProperty("validation").GetBoolean());

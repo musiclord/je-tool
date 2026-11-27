@@ -85,7 +85,7 @@ internal sealed class SmeOracle
         Population.Where(predicate).Select(Key).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
-    /// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數，照 IDEA 版 R4：
+    /// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數，照舊版 R4：
     /// 母體每筆分錄的借方金額加總（貸方那一側算 0）除以筆數，平均的整數部分有幾位，個數就是位數減一，至少 1、最多 12。
     /// </summary>
     public int TrailingZeroDigits()
@@ -102,7 +102,7 @@ internal sealed class SmeOracle
 
     /// <summary>
     /// 第四步預篩選 10 項逐筆規則各自應選到的分錄。照舊版不含編製分錄較少的人員與使用較少的科目；
-    /// 未預期借貸組合照舊版 IDEA R3 要求同張傳票至少有一筆借方金額大於 0 的分錄，第四步列出命中傳票的全部分錄。
+    /// 未預期借貸組合照舊版 R3 要求同張傳票至少有一筆借方金額大於 0 的分錄，第四步列出命中傳票的全部分錄。
     /// </summary>
     public IReadOnlyDictionary<string, HashSet<string>> Prescreen()
     {

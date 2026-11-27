@@ -272,7 +272,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
             RareAccounts: new("completed", null),
             BlankDescription: notApplicable)
         {
-            // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。
+            // 0 的個數照舊版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。
             ZerosThreshold = 6
         };
     }

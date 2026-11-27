@@ -111,7 +111,7 @@ public static partial class AppCompositionRoot
         // 操作監看模組從旁記錄長時間的操作、跑太久或沒有正常結束的 SQL 與匯出進度，不改變操作的流程與結果。
         // 它只接在 dispatcher、SQLite 命令、事件發布與進入步驟的紀錄這四個地方。
         var operationMonitor = new OperationMonitor(loggerFactory.CreateLogger<OperationMonitor>(), operationMonitorOptions);
-        // 處理紀錄模組：操作成功後，把處理 GL 與 TB 的經過寫進案件資料夾給審計員追蹤，不改變操作的流程與結果。
+        // 處理紀錄模組：操作成功後，把處理 GL 與 TB 的經過寫進案件資料夾給使用者追蹤，不改變操作的流程與結果。
         // 它只接在 dispatcher 與事件發布兩個地方；讀情境的條件與筆數時，執行和畫面相同的唯讀查詢。
         IReadOnlyDictionary<string, IApplicationActionHandler>? queryHandlers = null;
         var processingLog = new ProcessingLogRecorder(
@@ -165,7 +165,7 @@ public static partial class AppCompositionRoot
                     session,
                     actionExecutionGate),
                 sqliteDatabase);
-            // 科目配對範本(空白範本供審計員填分類)寫出器：範本列由資料庫組的 AccountMappingExport 讀出。
+            // 科目配對範本(空白範本供使用者填分類)寫出器：範本列由資料庫組的 AccountMappingExport 讀出。
             var accountMappingTemplateWriter = new AccountMappingTemplateWriter();
 
             var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader(),
@@ -264,7 +264,7 @@ public static partial class AppCompositionRoot
             new ExportValidationReportsHandler(protectedProjectStore, session, events),
             new ExportPrescreenReportHandler(protectedProjectStore, session, events),
             new ExportCriteriaSelectionReportHandler(protectedProjectStore, session, events),
-            // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。
+            // 帳戶對應範本是給使用者填寫的工作檔，直接寫進案件資料夾，不經報告 store。
             new ExportAccountMappingTemplateHandler(
                 accountMappingTemplateWriter, protectedProjectStore, folder, new LocalExportOutputFiles(), session, events),
             new LogAppendHandler(session),

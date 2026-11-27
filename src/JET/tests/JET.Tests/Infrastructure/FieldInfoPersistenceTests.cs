@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Legacy TableDef 等價欄位定義的本地 provider 持久化。
-/// Oracle：Legacy 等價欄位定義持久化的小型手算資料集；
+/// 與舊版等價的欄位定義在本地 provider 的持久化。
+/// Oracle：與舊版等價的欄位定義持久化的小型手算資料集；
 /// reader 如何產生 cell evidence 由 reader-side tests 獨立驗證。
 /// </summary>
 public sealed class FieldInfoPersistenceTests

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace JET.Domain;
 
 /// <summary>
-/// 要審計員在第三步自己選的一個配對位置。Key 是配對鍵，攸關資料元素則是後端產生的欄位識別碼；
+/// 要使用者在第三步自己選的一個配對位置。Key 是配對鍵，攸關資料元素則是後端產生的欄位識別碼；
 /// Label 是第三步的欄位名稱；SourceColumn 是檔案裡寫的來源欄，沒有可寫的時候是空字串。
 /// </summary>
 internal sealed record UnmatchedMappingField(
@@ -13,7 +13,7 @@ internal sealed record UnmatchedMappingField(
     string Label,
     string SourceColumn);
 
-/// <summary>由「自動化工具-檔案欄位資訊」看得見的對照表推得的草稿，以及要審計員自己選的配對位置。</summary>
+/// <summary>由「自動化工具-檔案欄位資訊」看得見的對照表推得的草稿，以及要使用者自己選的配對位置。</summary>
 internal sealed record FieldInfoSheetMappingResult(
     MappingDraftMetadata Draft,
     IReadOnlyList<UnmatchedMappingField> Unmatched);
@@ -21,11 +21,11 @@ internal sealed record FieldInfoSheetMappingResult(
 /// <summary>
 /// 從「自動化工具-檔案欄位資訊」看得見的配對前後欄位對照表推得欄位配對草稿。三種寫法都要認得：
 /// <list type="bullet">
-/// <item>舊版 IDEA JET：欄名不加符號，改名時把原欄名寫進說明；金額加借貸別與過帳判斷值的說明句用【】包住欄名與值。</item>
+/// <item>舊版：欄名不加符號，改名時把原欄名寫進說明；金額加借貸別與過帳判斷值的說明句用【】包住欄名與值。</item>
 /// <item>較早版本的 JET：欄名一律用【】包住，例如改名列寫「【來源欄名】」，說明句裡的欄名也加【】，值用「」。</item>
 /// <item>目前的 JET：欄名和來源檔一字不差、不加符號，說明句裡用半形空白和前後文分開，值用「」；兩欄相減的算式與「同總帳日期_JE來源」照舊版的寫法（FieldInfoProjector 與 FieldInfoProjection）。</item>
 /// </list>
-/// 欄名和目前匯入的欄位對得上的帶入；對不上的留著原名，由 handler 列出請審計員重選；表上看不出來的直接列在 Unmatched。
+/// 欄名和目前匯入的欄位對得上的帶入；對不上的留著原名，由 handler 列出請使用者重選；表上看不出來的直接列在 Unmatched。
 /// 推得的結果只是草稿，按「確認配對」才儲存。
 /// </summary>
 internal static class FieldInfoSheetMapping
@@ -130,7 +130,7 @@ internal static class FieldInfoSheetMapping
         var tb = tbColumns is null || tbRows.Count == 0
             ? null
             : InferTb(new Section(tbRows, marked, new ImportedColumnNames(tbColumns)), unmatched);
-        // TB 段沒有任何配對、也沒有要重選的項目時不回 TB 草稿，審計員已選的 TB 欄位與金額格式不動。
+        // TB 段沒有任何配對、也沒有要重選的項目時不回 TB 草稿，使用者已選的 TB 欄位與金額格式不動。
         if (tb is not null && tb.Mapping.Count == 0 && unmatched.Count == glUnmatchedCount)
         {
             tb = null;
@@ -218,7 +218,7 @@ internal static class FieldInfoSheetMapping
     /// 傳票金額_JE 那一列。A 欄沒有「由系統產生」的前綴時，是舊版另一支腳本把單一金額欄原位改名，算單一帶號金額。
     /// 有前綴時依說明句：金額欄位與借貸方判斷欄位是金額加借貸別（判斷欄位是數字型態算借貸標誌）；
     /// 較早版本「【X】-【Y】」是借貸兩欄、「【X】」是單一帶號金額；不加括號的算式見 <see cref="ReadPlainAmountExpression"/>。
-    /// 推不出來時不配對金額，列出請審計員選。
+    /// 推不出來時不配對金額，列出請使用者選。
     /// </summary>
     private static string ReadGlAmount(
         SheetRow row,
@@ -298,7 +298,7 @@ internal static class FieldInfoSheetMapping
         }
 
         // 較早版本的說明句欄名都加【】。上面兩種寫法對不上，多半是欄名本身有「】」：整句只有一個欄名時去掉最外層的括號再找，
-        // 其他情形不套用不加括號的規則，列出金額請審計員選。
+        // 其他情形不套用不加括號的規則，列出金額請使用者選。
         if (expression.Length > 2
             && expression[0] == '【'
             && expression[^1] == '】'
@@ -316,7 +316,7 @@ internal static class FieldInfoSheetMapping
     /// 不加括號的金額算式，舊版與目前的寫法相同：單一帶號金額只寫欄名；借貸兩欄寫「借方欄-貸方欄」，減號前後不空格。
     /// 欄名本身可能有「-」，同一段文字可能是一個欄名，也可能是兩個欄名相減，所以先用對照表 A 欄列出的名稱確認讀法：
     /// 整段是一個列出的名稱，或在某個「-」切開、去掉兩邊空白後兩邊都是列出的名稱，只有一種讀法對得上時照那一種讀；
-    /// 不只一種讀法對得上時看不出是哪一種，不帶入金額，列出請審計員選。
+    /// 不只一種讀法對得上時看不出是哪一種，不帶入金額，列出請使用者選。
     /// A 欄沒有列出這些名稱時（例如舊版檔案只留下金額那一列），照舊版的規則把「-」當成借方欄與貸方欄的分隔（<see cref="TrySplitPair"/>）。
     /// </summary>
     private static string ReadPlainAmountExpression(
@@ -425,7 +425,7 @@ internal static class FieldInfoSheetMapping
     /// （GlRdeOutputNames.Resolve），照同一條規則反推：去掉後綴的名稱有兩列以上相同，或加 _JE 是標準欄名，就當成補上的後綴去掉，
     /// 其他情形照寫的名稱。名稱本身就叫「X（來源欄名）」而 X 符合上面兩種情形時，寫出來的欄名和補了後綴的一模一樣，
     /// 推回的名稱會是 X，這是已知限制。值型別依欄位型態。名稱空白或太長、
-    /// 來源欄重複或已被核心欄位使用時不帶入，列出請審計員自己選。名稱相同但來源欄不同時照樣帶入。
+    /// 來源欄重複或已被核心欄位使用時不帶入，列出請使用者自己選。名稱相同但來源欄不同時照樣帶入。
     /// </summary>
     private static IReadOnlyList<GlRdeFieldMetadata> ReadRdeFields(
         IReadOnlyList<SheetRow> rows,
@@ -517,7 +517,7 @@ internal static class FieldInfoSheetMapping
 
     /// <summary>
     /// 試算表變動金額_TB 那一列。沒有前綴是原位改名，算直接變動金額；「(A - B) - (C - D)」是期末與期初各分借貸。
-    /// 只有兩欄相減時看不出是借減貸還是期末減期初（舊版這兩種寫法相同），不帶入金額，列出請審計員選；
+    /// 只有兩欄相減時看不出是借減貸還是期末減期初（舊版這兩種寫法相同），不帶入金額，列出請使用者選；
     /// 期末與期初各分借貸的算式有不只一種讀法時也一樣。
     /// </summary>
     private static string ReadTbChangeAmount(
@@ -578,7 +578,7 @@ internal static class FieldInfoSheetMapping
     /// <summary>
     /// 不加括號的「(期末借 - 期末貸) - (期初借-期初貸)」，舊版與目前的寫法相同。欄名本身可能有「-」或括號，
     /// 所以把每一種切法都列出來，先用對照表 A 欄列出的名稱確認：只有一種切法的四個欄名都列在 A 欄時照那一種讀，
-    /// 不只一種時看不出來，回 false 由呼叫端列出請審計員選。A 欄沒有列出這些名稱時照舊版的規則切（<see cref="TryReadLegacyOpenCloseBySide"/>）。
+    /// 不只一種時看不出來，回 false 由呼叫端列出請使用者選。A 欄沒有列出這些名稱時照舊版的規則切（<see cref="TryReadLegacyOpenCloseBySide"/>）。
     /// </summary>
     private static bool TryReadPlainOpenCloseBySide(
         string expression,
@@ -660,7 +660,7 @@ internal static class FieldInfoSheetMapping
     /// <summary>
     /// 照舊版的規則把「左欄 分隔 右欄」切成兩欄。舊版借貸兩欄與 TB 期初那一組的分隔是「-」，TB 期末那一組是「 - 」。
     /// 欄名本身也可能有分隔字，所以先找恰好一種兩邊都對得上目前欄位的切法；找不到時，只有一個分隔字就照那一刀切，
-    /// 對不上的欄之後列出請審計員重選；其他情況推不出來。
+    /// 對不上的欄之後列出請使用者重選；其他情況推不出來。
     /// </summary>
     private static bool TrySplitPair(
         string text,
@@ -861,8 +861,8 @@ internal static class FieldInfoSheetMapping
     /// A 欄和 E 欄相同時，表示來源欄本來就叫這個 JET 欄名，或是說明空白的系統產生欄位（只有自動編號的傳票文件項次_JE_S）：
     /// <list type="bullet">
     /// <item>較早版本同名改名的 A 欄寫成「【X】」，沒有括號的是系統產生。</item>
-    /// <item>舊版 A 欄寫欄位說明，沒有說明時寫欄名，改名時說明是原欄名；寫進 E 欄而說明空白的系統產生欄位在舊版 JET 查不到
-    /// （Step1_Append_IsManual 沒有被呼叫），所以 A 欄和 E 欄相同就算配對。</item>
+    /// <item>舊版 A 欄寫欄位說明，沒有說明時寫欄名，改名時說明是原欄名；舊版不會產生寫進 E 欄而說明空白的
+    /// 系統產生欄位，所以 A 欄和 E 欄相同就算配對。</item>
     /// <item>目前的寫法同名改名與自動編號的傳票文件項次_JE_S 寫得一模一樣，這一列另外看：同一段有讓名成「傳票文件項次_JE_S（來源）」的列，
     /// 表示來源欄沒有配對、是自動編號；沒有讓名列時，目前匯入的 GL 有一字不差叫這個名稱的欄才算配對，否則當成自動編號。</item>
     /// </list>
@@ -890,7 +890,7 @@ internal static class FieldInfoSheetMapping
 
     /// <summary>
     /// 檔案裡寫的來源欄名對回目前匯入的欄名：先找完全相同的；找不到時兩邊都做 NFKC、轉大寫、只留字母與數字後比較，
-    /// 只有唯一一個對得上才換成目前的欄名；否則保留原名，由 handler 列出請審計員重選。
+    /// 只有唯一一個對得上才換成目前的欄名；否則保留原名，由 handler 列出請使用者重選。
     /// </summary>
     private sealed class ImportedColumnNames
     {

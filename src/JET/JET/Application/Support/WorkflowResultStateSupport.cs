@@ -69,7 +69,7 @@ internal static partial class WorkflowResultStateSupport
             try { revision = FilterPopulationScopeParser.RequireCurrentRevision(scenarios); }
             catch (JetActionException exception) when (exception.Code == JetErrorCodes.StaleResult)
             {
-                // 情境的定義留著讓審計員修正，但舊的命中不當成目前的結果：版本留 null，下面把篩選結果標成過期。
+                // 情境的定義留著讓使用者修正，但舊的命中不當成目前的結果：版本留 null，下面把篩選結果標成過期。
             }
         }
         return new CurrentSnapshot(

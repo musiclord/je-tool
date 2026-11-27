@@ -316,7 +316,7 @@ public sealed class DevLogExportFileHandler(
 }
 
 /// <summary>
-/// 一種可以輸出成檔案的日誌：檔名開頭，以及失敗訊息裡對審計員與開發人員說的名稱。
+/// 一種可以輸出成檔案的日誌：檔名開頭，以及失敗訊息裡對使用者與開發人員說的名稱。
 /// 支援日誌與診斷日誌共用寫檔的程式，失敗時各自寫出按下的是哪一種。
 /// </summary>
 internal readonly record struct ProjectLogFile(string Prefix, string Name)

@@ -145,7 +145,7 @@ public abstract class GlRuleSqlEquivalenceTests
     {
         // 否定面與零元邊界：貸 Revenue 且同傳票
         // 無任何「金額 > 0 的 Cash/Receivables/ReceiptInAdvance 借方」才命中，只標貸方列。
-        // 照舊版 IDEA R3：傳票裡還要至少有一筆金額 > 0 的分錄。
+        // 照舊版 R3：傳票裡還要至少有一筆金額 > 0 的分錄。
         // D01/D02/D04–D06 有正值 Cash（1101）借方對方 → 不命中；D03 無 Revenue 貸方 → 不命中；
         // D09 的 Cash 借方是 0 元，不算對方，但整張傳票沒有正金額分錄 → 不命中；
         // D10（借 5101 Others）無正常對方，借方 333.33 是正金額 → 命中。
@@ -163,7 +163,7 @@ public abstract class GlRuleSqlEquivalenceTests
         Assert.Empty(await HitDocumentsAsync(Prescreen(PrescreenRuleKeys.NonAuthorizedPreparer)));
     }
 
-    // 特定金額尾數比對＝整數化金額末 k 位與樣態相等（＝legacy @Right(@Str(@int(x),1,0),k)）；k≥2 須整數 ≥ 10^(k-1)。
+    // 特定金額尾數比對是看整數化金額的末 k 位是否和樣態相同，和舊版相同；k≥2 須整數 ≥ 10^(k-1)。
     // 000000（k=6，下界 10^5）：D06=2,000,000 整數末 6 位 = 000000 → 命中；D09 的次單位金額（0.50／0，整數 0）
     //   位數 < 6、字串短於樣態、長度不符不相等 → 不命中。
     // 000333：D10 整數 333 僅 3 位 < 6 → 不相等 → 空集合。

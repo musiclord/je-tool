@@ -7,7 +7,7 @@ namespace JET.Application;
 
 /// <summary>
 /// import.authorizedPreparer.fromFile：匯入授權編製人員清單。
-/// 只收 .xlsx；審計員要用 sourceColumn 指定清單裡和 GL 傳票建立人員意義相同的識別欄，程式不自己猜。
+/// 只收 .xlsx；使用者要用 sourceColumn 指定清單裡和 GL 傳票建立人員意義相同的識別欄，程式不自己猜。
 /// 匯入時直接轉成正式資料：匯入暫存表 pbc_authorized_preparer 與正式資料表 authorized_preparer 由 store 在同一個交易裡寫入。
 /// 授權清單是整份替換的設定檔，只能整份取代；mode 不是 replace 就回 unsupported_mode。
 /// </summary>

@@ -16,7 +16,7 @@ public static class ReportMessages
     /// <summary>一份檔案的截斷提醒最多逐一列出幾張工作表；其餘的合併成一句，提醒不會隨工作表數量變長。</summary>
     private const int MaxListedSheets = 5;
 
-    /// <summary>匯出檔裡有儲存格文字被截斷時，告訴審計員是哪個檔案、哪幾張工作表各幾格；沒有截斷時是 null。</summary>
+    /// <summary>匯出檔裡有儲存格文字被截斷時，告訴使用者是哪個檔案、哪幾張工作表各幾格；沒有截斷時是 null。</summary>
     public static string? TruncatedCellText(string fileName, IReadOnlyList<TruncatedTextCells> sheets)
     {
         ArgumentNullException.ThrowIfNull(sheets);

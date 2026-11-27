@@ -43,7 +43,7 @@ public sealed partial class HandlerRepositoryScopeTests
             "InfSamplePages,MappingStates,ResultPageRdeValues,Results"
         ),
         ("QueryBlankRecordsPageHandler", "Query/QueryBlankRecordsPageHandler.cs", "BlankRecordsPages"),
-        // 尾數 0 的個數照 IDEA 版由 GL 算出，預篩選明細頁要讀已確認的 GL 配對帶出的控制總數，所以也讀 GL 配對。
+        // 尾數 0 的個數照舊版由 GL 算出，預篩選明細頁要讀已確認的 GL 配對帶出的控制總數，所以也讀 GL 配對。
         ("QueryPrescreenPageHandler", "Query/QueryPrescreenPageHandler.cs", "MappingStates,PrescreenPages"),
         ("QuerySourceQualityPageHandler", "Query/QuerySourceQualityPageHandler.cs", "SourceQualityPages"),
         (

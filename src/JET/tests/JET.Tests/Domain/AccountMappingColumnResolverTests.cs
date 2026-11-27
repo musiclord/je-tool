@@ -5,7 +5,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// 科目配對欄位辨識（import.accountMapping.fromFile 匯入時用）：
-/// 涵蓋事務所英文標頭、中文標頭與認不出的標頭。
+/// 涵蓋英文標頭、中文標頭與認不出的標頭。
 /// oracle：欄位辨識規格（三欄各自判定：確切欄名優先，再比對還沒被認領的欄的關鍵字，最後照剩下的欄位順序）。
 /// </summary>
 public sealed class AccountMappingColumnResolverTests

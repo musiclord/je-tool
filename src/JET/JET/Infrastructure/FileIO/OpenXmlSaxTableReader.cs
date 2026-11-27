@@ -495,7 +495,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     /// <summary>
     /// 只取 &lt;t&gt; 與 &lt;r&gt;&lt;t&gt;，排除 rPh / phoneticPr（注音標示不屬儲存格內容）。
     /// 呼叫端再以 <see cref="ExcelText.Decode"/> 還原 Excel 的 _xHHHH_ 寫法：Excel 存檔時把控制字元寫成這種樣子，
-    /// 審計員在 Excel 看到什麼，JET 就匯入什麼。
+    /// 使用者在 Excel 看到什麼，JET 就匯入什麼。
     /// </summary>
     private static string ExtractRichText(OpenXmlElement container)
     {
@@ -595,7 +595,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         }
 
         // 其餘是數值儲存格：沒有型別屬性，或 t="n"。公式儲存格沒有存計算結果時當成空白，讀取時不重算公式；
-        // 這種格子由逐列讀取的地方計數，匯入結果會提醒審計員。
+        // 這種格子由逐列讀取的地方計數，匯入結果會提醒使用者。
         var rawValue = cell.CellValue?.InnerText;
         if (string.IsNullOrWhiteSpace(rawValue))
         {

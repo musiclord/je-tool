@@ -86,7 +86,7 @@ public sealed record AccountMappingState(
     bool HasCounterpart,
     int BlankCategoryCount = 0);
 
-/// <summary>配對檔分類欄留白的科目（投影時已落到 Others）；供第四步列出讓審計員決定要不要補填。</summary>
+/// <summary>配對檔分類欄留白的科目（投影時已落到 Others）；供第四步列出讓使用者決定要不要補填。</summary>
 public sealed record AccountMappingBlankAccount(string AccountNumber, string? AccountName);
 
 /// <summary>

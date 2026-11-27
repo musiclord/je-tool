@@ -1,14 +1,14 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 把匯入時記下的來源欄位定義，投影成配對後的欄位定義，也就是舊版 IDEA 在配對後的 TableDef。
+/// 把匯入時記下的來源欄位定義，投影成配對後的欄位定義，內容照舊版配對後的欄位定義。
 /// 只依匯入時保存的來源欄位定義、確認配對用的 spec 與欄位目錄運作；不掃資料列，也不依資料庫 DDL 猜型別。
 /// 每一欄都記下來歷（<see cref="FieldInfoOrigin"/>）與對應的 JET 欄位，底稿與報告照這兩項判斷，
 /// 不從欄名結尾推斷。
 /// </summary>
 internal static class FieldInfoProjector
 {
-    /// <summary>數字型傳票號碼與科目編號轉成文字前，原欄照 IDEA 的叫法加這個後綴。</summary>
+    /// <summary>數字型傳票號碼與科目編號轉成文字前，原欄照舊版的叫法加這個後綴。</summary>
     internal const string TempSuffix = "_Temp";
 
     /// <summary>來源欄本來就叫 JET 輸出欄名時，原始來源欄讓名加上的字樣。</summary>
@@ -96,7 +96,7 @@ internal static class FieldInfoProjector
             }
         }
 
-        // 攸關資料元素照舊版「自行定義欄位」在原位置改名加 _JE，型態照審計員選的值型別。
+        // 攸關資料元素照舊版「自行定義欄位」在原位置改名加 _JE，型態照使用者選的值型別。
         var rdeNames = GlRdeOutputNames.Resolve(spec.Options.RdeFields);
         foreach (var rde in spec.Options.RdeFields)
         {
@@ -242,7 +242,7 @@ internal static class FieldInfoProjector
 
     /// <summary>
     /// 過帳碼_JE 的說明照舊版寫來源欄與過帳判斷值，值用「」。
-    /// 審計員勾了空白也算已過帳時，在值後面寫明。
+    /// 使用者勾了空白也算已過帳時，在值後面寫明。
     /// </summary>
     private static string PostingCodeDescription(string sourceName, GlPostingStatusPolicy? policy)
     {
@@ -427,7 +427,7 @@ internal static class FieldInfoProjector
             });
         }
 
-        /// <summary>攸關資料元素在原位置改名，型態照審計員選的值型別，不沿用來源觀察到的型態。</summary>
+        /// <summary>攸關資料元素在原位置改名，型態照使用者選的值型別，不沿用來源觀察到的型態。</summary>
         internal void RenameRde(GlRdeFieldMetadata rde, string targetName, int moneyScale)
         {
             var (index, shared) = ClaimSource(rde.SourceColumn);
@@ -463,7 +463,7 @@ internal static class FieldInfoProjector
             });
         }
 
-        // 審計員可以把同一個來源欄配給多個欄位，例如總帳日期與傳票核准日都選同一欄（預設審計員可信，不擋）。
+        // 使用者可以把同一個來源欄配給多個欄位，例如總帳日期與傳票核准日都選同一欄（預設使用者可信，不擋）。
         // 依欄位目錄順序，第一個欄位在來源欄原位置改名，之後的欄位追加在後面。
         private (int Index, bool Shared) ClaimSource(string sourceName)
         {

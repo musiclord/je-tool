@@ -5,7 +5,7 @@
 
   硬性邊界：本檔只鏡射後端 validate.run 的 amountDistribution，以及 prescreen.run
   的 rulePeriod／concentration 區塊並格式化。ECDF、符合比例、累積占比、「其他」彙總
-  與前五佔比全部由後端算好；此處不得再做任何審計數字的加總、排序或百分比換算。
+  與前五佔比全部由後端算好；此處不得再做任何數字的加總、排序或百分比換算。
   ECharts 5.5.0 只負責以本地 SVG renderer 呈現 option，不接外網、不持有業務狀態。
 */
 (function (global) {

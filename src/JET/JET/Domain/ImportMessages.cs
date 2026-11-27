@@ -7,7 +7,7 @@ public static class ImportMessages
     public static string EmptyAppend(string fileName) =>
         $"檔案「{fileName}」沒有任何資料列，本次未匯入；先前匯入的資料不受影響。";
 
-    /// <summary>來源檔匯入時正被其他程式開著：照樣匯入最後一次存檔的內容，提醒審計員。</summary>
+    /// <summary>來源檔匯入時正被其他程式開著：照樣匯入最後一次存檔的內容，提醒使用者。</summary>
     public static string SourceFileOpenElsewhere(string fileName) =>
         $"檔案「{fileName}」正被其他程式開啟（例如 Excel）。JET 匯入的是這個檔案最後一次存檔的內容，尚未存檔的修改沒有匯入。";
 

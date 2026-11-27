@@ -35,7 +35,7 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
 
     /// <summary>
     /// 已儲存的科目配對有名稱時用這個名稱，沒有名稱（NULL、空字串或只有空白字元）時用科目母體的名稱。
-    /// 審計員上傳的檔案寫了名稱，就一直照那個名稱；檔案沒有名稱或科目還沒存過時，才看試算表與總帳。
+    /// 使用者上傳的檔案寫了名稱，就一直照那個名稱；檔案沒有名稱或科目還沒存過時，才看試算表與總帳。
     /// </summary>
     private static string SavedNameOrPopulationName(ISqlDialect dialect, string savedName, string populationName) =>
         $"CASE WHEN {SqlBlankText.IsNotBlank(dialect, savedName)} THEN {savedName} ELSE {populationName} END";
@@ -124,7 +124,7 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         // 這次要改的科目最多 500 個，全部當成參數用一句查詢查完；不可以每個科目各查一次，那樣每次都要重新彙總整份 GL 與 TB。
         // 存下的名稱和科目配對範本匯回時相同：範本只寫 TB 的名稱，所以這裡也只取 TB 的名稱，TB 沒有名稱或科目只在 GL 時不存名稱，
         // 底稿對這種科目和範本一樣寫「Not in TB」。畫面清單顯示的 GL 名稱不存進來。已儲存的名稱有內容時保留，
-        // 審計員在上傳的檔案寫的名稱不因為在畫面改分類而消失。
+        // 使用者在上傳的檔案寫的名稱不因為在畫面改分類而消失。
         await using (var lookup = connection.CreateCommand())
         {
             lookup.Transaction = tx;

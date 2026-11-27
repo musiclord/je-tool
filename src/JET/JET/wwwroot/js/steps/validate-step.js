@@ -194,7 +194,7 @@
   // { projectId, filePath, fileName, sheets, sheetName }；取消、匯入或換案件後清掉。
   var accountSheetPick = null;
   // 匯入的檔案正被 Excel 等程式開著時，後端另外列出的提醒（openElsewhereWarnings）：{ projectId, batchId, warnings }。
-  // 放在托盤的匯入結果上方，審計員不必打開訊息面板就看得到；下一次匯入成功或換案件後換掉。
+  // 放在托盤的匯入結果上方，使用者不必打開訊息面板就看得到；下一次匯入成功或換案件後換掉。
   // 提醒跟著那一次匯入的批次走：科目配對被上游修改清掉，或換成別批之後就不畫。
   var accountMappingOpenElsewhere = null;
   // 工作底稿的科目配對工作表，和 WorkingPaperSheetCatalog.AccountMapping 同名；檔案裡有它時預先選它。
@@ -358,7 +358,7 @@
   // 分頁數字欄靠右，和 detailHtml 的 numeric 對齊。
   function amountColumn(cell) { return { cell: cell, className: 'preview-table__amount' }; }
 
-  // 「核准日不在期間」的明細多一欄傳票核准日，接在總帳日期後面，審計員才看得出核准日落在哪一天；其他類別不顯示這一欄。
+  // 「核准日不在期間」的明細多一欄傳票核准日，接在總帳日期後面，使用者才看得出核准日落在哪一天；其他類別不顯示這一欄。
   function showsApprovalDate(category) { return category === 'approvalDateNotInPeriod'; }
 
   // 讀不成日期的傳票核准日在 GL 也是空的；後端另帶來源那一格的原文，這一格寫「無法辨識：」加原文，和空白分開。
@@ -485,7 +485,7 @@
   var VALIDATION_ITEMS = [
     {
       title: '完整性測試',
-      // 說明寫審計員看得到的逐科目比對；JET 自己的寫入核對在背後做，不寫在說明裡。最後一句寫要確認什麼，不寫「可能」。
+      // 說明寫使用者看得到的逐科目比對；JET 自己的寫入核對在背後做，不寫在說明裡。最後一句寫要確認什麼，不寫「可能」。
       desc: '比對各科目的 GL 本期借貸淨額與 TB 年度變動金額。金額不符時，要確認 GL 分錄是否完整。',
       status: function (v) {
         if (!v) { return null; }
@@ -627,10 +627,10 @@
     }
   ];
 
-  // 「空白傳票號碼」「空白科目編號」兩個子項畫在「風險預篩選」卡的資料缺漏輔助檢視。兩者是後端 blank_records_test 規則的子計數，
+  // 「空白傳票號碼」「空白科目編號」兩個子項畫在「預篩選」卡的資料缺漏輔助檢視。兩者是後端 blank_records_test 規則的子計數，
   // 由 validate.run 產生，因此它們的 runData 一律讀 state.results.validate，不讀 prescreen。
   // 空白摘要只在預篩選訊號呈現，驗證報告由後端寫出；
-  // 「核准日不在期間」放在資料驗證卡，因為它屬於期間界定的資料品質檢查，不是風險候選。
+  // 「核准日不在期間」放在資料驗證卡，因為它屬於期間界定的資料品質檢查，不算預篩選的命中。
   var BLANK_PRESCREEN_ITEMS = [
     blankSubItem('空白傳票號碼', '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。', ['voucherNumber'],
       function (brt) { return Number(brt.blankVoucherNumberCount); }, ['blankVoucherNumber']),
@@ -859,7 +859,7 @@
     );
   }
 
-  // 規則狀態徽章：未執行 → 灰；通過/未發現 → 綠；風險候選 → 黃；
+  // 規則狀態徽章：未執行 → 灰；通過或未發現 → 綠；有命中 → 黃；
   // 需要處理 → 紅；彙總參考 → 藍；無法執行 → 虛線（tooltip 給原因）。
   function ruleBadge(status) {
     if (!status) {
@@ -950,7 +950,7 @@
   }
 
   // 「在 JET 配對」分頁只在科目配對範本正在建立或建立失敗時顯示一行狀態；已建立或已保留時不顯示，
-  // 不打擾直接在 JET 配對的審計員。完整狀態與「建立科目配對範本」仍只在「用 Excel 配對」分頁。
+  // 不打擾直接在 JET 配對的使用者。完整狀態與「建立科目配對範本」仍只在「用 Excel 配對」分頁。
   // data-validation-output="template" 保留給 Excel 分頁，這裡另用 data-account-template-status。
   function accountTemplateJetStatusHtml() {
     var output = Store.getState().validationOutput.template;
@@ -960,7 +960,7 @@
         Ui.esc(output.message) + '</p>';
     }
     if (output.status !== 'failed') { return ''; }
-    // 沒有原因時請審計員再試一次，不說明後端沒有給原因。
+    // 沒有原因時請使用者再試一次，不說明後端沒有給原因。
     return '<p class="form-notice" data-account-template-status="failed" role="status">科目配對範本尚未準備好' +
       (output.reason ? '：' + Ui.esc(output.reason) : '，請再試一次。') + ' ' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-account-template-in-excel">' +
@@ -1002,14 +1002,14 @@
     );
   }
 
-  // 科目配對匯入區塊：方法論上排在「資料驗證」（含完整性測試）之後、「風險預篩選」之前。
+  // 科目配對匯入區塊：排在「資料驗證」（含完整性測試）之後、「預篩選」之前。
   // 預篩選的「未預期出現之特定借貸組合」依賴科目配對，因此先提供匯入入口。
   //
   // 匯入和重新匯入鈕只看 GL 欄位配對是否已確認(mappingReady)，不需要先執行資料驗證。
   // 完整性有差異仍可篩選；只有缺少、過期或損壞的驗證結果才要求重新驗證，不要求差異歸零。
   // 只要已匯入（含重開案件），就一律顯示已儲存的科目數與「資料預覽」。
   // 前端只做操作引導，未預期借貸組合是否能執行仍由後端預篩選判定。
-  // 分類留白的科目在投影時已視為 Others（同 legacy），篩選不受影響；這裡只讓審計員看到哪些科目沒填，
+  // 分類留白的科目在投影時已視為 Others（照舊版），篩選不受影響；這裡只讓使用者看到哪些科目沒填，
   // 想改分類就到範本 C 欄填好再重新匯入。清單走 query.accountMappingBlankPage 的有界分頁。
   // 整列點開的清單和下面兩份差異清單一樣記在 mappingDifferenceView：整段重繪後照原樣打開，
   // 已讀的列從同一份分頁狀態接回，不會一重繪就收起來。
@@ -1851,7 +1851,7 @@
         Ui.run('匯入科目配對範本', function () {
           return importAccountMappingSource({ filePath: pick.filePath, fileName: pick.fileName, sheetName: pick.sheetName })
             .then(function (data) {
-              // 匯入失敗時留著選擇，審計員可以改選工作表再試；成功後收起來。
+              // 匯入失敗時留著選擇，使用者可以改選工作表再試；成功後收起來。
               if (accountSheetPick === pick) { accountSheetPick = null; Store.touch(); }
               return data;
             });
@@ -1878,9 +1878,9 @@
           (added.length > 5 ? '等' : '') + '）' : '') + '。';
     }
 
-    // 選了 Excel 檔時先看有幾個有欄名的工作表：只有一個就直接匯入它；有多個時在托盤列出來請審計員選，
+    // 選了 Excel 檔時先看有幾個有欄名的工作表：只有一個就直接匯入它；有多個時在托盤列出來請使用者選，
     // 有工作底稿的「自動化工具-科目配對資訊」時預先選它。
-    // JET 匯出的報告都有一張隱藏的中繼資料工作表，審計員在 Excel 看不到，不列進選單。
+    // JET 匯出的報告都有一張隱藏的中繼資料工作表，使用者在 Excel 看不到，不列進選單。
     // JET 自己的科目配對範本另有一張分類清單，直接匯入範本那一張，不多問一次；
     // 按「建立科目配對範本」再匯入回來這條主要路徑才不會多一步。
     function importAccountMappingFile() {

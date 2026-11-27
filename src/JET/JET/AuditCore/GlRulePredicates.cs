@@ -30,9 +30,9 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 未預期借貸組合（unexpected_account_pair）照舊版 IDEA R3 寫：本列是收入貸方（amount_scaled &lt; 0），
+    /// 未預期借貸組合（unexpected_account_pair）照舊版 R3 寫：本列是收入貸方（amount_scaled &lt; 0），
     /// 同一張傳票、同一個母體範圍裡，沒有應收款項、現金或預收款且金額大於 0 的分錄，
-    /// 但至少有一筆金額大於 0 的分錄（舊版先取這類傳票裡金額大於 0 的分錄，再依傳票號碼和收入貸方對上）。
+    /// 但至少有一筆金額大於 0 的分錄。
     /// 整張傳票沒有正金額分錄時借貸一定不平，借貸不平測試會列出來，這條規則不挑。
     /// 正常對方科目要大於 0，0 元的應收或現金不算有正常對方科目，和舊版相同。
     /// 直接命中的只有收入貸方這一列；第四步與預篩選報告要列整張傳票時，由列出命中分錄的地方展開，這個判斷式只挑收入貸方。
@@ -385,15 +385,15 @@ internal sealed partial class GlRulePredicates(
         + $"{categoryAlias}.category_id = {mappingAlias}.category_id";
 
     /// <summary>
-    /// 特定金額尾數（trailing_digits）：把金額主單位整數（捨去小數）的末 k 位和審計員指定的 k 位樣態逐字比對，
+    /// 特定金額尾數（trailing_digits）：把金額主單位整數（捨去小數）的末 k 位和使用者指定的 k 位樣態逐字比對，
     /// 任一組樣態相等就命中；小數位、顯示補零、scale 與格式化結果都不納入比對。
     ///
-    /// 相當於舊版 IDEA 的 @Right(@Str(@int(amount),1,0), k) = pattern。以整數運算表達:
-    ///   整數化金額 intAmount = ABS(amount_scaled) / scale   ——整數除法,等同 @int(ABS(amount)),捨去小數;
+    /// 以整數運算表達:
+    ///   整數化金額 intAmount = ABS(amount_scaled) / scale   ——整數除法,捨去小數;
     ///   尾數比對   intAmount % 10^k = 樣態之數值             ——末 k 位相等。
-    /// 字尾長度:數字要「以 k 位樣態結尾」須本身至少有 k 位(等同 @Right 在字串短於 k 時回傳整串、
-    /// 長度不符即不相等)。故 k≥2 時加 intAmount ≥ 10^(k-1);k=1 時每個整數(含 0)都 ≥1 位、不設下界
-    /// (與舊版 @Right(@Str(0,1,0),1) = "0" 對整數 0 命中樣態 "0" 一致)。
+    /// 字尾長度:數字要「以 k 位樣態結尾」須本身至少有 k 位,位數少於 k 的整數不算相符。
+    /// 故 k≥2 時加 intAmount ≥ 10^(k-1);k=1 時每個整數(含 0)都 ≥1 位、不設下界。
+    /// 照舊版,整數 0 命中樣態 "0"。
     /// 樣態已由 validator 保證為純數字。
     /// </summary>
     public string TrailingDigits(
@@ -418,7 +418,7 @@ internal sealed partial class GlRulePredicates(
 
                 var modulus = NextParam(command, tenK);
                 var tail = NextParam(command, long.Parse(trimmed, System.Globalization.CultureInfo.InvariantCulture));
-                // 整數化金額：捨去小數的主單位整數(= @int(ABS(amount)))。
+                // 整數化金額：捨去小數的主單位整數。
                 var intAmount = dialect.IntegerQuotient($"ABS({amountColumn})", scale);
                 var tailMatch = $"{intAmount} % {modulus} = {tail}";
 
@@ -438,8 +438,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 整數部分包含任一串數字：舊版 JET「特定數字篩選」的「包含」。相當於舊版 IDEA 的
-    /// <c>@RegExpr(@AllTrim(@Upper(@str(@int(amount),1,0))), "888|28")</c>，不同的是 JET 先取絕對值、輸入當成一般數字比對，
+    /// 整數部分包含任一串數字：對應舊版「特定數字篩選」的「包含」。和舊版不同的是，JET 先取絕對值，輸入也只當成數字比對，不當成正規表示式；
     /// 和整數尾數相同地忽略正負號及小數：整數化金額 ABS(amount_scaled) / scale 轉成文字，包含任一串數字即命中。
     /// 樣態已由 validator 保證為純數字；文字轉換用 VARCHAR(40)（BIGINT 最多 19 位）。
     /// </summary>

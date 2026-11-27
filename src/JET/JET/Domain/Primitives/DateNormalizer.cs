@@ -266,7 +266,7 @@ public static partial class DateNormalizer
     // TryNormalize 把它當成純數字，確認配對時這個值列為無法辨識的日期。
     internal static string ExcelSerialText(double serial) => serial.ToString("0.0################", CultureInfo.InvariantCulture);
 
-    /// <summary>yyyy-MM-dd 的年份不在 1900 到 2100 年之間。這種日期照樣保留，只在確認配對後提醒審計員。</summary>
+    /// <summary>yyyy-MM-dd 的年份不在 1900 到 2100 年之間。這種日期照樣保留，只在確認配對後提醒使用者。</summary>
     internal static bool HasUnusualYear(string isoDate) =>
         string.CompareOrdinal(isoDate, "1900-01-01") < 0 || string.CompareOrdinal(isoDate, "2100-12-31") > 0;
 
@@ -280,7 +280,7 @@ public static partial class DateNormalizer
     private static readonly string FirstExcelFaithfulIsoDate =
         FirstExcelFaithfulDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    /// <summary>yyyy-MM-dd 的日期早於 <see cref="FirstExcelFaithfulDate"/>，在底稿寫成文字。這種日期照樣保留，只在確認配對後提醒審計員。</summary>
+    /// <summary>yyyy-MM-dd 的日期早於 <see cref="FirstExcelFaithfulDate"/>，在底稿寫成文字。這種日期照樣保留，只在確認配對後提醒使用者。</summary>
     internal static bool IsBeforeFirstExcelFaithfulDate(string isoDate) =>
         string.CompareOrdinal(isoDate, FirstExcelFaithfulIsoDate) < 0;
 

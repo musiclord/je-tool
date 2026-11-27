@@ -2,7 +2,7 @@
 // 第四步執行資料驗證並解讀結果；完整性不符時能做什麼，以及執行預篩選；
 // 第四步科目分類與科目配對。
 //
-// 審計員的操作：
+// 使用者的操作：
 //   資料驗證：按「執行驗證」並回應合成結果；看 GL 分錄數、三項測試的說明、總帳日期空白的來源檔與列號並換頁；
 //           在右側資料預覽打開 GL(未納入測試) 看原因；展開資料可靠性測試的抽樣明細，看攸關資料元素的金額欄。
 //   完整性不符與預篩選：沒有驗證結果、舊驗證結果沒有判定、後端判定不可繼續、可繼續但沒有預篩選結果時，看預篩選卡、左側第五步與頁尾；
@@ -564,7 +564,7 @@ test('the sampled entries table takes its columns from the backend and reads RDE
 // ---- 完整性不符時能做什麼，以及執行預篩選 ----
 
 test('before any validation the prescreen card, the fifth step and the footer ask to run validation first; an old summary asks to run it again', async () => {
-  // 從未驗證時請審計員先執行資料驗證，不寫「重新」；舊的驗證結果才請重新執行。
+  // 從未驗證時請使用者先執行資料驗證，不寫「重新」；舊的驗證結果才請重新執行。
   // 這幾句只比對「先執行」與「重新執行」的差別。
   const never = await openStep4();
   assert.equal(never.$('[data-action="run-prescreen"]').disabled, true);
@@ -577,7 +577,7 @@ test('before any validation the prescreen card, the fifth step and the footer as
   assert.match(never.text('.step-footer__hint'), /執行資料驗證/); assert.doesNotMatch(never.text('.step-footer__hint'), /重新/);
   assert.equal(never.$('[data-action="step-next"]').disabled, true);
 
-  // 舊的驗證結果沒有後端的判定欄位：不能放行，請審計員重新執行。
+  // 舊的驗證結果沒有後端的判定欄位：不能放行，請使用者重新執行。
   const old = validationResult(); delete old.completenessTest.eligibility;
   const outdated = await openStep4({ validation: old });
   assert.equal(outdated.$('[data-action="run-prescreen"]').disabled, true);
@@ -724,7 +724,7 @@ function detailLead(panel) {
 }
 
 // 預篩選卡片最上面的兩項彙總（依分錄編製者彙總、較少使用之科目）是預篩選算出來的；卡片下方「資料缺漏輔助檢視」的空白傳票號碼是驗證算出來的。
-// 審計員把三項都展開後重跑其中一種：重跑的那一種換了一份結果，它的明細收起；另一種的結果沒有變，明細照樣開著。
+// 使用者把三項都展開後重跑其中一種：重跑的那一種換了一份結果，它的明細收起；另一種的結果沒有變，明細照樣開著。
 test('rerunning the prescreen folds the opened aggregate details, and rerunning validation folds only the data-gap detail', async () => {
   const validated = resultId => {
     const data = validationResult({ resultId });
@@ -982,7 +982,7 @@ test('a failed account mapping file shows its own reason on the JET tab, and ret
   assert.ok(f.$('[data-account-template-status]') === null, 'no status on the JET tab after success');
 });
 
-// 建立科目配對範本失敗而沒有原因時，「在 JET 配對」分頁只請審計員再試一次，逐字比對。
+// 建立科目配對範本失敗而沒有原因時，「在 JET 配對」分頁只請使用者再試一次，逐字比對。
 // 有原因時接冒號寫原因，由上一個測試確認。
 test('a failed account mapping file without a reason asks to try again on the JET tab', async () => {
   const f = await openStep4();
@@ -1009,7 +1009,7 @@ test('the Excel tab preview opens the account mapping dataset in the data previe
   assert.equal(tab.getAttribute('aria-selected'), 'true');
 });
 
-// 「用 Excel 配對」選了有多個工作表的 Excel 檔，例如工作底稿，先在托盤列出有欄名的工作表請審計員選；
+// 「用 Excel 配對」選了有多個工作表的 Excel 檔，例如工作底稿，先在托盤列出有欄名的工作表請使用者選；
 // 有「自動化工具-科目配對資訊」時預先選它。選定後才送出匯入，帶 sheetName；取消時什麼都不送。
 // 只有一個有欄名的工作表時直接匯入，文字檔不讀工作表清單。
 const WORKING_PAPER = { filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' };
@@ -1088,7 +1088,7 @@ test('Excel mapping imports another chosen sheet, cancels without sending, and i
 });
 
 // JET 匯出的科目配對範本有範本那一張、分類清單 List 與隱藏的中繼資料工作表。按「建立科目配對範本」、在 Excel 填好再匯入回來
-// 是主要路徑，所以 JET 自己的範本直接匯入範本那一張，不先選工作表；審計員在 Excel 看不到的中繼資料工作表也不列進選單。
+// 是主要路徑，所以 JET 自己的範本直接匯入範本那一張，不先選工作表；使用者在 Excel 看不到的中繼資料工作表也不列進選單。
 // 範本是依名稱認的，第一列沒有欄名照樣認得。
 test('Excel mapping imports JET\'s own template sheet directly and never lists the hidden metadata sheet', async () => {
   const f = await openStep4({ validation: validationResult() });

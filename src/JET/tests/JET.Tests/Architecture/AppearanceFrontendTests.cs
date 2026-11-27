@@ -43,7 +43,7 @@ public sealed class AppearanceFrontendTests
     {
         var source = ReadFrontend("js", "app.js") + ReadFrontend("js", "ui-core.js");
 
-        // 總覽的解讀文字要保留三個不可混淆的語意：符合條件不等於錯誤、不適用不等於零、判斷由審計員做。
+        // 總覽的解讀文字要保留三個不可混淆的語意：符合條件不等於錯誤、不適用不等於零、是否進一步查核不由 JET 判斷。
         // 文字是白話，前兩個語意合併在同一句，所以這裡檢查整句，不拆開檢查片段。
         // 畫面不使用「母體」，和 AuditCore 正本一致。
         Assert.Contains("預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。", source, StringComparison.Ordinal);
@@ -54,7 +54,7 @@ public sealed class AppearanceFrontendTests
         Assert.DoesNotContain("不適用不等於零", source, StringComparison.Ordinal);
         Assert.DoesNotContain("不含綜合風險分數或審計判斷", source, StringComparison.Ordinal);
 
-        // 總覽不得出現風險分級／評分或引導判斷的措辭。
+        // 總覽不得出現風險分級、評分或引導判斷的措辭。
         Assert.DoesNotContain("風險評分", source, StringComparison.Ordinal);
         Assert.DoesNotContain("高風險專案", source, StringComparison.Ordinal);
     }

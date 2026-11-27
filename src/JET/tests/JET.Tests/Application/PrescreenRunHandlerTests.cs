@@ -66,7 +66,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         Assert.Equal(DemoDataFactory.PrepPeriodApprovalVouchers, distinctVouchers);
     }
 
-    // 0 的個數照 IDEA 版 R4 由 GL 算出，
+    // 0 的個數照舊版 R4 由 GL 算出，
     // 預期值由範例資料逐列獨立計算：查核期間內的借方金額合計除以分錄筆數，
     // 平均的整數部分位數減一。
     [Fact]

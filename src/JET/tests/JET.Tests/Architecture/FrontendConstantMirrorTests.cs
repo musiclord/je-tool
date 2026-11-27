@@ -14,7 +14,7 @@ public sealed class FrontendConstantMirrorTests
     {
         // 第四步照舊版沒有 11 筆以下的人員與科目兩條規則，後端沒有這兩個門檻；
         // 前端的 preparerMaxEntries 與 accountMaxEntries 只是第五步欄位條件兩項常用查法的預設，仍是 11。
-        // 「分錄金額中有連續 0 的尾數」的 0 的個數照 IDEA 版由 GL 算出，前後端都沒有固定 6 個 0 的常數；
+        // 「分錄金額中有連續 0 的尾數」的 0 的個數照舊版由 GL 算出，前後端都沒有固定 6 個 0 的常數；
         // 前端讀已確認 GL 配對帶回的個數（trailingZeroDigits）。
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
         var constants = Regex.Match(core, @"var\s+PRESCREEN_DEFAULTS\s*=\s*\{(?<body>.*?)\};", RegexOptions.Singleline);
@@ -76,7 +76,7 @@ public sealed class FrontendConstantMirrorTests
         var condition = json.RootElement.GetProperty("conditions").EnumerateArray().Single(item => item.GetProperty("letter").GetString() == "D");
         Assert.Equal("金額整數部分以至少 6 個零結尾，整數為零不選取。可另用「金額尾數連續 0 的位數」調整位數。", condition.GetProperty("help").GetString());
         // 尾數條件是一條條件，用「尾數連續多個 0」比較方式；這裡核對這個比較方式。
-        // 0 的個數照 IDEA 版由 GL 算出，加入時預設這個個數：常用查法不寫個數，
+        // 0 的個數照舊版由 GL 算出，加入時預設這個個數：常用查法不寫個數，
         // 加入時由 FilterValues.zeroRunDefault 帶入；這份舊目錄是夾具原文，仍寫 6 個零。
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
         Assert.Contains("operator: 'endsWithZeros', value: '', amountBasis: 'absolute'", core, StringComparison.Ordinal);

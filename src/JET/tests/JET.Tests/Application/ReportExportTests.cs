@@ -781,7 +781,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal(987, summary.Cell("E13").GetValue<int>());
     }
 
-    // 舊版 GetTotal 先取借貸淨額的絕對值，大於 0.01 才寫出，否則寫 0。
+    // 照舊版，先取借貸淨額的絕對值，大於 0.01 才寫出，否則寫 0。
     // 主表照舊版加上不設密碼的工作表保護。
     [Theory]
     [InlineData("-12.34", "12.34")]
@@ -857,7 +857,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
             RareAccounts: new("V", null, 9),
             BlankDescription: skipped)
         {
-            // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則略過，帶 6 只為了組出完整的投影。
+            // 0 的個數照舊版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則略過，帶 6 只為了組出完整的投影。
             ZerosThreshold = 6
         };
         var context = new PrescreenReportContext(
@@ -942,7 +942,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
         var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
 
         // 模擬本機 project DB 中目標列仍在，但其 staging 原始列已損壞．
-        // 審計報告不得以 entry_id 或空欄靜默代替。
+        // 報告不得以 entry_id 或空欄靜默代替。
         await DemoProjectPipeline.QueryScalarAsync(
             host,
             projectId,
@@ -1117,7 +1117,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal("Criteria Selection 1", summary.Cell("A5").GetString());
         Assert.Contains("調整", summary.Cell("B5").GetString(), StringComparison.Ordinal);
         Assert.Equal(1, summary.Cell("C5").GetValue<long>());
-        // 舊 IDEA 的 D 欄是直接符合條件的明細數；整張傳票帶出的其他列不計入。
+        // 舊版的 D 欄是直接符合條件的明細數；整張傳票帶出的其他列不計入。
         Assert.Equal(1, summary.Cell("D5").GetValue<long>());
         Assert.Equal(
             OriginalGlHeaders,

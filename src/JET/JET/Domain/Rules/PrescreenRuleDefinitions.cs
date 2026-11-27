@@ -25,7 +25,7 @@ public sealed record PrescreenRuleDefinition(
 {
     /// <summary>
     /// 情境只有一組、這組只有這一條條件時，報告摘要的列數、第五步的分錄筆數與底稿的逐列標記改算整張命中傳票的全部分錄。
-    /// 只有「未預期借貸組合」照舊 IDEA 這樣算；和其他條件組合時仍只算直接命中的分錄。
+    /// 只有「未預期借貸組合」照舊版這樣算；和其他條件組合時仍只算直接命中的分錄。
     /// 判斷寫在規則定義，<c>JetAuditProgram.UsesLegacyWholeVoucherRows</c> 讀這裡，不比對規則代號。
     /// </summary>
     public bool ListsWholeHitVouchersWhenAlone { get; init; }

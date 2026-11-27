@@ -41,7 +41,7 @@
   // 內容是 GL 或 TB 的分錄、科目的資料集；筆數單位用「筆」，其餘用「列」。
   var ENTRY_DATASETS = ['gl', 'glExcluded', 'tb', 'accountMapping'];
 
-  // 受查者提供資料（PBC）與標準化資料成對直接呈現；科目配對是驗證步驟的主要工作資料，
+  // PBC 原始資料與標準化資料成對直接呈現；科目配對是驗證步驟的主要工作資料，
   // 同樣保持直接可見，避免步驟按鈕換位後只亮「其他資料」而看不出目前資料集。
   var MAIN_TABS = [
     { value: 'pbcGl', label: 'PBC-GL' },

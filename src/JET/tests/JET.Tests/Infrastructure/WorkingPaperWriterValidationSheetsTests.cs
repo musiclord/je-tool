@@ -187,7 +187,7 @@ public sealed class WorkingPaperWriterValidationSheetsTests
     }
 
     // 資料可靠性樣本照舊版依傳票號碼排序，同一張傳票照原本的列順序；INF 報告與底稿 Step 2 都照這個順序。
-    // 舊版在 IDEA 抽樣後依「傳票號碼_JE」升冪排序。
+    // 舊版在抽樣後依「傳票號碼_JE」升冪排序。
     // 依分錄順序第 k 筆（從 0 起）的樣本，傳票號碼改成 V(200 - k / 2)、摘要寫 k，所以傳票號碼的順序和分錄順序相反，
     // 而且每兩筆同一張傳票。兩份輸出都要依傳票號碼升冪，同一張傳票裡分錄順序在前的先列。
     // 傳票號碼空白的樣本照舊版排在最前面，所以第 10、30 筆改成沒有傳票號碼，第 20 筆只有空白字元，
@@ -452,7 +452,7 @@ public sealed class WorkingPaperWriterValidationSheetsTests
         var sheet = workbook.Worksheet(VoucherBalanceSheet);
 
         // 照舊版 JET 的版面：B12 寫有不平的結論、B14 寫說明，
-        // 第 16 列是五欄表頭，明細依傳票號碼與總帳日期彙總，貸方合計為負數，最後一欄留給審計員填理由。
+        // 第 16 列是五欄表頭，明細依傳票號碼與總帳日期彙總，貸方合計為負數，最後一欄留給使用者填理由。
         Assert.Equal(
             "基於上述程序，查核團隊發現有部分傳票借貸不平，但已取得足夠的查核證據，確認其理由尚屬合理。",
             sheet.Cell("B12").GetString());
@@ -555,7 +555,7 @@ public sealed class WorkingPaperWriterValidationSheetsTests
     public async Task VoucherBalance_UnbalancedPopulation_UsesLegacyRow16HeaderStylesAndPlainDataRows()
     {
         // 舊版 JET 的表頭在第 16 列並套藍底白字，
-        // 資料自第 17 列起，不能被套成表頭樣式；理由欄要讓審計員在保護工作表中仍可填寫。
+        // 資料自第 17 列起，不能被套成表頭樣式；理由欄要讓使用者在保護工作表中仍可填寫。
         using var host = new HandlerTestHost();
         var projectId = await SetupUnbalancedAsync(host);
         var outputBytes = await WriteToBytesAsync(host, projectId);
@@ -730,7 +730,7 @@ public sealed class WorkingPaperWriterValidationSheetsTests
         Assert.True(sheet.Cell("B15").IsEmpty());
     }
 
-    // 受保護的 step1-2 只鎖到最後一位編製人員。舊版 JET 多鎖下面那一列，JET 留給審計員填。
+    // 受保護的 step1-2 只鎖到最後一位編製人員。舊版 JET 多鎖下面那一列，JET 留給使用者填。
     [Fact]
     public async Task PreparerSummary_LocksThroughTheLastPreparer_AndLeavesTheNextRowEditable()
     {
@@ -837,7 +837,7 @@ public sealed class WorkingPaperWriterValidationSheetsTests
         Assert.DoesNotContain(RemovedCompletenessReconciliationSheet, workbook.Worksheets.Select(ws => ws.Name));
     }
 
-    // 受保護的 step1-3 只鎖到最後一個差異科目。舊版 JET 多鎖下面那一列，JET 留給審計員填。
+    // 受保護的 step1-3 只鎖到最後一個差異科目。舊版 JET 多鎖下面那一列，JET 留給使用者填。
     [Fact]
     public async Task CompletenessDifference_LocksThroughTheLastDiffAccount_AndLeavesTheNextRowEditable()
     {

@@ -91,7 +91,7 @@ public sealed class OpenXmlMappingMetadataReaderSharedStringTests
         }
     }
 
-    /// <summary>給審計員看的句子逐字寫在這裡，當成獨立的預期值。</summary>
+    /// <summary>給使用者看的句子逐字寫在這裡，當成獨立的預期值。</summary>
     private static string ExpectedMessage(string sheet, string cell) =>
         $"這份檔案的工作表「{sheet}」儲存格 {cell} 讀不到文字內容，檔案可能已損壞。"
         + "請用 Excel 開啟這個檔案確認內容，另存新檔後再選一次，或直接在下方選擇欄位。";

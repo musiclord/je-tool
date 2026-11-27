@@ -2,7 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 案件資料夾內由 JET 命名的檔案。前綴由 projectId 去掉檔名不允許的字元而來，最長 48 字；
-/// 報告與工作檔共用同一個前綴，審計員在資料夾裡一眼就能看出屬於哪個案件。
+/// 報告與工作檔共用同一個前綴，使用者在資料夾裡一眼就能看出屬於哪個案件。
 /// </summary>
 public static class ProjectFileNames
 {
@@ -24,7 +24,7 @@ public static class ProjectFileNames
         return safeProjectId.Length <= 48 ? safeProjectId : safeProjectId[..48];
     }
 
-    /// <summary>給審計員填寫分類再匯回的帳戶對應範本；固定檔名，每次產生都覆蓋。</summary>
+    /// <summary>給使用者填寫分類再匯回的帳戶對應範本；固定檔名，每次產生都覆蓋。</summary>
     public static string AccountMappingTemplate(string projectId)
         => $"{SafePrefix(projectId)}_{AccountMappingTemplateSuffix}.xlsx";
 }

@@ -3,7 +3,7 @@ namespace JET.Domain;
 /// <summary>
 /// 高風險條件彙總行層 keyset 分頁的即時回取。採每頁兩段查詢:
 /// 查詢 1 取本頁「命中傳票之所有行」(voucher_number 落在任一命中行所屬傳票集合內的全部 GL 行,
-/// 含該傳票內未命中任何情境的行;排除 NULL voucher_number;沒有指定排序時依 entry_id 升冪,也可依審計員選的欄位排序;
+/// 含該傳票內未命中任何情境的行;排除 NULL voucher_number;沒有指定排序時依 entry_id 升冪,也可依使用者選的欄位排序;
 /// 游標展開布林式 + LimitClause);查詢 2 以本頁的 entry_id 取各行的命中
 /// 情境位置(filter_scenario.position)。<c>scenarioPositions</c> 是查詢範圍：
 /// null 表示全部情境（UI query）；非 null 時只能包含最多 <see cref="FilterScenarioLimits.MaxSavedScenarios"/> 個已驗證位置，
@@ -26,7 +26,7 @@ public interface IHighRiskSummaryRowPageRepository
 /// 高風險條件彙總傳票層 keyset 分頁的即時回取。採每頁兩段查詢:
 /// 查詢 1 取本頁命中傳票(GROUP BY voucher_number、聚合 MIN(gl_date)/MIN(created_by)/
 /// SUM(該傳票全部 GL 行的 debit_amount_scaled)、EXISTS(filter_hit) 篩命中傳票、
-/// 沒有指定排序時依 voucher_number 升冪,也可依審計員選的欄位排序、
+/// 沒有指定排序時依 voucher_number 升冪,也可依使用者選的欄位排序、
 /// 游標展開布林式 + LimitClause);查詢 2 以本頁的傳票號碼取各傳票的
 /// 命中情境位置(DISTINCT filter_scenario.position)。<c>scenarioPositions</c> 是查詢範圍：
 /// null 表示全部情境（UI query）；非 null 時只能包含最多 <see cref="FilterScenarioLimits.MaxSavedScenarios"/> 個已驗證位置，

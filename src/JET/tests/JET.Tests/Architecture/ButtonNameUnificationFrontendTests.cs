@@ -64,7 +64,7 @@ public sealed class ButtonNameUnificationFrontendTests
     [Fact]
     public void UnsavedAccountCategoryDialog_NamesTheActionTheAuditorPressed()
     {
-        // 改動會被丟掉時，第二顆按鈕寫「不儲存，直接」接審計員按下的按鈕名稱；改動留在畫面上時寫「先不儲存」。
+        // 改動會被丟掉時，第二顆按鈕寫「不儲存，直接」接使用者按下的按鈕名稱；改動留在畫面上時寫「先不儲存」。
         var core = Script("ui-core.js");
         Assert.Contains("confirmPendingAccountCategories('退出後，這些改動不會保留。', '不儲存，直接退出')", core, StringComparison.Ordinal);
         Assert.Contains("confirmPendingAccountCategories('回首頁後，這些改動不會保留。', '不儲存，直接回首頁')", core, StringComparison.Ordinal);
@@ -76,7 +76,7 @@ public sealed class ButtonNameUnificationFrontendTests
     [Fact]
     public void CaseListRefreshButton_IsNamedAfterTheCaseList()
     {
-        // 後端在案件資料夾不見時請審計員「重新整理案件清單」，按鈕用同一個名稱。
+        // 後端在案件資料夾不見時請使用者「重新整理案件清單」，按鈕用同一個名稱。
         Assert.Contains("data-action=\"picker-refresh-local\">重新整理案件清單</button>", Script("app.js"), StringComparison.Ordinal);
     }
 

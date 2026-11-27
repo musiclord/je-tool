@@ -10,6 +10,7 @@ namespace JET.Tests.Architecture;
 /// 以及誰提了什麼意見、怎麼選定做法的經過。寫程式時用過的 AI 工具與驗證框架的名稱也不寫進原始碼；
 /// 看不見的字元在審查時看不出來，一律用跳脫寫法寫出代碼。
 /// 註解也不引用文件的章節：只拿到這個方案資料夾的人查不到那些文件。
+/// 註解的讀者是開發人員：指稱操作 JET 的人寫「使用者」，也不寫公司內部的名稱。
 /// </summary>
 public sealed class SourceCommentPolicyTests
 {
@@ -95,6 +96,16 @@ public sealed class SourceCommentPolicyTests
         // 畫面與產品用語裡的步、列、項、組、條不是文件的章節；樹狀資料的「節點」也不是。
         ("中文寫的章節引用", new Regex(
             "第" + @"\s*[0-9一二三四五六七八九十百]+(?:\.[0-9]+)*\s*[節" + "章](?!點)",
+            RegexOptions.CultureInvariant)),
+    ];
+
+    // 只看註解的樣式：註解的讀者是開發人員，指稱操作 JET 的人寫「使用者」，也不寫公司內部的名稱。
+    // 畫面文字、後端送回畫面的訊息與測試資料寫在字串裡，照原樣保留，不算。
+    private static readonly (string Name, Regex Pattern)[] FirmDetails =
+    [
+        ("審計人員的稱呼", new Regex("審計" + "員|審計" + "人員|查核" + "人員", RegexOptions.CultureInvariant)),
+        ("公司內部的名稱", new Regex(
+            "事務" + "所|(?<![A-Za-z])ID" + "EA(?![A-Za-z])|Excel-V" + "BA",
             RegexOptions.CultureInvariant)),
     ];
 
@@ -480,5 +491,76 @@ public sealed class SourceCommentPolicyTests
             item => DocumentSections.Any(record => record.Pattern.IsMatch(item.Comment)));
         Assert.Contains(CommentLines(".targets", ["<!-- 載入順序：", secondLine]),
             item => item.Index == 1 && DocumentSections.Any(record => record.Pattern.IsMatch(item.Comment)));
+    }
+
+    [Fact]
+    public void Comments_AreWrittenForDevelopers()
+    {
+        var root = TestRepositoryPaths.SolutionRoot;
+        var findings = new List<string>();
+        var scanned = 0;
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                     .Where(path => Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                     .Where(path => !Path.GetRelativePath(root, path)
+                         .Split(Path.DirectorySeparatorChar)
+                         .Any(part => part is "bin" or "obj"))
+                     .Order(StringComparer.Ordinal))
+        {
+            scanned++;
+            foreach (var (index, comment) in CommentLines(Path.GetExtension(file), File.ReadAllLines(file)))
+            {
+                foreach (var (name, pattern) in FirmDetails)
+                {
+                    if (pattern.IsMatch(comment))
+                    {
+                        findings.Add($"{Path.GetRelativePath(root, file).Replace('\\', '/')}:{index + 1}: {name}");
+                    }
+                }
+            }
+        }
+
+        Assert.True(scanned > 500, $"只掃到 {scanned} 個檔，方案資料夾的位置可能不對。");
+        Assert.True(findings.Count == 0,
+            $"註解寫給開發人員看，共 {findings.Count} 處要改：" + Environment.NewLine
+            + string.Join(Environment.NewLine, findings.Take(40)));
+    }
+
+    [Theory]
+    [InlineData("\"預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審" + "計員判斷。\",")]
+    [InlineData("f.store.setCurrentUser({ shortName: '合成審" + "計員', userNumber: 7 });")]
+    [InlineData("var note = \"審" + "計員可說明差異原因\"; // 後端送回畫面的訊息")]
+    [InlineData("// 缺少的來源欄逐一列出，讓使用者補選。")]
+    [InlineData("// 照舊版，補班日的提示句不加粗。")]
+    [InlineData("// 檔名寫查核期間的起訖日。")]
+    [InlineData("// The IDEAL case keeps every row; the idea is to read once.")]
+    [InlineData("// 用 VBA 巨集的活頁簿照樣讀取儲存格的值。")]
+    public void FirmDetailPatternsLeaveScreenTextDataAndOrdinaryCommentsAlone(string line)
+    {
+        var comment = CommentPart(line);
+        Assert.True(comment is null || !FirmDetails.Any(record => record.Pattern.IsMatch(comment)), line);
+    }
+
+    [Fact]
+    public void FirmDetailPatternsRecogniseAuditorsAndFirmNames()
+    {
+        var auditor = "// 缺少的來源欄逐一列出，讓審" + "計員補選。";
+        var staff = "/// 查核" + "人員會注意整張沒寫摘要的傳票。";
+        var auditStaff = "/* 審計" + "人員自己決定是否追查 */";
+        Assert.All(new[] { auditor, staff, auditStaff }, line =>
+        {
+            var comment = CommentPart(line);
+            Assert.NotNull(comment);
+            Assert.Equal("審計人員的稱呼", Assert.Single(FirmDetails, record => record.Pattern.IsMatch(comment)).Name);
+        });
+
+        var firm = "/// 匯入事務" + "所的行事曆檔。";
+        var platform = "// 0 的個數照 ID" + "EA 版由 GL 算出。";
+        var oldTool = "/// 沿用舊版 Excel-V" + "BA 工具的三層。";
+        Assert.All(new[] { firm, platform, oldTool }, line =>
+        {
+            var comment = CommentPart(line);
+            Assert.NotNull(comment);
+            Assert.Equal("公司內部的名稱", Assert.Single(FirmDetails, record => record.Pattern.IsMatch(comment)).Name);
+        });
     }
 }

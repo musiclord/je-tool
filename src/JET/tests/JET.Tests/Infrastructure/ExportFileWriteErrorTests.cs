@@ -12,7 +12,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 匯出時檔案寫不進去：案件所在磁碟已滿、案件資料夾不能寫，或 Windows 暫存資料夾所在磁碟已滿、暫存資料夾不能寫。
-/// 這幾種情形重新下載 JET 也沒有用，訊息要寫出是哪裡、原因與審計員接下來能做什麼，不能說成範本無法讀取或填入；
+/// 這幾種情形重新下載 JET 也沒有用，訊息要寫出是哪裡、原因與使用者接下來能做什麼，不能說成範本無法讀取或填入；
 /// 也不能把暫存資料夾的問題說成案件資料夾的問題。暫存檔寫到一半失敗後，緩衝區裡還沒寫出的內容在關檔時會再寫一次，
 /// 所在磁碟已滿時又會失敗，這時仍要回報第一次的錯誤。
 /// 能在這台電腦上真的做出來的情形就用真的做：磁碟已滿是在超過所在磁碟剩餘空間的位置寫一個位元組，
@@ -356,7 +356,7 @@ public sealed class ExportFileWriteErrorTests
     public async Task ReportLease_CaseLocationDeniesNewFiles_TellsToCheckCaseLocationAccess()
     {
         // 報告的鎖檔放在案件位置的根目錄、案件資料夾旁邊；案件位置不能建立檔案時，在取得這把鎖時就失敗。
-        // 案件資料夾本身照常可以寫，所以訊息要指向案件位置，不能叫審計員去檢查案件資料夾。
+        // 案件資料夾本身照常可以寫，所以訊息要指向案件位置，不能叫使用者去檢查案件資料夾。
         using var root = new TempProjectRoot();
         var (store, directory) = CreateStore(root);
 

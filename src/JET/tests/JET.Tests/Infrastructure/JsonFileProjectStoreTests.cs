@@ -342,7 +342,7 @@ public sealed class JsonFileProjectStoreTests
         }
         """;
 
-    // 首次發布的設定檔是第 2 版。之後的版本改了設定檔的格式，也要讀得出這一版寫的設定檔，不能請審計員刪除案件。
+    // 首次發布的設定檔是第 2 版。之後的版本改了設定檔的格式，也要讀得出這一版寫的設定檔，不能請使用者刪除案件。
     [Fact]
     public async Task FirstReleasedProjectJson_CanStillBeRead()
     {
@@ -471,7 +471,7 @@ public sealed class JsonFileProjectStoreTests
             exception.Message);
     }
 
-    // 設定檔版本是現行版本、卻缺了必要欄位或抽樣版本不對，是設定檔損壞：請審計員從備份還原，不當成較早版本的案件。
+    // 設定檔版本是現行版本、卻缺了必要欄位或抽樣版本不對，是設定檔損壞：請使用者從備份還原，不當成較早版本的案件。
     [Theory]
     [InlineData("schemaVersion", null)]
     [InlineData("sampleSeedVersion", null)]
@@ -654,7 +654,7 @@ public sealed class JsonFileProjectStoreTests
 
     /// <summary>
     /// 另一個程式（例如另一個 JET 視窗的案件清單、備份或防毒軟體）短暫開著 project.json、沒有允許刪除時，
-    /// 換檔會遇到共用違規；對方很快關檔，儲存應在短暫重試後完成，不要直接告訴審計員檔案被鎖住。
+    /// 換檔會遇到共用違規；對方很快關檔，儲存應在短暫重試後完成，不要直接告訴使用者檔案被鎖住。
     /// </summary>
     [Fact]
     public async Task Save_WhenAnotherReaderBrieflyHoldsTheFile_SucceedsAfterTheReaderCloses()
@@ -712,7 +712,7 @@ public sealed class JsonFileProjectStoreTests
         Assert.Null(await store.FindAsync("not-a-guid", CancellationToken.None));
     }
 
-    // 審計員在 Windows 裡用記事本或其他程式改 project.json，存檔時會被擋下；JET 建案與儲存照常寫入，寫完再設回唯讀。
+    // 使用者在 Windows 裡用記事本或其他程式改 project.json，存檔時會被擋下；JET 建案與儲存照常寫入，寫完再設回唯讀。
     [Fact]
     public async Task CreateAndSave_LeaveProjectJsonReadOnly_SoOtherProgramsCannotOverwriteIt()
     {

@@ -7,8 +7,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 審計員在第三步把兩個 GL 欄位配到同一個來源欄，例如總帳日期與傳票核准日都選「Date」，科目名稱與傳票摘要都選「Name」。
-/// JET 照審計員的選擇配對，兩個欄位都帶同一個來源值，不另外擋。
+/// 使用者在第三步把兩個 GL 欄位配到同一個來源欄，例如總帳日期與傳票核准日都選「Date」，科目名稱與傳票摘要都選「Name」。
+/// JET 照使用者的選擇配對，兩個欄位都帶同一個來源值，不另外擋。
 /// </summary>
 public sealed class MappingSharedSourceColumnTests
 {

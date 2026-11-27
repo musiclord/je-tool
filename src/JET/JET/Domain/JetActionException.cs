@@ -52,7 +52,7 @@ public sealed record JetErrorDetail(int? Group, int? Rule, string Message)
 /// <summary>
 /// 畫面照正常操作不會送出的資料被後端拒絕時用的錯誤。畫面只看到非預期錯誤那一句，錯誤代碼不變；
 /// 哪一項檢查沒過只用固定的英文代號記進支援日誌，不帶使用者資料、本機路徑或來源欄名。
-/// 這類錯誤出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正，細節只對查原因有用。
+/// 這類錯誤出現時只會是程式送錯資料或存檔損毀，使用者在畫面上無從修正，細節只對查原因有用。
 /// </summary>
 public static class JetPayloadRejection
 {
@@ -159,7 +159,7 @@ public static class ProjectFolderMessages
 
     /// <summary>
     /// 建案的名稱撞到 DuckDB 或 SQL Server 案件的資料夾。這類案件不列在案件清單，JET 也不動資料夾，
-    /// 審計員要刪除時自己到案件位置刪除；只說「已存在」會讓人在清單上找不到原因。
+    /// 使用者要刪除時自己到案件位置刪除；只說「已存在」會讓人在清單上找不到原因。
     /// </summary>
     public static string RetiredProviderNameTaken(string projectName) =>
         $"案件名稱「{projectName}」已被以前建立的 DuckDB 或 SQL Server 案件使用，這類案件不列在案件清單。" +

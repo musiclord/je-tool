@@ -55,7 +55,7 @@ public sealed class PrescreenProgramTests
         Assert.Equal(0, result.Data.HolidayPostingCount);
         Assert.Null(result.Data.HolidayApprovalCount);
         Assert.Equal(0, result.Data.NonAuthorizedPreparerCount);
-        // 0 的個數照 IDEA 版由 GL 算出；Finalize 照請求帶出個數，預期值是 Request() 帶入的 5。
+        // 0 的個數照舊版由 GL 算出；Finalize 照請求帶出個數，預期值是 Request() 帶入的 5。
         Assert.Equal(5, result.Data.ZerosThreshold);
 
         // 第四步的原因由規則需求表產生。
@@ -114,7 +114,7 @@ public sealed class PrescreenProgramTests
         Assert.Equal(0, result.Data.HolidayApprovalCount);
     }
 
-    // 0 的個數照 IDEA 版由 GL 算出，請求帶個數；上面那則核對 Finalize 照請求帶出的個數。
+    // 0 的個數照舊版由 GL 算出，請求帶個數；上面那則核對 Finalize 照請求帶出的個數。
 
     [Fact]
     public void Finalize_AllApplicable_PreservesRawCountsAndBoundedSummaries()
@@ -273,7 +273,7 @@ public sealed class PrescreenProgramTests
             HasAuthorizedPreparers: hasAuthorizedPreparers,
             NonWorkingDays: [0, 6])
         {
-            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數；這裡帶 5，Finalize 要照請求帶出。
+            // 0 的個數照舊版由 GL 算出，請求要帶 0 的個數；這裡帶 5，Finalize 要照請求帶出。
             ZerosThreshold = 5
         };
 

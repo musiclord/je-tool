@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 public sealed class TrailingZeroLabelReadbackTests
 {
-    // 0 的個數照 IDEA 版由 GL 算出，共用夾具的尾零兩筆帶 zerosThreshold 欄：有寫時讀回「金額尾數連續 N 個 0」，
+    // 0 的個數照舊版由 GL 算出，共用夾具的尾零兩筆帶 zerosThreshold 欄：有寫時讀回「金額尾數連續 N 個 0」，
     // 沒寫時讀回規則名稱「分錄金額中有連續 0 的尾數」。
     public static TheoryData<string, string, string, string?, int?> SharedSentences()
     {

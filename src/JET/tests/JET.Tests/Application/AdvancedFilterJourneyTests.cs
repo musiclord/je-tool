@@ -30,7 +30,7 @@ public sealed class AdvancedFilterJourneyTests
             mapping = source!.BuildFlagModeMapping(), amountMode = "flag", approvalDateMode = "sameAsGlDate"
         }));
         await host.DispatchAsync("validate.run");
-        // 沿用總帳日期的傳票核准日每一筆都有值：「非空白」選到全部兩筆，選「空白」一定是 0 筆，所以直接請審計員移除。
+        // 沿用總帳日期的傳票核准日每一筆都有值：「非空白」選到全部兩筆，選「空白」一定是 0 筆，所以直接請使用者移除。
         var notBlank = Scenario("""{"type":"fieldValue","field":"approvalDate","operator":"isNotBlank"}""");
         var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = notBlank }));
         Assert.Equal(2, preview.GetProperty("scenario").GetProperty("count").GetInt64());

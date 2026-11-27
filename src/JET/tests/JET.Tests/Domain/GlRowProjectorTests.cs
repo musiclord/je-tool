@@ -430,7 +430,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(88, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("922337203685477.5808", error.RawValue);
-        // 訊息不叫審計員調整小數位數，因為案件沒有這個設定。
+        // 訊息不叫使用者調整小數位數，因為案件沒有這個設定。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
@@ -454,7 +454,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(89, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("-922337203685477.5808", error.RawValue);
-        // 訊息不叫審計員調整小數位數，因為案件沒有這個設定。
+        // 訊息不叫使用者調整小數位數，因為案件沒有這個設定。
         Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 

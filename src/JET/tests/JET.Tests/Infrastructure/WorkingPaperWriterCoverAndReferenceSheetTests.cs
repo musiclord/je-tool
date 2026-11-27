@@ -44,7 +44,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal("公司名稱 : 示範科技股份有限公司", cover.Cell("A1").GetString());
         Assert.Equal("測試資料期間 :  2025-01-01 ~ 2025-12-31", cover.Cell("A2").GetString());
         Assert.Equal(string.Empty, cover.Cell("A3").GetString());
-        // A6 只留格式、不寫字，也不寫含 CAATS 的檔名；兩份舊版 IDEA 程式都沒有寫。
+        // 照舊版，A6 只留格式、不寫字，也不寫含 CAATS 的檔名。
         Assert.Equal(string.Empty, cover.Cell("A6").GetString());
         Assert.DoesNotContain("CAATS", cover.Cell("A6").GetString(), StringComparison.OrdinalIgnoreCase);
     }
@@ -286,7 +286,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 
     // ================= 自動化工具-科目配對資訊(名稱照上傳的檔案，沒有名稱寫 Not in TB)=================
 
-    /// <summary>底稿照審計員上傳的科目配對檔寫名稱，和舊版 JET 照上傳的檔案原樣寫相同；只在 GL 的 5501 也寫檔案裡的名稱。</summary>
+    /// <summary>底稿照使用者上傳的科目配對檔寫名稱，和舊版 JET 照上傳的檔案原樣寫相同；只在 GL 的 5501 也寫檔案裡的名稱。</summary>
     [Fact]
     public async Task AccountMapping_WritesTheUploadedNames_AlsoForAGlOnlyAccount()
     {

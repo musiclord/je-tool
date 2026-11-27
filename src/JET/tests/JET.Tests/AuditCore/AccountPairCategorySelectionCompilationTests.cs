@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 借貸組合雙側多選的編譯規則：審計員選取的分類身分只用來查出 semantic role，一律綁定為參數，
+/// 借貸組合雙側多選的編譯規則：使用者選取的分類身分只用來查出 semantic role，一律綁定為參數，
 /// 比對只看 role；同一組分類的任何排列或重複都編譯出逐字相同的 SQL 與參數序列。
 /// 單側只選一個分類時就是單元素集合，不另走一條 SQL。
 /// 空集合必須 fail closed——否定模式的 NOT EXISTS 遇到空集合會反轉成全命中。

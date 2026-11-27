@@ -502,7 +502,7 @@ public static class FilterConditionRenderer
 
     /// <summary>
     /// 統計條件的欄位名稱。畫面用「」包住，和前後的文字分開；底稿與報告的欄位名稱不加任何符號，
-    /// 審計員才不會把符號當成欄位名稱的一部分，所以改用前後各一個半形空白分開。
+    /// 使用者才不會把符號當成欄位名稱的一部分，所以改用前後各一個半形空白分開。
     /// </summary>
     private static string FrequencyFieldName(string name, bool forDocument) =>
         forDocument ? " " + name + " " : "「" + name + "」";

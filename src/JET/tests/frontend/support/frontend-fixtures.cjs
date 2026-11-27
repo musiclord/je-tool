@@ -1,7 +1,7 @@
 'use strict';
 // 前端情境測試的共用夾具。
 //
-// 用途：frontend-journey-*.test.cjs 依審計員的使用情境載入正式前端腳本、操作畫面並斷言結果。
+// 用途：frontend-journey-*.test.cjs 依使用者的操作情境載入正式前端腳本、操作畫面並斷言結果。
 // 兩個以上情境檔都會用到的夾具與小工具放在這裡；只服務一個情境檔的夾具留在那個檔裡。
 // 檔名不含 .test.，Node 不會把它當成測試執行；夾具本身的測試在 frontend-support.test.cjs。
 //
@@ -472,7 +472,7 @@ function remapAppFixture(options = {}) {
   return { ...f, app: f.window.exposedApp, started(action, requestId) { started.forEach(fn => fn({ action, requestId })); } };
 }
 
-// 審計員用鍵盤開關流程總覽：用正式 index.html 的總覽標記與 app.js 正式的開啟按鈕程式。
+// 使用者用鍵盤開關流程總覽：用正式 index.html 的總覽標記與 app.js 正式的開啟按鈕程式。
 // f.key 照瀏覽器的順序送鍵：先跑 document 捕獲階段的監聽，再從目標往上冒泡。
 // 假 DOM 的 focus() 不分元素能否取得焦點，所以這裡不核對實機焦點。
 // 比對兩個假 DOM 節點一律用 assert.ok(a === b)：assert.equal 失敗時會序列化整棵循環的假 DOM，記憶體用盡而看似卡住。

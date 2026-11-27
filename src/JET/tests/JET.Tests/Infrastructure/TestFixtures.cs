@@ -56,7 +56,7 @@ internal static class SqliteTestPool
 }
 
 /// <summary>
-/// JET 存完案件設定檔就把它設成唯讀。測試要模擬審計員改設定檔時，照審計員的做法先取消唯讀再寫入；
+/// JET 存完案件設定檔就把它設成唯讀。測試要模擬使用者改設定檔時，照使用者的做法先取消唯讀再寫入；
 /// 清掉暫存的案件位置前，也先取消唯讀，Directory.Delete 才刪得掉。
 /// </summary>
 internal static class ProjectJsonEdits

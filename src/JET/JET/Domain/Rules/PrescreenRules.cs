@@ -24,8 +24,8 @@ public static class PrescreenRuleKeys
 
 /// <summary>
 /// 分錄摘要特定描述（suspicious_keywords）的預設關鍵字
-/// 照 IDEA 版 R2 的 24 個繁簡詞，順序也相同；比對包含任一。
-/// 需要其他關鍵字時，審計員在第五步自己加。
+/// 照舊版 R2 的 24 個繁簡詞，順序也相同；比對包含任一。
+/// 需要其他關鍵字時，使用者在第五步自己加。
 /// </summary>
 public static class SuspiciousKeywordDefaults
 {
@@ -38,11 +38,11 @@ public static class SuspiciousKeywordDefaults
 }
 
 /// <summary>
-/// 預篩選「分錄金額中有連續 0 的尾數」（trailing_zeros）的 0 的個數，照 IDEA 版 JET 的 R4 由 GL 決定：
+/// 預篩選「分錄金額中有連續 0 的尾數」（trailing_zeros）的 0 的個數，照舊版 R4 由 GL 決定：
 /// 列入 GL 的分錄，借方金額加總（貸方那一側算 0）除以筆數得到借方平均，平均的整數部分有幾位，0 的個數就是位數減一，
 /// 例如平均 2,391,281 是 6 個 0。算出來至少 <see cref="MinCustomDigits"/> 個、最多 <see cref="MaxCustomDigits"/> 個。
 /// 比對和第五步金額的「尾數連續多個 0」用同一個述詞（<c>GlRulePredicates.ZeroRun</c>），小數位不參與，整數部分為 0 不命中。
-/// 第五步「尾數連續多個 0」加入時預設同一個個數，審計員可以改成 1 到 <see cref="MaxCustomDigits"/>。
+/// 第五步「尾數連續多個 0」加入時預設同一個個數，使用者可以改成 1 到 <see cref="MaxCustomDigits"/>。
 /// </summary>
 public static class TrailingZeroThreshold
 {
@@ -52,9 +52,9 @@ public static class TrailingZeroThreshold
     public const int MinCustomDigits = 1;
 
     /// <summary>
-    /// 由 GL 控制總數算出 0 的個數。借方合計與筆數只算列入 GL 的分錄，和 IDEA 版 #GL# 的期間與過帳狀態範圍相同；
-    /// 借方金額是帶號金額大於或等於 0 的那一側（<see cref="GlRowProjector"/>），和 IDEA 版 DEBIT_傳票金額_JE_T 相同。
-    /// 平均用整數除法取整數部分，等同 IDEA 版 iInt；先除以金額倍率再除以筆數，結果和一次除以兩者的乘積相同。沒有分錄時平均是 0。
+    /// 由 GL 控制總數算出 0 的個數，計算範圍照舊版：借方合計與筆數只算列入 GL 的分錄，
+    /// 借方金額是帶號金額大於或等於 0 的那一側（<see cref="GlRowProjector"/>）。
+    /// 平均用整數除法取整數部分；先除以金額倍率再除以筆數，結果和一次除以兩者的乘積相同。沒有分錄時平均是 0。
     /// </summary>
     public static int FromGlTotals(GlTotals totals, int moneyScale)
     {

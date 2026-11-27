@@ -5,7 +5,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 沒有已儲存的情境也能產生工作底稿，底稿的 step3 與 step4 留空，由審計員在底稿說明；
+// 沒有已儲存的情境也能產生工作底稿，底稿的 step3 與 step4 留空；
 // 已有情境、但一個都沒勾選時也照樣產生。
 
 /// <summary>

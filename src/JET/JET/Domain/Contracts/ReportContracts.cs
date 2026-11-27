@@ -2,7 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 案件資料夾內由 JET 產生的報告種類，也是匯出進度事件的產物種類。<see cref="AccountMapping"/>
-/// 用在科目配對範本匯出的進度事件；這份範本是給審計員填寫的工作檔，不進報告清單。
+/// 用在科目配對範本匯出的進度事件；這份範本是給使用者填寫的工作檔，不進報告清單。
 /// </summary>
 public enum ReportKind
 {
@@ -61,7 +61,7 @@ public static class ReportKindValues
 
 /// <summary>
 /// 列出報告時，磁碟上的檔案和 JET 紀錄比對的結果。這只是給畫面看的資訊，不擋任何操作：
-/// 審計員在 JET 之外改了或刪了檔案，重新匯出就好。
+/// 使用者在 JET 之外改了或刪了檔案，重新匯出就好。
 /// </summary>
 public enum ReportFileState
 {

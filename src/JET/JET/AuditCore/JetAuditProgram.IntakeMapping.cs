@@ -732,7 +732,7 @@ public static partial class JetAuditProgram
             return amountMode;
         }
 
-        // 允許值：signed、side、flag、dual。畫面送不出其他值，出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以只記檢查代號。
+        // 允許值：signed、side、flag、dual。畫面送不出其他值，出現時只會是程式送錯資料或存檔損毀，使用者在畫面上無從修正，所以只記檢查代號。
         throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, "amount_mode_unknown");
     }
 
@@ -743,7 +743,7 @@ public static partial class JetAuditProgram
             return changeMode;
         }
 
-        // 允許值：direct、debitCredit、openClose、openCloseBySide。畫面送不出其他值，出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以只記檢查代號。
+        // 允許值：direct、debitCredit、openClose、openCloseBySide。畫面送不出其他值，出現時只會是程式送錯資料或存檔損毀，使用者在畫面上無從修正，所以只記檢查代號。
         throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, "change_mode_unknown");
     }
 
@@ -1020,7 +1020,7 @@ public static partial class JetAuditProgram
                 continue;
             }
 
-            // 清單的日期和 GL 的日期用同一種讀法，審計員不必為這兩份清單另外記一套寫法；
+            // 清單的日期和 GL 的日期用同一種讀法，使用者不必為這兩份清單另外記一套寫法；
             // Excel 的日期儲存格在讀檔時已經換成年月日的文字。讀不成日期的值照樣整份不儲存。
             if (!DateNormalizer.TryNormalize(date, plan.DateOptions, out var isoDate) || isoDate is null)
             {

@@ -19,7 +19,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 來源文字檔帶進 XML 不允許的控制字元時，ValidationReport 與
 /// INFReport 仍要產生，借貸不平照樣保留，報告讀回的文字與來源一字不差；Excel 的跳脫格式本身、Tab 與換行也不能被改掉。
-/// 寫入仍失敗時，支援日誌要指出工作表、儲存格與字元的碼位。JET 讀 Excel 檔時依同一規則還原，審計員在 Excel 看到什麼就匯入什麼。
+/// 寫入仍失敗時，支援日誌要指出工作表、儲存格與字元的碼位。JET 讀 Excel 檔時依同一規則還原，使用者在 Excel 看到什麼就匯入什麼。
 /// 文字全部是合成資料。
 /// </summary>
 public sealed class ReportTextEncodingTests
@@ -74,7 +74,7 @@ public sealed class ReportTextEncodingTests
         Assert.Equal(DescriptionColumn, restored.GetProperty("gl").GetProperty("mapping").GetProperty("description").GetString());
     }
 
-    /// <summary>審計員在 Excel 存出的總帳：控制字元已是 _xHHHH_ 寫法，JET 匯入後是 Excel 顯示的原文。</summary>
+    /// <summary>使用者在 Excel 存出的總帳：控制字元已是 _xHHHH_ 寫法，JET 匯入後是 Excel 顯示的原文。</summary>
     [Theory]
     [InlineData("sqlite")]
     public async Task ExcelSourceSavedWithEscapedText_ImportsWhatExcelShows(string provider)
@@ -98,7 +98,7 @@ public sealed class ReportTextEncodingTests
         Assert.Equal("合成貸方", rows[1][columns.IndexOf(DescriptionColumn)].GetString());
     }
 
-    /// <summary>JET 產生的科目配對工作檔，審計員用 Excel 填好分類後匯回，含控制字元的科目名稱和案件裡的一樣。</summary>
+    /// <summary>JET 產生的科目配對工作檔，使用者用 Excel 填好分類後匯回，含控制字元的科目名稱和案件裡的一樣。</summary>
     [Theory]
     [InlineData("sqlite")]
     public async Task AccountMappingTemplateFilledInExcel_ImportsNamesWithControlCharactersUnchanged(string provider)
@@ -111,7 +111,7 @@ public sealed class ReportTextEncodingTests
         var templatePath = export.GetProperty("filePath").GetString()!;
         var filledPath = Path.Combine(host.ProjectsRoot, "synthetic-filled.xlsx");
 
-        // 審計員在 Excel 填好 C 欄另存；這裡用 ClosedXML 代替 Excel 存檔。
+        // 使用者在 Excel 填好 C 欄另存；這裡用 ClosedXML 代替 Excel 存檔。
         using (var workbook = new XLWorkbook(templatePath))
         {
             var sheet = workbook.Worksheet("AccountMapping");

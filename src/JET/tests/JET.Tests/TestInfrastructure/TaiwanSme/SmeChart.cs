@@ -114,7 +114,7 @@ internal static class SmeChart
             new("1531", "累計折舊-使用權資產", AccumulatedDepreciation, -2_000_000m),
             new("1600", "無形資產-電腦軟體", Others, 1_200_000m),
             new("1601", "累計攤銷-電腦軟體", AccumulatedDepreciation, -400_000m),
-            // 已攤銷完畢的商標權，審計員沒有填分類，示範「分類留白 N 筆，視為 Others」。
+            // 已攤銷完畢的商標權沒有填分類，示範「分類留白 N 筆，視為 Others」。
             new("1610", "無形資產-商標權", string.Empty, 500_000m),
             new("1611", "累計攤銷-商標權", string.Empty, -500_000m),
             new("1810", "存出保證金", Others, 600_000m),

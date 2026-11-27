@@ -118,7 +118,7 @@ public sealed class ProjectMetadataUpdateTests
     }
 
     // 財報準備日的存檔：案件設定檔存不進去時，資料庫的清除一起回復，
-    // 情境、預篩選結果與舊日期都留著，審計員排除檔案問題後重送即可。
+    // 情境、預篩選結果與舊日期都留著，使用者排除檔案問題後重送即可。
     [Theory]
     [InlineData("sqlite")]
     public async Task ChangedPreparationDate_WhenSettingsCannotBeSaved_KeepsScenariosResultsAndOldDate(string provider)

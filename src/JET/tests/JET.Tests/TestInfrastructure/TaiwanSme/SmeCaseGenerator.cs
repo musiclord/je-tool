@@ -8,8 +8,8 @@ internal sealed record SmeCase(IReadOnlyList<SmeAccount> Accounts, IReadOnlyList
 
 /// <summary>
 /// 合成台灣中小型製造業一整年的總帳。日常交易依上班日產生，月結與申報依實務日期入帳；
-/// 另外安排一組查核人員會關心的樣態，例如月底系統入帳落在假日、主辦會計自行核准、
-/// 總經理在春節借支、離職人員帳號仍在入帳、修繕費轉列設備、年底依會計師建議調整等。
+/// 另外安排一組會命中預篩選與篩選條件的樣態，例如月底系統入帳落在假日、主辦會計自行核准、
+/// 總經理在春節借支、離職人員帳號仍在入帳、修繕費轉列設備、年底調整分錄等。
 /// 金額與名稱全部虛構，固定種子讓每次重建的案件逐筆相同。
 /// </summary>
 internal sealed class SmeCaseGenerator
@@ -145,7 +145,7 @@ internal sealed class SmeCaseGenerator
     {
         SmePeople.SalesAssistant => SmePeople.ReceivablesClerk,
         SmePeople.Purchaser => SmePeople.PayablesClerk,
-        // 小公司常見：主辦會計約三分之一的傳票自己核准，其餘由財務經理核准。
+        // 主辦會計約三分之一的傳票自己核准，其餘由財務經理核准。
         SmePeople.ChiefAccountant => _random.Chance(0.35) ? SmePeople.ChiefAccountant : SmePeople.FinanceManager,
         SmePeople.FinanceManager => SmePeople.GeneralManager,
         SmePeople.Intern => SmePeople.ExpenseClerk,
@@ -154,7 +154,7 @@ internal sealed class SmeCaseGenerator
 
     private DateOnly ApprovalFor(string createdBy, DateOnly post, int maxLag)
     {
-        // 7 月 12 日（週六）主辦會計加班整批核准；10 月 10 日國慶日在家核准前兩天的費用傳票。
+        // 7 月 12 日（週六）主辦會計整批核准；10 月 10 日國慶日核准前兩天的費用傳票。
         if (createdBy == SmePeople.ExpenseClerk && post >= D(7, 9) && post <= D(7, 11))
         {
             return D(7, 12);
@@ -559,7 +559,7 @@ internal sealed class SmeCaseGenerator
             return;
         }
 
-        // 費用會計約 4.5% 的傳票整張沒寫摘要，是查核人員會注意的人工分錄習慣。
+        // 費用會計約 4.5% 的傳票整張沒寫摘要。
         var blank = _random.Chance(0.045);
         var credit = _random.Chance(0.45) ? "2209" : Bank;
         var voucher = V(SmeSources.Journal, day, SmePeople.ExpenseClerk, department)
@@ -623,7 +623,7 @@ internal sealed class SmeCaseGenerator
 
         if (_ledger.Balance(CheckingBank) < 4_000_000m)
         {
-            // 整數百萬的資金調撥是正常交易，但會落入「尾數連續 6 個 0」的預篩選，示範需要人工排除的命中。
+            // 整數百萬的資金調撥會落入「尾數連續 6 個 0」的預篩選。
             V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance)
                 .Dr(CheckingBank, 5_000_000m, "活存轉支存")
                 .Cr(Bank, 5_000_000m, "活存轉支存")
@@ -1137,7 +1137,7 @@ internal sealed class SmeCaseGenerator
         cogs.Post();
     }
 
-    // ── 單次交易與查核人員關心的樣態 ─────────────────────────────────────────
+    // ── 單次交易與命中條件的樣態 ─────────────────────────────────────────────
 
     private record ExpenseSpec(string Code, decimal Min, decimal Max, bool VatDeductible, string[] Descriptions, int Weight);
 
@@ -1279,7 +1279,7 @@ internal sealed class SmeCaseGenerator
         }
     }
 
-    /// <summary>去年離職的會計帳號沒有停用，三月有人用它把應付帳款轉列其他收入。</summary>
+    /// <summary>離職會計的帳號不在授權名單，三月用這個帳號把應付帳款轉列其他收入。</summary>
     private void FormerEmployeeEntries()
     {
         (DateOnly Day, decimal Amount, string Vendor)[] entries =
@@ -1421,7 +1421,7 @@ internal sealed class SmeCaseGenerator
         }
     }
 
-    /// <summary>年底週末加班：12/27（六）、12/28（日）主辦會計確認應付費用。</summary>
+    /// <summary>年底週末入帳：12/27（六）、12/28（日）主辦會計確認應付費用。</summary>
     private void YearEndWeekendEntries()
     {
         (DateOnly Day, string Account, decimal Amount, string Text)[] entries =

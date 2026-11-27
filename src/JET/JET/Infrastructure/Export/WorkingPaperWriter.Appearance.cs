@@ -4,7 +4,7 @@ namespace JET.Infrastructure;
 
 internal sealed partial class WorkingPaperWriter
 {
-    // 照舊版 JET 的 Step5_Export_Excel_TW 訂的各工作表外觀。這裡每一項只改字型、字色或底色這類個別項目，
+    // 各工作表的外觀照舊版 JET 的底稿。這裡每一項只改字型、字色或底色這類個別項目，
     // 以範本或寫出程式原本的樣式為底，不拿一個完整的儲存格樣式整個換掉；
     // 框線、數字格式、對齊與保護設定因此都照原樣。
     private const string LegacyRed = "FFFF0000";

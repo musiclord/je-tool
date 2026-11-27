@@ -78,7 +78,7 @@ public sealed class ImportFailureWorkflowTests
             {
                 Assert.Contains("第 6000 列、第 1 欄", error.Message);
                 // 訊息不寫「型別」，改用具體說法；
-                // 並檢查訊息指出儲存格位置與審計員能做的事。
+                // 並檢查訊息指出儲存格位置與使用者能做的事。
                 Assert.Contains("請在 Excel 確認該儲存格的格式與數值後重試", error.Message);
                 Assert.DoesNotContain("型別", error.Message);
             }

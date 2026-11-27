@@ -16,7 +16,7 @@ internal sealed partial class WorkingPaperWriter
     /// 「step2 可靠性測試」:樣本以上的說明、測試程序與欄標都是範本的原字。JET 只寫 A1、A2、
     /// A4 範本原句後的隨機種子序號、配對了傳票核准人員時的 L51，以及 U 欄起攸關資料元素欄的標題。
     /// 樣本從第 53 列起寫；樣本用一個查詢讀完，再每批讀原始 GL 列與攸關資料元素的值。
-    /// A 欄的樣本序號是列的順序 1 到 N；J 欄分錄來源與 E 欄借貸代號由 InfSampleDisplayValues 決定；T 欄說明留給審計員填寫。
+    /// A 欄的樣本序號是列的順序 1 到 N；J 欄分錄來源與 E 欄借貸代號由 InfSampleDisplayValues 決定；T 欄說明留給使用者填寫。
     /// </summary>
     private async Task EmitInfSamplingAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -161,7 +161,7 @@ internal sealed partial class WorkingPaperWriter
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var values = new InfSampleDisplayValues(glMapping);
-        // 依審計員選的筆數抽樣，先依穩定鍵讀完，再照 INF 報告的順序排，
+        // 依使用者選的筆數抽樣，先依穩定鍵讀完，再照 INF 報告的順序排，
         // 之後每 DefaultPageSize 筆一批讀原始 GL 列與攸關資料元素的值。
         var samples = new List<InfSampleRow>();
         await foreach (var sample in infSamples.StreamAsync(
@@ -337,7 +337,7 @@ internal sealed partial class WorkingPaperWriter
     /// 「step4 符合高風險條件傳票」：第 11 列是欄標，A 到 E 欄依序是編號、傳票號碼、總帳日期、編製者、傳票總金額，
     /// 後面每個所選情境一欄，欄標是 C 加 position，依 position 由小到大排。第 12 列是固定說明，資料從第 13 列起。
     /// 符合的傳票用一次只往前讀的查詢全部讀完。
-    /// 每一列看那張傳票符合哪些情境，符合的情境欄寫 Y，其他留白；P 到 U 欄留給審計員填寫。
+    /// 每一列看那張傳票符合哪些情境，符合的情境欄寫 Y，其他留白；P 到 U 欄留給使用者填寫。
     /// </summary>
     private async Task EmitHighRiskVoucherAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -1548,7 +1548,7 @@ internal sealed partial class WorkingPaperWriter
     /// <summary>
     /// step2 的一列資料。A 欄是呼叫端給的樣本序號，B 傳票號碼，C 科目編號，D 科目名稱，
     /// E 借貸代號，沒有時留白，規則見 InfSampleDisplayValues；F 是借方減貸方的帶號金額，G 總帳日期，H 核准日，
-    /// I 編製人員，J 分錄來源，取 GL 整理後的值；K 摘要，L 核准人員。M 到 S 欄的結果 A 到 G 與 T 欄的說明留給審計員填寫。
+    /// I 編製人員，J 分錄來源，取 GL 整理後的值；K 摘要，L 核准人員。M 到 S 欄的結果 A 到 G 與 T 欄的說明留給使用者填寫。
     /// U 欄起是所選情境用到的攸關資料元素欄，同一個欄位只出現一次，順序照已確認配對裡的欄位順序。
     /// </summary>
     private static IReadOnlyList<WorkingPaperDisplayCell> ProjectInfSample(
@@ -1795,7 +1795,7 @@ internal sealed partial class WorkingPaperWriter
         14D
     ];
 
-    /// <summary>step4 的一列傳票：A 到 E 是固定欄，接著每個所選情境一欄，符合那個情境就寫 Y；P 到 U 欄留給審計員填寫。</summary>
+    /// <summary>step4 的一列傳票：A 到 E 是固定欄，接著每個所選情境一欄，符合那個情境就寫 Y；P 到 U 欄留給使用者填寫。</summary>
     private static IReadOnlyList<WorkingPaperDisplayCell> ProjectHighRiskVoucher(
         TaggedVoucherRow tagged,
         TagColumnSet tagColumns,

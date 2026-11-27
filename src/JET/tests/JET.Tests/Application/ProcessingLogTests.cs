@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 給審計員看的處理紀錄：GL 與 TB 各一份文字檔，放在案件資料夾。每一次處理完成後，依時間順序記下步驟名稱、時間、
-/// 執行人員、用到的條件與處理後的筆數，寫法參考 IDEA 的歷程紀錄。紀錄由獨立的模組讀操作的輸入與回應寫出，
+/// 給使用者看的處理紀錄：GL 與 TB 各一份文字檔，放在案件資料夾。每一次處理完成後，依時間順序記下步驟名稱、時間、
+/// 執行人員、用到的條件與處理後的筆數，寫法參考舊版的歷程紀錄。紀錄由獨立的模組讀操作的輸入與回應寫出，
 /// 不參與審計判斷；寫不進檔案時操作照常完成，下一次寫入時補上。
 /// </summary>
 public sealed partial class ProcessingLogTests(ITestOutputHelper testOutput)
@@ -56,7 +56,7 @@ public sealed partial class ProcessingLogTests(ITestOutputHelper testOutput)
         var glBytes = await File.ReadAllBytesAsync(glPath);
         var tbBytes = await File.ReadAllBytesAsync(tbPath);
 
-        // 和 IDEA 的歷程紀錄一樣是 UTF-8 加 BOM、Windows 換行，記事本與 Excel 都能直接開。
+        // 和舊版的歷程紀錄一樣是 UTF-8 加 BOM、Windows 換行，記事本與 Excel 都能直接開。
         foreach (var bytes in new[] { glBytes, tbBytes })
         {
             Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);

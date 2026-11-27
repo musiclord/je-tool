@@ -5,7 +5,7 @@ namespace JET.Application;
 
 /// <summary>
 /// log.append：把前端「狀態與訊息」的一則訊息存進案件。
-/// 訊息只是方便審計員回看的紀錄，不是審計軌跡；要先開啟案件才能用。
+/// 訊息只是方便使用者回看的紀錄，不是審計軌跡；要先開啟案件才能用。
 /// </summary>
 public sealed class LogAppendHandler(ProjectSession session) : IApplicationActionHandler
 {

@@ -2,7 +2,7 @@
 require('./support/resource-guard.cjs');
 // 第五步留白的情境名稱與動機。
 //
-// 審計員在第五步編輯一個已儲存的情境，名稱與動機仍是依條件自動帶入的文字，按「儲存情境」。畫面送出的名稱與動機，
+// 使用者在第五步編輯一個已儲存的情境，名稱與動機仍是依條件自動帶入的文字，按「儲存情境」。畫面送出的名稱與動機，
 // 要和後端在名稱或動機留白時補上的文字相同，前後端不能各自產生不同的文字。
 // 預期文字寫死在 tests/JET.Tests/Fixtures/filter-scenario-automatic-metadata.json，前後端共用同一份：
 //   - 後端：tests/JET.Tests/Application/FilterScenarioAutomaticMetadataTests.cs 留白儲存後讀回名稱與動機；

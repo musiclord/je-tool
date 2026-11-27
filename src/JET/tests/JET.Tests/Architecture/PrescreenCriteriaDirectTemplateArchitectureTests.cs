@@ -109,8 +109,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             detailPath,
             StringComparison.Ordinal);
 
-        // Legacy JET Step4 applies the <= 1,000,000 gate only
-        // to EntireColumn.AutoFit. It must never truncate or suppress detail reads.
+        // 照舊版，明細不超過 1,000,000 列時才自動調整欄寬；這個門檻只影響欄寬，不得截斷或略過明細的讀取。
         Assert.Equal(1, CountOccurrences(writerSource, "1_000_000"));
         AssertAppearsInOrder(
             exportPath,

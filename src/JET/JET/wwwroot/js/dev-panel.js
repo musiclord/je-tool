@@ -1,5 +1,5 @@
 /*
-  開發者面板：資料庫唯讀檢視（dev-only，非審計 workflow；provider 標籤依後端動態顯示）。
+  開發者面板：資料庫唯讀檢視（dev-only，不屬於正式的操作流程；provider 標籤依後端動態顯示）。
 */
 (function (global) {
   'use strict';

@@ -2,7 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 使用者資料預覽（query.dataPreview）的業務資料集白名單。
-/// 與 dev 檢視的差異：不暴露實體資料表名，只開放審計工作流程會接觸的資料。
+/// 與 dev 檢視的差異：不暴露實體資料表名，只開放使用者在各步驟會用到的資料。
 /// </summary>
 public enum DataPreviewDataset
 {
@@ -14,7 +14,7 @@ public enum DataPreviewDataset
     AccountMapping,
     AuthorizedPreparer,
 
-    /// <summary>DATE_DIMENSION：事務所假日／補班日（calendar_day）。</summary>
+    /// <summary>DATE_DIMENSION：假日與補班日（calendar_day）。</summary>
     Calendar,
 
     /// <summary>資料庫結構總覽：由 <c>JetSchemaCatalog</c> metadata 驅動，非任何資料表的列資料。</summary>

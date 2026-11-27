@@ -503,7 +503,7 @@
 
   function pickerFeedbackHtml(message, context, level) {
     if (!message) { return ''; }
-    // 操作已成功、只是留下要審計員自己處理的事時，用琥珀色提示，不寫「無法完成操作」（訊息分三級）。
+    // 操作已成功、只是留下要使用者自己處理的事時，用琥珀色提示，不寫「無法完成操作」（訊息分三級）。
     if (level === 'warning') {
       return '<p class="form-notice form-notice--warning picker-feedback--warning" data-motion-key="picker-feedback" role="status">' +
         Ui.esc(message) + '</p>';
@@ -947,7 +947,7 @@
     return '<span class="stepflow-item__cond">尚缺：' + Ui.esc(gate.missing.join('、')) + '</span>';
   }
 
-  // 審計員自己按的操作失敗或被阻擋、那個操作又沒有就地錯誤框時，在目前步驟標題下方寫出動作與原因。
+  // 使用者自己按的操作失敗或被阻擋、那個操作又沒有就地錯誤框時，在目前步驟標題下方寫出動作與原因。
   //失敗是紅色；被阻擋是琥珀色，因為那是前置條件還沒完成，不是執行失敗。
   // 由 Ui.run 寫入 state.operationFailure；重試任何操作或換步驟時拿掉。
   function operationFailureHtml(state, index) {
@@ -1493,7 +1493,7 @@
     };
   }
 
-  // 統計數字不從中間斷開，總覽的十億級金額斷成兩行時，審計員容易看錯：
+  // 統計數字不從中間斷開，總覽的十億級金額斷成兩行時，使用者容易看錯：
   // 數字放不下時整列一起縮一階，28、22、18px 都放不下才改成較少的格數，再從 28px 試起。
   // 同一列的數字一樣大，借方與貸方才比得起來。只換 app.css 的 stat-fit--* class，不改 state。
   var STAT_ROWS = '.overview-pop__grid, .stats-bar';
@@ -1803,9 +1803,9 @@
     );
   }
 
-  // 抬頭只保留審計員當下辨識案件所需的案件名稱與期間；資料庫放在收合的「其他資訊」。
+  // 抬頭只保留使用者當下辨識案件所需的案件名稱與期間；資料庫放在收合的「其他資訊」。
   // 1) 抬頭：小標、案件標題、基準行與 ✕；底部一條 1px 細線（CSS）。
-  // 標題放審計員最先要認的名字：有客戶名稱用客戶名稱，沒有就用案件名稱；「分錄測試」放進小標，
+  // 標題放使用者最先要認的名字：有客戶名稱用客戶名稱，沒有就用案件名稱；「分錄測試」放進小標，
   // 不用破折號接在名字後面。標題已是案件名稱時，基準行不再重複寫一次。
   function overviewHeadHtml(state) {
     var eyebrow = '分錄測試流程總覽';
@@ -1923,7 +1923,7 @@
     );
   }
 
-  // 只保留會改變審計解讀的必要提醒。
+  // 只保留會改變結果解讀的必要提醒。
   function overviewDisclaimerHtml(state) {
     var positioning = Ui.prescreenPositioningCopy(state.results.prescreen);
     return (
@@ -2037,7 +2037,7 @@
       overviewStepDetailHtml(state);
   }
 
-  // 其他資訊：預設收合，不與審計員的當前任務競爭注意力。
+  // 其他資訊：預設收合，不與使用者的當前任務競爭注意力。
   function overviewKvRow(label, value, mono, key) {
     return (
       '<div class="overview-kv" data-overview-fact-key="' + Ui.esc(key) + '">' +
@@ -2417,7 +2417,7 @@
     throw error;
   }
 
-  // 複製出來的紀錄給審計員貼到 Excel 或文件保存：欄名、資料庫、等級都寫畫面上的說法，
+  // 複製出來的紀錄給使用者貼到 Excel 或文件保存：欄名、資料庫、等級都寫畫面上的說法，
   // 時間換成這台電腦的當地日期與時間，畫面不露出系統用詞。
   var COPIED_LEVEL_NAMES = { error: '錯誤', warn: '需要注意', info: '一般' };
 

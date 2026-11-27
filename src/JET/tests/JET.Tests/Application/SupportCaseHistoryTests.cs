@@ -130,7 +130,7 @@ public sealed class SupportCaseHistoryTests
                 File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);
             }
 
-            // 紀錄寫不進去不影響審計操作。
+            // 紀錄寫不進去不影響使用者的操作。
             var progress = await host.DispatchAsync("project.saveProgress", """{"currentStep":2}""", correlationId: "during");
             Assert.Equal(2, progress.GetProperty("currentStep").GetInt32());
             blocked = await ExportAsync(host, id);

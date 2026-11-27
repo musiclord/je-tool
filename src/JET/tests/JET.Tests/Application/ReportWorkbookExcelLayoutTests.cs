@@ -14,7 +14,7 @@ namespace JET.Tests.Application;
 /// 資料都由程式產生：有含換行的摘要、借貸不平衡的傳票、傳票號碼空白的分錄、摘要空白的分錄、
 /// 財報準備日之後核准的傳票，以及和 TB 有差異的科目，讓明細頁、續頁以外的固定頁與隱藏的紀錄都寫出來。
 /// INF、工作底稿與科目配對範本照原樣寫出、不整理成 Excel 存檔時的寫法，所以不在這裡檢查：
-/// INF 與底稿照舊版的寫法交付，科目配對範本是讓審計員填寫後讀回的工作檔。
+/// INF 與底稿照舊版的寫法交付，科目配對範本是讓使用者填寫後讀回的工作檔。
 /// </summary>
 public sealed class ReportWorkbookExcelLayoutTests(ReportWorkbookExcelLayoutFixture fixture)
     : IClassFixture<ReportWorkbookExcelLayoutFixture>

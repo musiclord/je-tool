@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>Legacy TableDef 可見的四種欄位型態。</summary>
+/// <summary>欄位定義的四種欄位型態，分法照舊版。</summary>
 internal enum LegacyFieldKind
 {
     Text,
@@ -47,8 +47,8 @@ public sealed record StagingRow(
 /// 批次內單一來源的描述（寫入 import_batch_source）。
 /// FilePath 只供本次讀檔；FileName 是可持久化／顯示的 leaf name。
 /// SheetName / EncodingName / Delimiter 記錄呼叫時指定的值，null = 交由偵測鏈判定。
-/// HeaderRow 是審計員指定的「欄名在第幾列」（1 起算），沒有指定或指定第 1 列時是 null；
-/// 和其他選項一樣跟著來源保存，匯入回應與重開案件都帶回去，審計員才知道這份來源是怎麼讀的。
+/// HeaderRow 是使用者指定的「欄名在第幾列」（1 起算），沒有指定或指定第 1 列時是 null；
+/// 和其他選項一樣跟著來源保存，匯入回應與重開案件都帶回去，使用者才看得出這份來源是怎麼讀的。
 /// </summary>
 public sealed record ImportSourceDescriptor(
     string FilePath,
@@ -150,8 +150,8 @@ public sealed record ImportBatchResult(
 /// null 表示交由 reader 偵測。欄位適用性驗證在 handler，reader 只消費。
 /// LeadingRowsToSkip 在 Excel 以實際列號計算、文字檔以記錄計，都包含空白列；一般匯入的「欄名在第幾列」
 /// 由 handler 換算成這個值（欄名在第 N 列就是略過 N-1 列），Access 讀取器不使用它。
-/// FixedLeadingRows 表示略過列數是匯入版面固定的，不是審計員指定的欄名列，例如行事曆範本的欄名在第 2 列、
-/// 科目配對舊範本在第 3 列；這時找不到欄名照舊說檔案或工作表是空的，不叫審計員去改畫面上沒有的欄名列。
+/// FixedLeadingRows 表示略過列數是匯入版面固定的，不是使用者指定的欄名列，例如行事曆範本的欄名在第 2 列、
+/// 科目配對舊範本在第 3 列；這時找不到欄名照舊說檔案或工作表是空的，不叫使用者去改畫面上沒有的欄名列。
 /// </summary>
 public sealed record TabularSourceRequest(
     string FilePath,
@@ -170,7 +170,7 @@ public sealed record TabularSourceRequest(
 
 /// <summary>
 /// 一個來源裡有公式、卻沒有存計算結果的儲存格（有公式 f、沒有值 v）。讀取器不重算公式，這些格子讀成空白；
-/// 這裡記下格數與第一格的位置，讓匯入結果提醒審計員用 Excel 開檔存檔後再匯入。略過的標題列不計。
+/// 這裡記下格數與第一格的位置，讓匯入結果提醒使用者用 Excel 開檔存檔後再匯入。略過的標題列不計。
 /// </summary>
 public sealed class FormulaWithoutResultTally
 {
@@ -203,7 +203,7 @@ public sealed record WorksheetInspection(
     IReadOnlyList<string> Columns,
     int? RowCountEstimate = null);
 
-/// <summary>給審計員看的來源檔提醒文字；檢視與預覽共用，前端原樣顯示。</summary>
+/// <summary>給使用者看的來源檔提醒文字；檢視與預覽共用，前端原樣顯示。</summary>
 public static class TabularSourceNotices
 {
     /// <summary>
@@ -230,7 +230,7 @@ public static class TabularSourceNotices
 /// Excel 各支援格式與 Access：Worksheets 列出工作表或一般資料表，其餘 null；
 /// .csv 或 .txt：Columns 和 Encoding 有值、
 /// Delimiter 為偵測結果（單欄檔 null）、Worksheets null。
-/// Notices 是給審計員看的提醒，例如文字檔只讀到一欄時提示可能是報表格式；沒有提醒時為 null 或空清單。
+/// Notices 是給使用者看的提醒，例如文字檔只讀到一欄時提示可能是報表格式；沒有提醒時為 null 或空清單。
 /// </summary>
 public sealed record TabularFileInspection(
     string FileType,

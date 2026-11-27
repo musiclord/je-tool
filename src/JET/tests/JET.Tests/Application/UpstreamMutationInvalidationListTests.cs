@@ -62,7 +62,7 @@ public sealed class UpstreamMutationInvalidationListTests
             Assert.Equal(ResultKeys, invalidated.GetProperty("fields").EnumerateObject().Select(field => field.Name).Order(StringComparer.Ordinal));
         }
 
-        // 契約檔記的是審計員在畫面上會走到的 action，所以回應帶 invalidatedResults 的 action，就是清單裡畫面有入口的那些。
+        // 契約檔記的是使用者在畫面上會走到的 action，所以回應帶 invalidatedResults 的 action，就是清單裡畫面有入口的那些。
         var onScreen = new SortedSet<string>(entries.Where(entry => entry.Screen).Select(entry => entry.Action), StringComparer.Ordinal);
         Assert.True(replying.SetEquals(onScreen),
             "回應帶 invalidatedResults 的 action 和清單不一致。契約檔有、清單沒有列成畫面入口的："

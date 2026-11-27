@@ -90,7 +90,7 @@
         },
         {
           "name": "PublishAsync",
-          "parameters": "string, int, …",
+          "parameters": "string, WorkflowStep, …",
           "returns": "Task<object>",
           "visibility": "package",
           "static": true

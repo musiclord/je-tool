@@ -47,7 +47,7 @@
     pickerSupportLogPath: null,
     // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色的「需要注意」提示，不寫「無法完成操作」。
     pickerFeedbackLevel: 'error',
-    // 審計員自己按的操作失敗或被阻擋、而且那個操作沒有自己的就地錯誤框時，在目前步驟標題下方顯示一次
+    // 使用者自己按的操作失敗或被阻擋、而且那個操作沒有自己的就地錯誤框時，在目前步驟標題下方顯示一次
     // { id, label, message, level: 'error' | 'warn', stepIndex }。純畫面狀態：
     // 不持久化、不進後端 payload；任何 Ui.run 開始、換步驟、開案、換案與回案件清單時清掉。
     operationFailure: null,
@@ -68,7 +68,7 @@
     // GL 另帶 options 與後端算好的 availableGlFields（第五步依它停用用到未配對欄位的入口），
     // 以及 neverBlankGlFields（GL 中每一筆都有值的欄位，第五步不替它們提供「空白」的選項）。
     // invalidatedByImport = 來源變更使配對失效（顯示說明橫幅，重新提交後解除）。
-    // droppedFields = 來源變更後，草稿裡被拿掉的欄位（新資料沒有那個來源欄），提示審計員重新選。
+    // droppedFields = 來源變更後，草稿裡被拿掉的欄位（新資料沒有那個來源欄），提示使用者重新選。
     //   由底稿匯入欄位時對不上的欄位也放這裡，標 fromReport，只列在第三步上方的托盤。
     // options = GL 專有的投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位、往下填補的欄位）。
     mapping: {
@@ -221,9 +221,9 @@
     }
   }
 
-  // 來源資料換過之後，草稿只留新資料仍有的來源欄；拿掉的記在 droppedFields，配對畫面據此請審計員重新選。
+  // 來源資料換過之後，草稿只留新資料仍有的來源欄；拿掉的記在 droppedFields，配對畫面據此請使用者重新選。
   // 借方與貸方代碼都是字面值，不受來源欄改變影響。人工/自動與過帳狀態的來源欄被拿掉時，
-  // 它們的代碼設定跟著清掉，和審計員自己取消那個欄位的結果一樣。
+  // 它們的代碼設定跟著清掉，和使用者自己取消那個欄位的結果一樣。
   function reconcileDraftWithColumns(kind, columns) {
     var available = Object.create(null);
     (columns || []).forEach(function (column) { available[column] = true; });
@@ -333,7 +333,7 @@
       state.filterResultRef = null;
       state.filterScenarioCheck = null;
       filterDraftRev++;
-      // 審計員要回第五步重做，訊息屬於「需要注意」這一級。
+      // 使用者要回第五步重做，訊息屬於「需要注意」這一級。
       if (hadScenarios) { Store.addMessage('前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。', 'warn'); }
     }
   }
@@ -438,7 +438,7 @@
       bump();
     },
 
-    // level 省略時是錯誤；'warning' 只用在操作已成功、但留下要審計員自己處理的事（例如刪除案件後資料夾沒刪乾淨）。
+    // level 省略時是錯誤；'warning' 只用在操作已成功、但留下要使用者自己處理的事（例如刪除案件後資料夾沒刪乾淨）。
     setPickerFeedback: function (message, context, level) {
       state.pickerFeedback = message || null;
       state.pickerFeedbackLevel = message && level === 'warning' ? 'warning' : 'error';
@@ -860,7 +860,7 @@
     // 找不到的來源欄已經拿掉，前端只做一次原子鏡像。既有 committed/invalidated 狀態刻意保留，草稿不冒充已生效配對。
     // 沒有匯入 TB，或檔案裡沒有可帶入的 TB 配對時，bundle.tb 是 null，TB 的草稿照舊。
     // 這時上一份檔案留下的 TB 重選項目拿掉，托盤只列這一份檔案的結果；重新匯入 TB 留下的項目照舊。
-    // dropped：檔案裡選了、目前資料找不到的欄位，格式同 droppedFields（標 fromReport），托盤據此請審計員重新選擇。
+    // dropped：檔案裡選了、目前資料找不到的欄位，格式同 droppedFields（標 fromReport），托盤據此請使用者重新選擇。
     restoreMappingDrafts: function (bundle, dropped) {
       state.mapping.gl.draft = Object.assign({}, bundle.gl.mapping || {});
       state.mapping.gl.droppedFields = (dropped && dropped.gl) || [];

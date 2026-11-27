@@ -61,8 +61,8 @@
      在每條 rule 上打一個穩定的身分標記（__commonCard = 卡片代號）併進草稿；已選偵測 =
      草稿中是否存在帶該卡標記的 rule；移除 = 把所有帶該卡標記的 rule 挑掉。
      用標記而不用結構簽章判斷：如果用 type(+field/mode/prescreenKey) 的結構簽章猜「這條 rule 是不是這張卡帶進來的」，
-     卡片的簽章會和審計員自訂的同型別條件重疊，例如手動加入的同型別關鍵字條件會讓特定摘要卡被當成已選；
-     移除時只刪第一條同簽章的 rule，也可能刪到審計員自己加的條件。自訂條件不帶標記，就不會被當成卡片帶入的條件。
+     卡片的簽章會和使用者自訂的同型別條件重疊，例如手動加入的同型別關鍵字條件會讓特定摘要卡被當成已選；
+     移除時只刪第一條同簽章的 rule，也可能刪到使用者自己加的條件。自訂條件不帶標記，就不會被當成卡片帶入的條件。
      __commonCard 是 UI-only 標記（鍵名以雙底線開頭、明示「內部用途、不屬 wire 契約」），絕不可
      送進後端。所有送出點一律經 toWireScenario() 深拷貝並遞迴剝除；有卡片標記或已存
      source:'common' 時另送根層 source:'common'，groups 內每條 rule 不含任何 UI-only 鍵。
@@ -84,7 +84,7 @@
   }
 
   // Wire source 的單一推導點：草稿讀標記；project.load 的 saved summary 已沒有標記，故保留 canonical source。
-  // 來源代碼不是 common 的情境，一律當成審計員自訂的情境（見 filter-step-saved 的 editScenario）。
+  // 來源代碼不是 common 的情境，一律當成使用者自訂的情境（見 filter-step-saved 的 editScenario）。
   function scenarioSource(scenario) {
     return hasCommonMarker(scenario) || (scenario.source === COMMON_SOURCE && !scenario.__restoredOrigins) ? COMMON_SOURCE : null;
   }
@@ -215,7 +215,7 @@
   }
 
   // 卡片帶入的條件是否仍是那張卡：比對卡片規格裡決定條件種類的鍵（型別、預篩選鍵、欄位、比較方式，
-  // 規格是子條件組時再逐條比對子條件的種類）。天數、清單、尾數等審計員要填的值不算。固定資產與費用的兩種借貸組合型別沿用同一張卡。
+  // 規格是子條件組時再逐條比對子條件的種類）。天數、清單、尾數等使用者要填的值不算。固定資產與費用的兩種借貸組合型別沿用同一張卡。
   var COMMON_PAIR_TYPES = ['specialAccountCategoryPair', 'accountPair'];
 
   function sameCommonRuleKind(rule, spec) {
@@ -386,7 +386,7 @@
     return '<section class="condition-picker condition-picker--field">' + fieldListHtml() + '</section>';
   }
 
-  // 審計員習慣直接套用預篩選條件，所以預篩選條件是條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；
+  // 使用者常直接套用預篩選條件，所以預篩選條件是條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；
   // 每列是名稱加一把鍵的清單列，已在作用中的組時寫「已加入」，再按一下移出。
   function prescreenPickerHtml(draft) {
     var current = draft || Store.getState().filter.draft;
@@ -616,7 +616,7 @@
     FilterStep.viewState.disclosures = kept;
   }
 
-  // 建議的名稱與動機只描述已選條件，不自行編出風險判斷；沒有條件時兩欄留空。名稱列出前兩項條件，超過兩項加上總數，
+  // 建議的名稱與動機只描述已選條件，不自行加上條件以外的判斷；沒有條件時兩欄留空。名稱列出前兩項條件，超過兩項加上總數，
   // 卡片帶入的條件用卡片名稱，和自訂條件同一種寫法。
   // 有卡片時動機用 commonScenarioRationale；只有自訂條件時把條件念一次。
   function automaticMetadata(draft) {
@@ -703,7 +703,7 @@
     return '<p class="filter-example-list__hint">套用後會替換目前的條件。</p><ul class="filter-example-list__items">' + items + '</ul>';
   }
 
-  // 範例要用文字型攸關資料元素欄位時：只有一個就直接帶入，兩個以上先就地列出欄位讓審計員選。
+  // 範例要用文字型攸關資料元素欄位時：只有一個就直接帶入，兩個以上先就地列出欄位讓使用者選。
   // 停用或還沒選欄位時不改動草稿。
   function chooseTemplate(container, key) {
     var template = Ui.FILTER_SCENARIO_TEMPLATES.filter(function (item) { return item.key === key; })[0];
@@ -768,7 +768,7 @@
   // 把範例落地成草稿：規則深拷貝，名稱與動機先當固定文字，條件增減後才改回自動。
   // 指定 commonCard 的範例先用 addCommonToDraft 帶入那張卡，範例第一組的條件接在同一組卡片條件之後
   //（例如「非營業日且排除指定日期」是第 1 組第 1 條非營業日、第 2 條排除日期），其餘組另開；
-  // 期末 N 天由查核截止日算起訖。fieldId 空白的條件換成 fieldId（審計員選的文字型攸關資料元素欄位）。
+  // 期末 N 天由查核截止日算起訖。fieldId 空白的條件換成 fieldId（使用者選的文字型攸關資料元素欄位）。
   // 套用後若有條件還要填值，焦點移到第一個要填的欄位，但不代填任何值。
   function applyTemplate(key, fieldId) {
     var template = Ui.FILTER_SCENARIO_TEMPLATES.filter(function (item) { return item.key === key; })[0];

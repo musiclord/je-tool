@@ -10,10 +10,10 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 案件內報告檔的儲存：把內容寫成同目錄暫存檔、完整後改名，再在 <c>reports.json</c> 記下
-/// JET 寫了什麼。它不核對檔案內容，不擋載入；審計員在 JET 之外改了檔案，<see cref="ListAsync"/> 只在
+/// JET 寫了什麼。它不核對檔案內容，不擋載入；使用者在 JET 之外改了檔案，<see cref="ListAsync"/> 只在
 /// <see cref="Report.FileState"/> 回報。
 ///
-/// JET 預設審計員可信，所以這裡不核對檔案內容，也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
+/// JET 預設使用者可信，所以這裡不核對檔案內容，也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
 /// 工作底稿每次匯出寫新版本檔，其餘報告覆蓋同名檔。
 /// </summary>
 public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
@@ -795,7 +795,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             return $"{prefix}_{suffix}.xlsx";
         }
 
-        // 版本檔用本地時間，審計員在檔案總管看到的時間和檔名一致；同一秒內再匯出就補流水號。
+        // 版本檔用本地時間，使用者在檔案總管看到的時間和檔名一致；同一秒內再匯出就補流水號。
         var stamp = generatedUtc.ToLocalTime().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var candidate = $"{prefix}_{suffix}_{stamp}.xlsx";
         for (var sequence = 2;
@@ -808,7 +808,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
         return candidate;
     }
 
-    // 審計員在案件資料夾看到的檔名結尾。資料可靠性抽樣清單與預篩選報告的結尾和內附範本的檔名不同。
+    // 使用者在案件資料夾看到的檔名結尾。資料可靠性抽樣清單與預篩選報告的結尾和內附範本的檔名不同。
     private static string GetReportFileSuffix(ReportKind kind) => kind switch
     {
         ReportKind.ValidationReport => "ValidationReport",

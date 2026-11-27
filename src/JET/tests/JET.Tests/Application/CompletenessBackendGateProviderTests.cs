@@ -16,7 +16,7 @@ public sealed class CompletenessBackendGateProviderTests
     private const string NoValidation = "noValidation";
     private const string ReimportedGl = "reimportedGl";
 
-    // 完整性差異是審計發現，不是禁止篩選的條件。
+    // 完整性差異不是禁止篩選的條件。
     // 固定一個科目差額 10，保存、匯出、重開與重跑都帶著這個差異核對。
     [Theory]
     [InlineData("sqlite")]
@@ -137,7 +137,7 @@ public sealed class CompletenessBackendGateProviderTests
         await host.DispatchAsync(
             "calendar.setNonWorkingDays",
             """{ "days": [1] }""");
-        // 上游修改會清除下游：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
+        // 上游修改會清除下游：行事曆修改清掉已存情境，重新儲存情境後再匯出。
         var resaved = await host.DispatchAsync("filter.commit", FilterCommitPayload());
         references = references with { Revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString()! };
         // 底稿自己重算目前資料，不要求先重新產生 Criteria 檔案。

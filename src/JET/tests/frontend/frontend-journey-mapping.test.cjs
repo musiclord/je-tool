@@ -2,7 +2,7 @@
 require('./support/resource-guard.cjs');
 // 第三步欄位配對的情境測試。
 //
-// 「第三步配對內容與確認」：審計員在簡易清單指派過帳狀態欄、讀來源值、沒選值時想確認、選值後確認；
+// 「第三步配對內容與確認」：使用者在簡易清單指派過帳狀態欄、讀來源值、沒選值時想確認、選值後確認；
 // 設定人工與自動代碼（只指定一側的代碼、兩側都指定）；勾新的攸關資料元素欄、確認、拿到後端發的識別碼、改名再確認；
 // 「傳票建立日」下拉選到已經是別的欄位的來源欄，出現確認提示後又選回空白；
 // 取消指派過帳狀態欄後再確認；在簡易清單與對照表格比較能不能確認；切換金額格式。
@@ -453,7 +453,7 @@ test('mapping: whether two codes are the same comes from the backend comparison,
 
 test('mapping: a new relevant data element field is sent without an id and the id from the backend is reused after renaming', async () => {
   const f = journey({ draft: DUAL });
-  // 攸關資料元素只收審計員勾選的來源欄；新欄一律不帶 fieldId，既有欄沿用後端發的識別碼，確認回應的設定覆寫草稿，
+  // 攸關資料元素只收使用者勾選的來源欄；新欄一律不帶 fieldId，既有欄沿用後端發的識別碼，確認回應的設定覆寫草稿，
   // 下一次確認才會沿用同一個身分（第五步的條件靠它指到欄位）。
   // 核心欄位用掉的來源欄不列入攸關資料元素候選。
   const candidates = () => f.$$('[data-rde-column]').map(box => box.getAttribute('data-rde-column'));
@@ -488,7 +488,7 @@ test('mapping: a new relevant data element field is sent without an id and the i
 });
 
 // 「傳票建立日」下拉選到已經勾成別的攸關資料元素的來源欄時，下方出現確認提示。
-// 審計員沒有按提示上的兩顆按鈕，直接把下拉選回空白，或改選已經是傳票建立日的來源欄：提示跟著收起，欄位設定不變。
+// 使用者沒有按提示上的兩顆按鈕，直接把下拉選回空白，或改選已經是傳票建立日的來源欄：提示跟著收起，欄位設定不變。
 test('mapping: the creation-date prompt goes away when the menu goes back to blank or to a column that is already the creation date', () => {
   const dept = { sourceColumn: 'Dept', label: '部門', valueType: 'text' };
   const created = { sourceColumn: 'Region', label: '傳票建立日', valueType: 'date' };
@@ -1199,9 +1199,9 @@ test('redraw: after a new import, the old grid preview is never shown whether it
   assert.ok(!f.need('.map-grid').textContent.includes('BEFORE-REOPEN'), 'a reply from before reopening is not shown');
 });
 
-// 配對區上方托盤裡的「由底稿匯入欄位」：選 JET 匯出的檔案後，把檔案記錄的配對填成草稿，審計員按確認配對才儲存。
+// 配對區上方托盤裡的「由底稿匯入欄位」：選 JET 匯出的檔案後，把檔案記錄的配對填成草稿，使用者按確認配對才儲存。
 // 沒有匯入 TB 時只帶入 GL，TB 的草稿照舊。
-// 後端列出的找不到的來源欄列在托盤請審計員重選，GL 與 TB 卡片頂端不列出；沒有帶入 TB 的原因也寫在托盤，不另記在訊息面板。
+// 後端列出的找不到的來源欄列在托盤請使用者重選，GL 與 TB 卡片頂端不列出；沒有帶入 TB 的原因也寫在托盤，不另記在訊息面板。
 // 假回應只用正式後端回過的欄位（tests/JET.Tests/Fixtures/action-shapes.json 的 mapping.restoreDraft）。
 // 托盤白紙上的每一行：帶入的結果、沒有帶入 TB 的原因、「下列欄位請重新選擇：」與每一個要重選的欄位。
 const importLines = f => f.body().querySelectorAll('[data-bind="mapping-import-result"] p, [data-bind="mapping-import-result"] li')
@@ -1671,7 +1671,7 @@ test('the confirmed mapping summary keeps preview and remap side by side', async
 
 /* ---- 確認配對時往下填補空白 ------------------------------------------------ */
 
-// 往下填補放在第三步確認配對時：審計員勾選已配對的欄位，確認配對時只送勾選的欄位，
+// 往下填補放在第三步確認配對時：使用者勾選已配對的欄位，確認配對時只送勾選的欄位，
 // 沒勾選就不帶這個鍵（配到同一個來源欄的欄位算一起勾選，見後面成組的那則）；後端回填了幾格，摘要與完成訊息寫出來；拿掉欄位的來源欄時勾選跟著消失。借方、貸方代碼是字面值，不在清單裡。
 test('mapping: fill-down ticks follow the mapped fields, go out only when chosen and come back with the filled count', async () => {
   const f = journey({ draft: DUAL });
@@ -1772,7 +1772,7 @@ test('mapping: date notices mark the wrong part of each value and say how the ro
   assert.equal(box.querySelectorAll('[data-action="preview-date-excluded"]').length, 1);
   assert.ok(fields[0].querySelector('[data-action="preview-date-excluded"].jet-view--preview') !== null);
 
-  // 訊息面板只留一則摘要，細節在配對區。無法辨識的日期照舊版 IDEA JET 的說法，逐欄寫出對應的來源欄位與筆數；
+  // 訊息面板只留一則摘要，細節在配對區。無法辨識的日期照舊版的說法，逐欄寫出對應的來源欄位與筆數；
   // 其他需要留意的日期只寫筆數。
   const messages = f.store.getState().messages.filter(message => /日期/.test(message.text));
   assert.deepEqual(plain(messages.map(message => ({ text: message.text, level: message.level }))),

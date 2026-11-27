@@ -605,7 +605,7 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task LeadingRowsToSkip_SkipsTitleRowSoSecondRowIsHeader()
     {
-        // 事務所行事曆形狀:第 1 列樣式標題(只佔 B1)、第 2 列才是標頭、第 3 列起資料。
+        // 假日檔的形狀：第 1 列是標題（只佔 B1），第 2 列才是標頭，第 3 列起是資料。
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
             ws.Cell(1, 2).Value = "Holiday Table";

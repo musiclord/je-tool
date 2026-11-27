@@ -318,7 +318,7 @@ internal sealed partial class WorkingPaperWriter
 
         /// <summary>
         /// 受保護的工作表照舊版先解鎖整張表，只鎖程式寫入的資料區。
-        /// 程式寫的格子在資料區裡就鎖定，留給審計員填寫的 <see cref="WorkingPaperStyles.Editable"/> 例外；
+        /// 程式寫的格子在資料區裡就鎖定，留給使用者填寫的 <see cref="WorkingPaperStyles.Editable"/> 例外；
         /// 範本原有的格子只在資料區的表頭範圍內鎖定。
         /// </summary>
         private Func<uint, uint, uint, uint>? WithLockedArea(

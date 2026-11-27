@@ -271,7 +271,7 @@ public sealed class JetRuleRequirementsTests
     public void Sentences_FilterReasonAndPrescreenSentence(
         JetRulePrerequisite prerequisite, string filterReason, string prescreenSentence)
     {
-        // 審計員改過的分類名稱寫新名稱；第四步沒有清單最後那句下一步，GL 欄位的句子另接到哪裡補。
+        // 使用者改過的分類名稱寫新名稱；第四步沒有清單最後那句下一步，GL 欄位的句子另接到哪裡補。
         var labels = AccountCategoryLabels.BuiltIn with { Revenue = "營業收入", Receivables = "應收帳款" };
 
         Assert.Equal(filterReason, JetRuleRequirements.Reason(prerequisite, labels));

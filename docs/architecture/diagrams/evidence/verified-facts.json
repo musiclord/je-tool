@@ -1,6 +1,6 @@
 {
-  "identity": "Committed tree 63d5d74 snapshot taken 2026-11-16; SHA-256 and line-range evidence",
-  "verifiedOn": "2026-11-16",
+  "identity": "Committed tree 018a21d snapshot taken 2026-11-27; SHA-256 and line-range evidence",
+  "verifiedOn": "2026-11-27",
   "facts": [
     {
       "id": "architecture",
@@ -12,31 +12,31 @@
           "path": "src/JET/JET/JET.csproj",
           "line": 1,
           "endLine": 47,
-          "sha256": "d52b301481e244d2cd2db27da6fd5181d07d58a655b502bf6adadb65d7cd72b2"
+          "sha256": "52516f013e5356bf982ae5fa07281f5134b96d4d0a532c8e27b3838cb544d68e"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
           "line": 26,
           "endLine": 54,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 128,
-          "endLine": 140,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 155,
+          "endLine": 167,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "docs/jet-guide.md",
-          "line": 921,
-          "endLine": 930,
-          "sha256": "9fabf4a366c804f65deaf1df9dbe77c1e4fad52b6353e6c39d1895583659b445"
+          "line": 1116,
+          "endLine": 1125,
+          "sha256": "26655bbbd56afcfddbfa7185b244a1618649cafb3682c982742583b5cda2ab63"
         },
         {
           "path": "docs/jet-guide.md",
-          "line": 977,
-          "endLine": 980,
-          "sha256": "9fabf4a366c804f65deaf1df9dbe77c1e4fad52b6353e6c39d1895583659b445"
+          "line": 1222,
+          "endLine": 1225,
+          "sha256": "26655bbbd56afcfddbfa7185b244a1618649cafb3682c982742583b5cda2ab63"
         }
       ]
     },
@@ -50,13 +50,13 @@
           "path": "docs/project-context.md",
           "line": 64,
           "endLine": 71,
-          "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
+          "sha256": "54f4d83fdb0be58b0c52ca11c343889718af4c82c36cff9e0886e933c9a3e3fa"
         },
         {
           "path": "docs/project-context.md",
           "line": 73,
           "endLine": 87,
-          "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
+          "sha256": "54f4d83fdb0be58b0c52ca11c343889718af4c82c36cff9e0886e933c9a3e3fa"
         }
       ]
     },
@@ -69,8 +69,8 @@
         {
           "path": "src/JET/JET/wwwroot/js/jet-api.js",
           "line": 5,
-          "endLine": 45,
-          "sha256": "ac30f58a7d0e76e4bad4ac3a5d2510276bad49cc874c84539a15a2fa6a44325e"
+          "endLine": 46,
+          "sha256": "4799f1629978b057c1715435f3043774688779087489fbf23a46eb07c8746ec8"
         },
         {
           "path": "src/JET/JET/Bridge/JetWebMessageBridge.cs",
@@ -80,27 +80,27 @@
         },
         {
           "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
-          "line": 109,
-          "endLine": 132,
-          "sha256": "69d35bd4d861d4511c2f375763bdce2cb6e956768bbe934a56ebf3deacca5561"
+          "line": 120,
+          "endLine": 143,
+          "sha256": "cd9cb4f3638e17b43af9682eb2305ee2bf457d08f1f3697960463fca4dc76c26"
         },
         {
           "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
-          "line": 207,
-          "endLine": 219,
-          "sha256": "69d35bd4d861d4511c2f375763bdce2cb6e956768bbe934a56ebf3deacca5561"
+          "line": 220,
+          "endLine": 232,
+          "sha256": "cd9cb4f3638e17b43af9682eb2305ee2bf457d08f1f3697960463fca4dc76c26"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 211,
-          "endLine": 215,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 242,
+          "endLine": 246,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
           "line": 25,
           "endLine": 48,
-          "sha256": "222fbe7cb357ec733925ce113364feba680fe5985869a8543d38476126ba1247"
+          "sha256": "6baa2f7b8cdb3bc8696a09ef9217312ad3aa2212b5ec3e12069913a907d351b0"
         }
       ]
     },
@@ -114,13 +114,13 @@
           "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
           "line": 25,
           "endLine": 49,
-          "sha256": "222fbe7cb357ec733925ce113364feba680fe5985869a8543d38476126ba1247"
+          "sha256": "6baa2f7b8cdb3bc8696a09ef9217312ad3aa2212b5ec3e12069913a907d351b0"
         },
         {
           "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
           "line": 213,
           "endLine": 323,
-          "sha256": "df6af04129c02421b0b7b23c97b3d2ea826b064bfe0f982fd41102b88a0699ed"
+          "sha256": "92a1624922166ab28d6104c1ddc6f7e3669b32aed6c310228bb393e47210297f"
         },
         {
           "path": "src/JET/JET/Application/Support/FilterScenarioRuleUpgrade.cs",
@@ -129,7 +129,7 @@
           "sha256": "7139e3e8dd08c418f918c11da094d55441357e6555086f2cb9ca108d4308f7f7"
         },
         {
-          "path": "src/JET/JET/AuditCore/FilterProgram.cs",
+          "path": "src/JET/JET/AuditCore/JetAuditProgram.Filter.cs",
           "line": 201,
           "endLine": 216,
           "sha256": "a6f6055a3616e1a42270ebca3cf38d5350b5c19ebe6ae4f5783ba520139523e9"
@@ -152,13 +152,13 @@
           "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
           "line": 51,
           "endLine": 102,
-          "sha256": "df6af04129c02421b0b7b23c97b3d2ea826b064bfe0f982fd41102b88a0699ed"
+          "sha256": "92a1624922166ab28d6104c1ddc6f7e3669b32aed6c310228bb393e47210297f"
         },
         {
           "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
           "line": 104,
           "endLine": 198,
-          "sha256": "df6af04129c02421b0b7b23c97b3d2ea826b064bfe0f982fd41102b88a0699ed"
+          "sha256": "92a1624922166ab28d6104c1ddc6f7e3669b32aed6c310228bb393e47210297f"
         }
       ]
     },
@@ -178,13 +178,13 @@
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
           "line": 48,
           "endLine": 54,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
-          "line": 118,
-          "endLine": 123,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "line": 119,
+          "endLine": 124,
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         }
       ]
     },
@@ -209,8 +209,8 @@
         {
           "path": "src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs",
           "line": 8,
-          "endLine": 50,
-          "sha256": "d746d4f810932a63f084ec6689df05c62f3f50519b0f05f5dd6369c79f5317c3"
+          "endLine": 48,
+          "sha256": "d984b6e4843361b4be63721c1e5ae1bd9ffdf9240222c394ab58ca14896416eb"
         }
       ]
     },
@@ -224,7 +224,7 @@
           "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
           "line": 300,
           "endLine": 303,
-          "sha256": "df6af04129c02421b0b7b23c97b3d2ea826b064bfe0f982fd41102b88a0699ed"
+          "sha256": "92a1624922166ab28d6104c1ddc6f7e3669b32aed6c310228bb393e47210297f"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterScenarioStore.cs",
@@ -241,16 +241,16 @@
       "status": "source-reviewed-static",
       "sources": [
         {
-          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs",
           "line": 45,
-          "endLine": 165,
-          "sha256": "3edfe3c5f299ffddf7333653a746e53c341fcd60c64e5d077c5b669cd16b77b4"
+          "endLine": 166,
+          "sha256": "c96c8c26482dca9bda972e55c59894310ef00fb0a9585cae2b70e780fe3d4236"
         },
         {
-          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-          "line": 457,
-          "endLine": 471,
-          "sha256": "3edfe3c5f299ffddf7333653a746e53c341fcd60c64e5d077c5b669cd16b77b4"
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs",
+          "line": 460,
+          "endLine": 474,
+          "sha256": "c96c8c26482dca9bda972e55c59894310ef00fb0a9585cae2b70e780fe3d4236"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/IntakeFactsPort.cs",
@@ -269,32 +269,32 @@
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
           "line": 30,
-          "endLine": 90,
-          "sha256": "a74d9d5c6c9b7873b04deedb8b786b38cf4fb148fb6d905fb69c279bcd9e7af3"
+          "endLine": 88,
+          "sha256": "4f3611f77c9608115ca3f73358c9e2878a6a8a367f1595e1626be2462590a70a"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
-          "line": 189,
-          "endLine": 234,
-          "sha256": "a74d9d5c6c9b7873b04deedb8b786b38cf4fb148fb6d905fb69c279bcd9e7af3"
+          "line": 187,
+          "endLine": 232,
+          "sha256": "4f3611f77c9608115ca3f73358c9e2878a6a8a367f1595e1626be2462590a70a"
         },
         {
-          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-          "line": 166,
-          "endLine": 213,
-          "sha256": "3edfe3c5f299ffddf7333653a746e53c341fcd60c64e5d077c5b669cd16b77b4"
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs",
+          "line": 167,
+          "endLine": 216,
+          "sha256": "c96c8c26482dca9bda972e55c59894310ef00fb0a9585cae2b70e780fe3d4236"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/CancellableSqliteConnection.cs",
           "line": 7,
-          "endLine": 39,
-          "sha256": "df09b082a7c77ca935b6d03cd5e82f002509e1cc01df2cf346df2cc5ded850bb"
+          "endLine": 68,
+          "sha256": "36d980318ce66f3357ed1d18274308196c730d4c15ba5f39094ba8f154b7e68c"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 425,
-          "endLine": 425,
-          "sha256": "61b70073c15f5af1ff76435f822506b14c58414e7396cda808cb7fbe31fb2f63"
+          "line": 492,
+          "endLine": 492,
+          "sha256": "57589ee579673f13b3078f1644e2e5e845850855f531bcbf87762841b7bb3ecb"
         }
       ]
     },
@@ -334,49 +334,49 @@
           "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
           "line": 30,
           "endLine": 113,
-          "sha256": "3d27638847d5310e5f6249baa32e5e61d11af178c0424b5064d22009ce956a62"
+          "sha256": "629744226c2e72538e54186d3194f2295ae617c5dc903621221d6e285ade60dd"
         },
         {
           "path": "src/JET/JET/Application/Support/ReportExportSupport.cs",
-          "line": 138,
-          "endLine": 159,
-          "sha256": "d6a8cb9ed175f74d4549f3671e872c26e53e52d6af4c2610c6cd5f0e9c97996d"
+          "line": 154,
+          "endLine": 175,
+          "sha256": "a189cbe53a6d4707e3def8daec4ddc13a52d89bab20270b4070269e5b2136b46"
         },
         {
           "path": "src/JET/JET/Application/Support/FilterHitMaterializeService.cs",
           "line": 41,
           "endLine": 60,
-          "sha256": "5c2380cab7cd0cc1c981bf011fb754de6a57293c66b9bf7b9932daddefdadfac"
+          "sha256": "b09bc74ea01b3cb25ae31b5a2e1914ae143fc064ed92e66f1b4ba5382ee1a70d"
         },
         {
           "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
-          "line": 172,
-          "endLine": 230,
-          "sha256": "3d27638847d5310e5f6249baa32e5e61d11af178c0424b5064d22009ce956a62"
+          "line": 175,
+          "endLine": 233,
+          "sha256": "629744226c2e72538e54186d3194f2295ae617c5dc903621221d6e285ade60dd"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
           "line": 234,
           "endLine": 269,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
           "line": 272,
-          "endLine": 366,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "endLine": 369,
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
-          "line": 22,
-          "endLine": 22,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "line": 21,
+          "endLine": 21,
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
-          "line": 374,
-          "endLine": 380,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "line": 377,
+          "endLine": 383,
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         }
       ]
     },
@@ -394,15 +394,15 @@
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 180,
-          "endLine": 188,
-          "sha256": "61b70073c15f5af1ff76435f822506b14c58414e7396cda808cb7fbe31fb2f63"
+          "line": 184,
+          "endLine": 192,
+          "sha256": "57589ee579673f13b3078f1644e2e5e845850855f531bcbf87762841b7bb3ecb"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 249,
-          "endLine": 268,
-          "sha256": "61b70073c15f5af1ff76435f822506b14c58414e7396cda808cb7fbe31fb2f63"
+          "line": 253,
+          "endLine": 272,
+          "sha256": "57589ee579673f13b3078f1644e2e5e845850855f531bcbf87762841b7bb3ecb"
         }
       ]
     },
@@ -422,13 +422,13 @@
           "path": "src/JET/tests/JET.Tests/Application/FilterScenarioSingleChangeTests.cs",
           "line": 93,
           "endLine": 106,
-          "sha256": "4ebf7c6a30e8bb620cefbb2a3c1f48aee83db29ef539d73882daee414c6e368a"
+          "sha256": "09506f5cffe8018d2a52a88f4ea15a34598f135328dd104045c9cb00de4bf16f"
         },
         {
           "path": "src/JET/tests/JET.Tests/Infrastructure/ProjectReportStoreTests.cs",
           "line": 21,
           "endLine": 37,
-          "sha256": "25596068736250e1419a6a55fb98afd7dce519ed030ad354164d8b308cb401b3"
+          "sha256": "94bda34dfeda9ce4c4114e3a5d090ef4c1d50bf24049f407bb7f5162d852d6a2"
         }
       ]
     },
@@ -440,53 +440,53 @@
       "sources": [
         {
           "path": "src/JET/JET/wwwroot/js/jet-api.js",
-          "line": 215,
-          "endLine": 256,
-          "sha256": "ac30f58a7d0e76e4bad4ac3a5d2510276bad49cc874c84539a15a2fa6a44325e"
+          "line": 235,
+          "endLine": 282,
+          "sha256": "4799f1629978b057c1715435f3043774688779087489fbf23a46eb07c8746ec8"
         },
         {
           "path": "src/JET/JET/wwwroot/js/steps/filter-step.js",
-          "line": 587,
-          "endLine": 612,
-          "sha256": "3761269304844e4fa18421fe2bac03b65809e1a44eb906ab48a67c3f75d09ab1"
+          "line": 664,
+          "endLine": 702,
+          "sha256": "84bf25c4c48fc30f7122d85926a9c5c946bc92d182442ea46682bb6245ce87fd"
         },
         {
           "path": "src/JET/JET/wwwroot/js/steps/import-step.js",
-          "line": 1217,
-          "endLine": 1244,
-          "sha256": "8a51791416d5d0de2794bda0efd5c33a6354bb8781b0d31941bba102ed3c4915"
+          "line": 1261,
+          "endLine": 1292,
+          "sha256": "69a3a6b83c412ff5c6fc10b9c37e7a227cde2d02d2d6eed1053a17aa45f6f1d8"
         },
         {
           "path": "src/JET/JET/wwwroot/js/steps/export-step.js",
-          "line": 340,
-          "endLine": 360,
-          "sha256": "01d2a119d4c318f3735ad05fcc06409d82e04ebb1af2e524e80e45efc18ff98f"
+          "line": 338,
+          "endLine": 358,
+          "sha256": "07a3ee418ca9ee117f6945e16dd593b90f2a4c877dc346a3a2b250b963e5c690"
         }
       ]
     },
     {
       "id": "schema",
       "title": "SQLite 資料表欄位",
-      "claim": "資料表關聯圖依 SQLite 的現行建表程式畫成，結構版本是第 20 版。新案件在一筆交易裡一次建好全部資料表；已有資料表的案件不逐版升級，只檢查版本，不是現行版本就請審計員刪除案件後重建。只畫資料表本身的欄位，不展開 JSON 欄位裡的內容；名稱相同的欄位也不推定為資料庫外鍵。",
+      "claim": "資料表關聯圖依 SQLite 的現行建表程式畫成。新案件在一筆交易裡一次建好全部資料表，並寫入以案件資料庫為準的案件設定 project_setting。已有資料表的案件開啟時不讀結構版本，改和建表程式比對表、欄位、索引與觸發條件：缺少的索引與觸發條件在一個交易裡補上；缺少不能補上的表或欄位時，表示是首次發布以前的 JET 建立的案件，請審計員刪除後重建。只畫資料表本身的欄位，不展開 JSON 欄位裡的內容；名稱相同的欄位也不推定為資料庫外鍵。",
       "status": "source-reviewed-static",
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 13,
-          "endLine": 370,
-          "sha256": "61b70073c15f5af1ff76435f822506b14c58414e7396cda808cb7fbe31fb2f63"
+          "line": 16,
+          "endLine": 403,
+          "sha256": "57589ee579673f13b3078f1644e2e5e845850855f531bcbf87762841b7bb3ecb"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 473,
-          "endLine": 526,
-          "sha256": "61b70073c15f5af1ff76435f822506b14c58414e7396cda808cb7fbe31fb2f63"
+          "line": 627,
+          "endLine": 695,
+          "sha256": "57589ee579673f13b3078f1644e2e5e845850855f531bcbf87762841b7bb3ecb"
         },
         {
-          "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalSchemaReadiness.cs",
-          "line": 93,
-          "endLine": 113,
-          "sha256": "bfa14357831fa51d5066b00e248f83e638f11e035434ee2ba11e781482d4716a"
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/ProjectSchema.cs",
+          "line": 18,
+          "endLine": 61,
+          "sha256": "ba0ac9c1ca0bd100baf6e4a92ee5d3845bb656c1d08581abba8d5fe9e8769eee"
         },
         {
           "path": "src/JET/JET/Infrastructure/Sql/AccountCategoryHierarchy.cs",
@@ -497,8 +497,8 @@
         {
           "path": "src/JET/JET/AuditCore/JetSchemaCatalog.cs",
           "line": 84,
-          "endLine": 153,
-          "sha256": "26fa0e0ddbaaea0b465182d04c2b16a2ab8022855f194ed344f8ea2bca99e395"
+          "endLine": 155,
+          "sha256": "44eb033ac483e473ce51131510b079b4bbd4ac3607915444707876ffddb3d42a"
         }
       ]
     },
@@ -518,19 +518,19 @@
           "path": "src/JET/JET/JET.csproj",
           "line": 1,
           "endLine": 47,
-          "sha256": "d52b301481e244d2cd2db27da6fd5181d07d58a655b502bf6adadb65d7cd72b2"
+          "sha256": "52516f013e5356bf982ae5fa07281f5134b96d4d0a532c8e27b3838cb544d68e"
         },
         {
           "path": "docs/development-guide.md",
           "line": 7,
           "endLine": 17,
-          "sha256": "c465b580a23e5fd650b59d263075a97e6dc2d00f7d04fe28b732e92ee58c2e38"
+          "sha256": "22a883bbd7f0ab6a2b6b4585bf122ed0e07104850fd75fc5ded84092a18b5509"
         },
         {
           "path": "docs/development-guide.md",
           "line": 63,
           "endLine": 68,
-          "sha256": "c465b580a23e5fd650b59d263075a97e6dc2d00f7d04fe28b732e92ee58c2e38"
+          "sha256": "22a883bbd7f0ab6a2b6b4585bf122ed0e07104850fd75fc5ded84092a18b5509"
         }
       ]
     },
@@ -549,14 +549,14 @@
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
           "line": 11,
-          "endLine": 22,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "endLine": 21,
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         },
         {
           "path": "docs/project-context.md",
           "line": 74,
           "endLine": 90,
-          "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
+          "sha256": "54f4d83fdb0be58b0c52ca11c343889718af4c82c36cff9e0886e933c9a3e3fa"
         }
       ]
     },
@@ -570,19 +570,19 @@
           "path": "src/JET/JET/Application/Handlers/DevLogHandlers.cs",
           "line": 8,
           "endLine": 120,
-          "sha256": "d6aef2eedff7e17d0dc1ad680f11bd29113c95aec8129eea8c1b5d56a8c98f03"
+          "sha256": "380ef98261ba4893608c7206a1163be27d1f3933171bbaaabfd7d63697235c13"
         },
         {
           "path": "src/JET/JET/Application/Support/SupportCaseHistoryExport.cs",
           "line": 7,
           "endLine": 13,
-          "sha256": "7d2d3da9145922036ccf5646ac46bd3dac4fbe920da184d93036468482174126"
+          "sha256": "1d88542a4c9b3aa883a93ea7b3fe2aa8cc2b5d19ec71b12e93955c9a01e7d06d"
         },
         {
           "path": "src/JET/JET/wwwroot/js/app.js",
           "line": 518,
           "endLine": 533,
-          "sha256": "1bce1078690a42fd1e2665a0b25a52d5fcf8bafebd549683e70c72b7b1d84d4b"
+          "sha256": "d9ca6d51a533fad332a3a0e8c3d53c4a42a83721a845852db6e6b26e9f9e46c6"
         },
         {
           "path": "src/JET/JET/Application/Handlers/SystemPingHandler.cs",
@@ -602,19 +602,19 @@
           "path": "docs/project-context.md",
           "line": 64,
           "endLine": 71,
-          "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
+          "sha256": "54f4d83fdb0be58b0c52ca11c343889718af4c82c36cff9e0886e933c9a3e3fa"
         },
         {
           "path": "docs/project-context.md",
           "line": 73,
           "endLine": 90,
-          "sha256": "f0d73910bf701eb39379de73b744974dfe7695c48bf04b840b5be768684bf978"
+          "sha256": "54f4d83fdb0be58b0c52ca11c343889718af4c82c36cff9e0886e933c9a3e3fa"
         },
         {
           "path": "docs/development-guide.md",
           "line": 63,
           "endLine": 68,
-          "sha256": "c465b580a23e5fd650b59d263075a97e6dc2d00f7d04fe28b732e92ee58c2e38"
+          "sha256": "22a883bbd7f0ab6a2b6b4585bf122ed0e07104850fd75fc5ded84092a18b5509"
         }
       ]
     },
@@ -625,22 +625,22 @@
       "status": "source-reviewed-static",
       "sources": [
         {
-          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-          "line": 362,
-          "endLine": 369,
-          "sha256": "3edfe3c5f299ffddf7333653a746e53c341fcd60c64e5d077c5b669cd16b77b4"
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs",
+          "line": 365,
+          "endLine": 372,
+          "sha256": "c96c8c26482dca9bda972e55c59894310ef00fb0a9585cae2b70e780fe3d4236"
         },
         {
           "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
-          "line": 551,
-          "endLine": 577,
-          "sha256": "4c1307fdeefb557ac6ad8d40a6e4928930d26cc3c195ae4526a76b29e52f62d2"
+          "line": 558,
+          "endLine": 584,
+          "sha256": "cba51ebf99b88985b080a158a0a64942fa903df0f31cb4fefe76909116846041"
         },
         {
           "path": "src/JET/JET/Application/Support/SupportActionDiagnostics.cs",
-          "line": 403,
-          "endLine": 412,
-          "sha256": "d4d32937c324b491dd85b5f80824f52ac70fa8ef58fabdd6e2898f510d70a540"
+          "line": 446,
+          "endLine": 455,
+          "sha256": "2ec19c6cccf13c3e9f1c2c573b0a6faa7e32f3616ca8f5c0e03a0c2c5e3142da"
         }
       ]
     },
@@ -652,9 +652,9 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 439,
-          "endLine": 554,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 476,
+          "endLine": 591,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalResultPageRdeValuesPort.cs",
@@ -672,81 +672,87 @@
       "sources": [
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 52,
-          "endLine": 56,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 56,
+          "endLine": 57,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 110,
-          "endLine": 111,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 125,
+          "endLine": 138,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 144,
-          "endLine": 145,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 131,
+          "endLine": 132,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 190,
-          "endLine": 191,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 171,
+          "endLine": 172,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 213,
-          "endLine": 213,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 221,
+          "endLine": 222,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 232,
-          "endLine": 232,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 244,
+          "endLine": 244,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 275,
-          "endLine": 276,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 263,
+          "endLine": 263,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
+        },
+        {
+          "path": "src/JET/JET/AppCompositionRoot.cs",
+          "line": 312,
+          "endLine": 313,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
           "line": 36,
           "endLine": 54,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
           "line": 73,
           "endLine": 74,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
-          "line": 107,
-          "endLine": 107,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "line": 108,
+          "endLine": 108,
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
-          "line": 123,
-          "endLine": 123,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "line": 124,
+          "endLine": 124,
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
           "line": 156,
           "endLine": 168,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
-          "line": 227,
-          "endLine": 241,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "line": 231,
+          "endLine": 245,
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         }
       ]
     },
@@ -760,19 +766,19 @@
           "path": "src/JET/JET/Domain/ActionExecutionPolicy.cs",
           "line": 26,
           "endLine": 66,
-          "sha256": "eb345e2297ff5bd64aa33dce7523e594959536994a8d35208248747d878fca1e"
+          "sha256": "bc8db3a2b23783046e876855b2a10f9de3e8a8c459de41a5b6e2fb85e4908432"
         },
         {
           "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
-          "line": 109,
-          "endLine": 126,
-          "sha256": "69d35bd4d861d4511c2f375763bdce2cb6e956768bbe934a56ebf3deacca5561"
+          "line": 120,
+          "endLine": 137,
+          "sha256": "cd9cb4f3638e17b43af9682eb2305ee2bf457d08f1f3697960463fca4dc76c26"
         },
         {
           "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
-          "line": 183,
-          "endLine": 189,
-          "sha256": "69d35bd4d861d4511c2f375763bdce2cb6e956768bbe934a56ebf3deacca5561"
+          "line": 196,
+          "endLine": 202,
+          "sha256": "cd9cb4f3638e17b43af9682eb2305ee2bf457d08f1f3697960463fca4dc76c26"
         },
         {
           "path": "src/JET/JET/Bridge/JetWebMessageBridge.cs",
@@ -782,9 +788,9 @@
         },
         {
           "path": "src/JET/JET/Form1.cs",
-          "line": 465,
-          "endLine": 466,
-          "sha256": "a51ac729c595d805aed9f14abe9bc849d6b3f3481d3b4d06c58b19d8a52c1c7c"
+          "line": 508,
+          "endLine": 509,
+          "sha256": "2ef9390ebda7608589989166a47b24f24d0392cc4aa288923e186968c7d16d98"
         }
       ]
     },
@@ -798,7 +804,7 @@
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
           "line": 73,
           "endLine": 74,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/BestEffortProjectOperationLog.cs",
@@ -809,32 +815,32 @@
         {
           "path": "src/JET/JET/Application/Support/CommittedOperationLog.cs",
           "line": 11,
-          "endLine": 33,
-          "sha256": "515b4d1f755b0bf10edfec88996c16fe04e1bd581ff3cfeb40750622be2d9a51"
+          "endLine": 32,
+          "sha256": "6a2ee95a6164d9137824ce0a3d9b55f0bbc5c0db60a6de5d9194bb6e48e36837"
         },
         {
-          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-          "line": 173,
-          "endLine": 186,
-          "sha256": "3edfe3c5f299ffddf7333653a746e53c341fcd60c64e5d077c5b669cd16b77b4"
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs",
+          "line": 174,
+          "endLine": 187,
+          "sha256": "c96c8c26482dca9bda972e55c59894310ef00fb0a9585cae2b70e780fe3d4236"
         },
         {
           "path": "src/JET/JET/Application/Support/AuditedReportStore.cs",
           "line": 165,
           "endLine": 185,
-          "sha256": "062b8c3575f7af0a5966df7282b93804118db019b84e1a0bd7a5d287157b6ff9"
+          "sha256": "1db7849d933050209dbb28fda2dce59784677b8d68a7a0e6def784dc8e04826a"
         },
         {
           "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
           "line": 375,
           "endLine": 376,
-          "sha256": "4c1307fdeefb557ac6ad8d40a6e4928930d26cc3c195ae4526a76b29e52f62d2"
+          "sha256": "cba51ebf99b88985b080a158a0a64942fa903df0f31cb4fefe76909116846041"
         },
         {
           "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
-          "line": 530,
-          "endLine": 531,
-          "sha256": "4c1307fdeefb557ac6ad8d40a6e4928930d26cc3c195ae4526a76b29e52f62d2"
+          "line": 537,
+          "endLine": 538,
+          "sha256": "cba51ebf99b88985b080a158a0a64942fa903df0f31cb4fefe76909116846041"
         }
       ]
     },
@@ -846,95 +852,95 @@
       "sources": [
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 110,
-          "endLine": 111,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 131,
+          "endLine": 132,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
           "line": 167,
           "endLine": 168,
-          "sha256": "97d56d1322fa0e5112ff3510982e7ea6c826643cca832d14de5e5b9a0e93e9a3"
+          "sha256": "5f433ec970d7950dcfbfd30d879abd37e71e37cd8d05e2ca1fd1b130b6d78374"
         },
         {
           "path": "src/JET/JET/Application/Support/AuditedReportStore.cs",
           "line": 6,
           "endLine": 36,
-          "sha256": "062b8c3575f7af0a5966df7282b93804118db019b84e1a0bd7a5d287157b6ff9"
+          "sha256": "1db7849d933050209dbb28fda2dce59784677b8d68a7a0e6def784dc8e04826a"
         },
         {
           "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
-          "line": 208,
-          "endLine": 230,
-          "sha256": "3d27638847d5310e5f6249baa32e5e61d11af178c0424b5064d22009ce956a62"
+          "line": 211,
+          "endLine": 233,
+          "sha256": "629744226c2e72538e54186d3194f2295ae617c5dc903621221d6e285ade60dd"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
           "line": 89,
           "endLine": 100,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
           "line": 207,
-          "endLine": 382,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "endLine": 385,
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
-          "line": 566,
-          "endLine": 569,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "line": 569,
+          "endLine": 572,
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         },
         {
           "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
           "line": 11,
-          "endLine": 31,
-          "sha256": "f4956ca00179e3cd0fcebb4e6994cfb13fe139c40067ab4726af13f40f7595c2"
+          "endLine": 30,
+          "sha256": "5220fcff1c13fe45978b596b922642d699c307e799b60a7bc2ac474b1671df03"
         }
       ]
     },
     {
       "id": "project-file",
       "title": "案件進度檔",
-      "claim": "JsonFileProjectStore 把 project.json 寫在案件資料夾，SQLite 資料庫檔 jet.db 也在同一個資料夾。新案先在暫存資料夾寫好 project.json 與建案中的標記再換名，更新時先寫暫存檔再換檔。檔內保存案件期間、目前步驟、資料庫種類與抽樣種子等設定。目前只支援 SQLite：檔內記錄 SQLite，或沒有記錄而資料夾裡只有 jet.db 時，才判斷成 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件，案件清單不列出，JET 也不動它們的資料夾。",
+      "claim": "JsonFileProjectStore 把 project.json 寫在案件資料夾，SQLite 資料庫檔 jet.db 也在同一個資料夾。新案先在暫存資料夾寫好 project.json 與建案中的標記再換名，更新時先寫暫存檔再換檔，寫好後把 project.json 設成唯讀。檔內保存案件期間、目前步驟、資料庫種類與抽樣種子等設定。目前只支援 SQLite：檔內記錄 SQLite，或沒有記錄而資料夾裡只有 jet.db 時，才判斷成 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件，案件清單不列出，JET 也不動它們的資料夾。",
       "status": "source-reviewed-static",
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
           "line": 21,
-          "endLine": 80,
-          "sha256": "62e9520cde7d2fdeb26fbf7de9faceeb454e3d10ddfd00b15ff2f20a3f33c03b"
+          "endLine": 83,
+          "sha256": "fca928ff6f0f6e32463346896f498c0c47933fe7886dd874ae1210a181091650"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
-          "line": 88,
-          "endLine": 126,
-          "sha256": "62e9520cde7d2fdeb26fbf7de9faceeb454e3d10ddfd00b15ff2f20a3f33c03b"
+          "line": 91,
+          "endLine": 129,
+          "sha256": "fca928ff6f0f6e32463346896f498c0c47933fe7886dd874ae1210a181091650"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
-          "line": 186,
-          "endLine": 226,
-          "sha256": "62e9520cde7d2fdeb26fbf7de9faceeb454e3d10ddfd00b15ff2f20a3f33c03b"
+          "line": 204,
+          "endLine": 244,
+          "sha256": "fca928ff6f0f6e32463346896f498c0c47933fe7886dd874ae1210a181091650"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
-          "line": 286,
-          "endLine": 337,
-          "sha256": "62e9520cde7d2fdeb26fbf7de9faceeb454e3d10ddfd00b15ff2f20a3f33c03b"
+          "line": 304,
+          "endLine": 388,
+          "sha256": "fca928ff6f0f6e32463346896f498c0c47933fe7886dd874ae1210a181091650"
         },
         {
           "path": "src/JET/JET/Domain/ProjectDocument.cs",
           "line": 3,
-          "endLine": 44,
-          "sha256": "b703916de9d279807b9c004a15a719a81fb3c2f6913b210653cf766e9079de7d"
+          "endLine": 45,
+          "sha256": "fc63ff5a46b4c68fdc8fe64f71e015963fd1120fc058fd0ef1898e3bfa34f963"
         },
         {
-          "path": "src/JET/JET/Application/Handlers/Project/ProjectListHandler.cs",
+          "path": "src/JET/JET/Application/Handlers/Project/ProjectListLocalHandler.cs",
           "line": 6,
           "endLine": 25,
-          "sha256": "bbe19fc050871e0e7d5bfe2ceb886f4547b4c05a99cb832f1cf87f04185f5f5b"
+          "sha256": "b88c021ecfbbeb34296b2bb6ff6796752ead23f354c2b820061a517172e23a8e"
         }
       ]
     },
@@ -946,39 +952,39 @@
       "sources": [
         {
           "path": "src/JET/JET/AppCompositionRoot.cs",
-          "line": 144,
-          "endLine": 145,
-          "sha256": "247b5b34ea1c52a8a0abb00c479b00cd5965b167d1ad693ff465c2e2d6bc44bd"
+          "line": 171,
+          "endLine": 172,
+          "sha256": "ec3cc8e2e732c0e085c88c6c68050c78b45178b15ab5ad9c2284a99d6bfe6a9b"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
           "line": 30,
-          "endLine": 236,
-          "sha256": "a74d9d5c6c9b7873b04deedb8b786b38cf4fb148fb6d905fb69c279bcd9e7af3"
+          "endLine": 234,
+          "sha256": "4f3611f77c9608115ca3f73358c9e2878a6a8a367f1595e1626be2462590a70a"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
-          "line": 826,
-          "endLine": 830,
-          "sha256": "a74d9d5c6c9b7873b04deedb8b786b38cf4fb148fb6d905fb69c279bcd9e7af3"
+          "line": 822,
+          "endLine": 826,
+          "sha256": "4f3611f77c9608115ca3f73358c9e2878a6a8a367f1595e1626be2462590a70a"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 112,
-          "endLine": 143,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 114,
+          "endLine": 150,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 339,
-          "endLine": 339,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 367,
+          "endLine": 367,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 455,
-          "endLine": 455,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 492,
+          "endLine": 492,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs",
@@ -988,9 +994,9 @@
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs",
-          "line": 59,
-          "endLine": 75,
-          "sha256": "f5dbda9c978d2205214a2cf42ea7600260dc649cf7e68648b8257525a0ea529a"
+          "line": 89,
+          "endLine": 109,
+          "sha256": "d99103033cf7743cd8b92db37ecd54f141e873ff51f950b4df1a51fb0d36d8ab"
         }
       ]
     },
@@ -1004,19 +1010,19 @@
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
           "line": 173,
           "endLine": 371,
-          "sha256": "8cd71da4b606c30fd9af26bb9f70b4fd1cca808205d3bf7207e96e212df41d5a"
+          "sha256": "c4e3fa96212bde789650eff5acd6138fb089e09e072a9ee6d663010965056c31"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
           "line": 10,
           "endLine": 14,
-          "sha256": "2291bdcc3451630dc519e2c0064c634804a4b0db847ed1c76f8133920fa068f9"
+          "sha256": "5d55f3168438f23c497c6f40729d38f7aefdf0fb6bfa110e8f1476b590e8c59b"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
-          "line": 162,
-          "endLine": 276,
-          "sha256": "2291bdcc3451630dc519e2c0064c634804a4b0db847ed1c76f8133920fa068f9"
+          "line": 160,
+          "endLine": 271,
+          "sha256": "5d55f3168438f23c497c6f40729d38f7aefdf0fb6bfa110e8f1476b590e8c59b"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalResultStore.cs",
@@ -1033,14 +1039,14 @@
         {
           "path": "src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs",
           "line": 15,
-          "endLine": 36,
-          "sha256": "d746d4f810932a63f084ec6689df05c62f3f50519b0f05f5dd6369c79f5317c3"
+          "endLine": 34,
+          "sha256": "d984b6e4843361b4be63721c1e5ae1bd9ffdf9240222c394ab58ca14896416eb"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/WorkingPaperPlanningFactsPort.cs",
           "line": 17,
           "endLine": 68,
-          "sha256": "5c747bcaa21a29bf8a4b3b0563621f9f93577060db2e189a039f9f70f9472267"
+          "sha256": "468e170293b99f2d82401dda5f857057e457446a01b2c41ae792c28a186e0d1f"
         }
       ]
     },
@@ -1053,14 +1059,14 @@
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
           "line": 30,
-          "endLine": 236,
-          "sha256": "a74d9d5c6c9b7873b04deedb8b786b38cf4fb148fb6d905fb69c279bcd9e7af3"
+          "endLine": 234,
+          "sha256": "4f3611f77c9608115ca3f73358c9e2878a6a8a367f1595e1626be2462590a70a"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
-          "line": 826,
-          "endLine": 838,
-          "sha256": "a74d9d5c6c9b7873b04deedb8b786b38cf4fb148fb6d905fb69c279bcd9e7af3"
+          "line": 822,
+          "endLine": 834,
+          "sha256": "4f3611f77c9608115ca3f73358c9e2878a6a8a367f1595e1626be2462590a70a"
         }
       ]
     },
@@ -1074,19 +1080,19 @@
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
           "line": 29,
           "endLine": 31,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 114,
-          "endLine": 114,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 116,
+          "endLine": 116,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 455,
-          "endLine": 513,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 492,
+          "endLine": 550,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs",
@@ -1102,9 +1108,9 @@
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs",
-          "line": 59,
-          "endLine": 75,
-          "sha256": "f5dbda9c978d2205214a2cf42ea7600260dc649cf7e68648b8257525a0ea529a"
+          "line": 89,
+          "endLine": 109,
+          "sha256": "d99103033cf7743cd8b92db37ecd54f141e873ff51f950b4df1a51fb0d36d8ab"
         }
       ]
     },
@@ -1122,9 +1128,9 @@
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalInfSamplePageRepository.cs",
-          "line": 38,
-          "endLine": 38,
-          "sha256": "d9ba64d2ca3a3ace699a44948cfd9ce3000f2c78031feb6bad94ae1a651ba037"
+          "line": 86,
+          "endLine": 86,
+          "sha256": "0fe8ca65b91ad1c88e49bd32935a408609d065d34610e71ac8c2bae18e621bf1"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitMaterializer.cs",
@@ -1134,15 +1140,15 @@
         },
         {
           "path": "src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs",
-          "line": 38,
-          "endLine": 43,
-          "sha256": "d746d4f810932a63f084ec6689df05c62f3f50519b0f05f5dd6369c79f5317c3"
+          "line": 36,
+          "endLine": 41,
+          "sha256": "d984b6e4843361b4be63721c1e5ae1bd9ffdf9240222c394ab58ca14896416eb"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalAccountMappingRepository.cs",
-          "line": 239,
-          "endLine": 245,
-          "sha256": "0010cbee02d0ed86401e915a03592901fee1e58749eb7f9569d89249da57f210"
+          "line": 243,
+          "endLine": 249,
+          "sha256": "60410961a7872701c857f89194462da946dccae264a303c4b8aa61fc1ac79c9e"
         },
         {
           "path": "src/JET/JET/Infrastructure/Sql/AccountCategoryHierarchy.cs",
@@ -1152,9 +1158,9 @@
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 322,
-          "endLine": 330,
-          "sha256": "61b70073c15f5af1ff76435f822506b14c58414e7396cda808cb7fbe31fb2f63"
+          "line": 326,
+          "endLine": 334,
+          "sha256": "57589ee579673f13b3078f1644e2e5e845850855f531bcbf87762841b7bb3ecb"
         }
       ]
     },
@@ -1174,13 +1180,13 @@
           "path": "src/JET/JET/Application/Support/AuditedReportStore.cs",
           "line": 165,
           "endLine": 185,
-          "sha256": "062b8c3575f7af0a5966df7282b93804118db019b84e1a0bd7a5d287157b6ff9"
+          "sha256": "1db7849d933050209dbb28fda2dce59784677b8d68a7a0e6def784dc8e04826a"
         },
         {
-          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-          "line": 173,
-          "endLine": 186,
-          "sha256": "3edfe3c5f299ffddf7333653a746e53c341fcd60c64e5d077c5b669cd16b77b4"
+          "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs",
+          "line": 174,
+          "endLine": 187,
+          "sha256": "c96c8c26482dca9bda972e55c59894310ef00fb0a9585cae2b70e780fe3d4236"
         }
       ]
     },
@@ -1194,8 +1200,8 @@
         {
           "path": "src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs",
           "line": 9,
-          "endLine": 50,
-          "sha256": "d746d4f810932a63f084ec6689df05c62f3f50519b0f05f5dd6369c79f5317c3"
+          "endLine": 48,
+          "sha256": "d984b6e4843361b4be63721c1e5ae1bd9ffdf9240222c394ab58ca14896416eb"
         }
       ]
     },
@@ -1210,25 +1216,25 @@
           "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
           "line": 281,
           "endLine": 281,
-          "sha256": "4c1307fdeefb557ac6ad8d40a6e4928930d26cc3c195ae4526a76b29e52f62d2"
+          "sha256": "cba51ebf99b88985b080a158a0a64942fa903df0f31cb4fefe76909116846041"
         },
         {
           "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
           "line": 345,
           "endLine": 354,
-          "sha256": "4c1307fdeefb557ac6ad8d40a6e4928930d26cc3c195ae4526a76b29e52f62d2"
+          "sha256": "cba51ebf99b88985b080a158a0a64942fa903df0f31cb4fefe76909116846041"
         },
         {
           "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
-          "line": 466,
-          "endLine": 466,
-          "sha256": "4c1307fdeefb557ac6ad8d40a6e4928930d26cc3c195ae4526a76b29e52f62d2"
+          "line": 473,
+          "endLine": 473,
+          "sha256": "cba51ebf99b88985b080a158a0a64942fa903df0f31cb4fefe76909116846041"
         },
         {
           "path": "src/JET/JET/Application/Handlers/MappingHandlers.cs",
-          "line": 497,
-          "endLine": 510,
-          "sha256": "4c1307fdeefb557ac6ad8d40a6e4928930d26cc3c195ae4526a76b29e52f62d2"
+          "line": 504,
+          "endLine": 517,
+          "sha256": "cba51ebf99b88985b080a158a0a64942fa903df0f31cb4fefe76909116846041"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/MappingFactsPort.cs",
@@ -1239,20 +1245,20 @@
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
           "line": 83,
-          "endLine": 103,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "endLine": 105,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 279,
-          "endLine": 306,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 297,
+          "endLine": 330,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
-          "line": 390,
-          "endLine": 421,
-          "sha256": "b73c8c3fec478e132008484dd3ce09df7ee481c5be32999896ae3fa4de45fe76"
+          "line": 418,
+          "endLine": 457,
+          "sha256": "af10186054fcdc9cf8e152b81a593081b90d714703043063245b0e2da71379d6"
         },
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs",

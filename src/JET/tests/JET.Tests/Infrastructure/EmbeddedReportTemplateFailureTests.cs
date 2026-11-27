@@ -31,7 +31,7 @@ public sealed class EmbeddedReportTemplateFailureTests
             FillValidationTemplateAsync(catalog, output));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 訊息不寫「可能」，只寫審計員接下來能做什麼。
+        // 訊息不寫「可能」，只寫使用者接下來能做什麼。
         Assert.Equal("無法讀取 JET 內附的範本「ValidationReport.xlsx」。請重新下載 JET 後再匯出。", exception.Message);
     }
 
@@ -50,7 +50,7 @@ public sealed class EmbeddedReportTemplateFailureTests
             FillValidationTemplateAsync(catalog, output));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 訊息不寫「可能」，只寫審計員接下來能做什麼。
+        // 訊息不寫「可能」，只寫使用者接下來能做什麼。
         Assert.Equal("無法填入 JET 內附的範本「ValidationReport.xlsx」。請重新下載 JET 後再匯出。", exception.Message);
     }
 

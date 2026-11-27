@@ -88,7 +88,7 @@ public sealed partial class TerminologyUnificationFrontendTests
         // Shares the fourth/fifth-step explanation.
         Assert.Contains("desc: Ui.prescreenConditionDescription('trailingZeros')",
             ReadFrontend("js", "steps", "validate-step.js"), StringComparison.Ordinal);
-        // 0 的個數照 IDEA 版由 GL 算出：說明寫整數部分與個數的來源，算法寫在 calculation，不寫死 6 個 0。
+        // 0 的個數照舊版由 GL 算出：說明寫整數部分與個數的來源，算法寫在 calculation，不寫死 6 個 0。
         // 一條規則只有一個定義，說明文字放在 PRESCREEN_RULES。
         var uiCore = ReadFrontend("js", "ui-core.js");
         var description = FrontendConstantTextReader.ValueProperty(uiCore, "PRESCREEN_RULES", "trailingZeros", "description");

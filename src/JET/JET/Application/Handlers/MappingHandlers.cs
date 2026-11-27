@@ -10,9 +10,9 @@ namespace JET.Application;
 /// mapping.restoreDraft：從檔案讀回 GL 與 TB 的欄位配對草稿，也就是第三步的「由底稿匯入欄位」。
 /// 只讀不寫：不儲存配對，不把資料轉進正式資料表，也不推進流程。
 /// 檔案有 JET 記下的隱藏配對紀錄時照那一份帶入；沒有時讀「自動化工具-檔案欄位資訊」看得見的對照表推得草稿，
-/// 舊版 IDEA JET 的底稿也能帶入。
+/// 舊版產生的底稿也能帶入。
 /// 選到的來源欄在目前資料找不到時，不整份拒絕：對得上的照樣帶入，找不到的連同綁在它上面的設定拿掉，
-/// 列在 unmatchedFields 請審計員重選；沒有匯入 TB、檔案匯出時 TB 還沒確認配對，或推得的 TB 段沒有任何配對也沒有要重選的項目時，
+/// 列在 unmatchedFields 請使用者重選；沒有匯入 TB、檔案匯出時 TB 還沒確認配對，或推得的 TB 段沒有任何配對也沒有要重選的項目時，
 /// 只帶入 GL，tb 回 null。
 /// 隱藏紀錄本身缺必要欄位或用了不支援的金額計算方式，仍整份拒絕；推得的草稿缺的欄位不整份拒絕。
 /// </summary>
@@ -58,7 +58,7 @@ public sealed class MappingRestoreDraftHandler(
                 static () => "rde." + Guid.NewGuid().ToString("N"));
             metadata = inferred.Draft;
             unmatched.AddRange(inferred.Unmatched);
-            // GL 草稿會整份換掉。GL 的對照表推不出任何欄位時整份不帶入，審計員已選的欄位不動；
+            // GL 草稿會整份換掉。GL 的對照表推不出任何欄位時整份不帶入，使用者已選的欄位不動；
             // 只有讀不懂的列也一樣。和讀檔時找不到 GL 的對照表一樣，不看 TB 段。
             if (metadata.Gl.Mapping.Count == 0 && metadata.Gl.RdeFields.Count == 0)
             {
@@ -130,7 +130,7 @@ public sealed class MappingRestoreDraftHandler(
     }
 
     /// <summary>
-    /// 隱藏紀錄是審計員確認過的配對，本身缺必要欄位或沒有借貸代碼時整份拒絕。
+    /// 隱藏紀錄是使用者確認過的配對，本身缺必要欄位或沒有借貸代碼時整份拒絕。
     /// 必要欄位看的是紀錄本身有沒有選；選了但在目前資料找不到，屬於要重選的欄位，不在這裡擋。
     /// </summary>
     private static void RejectIncompleteRecordedMapping(
@@ -864,7 +864,7 @@ internal static class MappingCommitGlPayloadReader
         return element.GetString() ?? string.Empty;
     }
 
-    // 畫面照正常操作送不出這些資料，出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正；所以畫面只顯示非預期錯誤那一句，檢查代號記進支援日誌供查原因。
+    // 畫面照正常操作送不出這些資料，出現時只會是程式送錯資料或存檔損毀，使用者在畫面上無從修正；所以畫面只顯示非預期錯誤那一句，檢查代號記進支援日誌供查原因。
     // path 是程式寫死的 payload 位置，不是使用者資料。
     private static JetActionException Invalid(string check) =>
         JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, check);

@@ -147,7 +147,7 @@ public sealed class PrescreenProceduresTests
             SuspiciousKeywordsCount: 0,
             UnexpectedAccountPairCount: 0,
             TrailingZerosCount: 0,
-            // 0 的個數照 IDEA 版由 GL 算出；這則不看個數，帶 6。
+            // 0 的個數照舊版由 GL 算出；這則不看個數，帶 6。
             ZerosThreshold: 6,
             Preparers: Array.Empty<PreparerSummaryRow>(),
             DistinctAccountCount: 0,

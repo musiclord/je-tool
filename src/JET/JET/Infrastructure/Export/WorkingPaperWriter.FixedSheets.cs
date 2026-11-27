@@ -13,7 +13,7 @@ internal sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「資料預先整理之說明」:公司名、測試期間與固定說明。
-    /// A6 只保留儲存格格式，不寫字；兩份舊版 IDEA 程式都沒有寫這一格。
+    /// A6 只保留儲存格格式，不寫字；舊版沒有寫這一格。
     /// </summary>
     private static void EmitCoverSheet(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -505,8 +505,8 @@ internal sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「自動化工具-科目配對資訊」：表頭是 GL_NUMBER、GL_NAME、STANDARDIZED_ACCOUNT_NAME，下面每個科目一列。
-    /// GL_NAME 照舊版 JET 寫審計員上傳的科目配對檔的名稱；沒有名稱的科目寫固定字串「Not in TB」，這一欄不留白。
-    /// 科目配對範本在 TB 沒有名稱的科目寫同一個字，所以審計員用沒改過名稱的範本匯回，或在畫面分類，寫出的字都相同。
+    /// GL_NAME 照舊版 JET 寫使用者上傳的科目配對檔的名稱；沒有名稱的科目寫固定字串「Not in TB」，這一欄不留白。
+    /// 科目配對範本在 TB 沒有名稱的科目寫同一個字，所以使用者用沒改過名稱的範本匯回，或在畫面分類，寫出的字都相同。
     /// 每一列寫什麼由 <see cref="AccountMappingExportRow.GlName"/> 決定。
     /// </summary>
     private async Task EmitAccountMappingSheetAsync(
@@ -606,7 +606,7 @@ internal sealed partial class WorkingPaperWriter
         "或未入帳直接對財務報表之調整(Other adjustments)，\n則可將此類調整記錄於此處，或說明無此類情形。\n";
 
     /// <summary>
-    /// 假期假日資訊的週末對照(DAYOFWEEK / WORKDAY)。照舊版 X_Append_Weekend 由週一排到週日,
+    /// 假期假日資訊的週末對照(DAYOFWEEK / WORKDAY)。照舊版由週一排到週日,
     /// 案件設定為每週休息日的那幾天寫 Y、其他寫 N;WORKDAY=Y 表示「視為非工作日」,是舊版既定的意思。
     /// 案件沒有設定時照 <see cref="NonWorkingDays.Default"/> 寫週六、週日;設定成空集合時七天都寫 N。
     /// </summary>

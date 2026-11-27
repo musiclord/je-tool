@@ -10,7 +10,7 @@ namespace JET.Application;
 /// 哪些值可以用、哪些欄位必填、上下限是多少，由 Domain 的 FilterScenarioValidator 檢查。
 /// 形狀不對時一律丟出 invalid_scenario。只有存檔損毀或程式送錯資料才會出現的形狀錯誤，畫面只寫
 /// <see cref="FilterScenarioCorruption.RuleMessage"/>，原因代號記進支援日誌；
-/// 審計員看得懂、也做得到的原因（已停用的條件類型），畫面寫出這個原因。
+/// 使用者看得懂、也做得到的原因（已停用的條件類型），畫面寫出這個原因。
 /// 條件的錯誤帶「第 N 組第 M 條」位置，儲存時才標得到那一條條件。
 /// </summary>
 public static class FilterScenarioPayloadParser
@@ -48,7 +48,7 @@ public static class FilterScenarioPayloadParser
         var rationale = ReadString(scenario, "rationale") ?? string.Empty;
 
         // 情境的來源標記是選填的 source 欄位。ReadString 會去掉前後空白，全是空白時回 null。
-        // Domain 只認得 "common"；其他值都和 null 一樣，當成審計員自己寫的情境。
+        // Domain 只認得 "common"；其他值都和 null 一樣，當成使用者自己寫的情境。
         var source = ReadString(scenario, "source");
 
         var groups = new List<FilterGroupSpec>();
@@ -184,7 +184,7 @@ public static class FilterScenarioPayloadParser
             "preparerEqualsApprover" => FilterConditionType.PreparerEqualsApprover,
             "fieldValue" => FilterConditionType.FieldValue,
             "accountSide" => FilterConditionType.AccountSide,
-            // 有寫類型但不在上面清單裡的，是已停用的條件類型，畫面請審計員刪除這一條；完全沒寫類型只會是內容損毀。
+            // 有寫類型但不在上面清單裡的，是已停用的條件類型，畫面請使用者刪除這一條；完全沒寫類型只會是內容損毀。
             "" => throw FilterScenarioCorruption.Exception(label, "condition_type_missing"),
             _ => throw Positioned(label, "此條件的類型已停用，請刪除此條件")
         };

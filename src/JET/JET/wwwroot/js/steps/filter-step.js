@@ -282,7 +282,7 @@
     var noCondition = (draft.groups.length === 0 ||
       draft.groups.every(function (g) { return g.conditions.length === 0; }));
 
-    // 每條缺值都寫出第幾組第幾條與條件名稱，審計員不必逐條找。
+    // 每條缺值都寫出第幾組第幾條與條件名稱，使用者不必逐條找。
     var problems = draftRuleProblems(draft).map(function (item) { return item.text; });
     if (noCondition) { problems.push('至少一條篩選條件'); }
 
@@ -384,7 +384,7 @@
   //   listFull    這次沒有送出：已經存滿；清單有空位就收起。
   //   failed      後端沒有存成，原因又對不到條件列；原因說的是送出的那一份草稿，草稿改了就收起。
   // 再按一次預覽或儲存、或換成另一份草稿時，不論哪一種都先收起。
-  // pane 是提示出現時審計員所在的分頁：在「已儲存情境」分頁出現的提示（例如選了「儲存並編輯」），
+  // pane 是提示出現時使用者所在的分頁：在「已儲存情境」分頁出現的提示（例如選了「儲存並編輯」），
   // 同一句也寫在那個分頁的最上面，不只寫在另一個分頁的儲存鈕上方。
   function raiseSaveNotice(notice) {
     notice.pane = FilterStep.viewState.workspacePane;
@@ -414,7 +414,7 @@
 
   // 把記下的提示畫到提示框：儲存鈕上方那一個，以及「已儲存情境」分頁最上面那一個（提示是在那個分頁出現時）。
   // 提示收起時字留著，跟著一起收回去，不會先變成一個空框。
-  // typing：審計員正在輸入時只收起已經不適用的提示，不改寫句子，免得打字途中跳出新的缺項。
+  // typing：使用者正在輸入時只收起已經不適用的提示，不改寫句子，免得打字途中跳出新的缺項。
   function drawSaveNotice(container, typing) {
     if (!container) { return; }
     var notice = currentSaveNotice(!typing);
@@ -632,7 +632,7 @@
     function saveScenario(asCopy) {
       syncSuggestedMetadata(container);
       if (!scenarioGate(container, true, asCopy)) { return Promise.resolve(SAVE_NOT_SENT); }
-      // 儲存失敗時，原因有沒有寫在審計員現在看得到的地方；沒有的話改在步驟上方顯示提示框。
+      // 儲存失敗時，原因有沒有寫在使用者現在看得到的地方；沒有的話改在步驟上方顯示提示框。
       var failureShown = false;
       return Ui.run('儲存篩選情境', function () {
         failureShown = false;
@@ -682,7 +682,7 @@
           } else if (sameDraft) {
             // 能對到條件列的錯誤就地標紅；重名這類沒有位置的錯誤寫在儲存按鈕上方。
             if (recordRuleErrors(error, targetPosition)) {
-              // 條件列只畫在「篩選與檢視」分頁；審計員在另一個分頁時看不到，原因改在步驟上方顯示。
+              // 條件列只畫在「篩選與檢視」分頁；使用者在另一個分頁時看不到，原因改在步驟上方顯示。
               failureShown = FilterStep.viewState.workspacePane === 'filter';
               revealRuleErrors();
             } else {

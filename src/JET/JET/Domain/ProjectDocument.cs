@@ -5,7 +5,7 @@ namespace JET.Domain;
 /// ProjectCode 和 ClientName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
 /// SchemaVersion 是案件設定檔的格式版本。比 <see cref="CurrentSchemaVersion"/> 舊的案件讀取時明確拒絕，
-/// 請審計員刪除後重建；比它新的案件由較新版本的 JET 寫過，請使用者改用較新版本開啟。
+/// 請使用者刪除後重建；比它新的案件由較新版本的 JET 寫過，請使用者改用較新版本開啟。
 /// DatabaseProvider 標示會計資料所在的資料庫，只接受 "sqlite"；設定檔一定寫明，缺欄位是設定檔損壞。
 /// 標示為 "duckdb" 或 "sqlServer" 的案件，案件清單不列出、JET 也不動它們的資料夾。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；

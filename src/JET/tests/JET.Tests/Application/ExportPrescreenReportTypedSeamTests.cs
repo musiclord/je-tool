@@ -129,7 +129,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 RareAccounts: new("V", null, 11),
                 BlankDescription: new("na", null))
             {
-                // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數，預期值取上面 summary 寫的 3。
+                // 0 的個數照舊版由 GL 算出，投影帶那次預篩選的個數，預期值取上面 summary 寫的 3。
                 ZerosThreshold = 3
             },
             writer.Projection);

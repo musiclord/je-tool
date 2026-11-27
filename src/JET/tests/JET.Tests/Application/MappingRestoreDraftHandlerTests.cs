@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 public sealed class MappingRestoreDraftHandlerTests
 {
-    // 報告裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的列出來請審計員重選，不整份拒絕。
+    // 報告裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的列出來請使用者重選，不整份拒絕。
     // 這裡斷言 TB 只少了找不到的那一欄、unmatchedFields 寫出它，
     // 還原是唯讀，不改動已確認的配對與標準資料。
     [Fact]
@@ -170,8 +170,8 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 讀不到檔案時不寫「可能」這類推測的原因，只寫審計員接下來能做什麼。
-    // 舊版 IDEA JET 的底稿也能選，所以訊息用詞是「檔案」，不限定 JET 匯出；
+    // 讀不到檔案時不寫「可能」這類推測的原因，只寫使用者接下來能做什麼。
+    // 舊版的底稿也能選，所以訊息用詞是「檔案」，不限定 JET 匯出；
     // 訊息不寫「沒有被其他程式開啟」，因為開著的檔也讀得到。
     [Fact]
     public async Task RestoreDraft_UnreadableReport_SaysWhatToCheckWithoutGuessing()
@@ -375,8 +375,8 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 舊版 IDEA JET 的底稿沒有隱藏配對紀錄，從看得見的對照表推得草稿。
-    // 欄名正規化後唯一對得上的換成目前的欄名；改了名的來源欄與 TB 兩欄相減列出請審計員重選；草稿按確認配對就能儲存。
+    // 舊版的底稿沒有隱藏配對紀錄，從看得見的對照表推得草稿。
+    // 欄名正規化後唯一對得上的換成目前的欄名；改了名的來源欄與 TB 兩欄相減列出請使用者重選；草稿按確認配對就能儲存。
     [Fact]
     public async Task RestoreDraft_LegacyWorkingPaperWithoutHiddenRecords_InfersTheDraftAndListsFieldsToReselect()
     {
@@ -486,7 +486,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // GL 的對照表推不出任何欄位時，回錯誤而不是回一份空的 GL 草稿蓋掉審計員已選的欄位；
+    // GL 的對照表推不出任何欄位時，回錯誤而不是回一份空的 GL 草稿蓋掉使用者已選的欄位；
     // TB 段有配對、也已匯入 TB 時一樣，因為 GL 草稿會整份換掉；只有讀不懂的列時也一樣。
     [Fact]
     public async Task RestoreDraft_GlTableWithoutAnyMappedRow_RejectsInsteadOfReturningAnEmptyGlDraft()
@@ -531,7 +531,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // TB 段沒有任何配對時不回 TB 草稿，審計員已選的 TB 欄位與金額格式不動。
+    // TB 段沒有任何配對時不回 TB 草稿，使用者已選的 TB 欄位與金額格式不動。
     [Fact]
     public async Task RestoreDraft_TbTableWithoutAnyMappedRow_LeavesTheTbDraftAlone()
     {
@@ -728,7 +728,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     });
 
-    /// <summary>舊版 IDEA JET 版面的合成底稿，沒有任何隱藏配對紀錄。</summary>
+    /// <summary>舊版版面的合成底稿，沒有任何隱藏配對紀錄。</summary>
     private static string LegacyWorkingPaper() => FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.LegacyLayout(
         [
             ["Account", "文字型態", "10", null, "會計科目編號_TB"],

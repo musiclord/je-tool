@@ -2,7 +2,7 @@ using ClosedXML.Excel;
 
 namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
-/// <summary>把審計員會收到的 PBC 檔案寫到呼叫端指定的資料夾，內容全部是合成資料。</summary>
+/// <summary>把 PBC 檔案寫到呼叫端指定的資料夾，內容全部是合成資料。</summary>
 internal sealed record SmeSourceFiles(
     SmeCase Case,
     IReadOnlyList<(string FilePath, string FileName)> GlFiles,

@@ -18,7 +18,7 @@ public enum JetRulePrerequisiteKind
 public sealed record JetRulePrerequisite(JetRulePrerequisiteKind Kind, string? GlField = null);
 
 /// <summary>
-/// 第四步分類設定裡內建分類目前的名稱，依用途對應；審計員改過名稱時原因寫新名稱。
+/// 第四步分類設定裡內建分類目前的名稱，依用途對應；使用者改過名稱時原因寫新名稱。
 /// 內建分類不可刪除，沒有帶分類設定時用內建名稱。
 /// </summary>
 public sealed record AccountCategoryLabels(string Revenue, string Receivables, string Cash, string ReceiptInAdvance)

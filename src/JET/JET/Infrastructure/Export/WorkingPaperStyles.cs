@@ -35,7 +35,7 @@ internal static class WorkingPaperStyles
     public const uint YellowBanner = 4;
 
     /// <summary>
-    /// 審計員填寫的空白格：未鎖定、不加底色。受保護的工作表只鎖程式寫入的資料區，
+    /// 使用者填寫的空白格：未鎖定、不加底色。受保護的工作表只鎖程式寫入的資料區，
     /// 這種格子在資料區裡也維持可填。
     /// </summary>
     public const uint Editable = 5;
@@ -70,7 +70,7 @@ internal static class WorkingPaperStyles
     private const uint GroupedNumberStyleFirst =
         NumberStyleFirst + MaximumDecimalPlaces + 1;
 
-    // step4-1 用的樣式，外觀照舊版 JET 用 ExportDatabase 匯出的明細頁。0 到 66 號樣式還有底稿其他頁面在用，
+    // step4-1 用的樣式，外觀照舊版 JET 匯出的明細頁。0 到 66 號樣式還有底稿其他頁面在用，
     // 所以這些樣式只能加在最後面，不能改既有的索引。
     public const uint HighRiskVoucherDetailText =
         GroupedNumberStyleFirst + MaximumDecimalPlaces + 1;

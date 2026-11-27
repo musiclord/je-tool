@@ -30,8 +30,8 @@ public sealed class ScreenWordingFrontendTests
     [Fact]
     public void CommonSourceTab_UsesThePlainCommonTitle()
     {
-        // 第五步工作區把卡片區塊的標頭整個藏起來，審計員實際看到的是左側分頁鈕。
-        // 分頁鈕寫「常用篩選條件」；畫面與程式都不出現小組名稱，因為 JET 給所有審計員使用。
+        // 第五步工作區把卡片區塊的標頭整個藏起來，使用者實際看到的是左側分頁鈕。
+        // 分頁鈕寫「常用篩選條件」；畫面與程式都不出現小組名稱，因為 JET 不只給單一小組用。
         var filter = ProductSources.FilterStepFrontend();
 
         Assert.Contains("sourceButton('common', '常用篩選條件')", filter, StringComparison.Ordinal);

@@ -253,7 +253,7 @@ internal static class ReportTemplatePackage
                                            or InvalidDataException
                                            or XmlException)
         {
-            // 只有範本內容不合格式時才請審計員重新下載 JET。其他沒有歸類的讀寫錯誤和範本無關，
+            // 只有範本內容不合格式時才請使用者重新下載 JET。其他沒有歸類的讀寫錯誤和範本無關，
             // 原樣往外丟，和其他意外錯誤顯示同一句通用的訊息。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,

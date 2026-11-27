@@ -45,7 +45,7 @@
   }
 
   // 條件列依 RULE_FAMILIES 分成欄位、科目、條件組合與樣態四個家族；家族分類只用在畫面上，
-  // 送給後端的是各條件自己的 wire 型別。認不得的型別不屬於任何家族，條件列只寫標題與移除鍵，審計員仍能刪掉它。
+  // 送給後端的是各條件自己的 wire 型別。認不得的型別不屬於任何家族，條件列只寫標題與移除鍵，使用者仍能刪掉它。
   var RULE_FAMILIES = {
     field: { label: '欄位', types: ['fieldValue', 'drCrOnly', 'manualAuto'] },
     account: { label: '科目', types: ['accountSide', 'specialAccountCategoryPair', 'accountPair'] },
@@ -93,7 +93,7 @@
 
   // 一塊托盤（一個條件組）：組標頭是「第 N 組」與組的操作，下面的白紙是條件清單，兩條條件之間是寫著 AND 或 OR 的分隔線。
   // 標頭在單組時也顯示（一致的閱讀順序）；多組時多「已選取」（只影響條件總覽加入的落點）與移除。
-  // 組內與組間的連接是 AND、OR 兩格的分段切換（中文說法太長，審計員也看得懂 AND 與 OR，所以只寫 AND 與 OR）。
+  // 組內與組間的連接是 AND、OR 兩格的分段切換（中文說法太長，使用者也看得懂 AND 與 OR，所以只寫 AND 與 OR）。
   // 切換前面不寫「組內條件」「組與組之間」，連接的是什麼由版面呈現；螢幕報讀仍讀 label 寫的名稱。
   // 每組各一組單選鈕，name 用組號區分；選中的一格由 app.js 的滑動選取帶過去。
   function joinToggleHtml(attributes, name, value, label) {
@@ -380,7 +380,7 @@
     return Ui.FILTER_COMMON_CONDITIONS.find(function (card) { return card.kind === 'type' && card.ref === type; }) || null;
   }
 
-  // 每個家族的「對象」下拉：科目看哪一側、風險樣態是哪一種。
+  // 每個家族的「對象」下拉：科目看哪一側、樣態是哪一種。
   function ruleSubjectHtml(rule, family) {
     var state = Store.getState();
     if (family === 'field' && rule.type !== 'fieldValue') {
@@ -813,7 +813,7 @@
       refreshConditionKeys(container, draft);
     }
     // 「條件組」（新增條件組）：新增一個可編輯群組（一個 set）。新組的 join 繼承目前的組間運算子：畫面上只有
-    // 一個組間運算子，寫死 'OR' 會在審計員已改成 AND 時，讓切換顯示 AND、新組卻帶 OR 送出。
+    // 一個組間運算子，寫死 'OR' 會在使用者已改成 AND 時，讓切換顯示 AND、新組卻帶 OR 送出。
     // 從一組加到第二組時還沒有組間運算子，scenarioJoin 用預設 OR，和切換第一次出現時的顯示一致。
     var addSetBtn = container.querySelector('[data-action="add-set"]');
     if (addSetBtn) {
@@ -982,7 +982,7 @@
         else { patchCurrent({}); softRefreshReadback(container); softExpirePreviewPane(container); softRefreshGate(container); }
       });
 
-      // 風險樣態：下拉只列同一個來源的條件。預篩選條件之間只換規則鍵；其他型別重建那一列。
+      // 樣態：下拉只列同一個來源的條件。預篩選條件之間只換規則鍵；其他型別重建那一列。
       // 從常用篩選條件的卡片加入的條件換成另一張卡的型別時，改記成那一張卡，卡片的已選狀態與預設動機跟著換。
       var patternSubject = row.querySelector('[data-pattern-subject]');
       if (patternSubject) {

@@ -17,7 +17,7 @@ public sealed class FilterNestedVoucherTests
             UPDATE gl SET approval_date='2025-01-03' WHERE voucher_number='EMPTY';
             """);
         var context = new FilterConditionContext(100, "2025-01-02", "2025-01-01", "2025-12-31");
-        // 照舊版 IDEA R3：未預期借貸組合要求同傳票至少有一筆金額大於 0 的分錄。
+        // 照舊版 R3：未預期借貸組合要求同傳票至少有一筆金額大於 0 的分錄。
         // EMPTY 只有一筆收入貸方，沒有正金額分錄，所以不命中。
         foreach (var (key, expected) in new[] { ("prepPeriodApproval", new[] { "EMPTY|1" }), ("unexpectedAccountPair", Array.Empty<string>()) })
         {

@@ -78,7 +78,7 @@ public sealed class OverviewConcentrationFrontendTests
         var source = ReadFrontend("js", "overview-bi.js");
 
         // 「此為分布描述，非風險評估。」這句話在同一個畫面只說一次，
-        // 由流程總覽底部的定位說明說；圖說裡不重複。總覽說明這是分布描述，判斷留給審計員。
+        // 由流程總覽底部的定位說明說；圖說裡不重複。總覽說明這是分布描述，判斷留給使用者。
         Assert.DoesNotContain("此為分布描述", source, StringComparison.Ordinal);
         Assert.Contains("Ui.esc(positioning.overviewGuidance)", ReadFrontend("js", "app.js"), StringComparison.Ordinal);
         Assert.DoesNotContain("風險評分", source, StringComparison.Ordinal);

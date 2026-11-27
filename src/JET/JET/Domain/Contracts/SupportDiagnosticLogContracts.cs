@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace JET.Domain;
 
 /// <summary>
-/// 可由公司 Release 匯出的去識別支援事件。InternalProjectId 只供程序內篩選，永不序列化；其餘欄位
+/// 可由 Release 組建匯出的去識別支援事件。InternalProjectId 只供程序內篩選，永不序列化；其餘欄位
 /// 必須已在 provider 寫入 buffer 前完成 allowlist 與長度限制，匯出端不得再接觸原始例外或 SQL state。
 /// </summary>
 public sealed record SupportDiagnosticLogEntry(
@@ -37,7 +37,7 @@ public interface ISupportDiagnosticLogStore
 
 /// <summary>
 /// 同一案件跨次開啟的支援紀錄，存在案件資料夾內、整個案件一個檔、保留到刪除案件。
-/// 寫入失敗不影響審計操作，只在匯出時標出缺口。
+/// 寫入失敗不影響使用者的操作，只在匯出時標出缺口。
 /// </summary>
 public interface ISupportCaseHistory
 {

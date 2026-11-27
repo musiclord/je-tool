@@ -4,9 +4,9 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// export.accountMappingTemplate：把 GL 與 TB 出現過的全部科目寫成科目配對範本，給審計員填分類。
+/// export.accountMappingTemplate：把 GL 與 TB 出現過的全部科目寫成科目配對範本，給使用者填分類。
 /// 檔名固定，直接寫進案件資料夾，預設每次都蓋掉舊檔；payload 的 onlyIfMissing 是 true 時，檔案已經存在就保留不重寫。
-/// 它不是報告，不進報告清單，也不核對內容。審計員用 Excel 開啟、填 C 欄、存回原檔，再用 import.accountMapping.fromFile 匯回。
+/// 它不是報告，不進報告清單，也不核對內容。使用者用 Excel 開啟、填 C 欄、存回原檔，再用 import.accountMapping.fromFile 匯回。
 /// </summary>
 public sealed class ExportAccountMappingTemplateHandler(
     IAccountMappingTemplateWriter writer,

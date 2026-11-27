@@ -50,11 +50,11 @@ public static class TbMappingKeys
     public const string DebitAmount = JetFieldCatalog.TbDebitAmount;
     public const string CreditAmount = JetFieldCatalog.TbCreditAmount;
 
-    // OpenClose（legacy SA=2）：期初 / 期末餘額兩欄。
+    // OpenClose：期初與期末餘額兩欄。
     public const string OpeningBalance = JetFieldCatalog.TbOpeningBalance;
     public const string ClosingBalance = JetFieldCatalog.TbClosingBalance;
 
-    // OpenCloseBySide（legacy SA=4）：期初借貸 + 期末借貸四欄。
+    // OpenCloseBySide：期初借貸與期末借貸四欄。
     public const string OpeningDebitBalance = JetFieldCatalog.TbOpeningDebitBalance;
     public const string OpeningCreditBalance = JetFieldCatalog.TbOpeningCreditBalance;
     public const string ClosingDebitBalance = JetFieldCatalog.TbClosingDebitBalance;
@@ -88,7 +88,7 @@ public interface IMappingStateStore
 
     /// <summary>
     /// 重新匯入（取代或附加）會讓已確認的配對失效；失效前最後一次確認的配對留在這裡，重開案件時當草稿帶回，
-    /// 審計員不必逐欄重選。它不是有效配對，任何計算都不能讀它。沒有保存這份資料的實作回 null，
+    /// 使用者不必逐欄重選。它不是有效配對，任何計算都不能讀它。沒有保存這份資料的實作回 null，
     /// 畫面就從空白草稿開始。
     /// </summary>
     Task<CommittedMapping?> FindPreviousAsync(string projectId, DatasetKind kind, CancellationToken cancellationToken) =>

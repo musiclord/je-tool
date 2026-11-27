@@ -21,7 +21,7 @@ public abstract class GlPopulationScopeGoldenTests
     /// <summary>
     /// 固定 fixture（21 列，MoneyScale=10,000，查核期間 2025-01-01～2025-12-31）：
     /// C01：Revenue 貸方有效、正常 Receivables 對方分別為期外與 status-excluded，否證 counterpart 子查詢繞過「只看納入測試的分錄」。
-    ///      未預期借貸組合另要求同傳票在 GL 中有金額大於 0 的分錄（照舊版 IDEA R3），
+    ///      未預期借貸組合另要求同傳票在 GL 中有金額大於 0 的分錄（照舊版 R3），
     ///      C01 的正金額列都在母體外，所以它對未預期借貸組合不命中，由它鎖住正金額子查詢也只看納入測試的分錄。
     /// F01/F02：同科目各一筆有效／期外，另有一筆 status-excluded；maxEntries=1 鎖 frequency 子查詢 scope。
     /// N01：gl_date=NULL，固定不進查核期間母體。
@@ -168,14 +168,14 @@ public abstract class GlPopulationScopeGoldenTests
             HasAuthorizedPreparers: false,
             NonWorkingDays: [0, 6])
         {
-            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數。這則測試直接建立請求，帶入 6 個；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。
+            // 0 的個數照舊版由 GL 算出，請求要帶 0 的個數。這則測試直接建立請求，帶入 6 個；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。
             ZerosThreshold = 6
         });
 
         var result = await PrescreenFactsPort.ExecuteAsync(plan, CancellationToken.None);
 
         Assert.Equal(0, result.PrepPeriodApprovalCount);
-        // C01 的正金額列都不在 GL 中，照舊版 IDEA R3 不命中未預期借貸組合。
+        // C01 的正金額列都不在 GL 中，照舊版 R3 不命中未預期借貸組合。
         Assert.Equal(0, result.UnexpectedAccountPairCount);
         Assert.Equal(12, result.TotalEntryCount);
         Assert.Equal(12, result.TotalPreparerCount);
@@ -184,7 +184,7 @@ public abstract class GlPopulationScopeGoldenTests
         Assert.Equal(12, result.Accounts.Sum(row => row.EntryCount));
     }
 
-    // 0 的個數照 IDEA 版由 GL 算出、跟著條件環境帶入。這組合成資料直接組條件環境，固定帶 6 個，
+    // 0 的個數照舊版由 GL 算出、跟著條件環境帶入。這組合成資料直接組條件環境，固定帶 6 個，
     // 用來測尾零規則的六個 0 邊界。沒有個數時會明確丟出例外。
     private static FilterConditionContext RuleContext(GlPopulationScope scope) =>
         new(MoneyScale, null, "2025-01-01", "2025-12-31", PopulationScope: scope) { ZerosThreshold = 6 };
@@ -258,7 +258,7 @@ public abstract class GlPopulationScopeGoldenTests
     }
 
     // C01 的正常對方只存在於期外或 status-excluded 列，收入無一般對方科目必須命中 Revenue 貸方。
-    // 未預期借貸組合照舊版 IDEA R3 還要求同傳票在 GL 中有金額大於 0 的分錄（取自同一個 #GL# 母體）；
+    // 未預期借貸組合照舊版 R3 還要求同傳票在 GL 中有金額大於 0 的分錄，取自同一個母體；
     // C01 的正金額列都在母體外，所以不命中。
     // 若正金額子查詢繞過「只看納入測試的分錄」，C01 會被期外的應收借方湊成命中，這一列因此仍有否證力。
     // 正常對方與正金額兩個子查詢共用同一個母體述詞，正常對方的母體範圍由收入無一般對方科目這一列一起鎖住。
@@ -315,7 +315,7 @@ public abstract class GlPopulationScopeGoldenTests
     [Fact]
     public async Task EndsWithZeroDigits_DecimalAndNegativeAmounts_UsesMajorUnitInteger()
     {
-        // Legacy @int oracle：±1,000.99 的主單位整數都是 1,000，故命中 3 個尾零；0.99 與零值不命中。
+        // 照舊版取主單位整數：±1,000.99 的主單位整數都是 1,000，所以命中 3 個尾零；0.99 與零值不命中。
         // 條件寫成同一個子條件組裡的「整數尾數符合 000」與「大於或等於 1」。
         var rule = Parsed("""{"type":"group","conditions":[{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["000"],"amountBasis":"absolute"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}""");
 
@@ -341,7 +341,7 @@ public abstract class GlPopulationScopeGoldenTests
     [Fact]
     public async Task TrailingDigits_DecimalAndNegativeAmount_UsesMajorUnitIntegerAndLengthGuard()
     {
-        // Legacy @Right(@Str(@int(amount),1,0),3)：-12,345.67 → 345；45.67 因主單位只有兩位不匹配。
+        // 照舊版取主單位整數的末 3 位：-12,345.67 → 345；45.67 因主單位只有兩位不匹配。
         // 條件用「金額」的「整數尾數符合」。
         var rule = Parsed("""{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["345"],"amountBasis":"absolute"}""");
 

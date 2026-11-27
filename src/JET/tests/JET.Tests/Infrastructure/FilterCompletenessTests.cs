@@ -483,7 +483,7 @@ public sealed class FilterCompletenessTests
     public void InvalidConditions_ExplainWhatMustBeCorrected(string rule) =>
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rule), new(false, true, false, HasAnyAccountCategory: true) { MoneyScale = 100 }));
 
-    // 核心金額只比較絕對值。舊版 IDEA JET 的數字條件一律用 @Abs 比較，
+    // 核心金額照舊版的數字條件一律只比較絕對值，
     // 所以 amountBasis 只接受 absolute，沒有帶或帶 signed 都當成內容損毀；畫面送出時一律帶上 absolute。
     [Theory]
     [InlineData("""{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"10"}""", "field_value_amount_basis_missing")]

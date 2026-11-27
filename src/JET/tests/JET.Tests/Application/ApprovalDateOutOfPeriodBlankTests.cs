@@ -69,7 +69,7 @@ public sealed class ApprovalDateOutOfPeriodBlankTests
     [Fact]
     public async Task ApprovalDateNotInPeriod_ShowsEachRowsApprovalDate_AndSortsByIt()
     {
-        // 「核准日不在期間」的預覽帶傳票核准日一欄，審計員才看得到是哪一天不在期間。
+        // 「核准日不在期間」的預覽帶傳票核准日一欄，使用者才看得到是哪一天不在期間。
         // 驗證結果與明細頁都帶每一列的核准日，明細頁也能依核准日排序。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder

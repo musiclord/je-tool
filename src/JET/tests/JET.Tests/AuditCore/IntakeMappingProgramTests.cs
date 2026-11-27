@@ -110,7 +110,7 @@ public sealed class IntakeMappingProgramTests
                 [new RowProjectionError(7, "amount", "bad", "不是有效金額", "JE.csv")])));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        // 用語以「已儲存」為準，審計員會看到的訊息寫「儲存」。
+        // 用語以「已儲存」為準，使用者會看到的訊息寫「儲存」。
         // 同一欄同一種問題只寫一次，再依值列出列號，不是每列一整句；
         // 每組另放進 details 並帶來源欄。
         Assert.Equal(

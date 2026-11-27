@@ -37,7 +37,7 @@ public sealed class FilterResultCursorRevisionTests
         }
         else
         {
-            // 上游修改會清除下游：行事曆修改會清掉已存情境，審計員要重新儲存同一組情境；
+            // 上游修改會清除下游：行事曆修改會清掉已存情境，要重新儲存同一組情境；
             // 重新儲存會重算全部情境，因此沒有「只重算選定情境、全案仍待重跑」的狀態，filter 一律不是待重跑。
             // 仍要確認上游修改前取得的游標不能接到新結果。
             await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");

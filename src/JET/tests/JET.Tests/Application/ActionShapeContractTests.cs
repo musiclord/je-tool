@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 /// <see cref="ActionShapeJourney"/> 用正式的 dispatcher 走一遍合成案件，記下每個 action 收到的資料與回應的欄位和型別，
 /// 要和 <c>tests/JET.Tests/Fixtures/action-shapes.json</c> 逐字相同；
 /// 前端測試的假後端用這個檔核對自己假造的回應與送出的資料。
-/// 這裡只核對形狀，不核對值；審計結果仍由各自算獨立答案的測試判定。
+/// 這裡只核對形狀，不核對值；值是否正確由各自算獨立答案的測試判定。
 /// 改了 action 的資料形狀時，設環境變數 <c>JET_ACTION_SHAPES_WRITE=1</c> 跑這個測試重寫檔案，再看差異是不是預期的。
 /// </summary>
 public sealed class ActionShapeContractTests

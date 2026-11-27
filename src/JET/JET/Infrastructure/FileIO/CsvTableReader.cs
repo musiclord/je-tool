@@ -12,7 +12,7 @@ namespace JET.Infrastructure;
 ///   request.Delimiter 有值時改用指定的分隔符。
 /// - 解析：用 <see cref="CsvRecordReader"/> 的一般 CSV 讀法。欄位開頭的引號才是引號，中間的引號是一般字元；
 ///   引號沒有成對時失敗，並寫出第幾列。每個值都讀成字串，確認配對時才解析成金額或日期。
-/// - 標頭：先略過 request.LeadingRowsToSkip 筆記錄，也就是審計員指定的「欄名在第幾列」，空白列也算；再略過空白列。
+/// - 標頭：先略過 request.LeadingRowsToSkip 筆記錄，也就是使用者指定的「欄名在第幾列」，空白列也算；再略過空白列。
 ///   第一個有內容的列是標頭，和 Excel 讀取器相同。標頭由這裡讀出後交給 TabularHeaderNormalizer 正規化，
 ///   重複的欄名加上 _2、_3。
 /// - 欄數：資料列比標頭多出來的欄只要有資料，就補一個 COL_n 佔位欄，不會丟掉有資料的欄，和 Open XML 讀取器相同。
@@ -174,7 +174,7 @@ public sealed class CsvTableReader : ITabularFileReader
     /// <summary>
     /// 先略過 leadingRowsToSkip 筆記錄（空白列也算一筆，和 Excel 讀取器以實際列號計算相同），再略過空白列，
     /// 讀第一個有內容的記錄作為標頭並正規化；整個檔都是空白列時以 empty_workbook 回報，
-    /// 審計員指定了欄名列卻略過到檔尾時同一個代碼，訊息改說那一列起沒有內容；略過列數是版面固定的，就說檔案是空的。
+    /// 使用者指定了欄名列卻略過到檔尾時同一個代碼，訊息改說那一列起沒有內容；略過列數是版面固定的，就說檔案是空的。
     /// </summary>
     private static (IReadOnlyList<string> Columns, int RowNumber) ReadHeader(
         CsvRecordReader records, string filePath, Encoding encoding, int leadingRowsToSkip = 0, bool fixedLeadingRows = false)

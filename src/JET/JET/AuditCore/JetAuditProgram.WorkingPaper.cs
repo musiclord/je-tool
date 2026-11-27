@@ -24,7 +24,7 @@ internal sealed record WorkingPaperRequest(
 
 /// <summary>
 /// 工作底稿逐列標記的範圍。DirectHitRows 保留篩選結果實際命中的列；
-/// HitVoucherRows 只用於舊 IDEA 明確以整張傳票呈現的情境。
+/// HitVoucherRows 只用於舊版明確以整張傳票呈現的情境。
 /// </summary>
 internal enum WorkingPaperScenarioTagScope
 {
@@ -295,7 +295,7 @@ public static partial class JetAuditProgram
 
     /// <summary>
     /// 情境只有一組、這組只有一條預篩選條件，而且規則定義標明單獨使用時列整張命中傳票，就以整張命中傳票呈現。
-    /// 目前只有舊 IDEA 的「未預期借貸組合」是這樣，標示寫在
+    /// 目前只有「未預期借貸組合」照舊版這樣呈現，標示寫在
     /// <see cref="PrescreenRuleDefinition.ListsWholeHitVouchersWhenAlone"/>。這個判斷同時供
     /// 條件篩選報告摘要的列數口徑與工作底稿的逐列標記使用；篩選結果本身仍只
     /// 記錄直接命中的收入貸方列。複合情境維持同列條件，避免擴張其他規則的結果。

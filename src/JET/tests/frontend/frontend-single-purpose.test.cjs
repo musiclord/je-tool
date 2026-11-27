@@ -83,7 +83,7 @@ test('the preparer, keyword, blank description and trailing digit cards share fi
 });
 
 // 「金額尾數連續多個 0」是一條條件，比較方式是尾數連續幾個 0，0 元不選入；條件列寫出整數部分為 0 的金額不符合。
-// 0 的個數照 IDEA 版由 GL 算出，跟著已確認的 GL 配對帶回；加入時帶這個案件的個數，這裡帶 5，確認用的是案件的個數。
+// 0 的個數照舊版由 GL 算出，跟著已確認的 GL 配對帶回；加入時帶這個案件的個數，這裡帶 5，確認用的是案件的個數。
 test('the trailing-zero preset visibly excludes absolute amounts below one', () => {
   const f = filterOperationFixture();
   f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {}, zerosThreshold: 5 });

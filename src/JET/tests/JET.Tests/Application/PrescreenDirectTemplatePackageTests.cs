@@ -507,7 +507,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             "Criteria registry diff:\n"
             + string.Join("\n", appearanceMismatches));
 
-        // AuditCore 只會把舊 IDEA 的單一「未預期借貸組合」位置放入此集合。
+        // 照舊版，AuditCore 只會把單獨使用「未預期借貸組合」的情境位置放入此集合。
         // Writer 必須只改該位置的 D 欄，不能把所有情境都改成整張傳票列數。
         await using var wholeVoucherSummaryOutput = new MemoryStream();
         await ((ICriteriaSelectionReportWriter)writer).WriteAsync(
@@ -1530,7 +1530,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             RareAccounts: new("V", null, 2),
             BlankDescription: notApplicable)
         {
-            // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。
+            // 0 的個數照舊版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。
             ZerosThreshold = 6
         };
     }

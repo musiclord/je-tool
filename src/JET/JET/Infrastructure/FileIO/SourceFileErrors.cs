@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 來源檔讀不到時給審計員看的訊息。只寫檔名，不寫完整路徑，也不把 .NET 的英文例外文字放進訊息；
+/// 來源檔讀不到時給使用者看的訊息。只寫檔名，不寫完整路徑，也不把 .NET 的英文例外文字放進訊息；
 /// 每一句都寫出接下來能做什麼。原始例外保留在 InnerException，支援日誌只取具名的安全欄位。
 /// </summary>
 internal static class SourceFileErrors
@@ -51,7 +51,7 @@ internal static class SourceFileErrors
     }
 
     /// <summary>
-    /// 審計員指定的欄名列之後沒有任何內容。錯誤代碼和空白檔相同；三個讀取器在略過列數大於 0 又找不到欄名時都回這一句，
+    /// 使用者指定的欄名列之後沒有任何內容。錯誤代碼和空白檔相同；三個讀取器在略過列數大於 0 又找不到欄名時都回這一句，
     /// 不說成檔案是空的。一般匯入的畫面另外提示可以在同一列改「欄名在第幾列」。略過列數是匯入版面固定的
     /// （<see cref="TabularSourceRequest.FixedLeadingRows"/>，行事曆與科目配對舊範本）時不用這一句。
     /// </summary>
@@ -60,8 +60,8 @@ internal static class SourceFileErrors
         $"檔案「{Path.GetFileName(filePath)}」從第 {leadingRowsToSkip + 1} 列起沒有內容，找不到欄名。請確認欄名所在的列。");
 
     /// <summary>
-    /// 共用字串格記的編號在共用字串表裡找不到，這一格原本的文字已經讀不到。當成空白匯入的話，審計員看不出少了資料，
-    /// 所以停下來寫出工作表與儲存格位址，請審計員用 Excel 開啟確認後另存新檔再匯入。
+    /// 共用字串格記的編號在共用字串表裡找不到，這一格原本的文字已經讀不到。當成空白匯入的話，使用者看不出少了資料，
+    /// 所以停下來寫出工作表與儲存格位址，請使用者用 Excel 開啟確認後另存新檔再匯入。
     /// </summary>
     public static JetActionException MissingSharedString(string filePath, string sheetName, string cellAddress) => new(
         JetErrorCodes.FileReadError,

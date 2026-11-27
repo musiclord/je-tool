@@ -2,7 +2,7 @@
 require('./support/resource-guard.cjs');
 // 第五步預覽、儲存與已存情境的情境測試。
 //
-// 「第五步預覽與儲存新情境」：審計員點「空白摘要」卡，不填名稱與動機，預覽後儲存；拿掉這張卡改用欄位條件；
+// 「第五步預覽與儲存新情境」：使用者點「空白摘要」卡，不填名稱與動機，預覽後儲存；拿掉這張卡改用欄位條件；
 // 預覽回來前又改了條件；後端回帶 details 的錯誤。
 // 「第五步已存情境」：展開已存情境與高風險條件彙總（成功、失敗後重試、換案件後才回來）；其他作業進行中展開與儲存；
 // 沒有可用版本時看彙總、報告與命中明細；編輯一個情境改名後儲存；移除一個情境（取消、換案件、再確認）；
@@ -37,7 +37,7 @@ const VALIDATED = { resultRef: { resultId: 'v1' }, completenessTest: { eligibili
 const authored = name => ({ name, rationale: '合成自擬動機', groups: [{ join: 'AND', matchScope: 'row',
   conditions: [{ type: 'fieldValue', join: 'AND', field: 'description', operator: 'contains', values: ['合成'] }] }] });
 const savedBlankNamed = name => ({ ...F.savedBlankDescription(), name });
-// 對應不回卡片的已存情境：第 2 版編輯來源，卡片記 null；名稱與動機是審計員手寫的，條件是空白摘要的預篩選條件。
+// 對應不回卡片的已存情境：第 2 版編輯來源，卡片記 null；名稱與動機是使用者手寫的，條件是空白摘要的預篩選條件。
 const noCardScenario = name => ({ name, rationale: '合成舊版動機', source: null, groups: [{ join: 'AND', matchScope: 'row',
   conditions: [{ type: 'prescreen', join: 'AND', prescreenKey: 'blankDescription' }] }],
   editorOrigins: { version: 2, nameIsAutomatic: false, rationaleIsAutomatic: false, groups: [{ cards: [null] }] } });
@@ -195,7 +195,7 @@ test('the saved notice disappears when an upstream change clears the saved scena
 
 // 後端存檔時只保留每種條件用得到的欄位，前端送出的格式不變。
 // 人工分錄條件以 newFilterCondition 為底，送出時帶著季末前天數、科目配對方式等用不到的欄位，回應裡的條件只剩人工或自動。
-// 儲存途中審計員加了一條條件又移除，內容和送出時相同，提示仍要寫「已儲存」。
+// 儲存途中使用者加了一條條件又移除，內容和送出時相同，提示仍要寫「已儲存」。
 test('a save answered with only the fields each condition uses still counts an unchanged draft as saved', async () => {
   const f = savedFixture();
   // 人工分錄條件從欄位條件分頁類別組的「人工/自動分錄」欄位加入。
@@ -238,7 +238,7 @@ test('editing places save a new scenario, cancel and save changes at the bottom'
 // ================================================================================================
 
 // 草稿有常用篩選條件的卡片才帶 source。
-// 名稱與動機留白時，JET 會依條件自動補上建議文字（refreshAutomaticMetadata），所以審計員清空欄位後按儲存，送出的是建議名稱。
+// 名稱與動機留白時，JET 會依條件自動補上建議文字（refreshAutomaticMetadata），所以使用者清空欄位後按儲存，送出的是建議名稱。
 // 不論有沒有卡片，名稱與動機都能留白，由後端依條件補上：兩欄都沒有標示，留白照樣送出；條件缺值時仍擋下，提示不列名稱與動機。
 // 建議文字也是空白的草稿，畫面操作做不出來，所以這一段直接把草稿的名稱與動機設成手寫的空白（__nameDirty），確認照樣送出。
 test('name and rationale may be left blank with or without a common card; only a condition missing its value stops the save', async () => {
@@ -251,7 +251,7 @@ test('name and rationale may be left blank with or without a common card; only a
     assert.doesNotMatch(label.textContent, /可選填/);
     assert.ok(label.querySelector('.form__req') === null, 'no required mark on name or rationale');
   }
-  // 審計員清空兩欄後按儲存：照樣送出，名稱與動機是空白摘要卡的建議文字。
+  // 使用者清空兩欄後按儲存：照樣送出，名稱與動機是空白摘要卡的建議文字。
   f.type('[data-bind="scenario-name"]', '');
   f.type('[data-bind="scenario-rationale"]', '');
   f.click('[data-action="save-scenario"]'); await settle();
@@ -431,7 +431,7 @@ test('a rejected save marks only the current draft and names another scenario th
   assert.ok(!f.text().includes('另一個原因'));
 });
 
-// 審計員在這裡的目的是設定篩選情境，不是查看符合條件的傳票，所以儲存是主要按鈕，「查看符合的傳票」是次要按鈕。
+// 使用者在這裡的目的是設定篩選情境，不是查看符合條件的傳票，所以儲存是主要按鈕，「查看符合的傳票」是次要按鈕。
 // vm 沒有版面，只能看 class。
 test('saving is the primary action and looking at matching vouchers stays available as the secondary one', async () => {
   const f = savedFixture();
@@ -798,7 +798,7 @@ test('without a usable version the high-risk summary and the criteria report sta
   assert.match(body.textContent, /JV-P/);
   assert.ok(body.querySelector('.filter-voucher-host table') !== null, 'the voucher list is shown');
 
-  // 整個第五、六步都沒有範圍選擇器，也不出現下面這些審計員不需要看到的用語。
+  // 整個第五、六步都沒有範圍選擇器，也不出現下面這些使用者不需要看到的用語。
   const retired = ['以查核期間重新保存', '較早的版本', '版本參照', '測試母體區', '有界預覽', '尚無 CriteriaSelectionReport', '凍結為 CriteriaSelectionReport', '匯出時會依目前資料重新計算'];
   for (const step of ['filter', 'export']) {
     f.draw(step);
@@ -931,7 +931,7 @@ test('previewing or editing one saved scenario keeps its common source, an old-v
 });
 
 // 「非營業日之分錄」直接加入一條條件；已儲存情境裡也可能是只包一條條件的子條件組，照樣能讀，也認得是這張卡。
-// 審計員編輯這種情境時，卡片標成已選、條件照原樣留著；重新儲存時條件照原樣送回、編輯來源記這張卡、
+// 使用者編輯這種情境時，卡片標成已選、條件照原樣留著；重新儲存時條件照原樣送回、編輯來源記這張卡、
 // 來源代碼是 common。另一次編輯時再按一次卡片，拿掉的就是那個子條件組。
 test('a scenario saved with the earlier one-condition bracket of the non-business-day card is still that card when edited and saved again', async () => {
   const bracket = [{ join: 'AND', matchScope: 'row', conditions: [{ type: 'group', join: 'AND', conditions: [
@@ -1257,7 +1257,7 @@ test('scenarios to fix are listed one by one on steps five and six, and fixing t
   assert.equal(f.$('[data-action="export-working-paper"]').disabled, false, 'step six can export once every scenario is fixed');
 });
 
-// 沒有逐筆清單時（資料不一致，或後端只知道要重新檢查）：第五、六步各寫一次同一句，請審計員按「重新檢查並儲存情境」。
+// 沒有逐筆清單時（資料不一致，或後端只知道要重新檢查）：第五、六步各寫一次同一句，請使用者按「重新檢查並儲存情境」。
 test('without a per-scenario list both steps say once that rechecking will list what to edit', async () => {
   const f = savedFixture();
   await openCase(f, { filterScenarios: [savedBlankNamed('甲')], filterResultRef: null,
@@ -1378,7 +1378,7 @@ test('no entry for adding a condition offers an old-style condition type', () =>
 });
 
 // 同功能的元件只留一套：已儲存情境的「操作」和資料預覽的「其他資料」用同一個共用選單（ui-core.js 的 bindMenus）。
-// 這裡照審計員的操作走一遍：用滑鼠與鍵盤打開、一次只開一個、Esc 與 Tab 與點其他地方關閉，按下動作後選單關閉、焦點去該去的地方。
+// 這裡照使用者的操作走一遍：用滑鼠與鍵盤打開、一次只開一個、Esc 與 Tab 與點其他地方關閉，按下動作後選單關閉、焦點去該去的地方。
 test('each saved scenario\'s actions menu opens from its button or the keyboard, only one at a time, and closes on Esc, Tab, an outside click or a chosen action', () => {
   const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
   const active = () => f.dom.document.activeElement;
@@ -1499,7 +1499,7 @@ test('staying in the unsaved-changes dialog opened from a scenario\'s actions me
 });
 
 // 在「尚未儲存」對話框選了「不儲存，直接編輯」，換情境的那一步卻中途出錯（這裡讓寫入草稿的那一次丟出例外）。
-// 審計員再按一次「編輯」時，對話框照樣跳出來，不會被當成上一個對話框還開著而沒有反應；這一次順利換到要編輯的情境。
+// 使用者再按一次「編輯」時，對話框照樣跳出來，不會被當成上一個對話框還開著而沒有反應；這一次順利換到要編輯的情境。
 test('when the step after the unsaved-changes dialog breaks, pressing edit again still opens the dialog', () => {
   const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
   f.dom.document.body = f.dom.element('body');
@@ -1655,7 +1655,7 @@ test('step six shows handwritten rationales and lists the conditions instead of 
 });
 
 // 有卡片時列出動機的三種情形。卡片的評估說明照 ui-core.js 的 FILTER_COMMON_CONDITIONS 逐字寫下；
-// 情境只用特定人員與空白摘要兩張卡，或特定人員加一條自訂條件，以及審計員改寫過的動機。
+// 情境只用特定人員與空白摘要兩張卡，或特定人員加一條自訂條件，以及使用者改寫過的動機。
 const PREPARER_EVALUATION = '執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。';
 const preparerRule = { type: 'fieldValue', join: 'AND', field: 'createdBy', operator: 'in', values: ['合成主管'], includeBlank: false };
 const blankRule = { type: 'fieldValue', join: 'AND', field: 'description', operator: 'isBlank', includeBlank: false };
@@ -1685,10 +1685,10 @@ test('with cards the step-six options show only the evaluation notes, and a rewr
 });
 
 // ================================================================================================
-// 第五部分　補充：後端回報的錯誤與儲存鈕上方的提示，畫在審計員現在看得到的畫面上
+// 第五部分　補充：後端回報的錯誤與儲存鈕上方的提示，畫在使用者現在看得到的畫面上
 // ================================================================================================
 //
-// 審計員的操作：上一次作業失敗、步驟上方還留著失敗提示時，再按儲存、預覽或確認移除；之後繼續加條件、改條件、打名稱；
+// 使用者的操作：上一次作業失敗、步驟上方還留著失敗提示時，再按儲存、預覽或確認移除；之後繼續加條件、改條件、打名稱；
 // 在「已儲存情境」分頁編輯另一個情境時選「儲存並編輯」，目前的條件還沒補齊，或後端退回其中一條。
 // 前三個測試用整個 JET 畫面（共用夾具 bootFullApp）：中央面板由正式的 app.js 重畫，步驟上方的失敗提示出現與拿掉時
 // 目前步驟的內容整塊換掉，所以看得出錯誤是不是標在換上來的那一塊。其餘用本檔的 savedFixture。

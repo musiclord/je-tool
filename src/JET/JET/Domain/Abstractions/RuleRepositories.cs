@@ -33,7 +33,7 @@ public sealed record ProjectionResult(
 
     /// <summary>
     /// GL 投影時依 <see cref="GlMappingOptions.FillDownFields"/> 把空白補成上一列值的格數；
-    /// 沒有勾選欄位、TB 投影及失敗結果都是 0。寫進配對確認的回應，審計員據此記在 CAATs 文件。
+    /// 沒有勾選欄位、TB 投影及失敗結果都是 0。這個數字寫進配對確認的回應。
     /// </summary>
     public long FillDownCellCount { get; init; }
 }

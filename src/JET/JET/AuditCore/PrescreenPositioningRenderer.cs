@@ -1,7 +1,7 @@
 namespace JET.AuditCore;
 
 /// <summary>
-/// 預篩選在畫面上的定位說明。這些句子會影響審計員怎麼解讀結果，所以只由 AuditCore 產生；
+/// 預篩選在畫面上的定位說明。這些句子會影響使用者怎麼解讀結果，所以只由 AuditCore 產生；
 /// Application 只把它轉成 action 回應的格式，前端照著顯示並負責版面。
 /// </summary>
 internal sealed record PrescreenPositioning(

@@ -1,7 +1,7 @@
 'use strict';
 // 流程總覽與總覽分析圖表的情境測試。
 //
-// 審計員的操作：
+// 使用者的操作：
 //   流程總覽：還沒驗證時打開流程總覽；走完流程後打開；展開分析區後背景資料更新、總覽整張重畫；用鍵盤查看六個階段；
 //            案件有填與沒填客戶名稱。
 //   總覽分析圖表：在不同結果狀態下展開「預篩選」「分錄金額級距與累積分布」「預篩選結果分布」；切換集中度分頁；
@@ -78,7 +78,7 @@ function setup({ charts = true } = {}) {
   f.open = () => { f.opener.focus(); f.opener.fire('click'); assert.equal(f.state.overviewOpen, true, 'the overview opened'); };
   f.section = key => f.card().querySelector('[data-overview-analysis="' + key + '"]');
   f.analysisKeys = () => f.card().querySelectorAll('[data-overview-analysis]').map(node => node.getAttribute('data-overview-analysis'));
-  // 審計員點分析區標題：瀏覽器先改 details.open，再送 toggle。
+  // 使用者點分析區標題：瀏覽器先改 details.open，再送 toggle。
   f.toggle = (key, open) => { const section = f.section(key); assert.ok(section, key + ' section rendered'); section.open = open; section.fire('toggle'); return section; };
   f.factKeys = () => f.card().querySelectorAll('[data-overview-fact-key]').map(node => node.getAttribute('data-overview-fact-key'));
   f.fact = key => f.card().querySelector('[data-overview-fact-key="' + key + '"]');

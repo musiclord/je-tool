@@ -333,7 +333,7 @@ button, input, select, textarea {
   min-width: 0;
 }
 
-/* 字標：名稱裡的 JE 放進石板藍的圓角方形，Tool 接在後面。JE 是 Journal Entry 的縮寫，審計員一看就知道這是分錄測試的工具；
+/* 字標：名稱裡的 JE 放進石板藍的圓角方形，Tool 接在後面。JE 是 Journal Entry 的縮寫，使用者一看就知道這是分錄測試的工具；
    圖形標誌在實際大小下看不出意思，所以用字標。字標只出現在這裡一次。 */
 .app-header__title {
   display: flex;
@@ -1755,7 +1755,7 @@ button, input, select, textarea {
 }
 
 /* 案件清單的「輸出支援日誌」只給開發人員用，只在 Debug 組建出現：
-   放在卡片外的頁尾、靠右，和審計員的操作分開。輸出結果另起一行，長路徑在頁尾寬度內換行。
+   放在卡片外的頁尾、靠右，和一般的操作分開。輸出結果另起一行，長路徑在頁尾寬度內換行。
    Release 沒有頁尾，卡片下方維持原本的留白。 */
 .picker-panel:has(+ .picker-footer) {
   margin-bottom: var(--space-3);
@@ -3203,7 +3203,7 @@ dl.kv-list .kv-list__row:last-child {
 
 /* 統計數字不從中間斷開：數字裡沒有可以換行的地方，中文說明（例如「負值，不足 0.01」）照常換行。
    數字放不下時，app.js 的 fitStatRows 把整列一起縮一階（28、22、18px），18px 仍放不下才改成較少的格數，
-   這些 class 只由它加上。十億級金額斷成兩行時，審計員容易看錯。 */
+   這些 class 只由它加上。十億級金額斷成兩行時，使用者容易看錯。 */
 .stat-fit--xl :is(.stat-card__value, .overview-pop__kpi-value) { font-size: var(--text-xl); }
 .stat-fit--lg :is(.stat-card__value, .overview-pop__kpi-value) { font-size: var(--text-lg); }
 .stats-bar.stat-fit--stacked,
@@ -3911,7 +3911,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   border-radius: var(--radius-control);
 }
 
-/* 審計員自己寫的動機：條件上方一句一般內文。自動產生的動機只是把條件再念一次，不顯示。 */
+/* 使用者自己寫的動機：條件上方一句一般內文。自動產生的動機只是把條件再念一次，不顯示。 */
 .saved-scenario__rationale {
   margin: 0 0 var(--space-2);
   font-size: var(--text-sm);
@@ -3966,7 +3966,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 }
 
 /* ---- 規則清單（資料驗證與測試）---------------------------------------------
-   代號徽章保留查核引用（V/R 對應工作底稿分頁）；標題與一行說明給人讀。 */
+   標題與一行說明給人讀。 */
 .rule-card__head {
   display: flex;
   align-items: center;
@@ -6578,7 +6578,7 @@ body.is-resizing-preview .data-preview {
 .excel-mapping__spacer { flex: 1 1 auto; }
 .excel-mapping__hint { margin: var(--space-2) 2px 0; font-size: var(--text-sm); color: var(--color-muted); }
 .excel-mapping__gate { margin: 0; font-size: var(--text-sm); color: var(--color-text); }
-/* 選了有多個工作表的 Excel 檔時，接在操作列下面請審計員選工作表：一句說明，下面一排選單與按鈕。 */
+/* 選了有多個工作表的 Excel 檔時，接在操作列下面請使用者選工作表：一句說明，下面一排選單與按鈕。 */
 .excel-mapping__sheet-pick { margin-top: var(--space-3); }
 .excel-mapping__sheet-pick > .excel-mapping__hint { margin: 0 2px var(--space-2); color: var(--color-text); }
 .excel-mapping__sheet-label { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-sm); }

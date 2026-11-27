@@ -15,13 +15,13 @@ internal enum FieldInfoOrigin
     /// <summary>系統產生的欄，例如傳票金額_JE、同總帳日期的傳票核准日_JE、自動編號的傳票文件項次與過帳碼_JE。</summary>
     Generated,
 
-    /// <summary>數字型傳票號碼或科目編號轉成文字前的原欄，照 IDEA 的叫法加 _Temp。</summary>
+    /// <summary>數字型傳票號碼或科目編號轉成文字前的原欄，照舊版的叫法加 _Temp。</summary>
     Temp
 }
 
 /// <summary>
 /// 一個已持久化欄位定義的完整合併狀態。MaxRenderedLength 與 HasObservation
-/// 是 Append 所需的內部證據；對外 facts 只投影 Legacy TableDef 會使用的欄位。
+/// 是 Append 所需的內部證據；對外的 facts 只投影舊版欄位定義也有的欄位。
 /// Origin 是這一欄的來歷，JetField 是它對應的 JET 欄位：標準欄寫語意欄名稱（例如 glDate），
 /// 攸關資料元素寫它的 fieldId；原始來源欄沒有對應的 JET 欄位。
 /// </summary>

@@ -78,7 +78,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
                 HasAuthorizedPreparers: true,
                 NonWorkingDays: [0, 6])
             {
-                // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數。這則測試直接建立請求，帶入 6 個；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。
+                // 0 的個數照舊版由 GL 算出，請求要帶 0 的個數。這則測試直接建立請求，帶入 6 個；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。
                 ZerosThreshold = 6
             });
         IPrescreenFactsPort factsPort =

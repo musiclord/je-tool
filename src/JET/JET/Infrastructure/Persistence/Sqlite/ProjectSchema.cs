@@ -43,7 +43,7 @@ internal sealed class ProjectSchema
 
     /// <summary>
     /// 只讀取、不寫入。結構齊全時回 false，需要補上索引、觸發條件或新增的表與欄位時回 true；
-    /// 缺少不能補上的表或欄位時，用請審計員刪除後重建的訊息拒絕。
+    /// 缺少不能補上的表或欄位時，用請使用者刪除後重建的訊息拒絕。
     /// </summary>
     internal async Task<bool> CheckAsync(DbConnection connection, CancellationToken cancellationToken)
     {

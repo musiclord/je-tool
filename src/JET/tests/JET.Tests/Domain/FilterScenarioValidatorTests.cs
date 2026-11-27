@@ -863,7 +863,7 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_UnknownSource_TreatedAsAuthored_DoesNotRequireNameAndRationale()
     {
-        // 「非 common 即查核員自擬」：較早的案件記的是另一個來源代碼，這一版不認得，也走這條路。
+        // 「非 common 即使用者自擬」：較早的案件記的是另一個來源代碼，這一版不認得，也走這條路。
         // 自擬情境留白也不回報必填。
         var scenario = new FilterScenarioSpec(
             "  ", "  ", [new FilterGroupSpec(FilterJoin.And, [TextRule()])], Source: "adhoc");

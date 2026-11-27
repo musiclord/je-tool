@@ -102,7 +102,7 @@
         : '目前的條件尚未儲存為情境。' + wording.effect + '這些條件。',
       continueLabel: '不儲存，直接' + wording.verb,
       saveLabel: '儲存並' + wording.verb,
-      // 儲存失敗或被擋下時留在原情境。原因寫在儲存按鈕上方；審計員在「已儲存情境」分頁時，同一句也寫在這個分頁最上面，
+      // 儲存失敗或被擋下時留在原情境。原因寫在儲存按鈕上方；使用者在「已儲存情境」分頁時，同一句也寫在這個分頁最上面，
       // 對得到條件列的後端錯誤則改在步驟上方顯示。
       save: function () {
         return Promise.resolve(FilterStep.saveDraftForReplacement ? FilterStep.saveDraftForReplacement() : null)

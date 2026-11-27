@@ -6,7 +6,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// 檔案沒有 JET 記下的隱藏配對時，從「自動化工具-檔案欄位資訊」看得見的對照表推得草稿。
-/// 三種寫法都要認得：舊版 IDEA JET、較早版本把欄名加【】的寫法，以及目前欄名不加符號的寫法；欄名都是合成的。
+/// 三種寫法都要認得：舊版的寫法、新版 JET 較早版本把欄名加【】的寫法，以及目前欄名不加符號的寫法；欄名都是合成的。
 /// </summary>
 public sealed class FieldInfoSheetMappingTests
 {
@@ -200,7 +200,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // 借貸兩欄的說明句照舊版寫「借方欄-貸方欄」，減號前後不空格，所以前後有空白的「 - 」不比其他「-」更像分隔：
-    // 有好幾個「-」、表上與目前資料都對不上時，不挑其中一刀，列出金額請審計員選。
+    // 有好幾個「-」、表上與目前資料都對不上時，不挑其中一刀，列出金額請使用者選。
     [Fact]
     public void Infer_DualAmountWithSeveralDashesOneOfThemSpaced_ListsTheAmountWhenNothingMatches()
     {
@@ -861,7 +861,7 @@ public sealed class FieldInfoSheetMappingTests
         AssertDual(dual, "借方-金額", "貸方 - 金額");
     }
 
-    // 整段和切開後的兩段都列在表上時，看不出是一個欄名還是兩欄相減，不帶入金額，列出請審計員在第三步選；來源寫說明句冒號後的算式。
+    // 整段和切開後的兩段都列在表上時，看不出是一個欄名還是兩欄相減，不帶入金額，列出請使用者在第三步選；來源寫說明句冒號後的算式。
     [Fact]
     public void Infer_PlainAmountReadableBothWays_ListsTheAmountForTheAuditor()
     {
@@ -879,7 +879,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // TB 期末與期初各分借貸的算式照舊版寫「(期末借 - 期末貸) - (期初借-期初貸)」。欄名本身有「-」與「 - 」時，
-    // 用表上列出的來源欄確認切法；有兩種切法都對得上時看不出來，不帶入金額，列出請審計員選。
+    // 用表上列出的來源欄確認切法；有兩種切法都對得上時看不出來，不帶入金額，列出請使用者選。
     [Fact]
     public void Infer_TbPlainOpeningAndClosingBySide_UsesTheSplitListedOnTheSheetOrListsTheAmount()
     {

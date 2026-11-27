@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Legacy TableDef 等價欄位定義的 mapping-side oracle。
-/// 來源欄位維持 import first-seen ordinal；Legacy 真正改名的欄位在原位置改名並保留
+/// 核對與舊版等價的欄位定義：mapping 這一側的 oracle。
+/// 來源欄位維持 import first-seen ordinal；舊版真正改名的欄位在原位置改名並保留
 /// 原來源名為 description；numeric identifier 另保留 _Temp shadow 並 append canonical text；
 /// 非直接金額模式則保留來源金額欄並把統一金額欄追加在尾端。
 /// </summary>
@@ -196,7 +196,7 @@ public sealed class FieldInfoProjectorTests
         Assert.Equal(4, definitions[5].TextLength);
         Assert.Null(definitions[5].DecimalPlaces);
         AssertRenamed(definitions[6], "科目名稱", LegacyFieldKind.Text);
-        // Z_renameFields 只改名並保留來源 TableDef；mix 欄不得被 catalog 型態覆寫。
+        // 改名只改欄名並保留來源的欄位定義；mix 欄不得被 catalog 型態覆寫。
         AssertRenamed(definitions[7], "摘要", LegacyFieldKind.Number);
         Assert.Equal(0, definitions[7].DecimalPlaces);
         AssertRenamed(definitions[8], "來源模組", LegacyFieldKind.Text);
@@ -624,7 +624,7 @@ public sealed class FieldInfoProjectorTests
 
     /// <summary>
     /// 已經建立的案件：確認配對時存進案件資料庫的說明句是較早的寫法（欄位名稱加【】）。
-    /// 匯出讀欄位定義時，系統產生欄位的說明句依案件已確認的配對重新產生，審計員不必重新確認配對或重建案件。
+    /// 匯出讀欄位定義時，系統產生欄位的說明句依案件已確認的配對重新產生，使用者不必重新確認配對或重建案件。
     /// </summary>
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]

@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 第三步配對版面、單一資料夾入口、不顯示多餘的成功提示，以及總覽把流程位置和階段狀態分開的呈現層守衛。
-/// 審計事實只由後端 DTO 提供；本組只鎖 DOM、互動與可讀性。
+/// 計算結果只由後端 DTO 提供；本組只鎖 DOM、互動與可讀性。
 /// 資料預覽的半屏收合與「其他資料」選單、摘要優先的總覽與階段檢視、總覽的完成判斷，由前端的行為測試核對；
 /// 收合斷點和 app.css 一致這一條在 <see cref="FrontendSourceOnlyRulesTests"/>。
 /// </summary>
@@ -50,7 +50,7 @@ public sealed class FrontendUsabilityContractTests
         Assert.DoesNotContain("本步驟條件已備齊", javascript, StringComparison.Ordinal);
         // 畫面寫「尚無法執行」，不寫「已阻擋」。
         Assert.Contains("尚無法執行：", javascript, StringComparison.Ordinal);
-        // 「符合條件不等於錯誤」與「判斷由審計員做」合併為同一句白話，整句檢查。
+        // 「符合條件不等於錯誤」與「是否進一步查核不由 JET 判斷」合併為同一句白話，整句檢查。
         // 畫面不使用「母體」。
         Assert.Contains("預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("母體分布", javascript, StringComparison.Ordinal);

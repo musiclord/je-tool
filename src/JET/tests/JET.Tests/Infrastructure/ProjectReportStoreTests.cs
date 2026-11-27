@@ -442,7 +442,7 @@ public sealed class ProjectReportStoreTests
         var edited = await store.WriteAsync(ProjectId, Request(ReportKind.InfReport, Bytes(1)), CancellationToken.None);
         var deleted = await store.WriteAsync(ProjectId, Request(ReportKind.PrescreenReport, Bytes(1)), CancellationToken.None);
 
-        // 模擬審計員用 Excel 存檔（內容變長）與直接刪檔。
+        // 模擬使用者用 Excel 存檔（內容變長）與直接刪檔。
         await File.AppendAllTextAsync(Path.Combine(directory, edited.RelativeFileName), "edited outside JET");
         File.Delete(Path.Combine(directory, deleted.RelativeFileName));
 

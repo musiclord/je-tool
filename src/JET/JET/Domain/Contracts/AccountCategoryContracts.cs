@@ -165,7 +165,7 @@ public static class AccountCategoryCatalog
     /// <summary>
     /// 把匯入檔分類欄的一格對到案件的分類。空白算 Others；有內容時先比分類身分與目前的分類名稱（名稱不分大小寫）。
     /// 都對不到時，內建分類原本的英文名稱仍指向那個內建分類：內建分類可以改名，
-    /// IDEA 版 JET 的範本與沒有改過名的案件寫的是原本的名稱，照樣要歸到同一個內建分類。
+    /// 舊版的範本與沒有改過名的案件寫的是原本的名稱，照樣要歸到同一個內建分類。
     /// 另一個案件改成的名稱這裡認不得，呼叫端會把它當成新的分類名稱。
     /// </summary>
     public static bool TryResolveImportCategory(

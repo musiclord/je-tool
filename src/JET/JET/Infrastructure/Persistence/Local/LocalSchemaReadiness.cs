@@ -32,7 +32,7 @@ internal sealed class LocalSchemaReadiness
         RunAsync(databasePath, ensureCreated, force: true, cancellationToken);
 
     /// <summary>
-    /// 開啟既有案件時呼叫，一律重新檢查。建案中的標記還在，表示上一次建案在完成前中斷，審計員沒有拿到這個案件，
+    /// 開啟既有案件時呼叫，一律重新檢查。建案中的標記還在，表示上一次建案在完成前中斷，使用者沒有拿到這個案件，
     /// 資料庫裡不會有資料：照建案的做法把初始化做完，再刪掉標記。標記不在時，資料庫一定要已經建好，
     /// 不建立新的資料庫。<paramref name="ensureCreated"/> 的第一個參數是可不可以建立資料庫。
     /// </summary>

@@ -4,7 +4,7 @@ namespace JET.Application;
 
 /// <summary>
 /// host.selectFiles：開啟可以多選的 Windows 檔案對話框，匯入精靈用它一次選多個來源檔。
-/// 審計員取消時回空陣列。它是獨立的 action，沒有做成 host.selectFile 的選項，這樣同一個 action 的回應不會有兩種形狀。
+/// 使用者取消時回空陣列。它是獨立的 action，沒有做成 host.selectFile 的選項，這樣同一個 action 的回應不會有兩種形狀。
 /// </summary>
 public sealed class HostSelectFilesHandler : IApplicationActionHandler
 {

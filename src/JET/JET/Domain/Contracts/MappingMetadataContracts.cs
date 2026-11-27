@@ -14,7 +14,7 @@ internal static class ManualAutoPolicyErrors
 
 /// <summary>
 /// JET 報告內嵌欄位配對 metadata 的固定位置與版本。有這組 marker/version/payload 時，帶入配對一律以它為準；
-/// 檔案沒有 JET 記下的隱藏配對時（例如舊版 IDEA JET 的底稿），改讀同一張工作表看得見的配對前後欄位對照表推得草稿。
+/// 檔案沒有 JET 記下的隱藏配對時（例如舊版的底稿），改讀同一張工作表看得見的配對前後欄位對照表推得草稿。
 /// </summary>
 public static class MappingMetadataFormat
 {
@@ -69,7 +69,7 @@ public sealed record GlManualAutoPolicy(
     IReadOnlyList<string> ManualValues,
     IReadOnlyList<string> AutomaticValues)
 {
-    // 沒有指定時逐值判定；補集與空白必須由審計員分別指定。
+    // 沒有指定時逐值判定；補集與空白必須由使用者分別指定。
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? UnlistedValueKind { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -112,8 +112,8 @@ public sealed record GlMappingOptions(
     public IReadOnlyList<string> FillDownFields { get; init; } = [];
 
     /// <summary>
-    /// 確認配對時往下填補了幾格。由投影算出，跟著配對保存，重開案件時第三步摘要與報告的配對資訊寫得出來，
-    /// 審計員據此記在 CAATs 文件。請求不帶這個數字；配對沒有這個數字時是 0。
+    /// 確認配對時往下填補了幾格。由投影算出，跟著配對保存，重開案件時第三步摘要與報告的配對資訊寫得出來。
+    /// 請求不帶這個數字；配對沒有這個數字時是 0。
     /// </summary>
     public long FillDownCount { get; init; }
 
@@ -380,7 +380,7 @@ public sealed record FieldInfoSheetRow(
 
 /// <summary>
 /// 「自動化工具-檔案欄位資訊」看得見的 TB 與 GL 配對前後欄位對照表，各段只有資料列，不含標題與表頭。
-/// 舊版 IDEA JET 與新版 JET 寫的都是這張表；配對怎麼推得見 FieldInfoSheetMapping。
+/// 舊版與新版 JET 寫的都是這張表；配對怎麼推得見 FieldInfoSheetMapping。
 /// </summary>
 public sealed record FieldInfoSheet(
     IReadOnlyList<FieldInfoSheetRow> Tb,

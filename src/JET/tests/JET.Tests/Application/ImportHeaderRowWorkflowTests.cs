@@ -7,8 +7,8 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 「欄名在第幾列」的匯入固定答案。這個選項適用於 GL 與 TB 的一般匯入，含文字檔，Access 不適用。
-/// 審計員在第二步的待匯入清單替每個來源填欄名在第幾列，匯入時從那一列起找欄名，前面的標題列與空白列都不算資料；
-/// 這個選擇和工作表、編碼、分隔符一樣跟著來源保存，匯入回應與重開案件都帶回來，審計員才知道這份來源是怎麼讀的。
+/// 使用者在第二步的待匯入清單替每個來源填欄名在第幾列，匯入時從那一列起找欄名，前面的標題列與空白列都不算資料；
+/// 這個選擇和工作表、編碼、分隔符一樣跟著來源保存，匯入回應與重開案件都帶回來，使用者才知道這份來源是怎麼讀的。
 /// </summary>
 public sealed class ImportHeaderRowWorkflowTests
 {
@@ -95,7 +95,7 @@ public sealed class ImportHeaderRowWorkflowTests
             Assert.Equal(2, tb.GetProperty("rowCount").GetInt32());
             Assert.Equal(2, HeaderRowOf(Assert.Single(tb.GetProperty("sources").EnumerateArray())));
 
-            // 重開案件：來源清單帶回同一個欄名列，審計員看得到這份來源是從第幾列讀的。
+            // 重開案件：來源清單帶回同一個欄名列，使用者看得到這份來源是從第幾列讀的。
             var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
             var importState = loaded.GetProperty("importState");
             Assert.Equal([3, null],

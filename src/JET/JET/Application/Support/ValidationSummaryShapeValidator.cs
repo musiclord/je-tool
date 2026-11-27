@@ -30,7 +30,7 @@ internal static class ValidationSummaryShapeValidator
     internal static void RequirePrescreen(JsonElement root)
     {
         // 已存的摘要可能沒有顯示用的彙總區塊；沒有時不補造，也不因此拒絕讀回。
-        // positioning 在讀回時換成目前的說明，不是已存的審計事實，這裡只拒絕重複欄名。
+        // positioning 在讀回時換成目前的說明，不是已存的結果，這裡只拒絕重複欄名。
         RequireUniqueProperties(root);
         RequireObjectFields(root, "resultRef");
         ValidateResultRef(Property(root, "resultRef"), RuleLogicVersions.Prescreen);

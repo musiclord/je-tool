@@ -44,7 +44,7 @@
   var justImportedTimer = null;
 
   // 匯入時正被 Excel 等程式開著的來源檔，後端另外列出的提醒（openElsewhereWarnings），依匯入項目記下：
-  // gl、tb、authorizedPreparer、holiday、makeupDay。畫面把它放在那一項的匯入結果旁，審計員不必打開訊息面板
+  // gl、tb、authorizedPreparer、holiday、makeupDay。畫面把它放在那一項的匯入結果旁，使用者不必打開訊息面板
   // 就看得到；訊息面板也另記一則當紀錄。同一項再匯入成功時換成這次的提醒，
   // 移除清單或換案件時清掉。純區域 UI，比照 justImported：不進 state.js、不持久化。
   var openElsewhere = {};
@@ -415,7 +415,7 @@
     }); }
   }
 
-  // 日期維度：上傳事務所假日與補班日 .xlsx，並設定每週休息日（週末判定）。前端不做判斷，以後端為準。
+  // 日期維度：上傳假日與補班日 .xlsx，並設定每週休息日（週末判定）。前端不做判斷，以後端為準。
   function calendarCard(calendar) {
     var body = calendar && calendar.calendarImported
       ? '<p class="import-card__status import-card__status--ok">國定假日 ' +
@@ -635,7 +635,7 @@
       var detail = [];
       if (s.encoding) { detail.push('編碼 ' + Ui.esc(encodingLabel(s.encoding))); }
       if (s.delimiter) { detail.push('分隔符 ' + Ui.esc(s.delimiter === '\t' ? 'Tab' : s.delimiter)); }
-      // 審計員指定過欄名在第幾列時，來源清單一直看得到這個選擇；沒指定（第 1 列）不寫。
+      // 使用者指定過欄名在第幾列時，來源清單一直看得到這個選擇；沒指定（第 1 列）不寫。
       if (s.headerRow) { detail.push('欄名在第 ' + Number(s.headerRow) + ' 列'); }
 
       return (
@@ -799,7 +799,7 @@
   }
 
   // 欄名在第幾列開放給 GL 與 TB 的一般匯入。來源檔前面有標題列時，
-  // 審計員在這一格填欄名所在的列，Excel 與文字檔都有；Access 資料表的欄名來自資料表本身，沒有這一格。
+  // 使用者在這一格填欄名所在的列，Excel 與文字檔都有；Access 資料表的欄名來自資料表本身，沒有這一格。
   // 改了就重新讀前 10 列，欄數、提醒與預覽跟著換；它只解決表頭，表尾的合計列仍要在 Excel 刪。
   // 上限是 Excel 一張工作表的列數；超過的值不送出。
   var MAX_HEADER_ROW = 1048576;
@@ -825,7 +825,7 @@
 
   // 逐來源預覽：表頭 + 前 10 列原貌（import.previewFile）。有界，絕不載入完整母體。
   // headerRowAdjustable：GL 與 TB 的來源列有「欄名在第幾列」，欄名不在第一列時改那一格；授權清單沒有這一格，
-  // 仍請審計員先在 Excel 刪掉標題列。Access 資料表的欄名來自資料表本身，不提標題列。
+  // 仍請使用者先在 Excel 刪掉標題列。Access 資料表的欄名來自資料表本身，不提標題列。
   function previewTableHtml(item, headerRowAdjustable) {
     var motion = ' data-motion-key="' + Ui.esc('pending-preview-' + pendingMotionKey(item)) + '"';
     if (!item.previewData) {
@@ -1149,7 +1149,7 @@
   // 欄數、提醒與預覽一起換新，「只讀到一欄」這類提醒才會跟著改選出現或消失。
   // 連續改選時只採用最後一次的結果。
   // 被取消或另一項作業還在進行時不是讀不出檔案：這一列的勾選、原因與預覽都回到重讀前的樣子。
-  // setting 是審計員剛改的那一格（key 與 value）：重新讀取真的開始時才記進這一列，被取消時改回去，設定才和留著的預覽一致；
+  // setting 是使用者剛改的那一格（key 與 value）：重新讀取真的開始時才記進這一列，被取消時改回去，設定才和留著的預覽一致；
   // 這次重新讀取沒有開始時這一列完全不動，由 setting.onBlocked 把畫面上的控制項改回去。
   function refreshSource(item, label, setting) {
     var recovering = !!item.inspectError;
@@ -1273,7 +1273,7 @@
       if (item.sheetName) { source.sheetName = item.sheetName; }
       if (item.encoding) { source.encoding = item.encoding; }
       if (item.delimiter) { source.delimiter = item.delimiter; }
-      // 欄名在第幾列只在審計員改成第 2 列以後才送；第 1 列是後端的預設。
+      // 欄名在第幾列只在使用者改成第 2 列以後才送；第 1 列是後端的預設。
       if (item.headerRow) { source.headerRow = item.headerRow; }
       return source;
     });

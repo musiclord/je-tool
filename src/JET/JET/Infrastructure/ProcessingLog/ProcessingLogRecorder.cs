@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 處理紀錄模組：操作成功完成後，把這次處理 GL 或 TB 的經過寫給審計員看，寫法參考 IDEA 的歷程紀錄。
+/// 處理紀錄模組：操作成功完成後，把這次處理 GL 或 TB 的經過寫給使用者看，寫法參考舊版的歷程紀錄。
 /// 它只接在兩個地方：dispatcher 在操作成功後交來的輸入與回應，以及畫面收到的匯出進度；審計邏輯不呼叫它。
 /// <list type="bullet">
 /// <item>哪些操作要寫、每一筆寫什麼，由 <see cref="ProcessingLogEntries"/> 決定；查詢、開案與失敗的操作不寫。</item>
@@ -143,7 +143,7 @@ public sealed partial class ProcessingLogRecorder : IProcessingLog
 
     /// <summary>
     /// 情境存好之後，照畫面打開已存情境的方式讀第一頁：條件文字、資料庫條件式、符合條件的傳票數量與分錄筆數。
-    /// 讀不到的情境只記位置，紀錄裡寫明沒有讀到，請審計員在第五步確認。
+    /// 讀不到的情境只記位置，紀錄裡寫明沒有讀到，請使用者在第五步確認。
     /// </summary>
     private async Task<IReadOnlyList<ProcessingLogScenarioDetail>> ReadScenariosAsync(string action, JsonElement result)
     {

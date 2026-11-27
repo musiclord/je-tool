@@ -133,7 +133,7 @@ internal sealed partial class WorkingPaperWriter
     /// <summary>
     /// 「step1-1 借貸不平測試」:A1-A4 共同表頭 + Step1-1 程序固定文字 + 依結果二選一的結論。
     /// 有不平傳票時照舊版 JET 的版面：B14 說明、第 16 列五欄表頭、
-    /// 第 17 列起依傳票號碼與總帳日期彙總的明細，最後一欄留給審計員填寫理由。
+    /// 第 17 列起依傳票號碼與總帳日期彙總的明細，最後一欄留給使用者填寫理由。
     /// </summary>
     private async Task EmitVoucherBalanceAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -445,7 +445,7 @@ internal sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// A1-A4 共同表頭(四張 step1 表共用):公司名 / 測試期間 / 財報準備開始日 / 各表傳入的斜體說明。
-    /// A3 對應舊版 JET 的 sLast_Accounting_Period_Date，只取 <see cref="WorkingPaperContext.PrepStartDate"/>；缺值時明示 N/A，不得改用 PeriodEnd。
+    /// A3 照舊版 JET 只取 <see cref="WorkingPaperContext.PrepStartDate"/>；缺值時明示 N/A，不得改用 PeriodEnd。
     /// </summary>
     private static void WriteCommonHeader(
         SheetWriter sheet,

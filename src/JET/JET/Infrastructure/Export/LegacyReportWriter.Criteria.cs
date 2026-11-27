@@ -305,8 +305,8 @@ internal sealed partial class LegacyReportWriter
 
                 if (context.Scenarios.Count > 0)
                 {
-                    // 舊版 JET 在至少寫入一筆情境紀錄時執行 Cells.EntireRow.AutoFit。
-                    // OpenXML 的對應做法是拿掉每一列指定的列高，讓 Excel 自己算。
+                    // 照舊版，至少寫入一筆情境紀錄時讓每一列的列高自動調整。
+                    // OpenXML 的做法是拿掉每一列指定的列高，讓 Excel 自己算。
                     foreach (var row in worksheet.GetFirstChild<SheetData>()!
                                  .Elements<Row>())
                     {

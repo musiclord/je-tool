@@ -490,7 +490,7 @@ public sealed class TbImportBranchTests
 
     /// <summary>
     /// 一次匯入兩個 TB 檔，第二個檔的欄名和第一個不同：整批都不寫入，原本的 TB 與各項結果都不變。
-    /// 訊息和追加時共用同一句，不叫審計員改用取代匯入，因為這時本來就在取代匯入。
+    /// 訊息和追加時共用同一句，不叫使用者改用取代匯入，因為這時本來就在取代匯入。
     /// </summary>
     [Theory]
     [InlineData("sqlite")]

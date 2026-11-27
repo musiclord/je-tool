@@ -53,7 +53,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
             PRIMARY KEY (batch_id, source_no)
         );
 
-        -- 匯入檔的欄位定義（名稱、型態、長度），對應舊版 IDEA 的 TableDef，只在匯入資料時寫入。
+        -- 匯入檔的欄位定義（名稱、型態、長度），內容照舊版的欄位定義，只在匯入資料時寫入。
         CREATE TABLE IF NOT EXISTS field_info (
             batch_id            TEXT NOT NULL,
             definition_scope    TEXT NOT NULL CHECK (definition_scope IN ('source','target')),

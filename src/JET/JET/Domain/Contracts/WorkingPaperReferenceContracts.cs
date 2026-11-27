@@ -19,13 +19,13 @@ public sealed record AccountMappingExportRow(
     /// GL_NAME 欄實際寫的字。已儲存的科目配對有名稱時寫這個名稱，科目只在 GL 出現也一樣；
     /// 沒有名稱（沒有值、空字串、只有空白字元）時寫「Not in TB」，這一欄不留白。
     /// 科目配對範本在 TB 沒有名稱的科目寫「Not in TB」，匯入時當成沒有名稱；在畫面分類時同樣只存 TB 的名稱。
-    /// 所以這裡寫回的字和審計員上傳的範本一致，審計員在範本自己填的名稱照樣寫出。
+    /// 所以這裡寫回的字和使用者上傳的範本一致，使用者在範本自己填的名稱照樣寫出。
     /// </summary>
     public string GlName => string.IsNullOrWhiteSpace(AccountName) ? NotInTbName : AccountName;
 }
 
 /// <summary>
-/// 科目配對範本列，供審計員填分類。使用有效 GL 與 TB 聯集的可配對科目母體，排除空白科目編號。
+/// 科目配對範本列，供使用者填分類。使用有效 GL 與 TB 聯集的可配對科目母體，排除空白科目編號。
 /// A=<see cref="AccountNumber"/>(population.account_number)、B=<see cref="TemplateName"/>。
 /// <see cref="AccountName"/> 是 TB 的科目名稱；TB 沒有名稱或科目只在 GL 出現時是 null，範本不帶 GL 的名稱。
 /// B 欄在 TB 有名稱時寫名稱，其餘照舊版寫字面「Not in TB」：舊版範本只看 TB 的名稱有沒有內容，名稱是空的就寫這個字。
@@ -64,7 +64,7 @@ public interface IAccountMappingExportRepository
     /// (<c>JET.Infrastructure.AccountMappingPopulationQuery</c>，與「配對檔未列的科目」共用母體)，依 account_number 升冪。
     /// 科目編輯清單另外包含配對檔多出的科目。
     /// 與 <see cref="FetchAllAsync"/> 的差異:那讀 account_mapping(已配對,供匯出 sheet 15),
-    /// 這讀可配對科目母體，排除空白科目編號，不論目前是否已配對，供產範本讓審計員填 C 欄。
+    /// 這讀可配對科目母體，排除空白科目編號，不論目前是否已配對，供產範本讓使用者填 C 欄。
     /// periodStart/periodEnd 界定 GL 母體本期口徑(與 CTE @periodStart/@periodEnd 一致)。
     /// </summary>
     Task<IReadOnlyList<AccountMappingTemplateRow>> FetchTemplateRowsAsync(

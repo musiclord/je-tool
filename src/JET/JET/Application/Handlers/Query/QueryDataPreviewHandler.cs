@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.dataPreview：給審計員看的資料預覽，只讀不寫。
+/// query.dataPreview：給使用者看的資料預覽，只讀不寫。
 /// 用途是欄位配對時對照欄名與實際內容，以及進階篩選前先看數值、日期與摘要大概是什麼樣子。
 /// 用 limit 與 offset 分批讀，每次最多回傳 200 筆，不一次讀完整份資料。
 /// GL(未納入測試) 可以用 exclusionReason 只看一種未納入原因。

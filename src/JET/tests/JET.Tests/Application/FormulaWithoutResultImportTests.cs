@@ -162,7 +162,7 @@ public sealed class FormulaWithoutResultImportTests
         }
     }
 
-    /// <summary>給審計員看的句子逐字寫在這裡，當成獨立的預期值。</summary>
+    /// <summary>給使用者看的句子逐字寫在這裡，當成獨立的預期值。</summary>
     private static string ImportWarning(string fileName, int count, string firstCell) =>
         $"檔案「{fileName}」工作表「{SheetName}」有 {count} 個儲存格有公式、卻沒有存計算結果，第一格是 {firstCell}。"
         + "JET 不會重新計算公式，這些儲存格匯入後是空白。請用 Excel 開啟這個檔案並存檔，再重新匯入。";

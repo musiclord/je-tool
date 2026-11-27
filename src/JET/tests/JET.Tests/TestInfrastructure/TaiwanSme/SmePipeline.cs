@@ -97,7 +97,7 @@ internal static class SmePipeline
         await log.DispatchAsync(dispatch, "project.releaseLock", new { }).ConfigureAwait(false);
     }
 
-    /// <summary>只建案與匯入兩個檔案，停在欄位配對，留給審計員自己操作第三步。</summary>
+    /// <summary>只建案與匯入兩個檔案，停在欄位配對，留給使用者自己操作第三步。</summary>
     public static async Task RunMappingPendingAsync(
         SmeDispatch dispatch, string projectName, string projectCode, SmeSourceFiles files, SmeCaseLog log)
     {

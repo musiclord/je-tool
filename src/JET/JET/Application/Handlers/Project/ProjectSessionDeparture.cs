@@ -17,7 +17,7 @@ internal sealed class ProjectSessionDeparture(
 {
     /// <summary>
     /// 案件鎖放成功了才離開 session；<paramref name="leaveSession"/> 只在目前案件仍是 <paramref name="projectId"/> 時才清掉它。
-    /// 放鎖失敗或被取消時往外丟，session 保留，審計員可以再試一次。
+    /// 放鎖失敗或被取消時往外丟，session 保留，使用者可以再試一次。
     /// </summary>
     internal static async Task LeaveAsync(
         string projectId,
@@ -39,7 +39,7 @@ internal sealed class ProjectSessionDeparture(
     /// <summary>
     /// 進入已經開成的 <paramref name="enteringProjectId"/> 之前，先離開目前開著的另一個案件；重開同一個案件時不動。
     /// 畫面回到案件清單之前都會先離開案件，這裡補的是畫面沒有離開成的情形，所以不理會取消要求；
-    /// 放不掉時只記進支援日誌，照常開新的案件，不擋審計員。
+    /// 放不掉時只記進支援日誌，照常開新的案件，不擋使用者。
     /// 離開成功時在離開的案件記一筆離開事件：這種離開沒有 project.releaseLock，支援日誌匯出靠它認出這個程式正常離開了案件。
     /// </summary>
     internal async Task LeaveOtherProjectAsync(string enteringProjectId)

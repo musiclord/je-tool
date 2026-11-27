@@ -69,7 +69,7 @@ public sealed class PrescreenRulePeriodTests
                 validateForDownstream: true));
 
         Assert.Equal(JetErrorCodes.EmptyGl, exception.Code);
-        // 審計員會看到的用語是「儲存」，不是「保存」。
+        // 使用者會看到的用語是「儲存」，不是「保存」。
         Assert.Contains("本次配對未儲存", exception.Message, StringComparison.Ordinal);
     }
 

@@ -62,7 +62,7 @@ public sealed class ExportWriterResourceReleaseTests
         spool.Writer.Write(1L);
         WriteByteBeyondFreeSpace(stream, Path.GetTempPath());
 
-        // 寫完要讀回時內容還沒寫進檔案，這個錯誤要照常丟出，外層才能告訴審計員暫存資料夾的磁碟已滿。
+        // 寫完要讀回時內容還沒寫進檔案，這個錯誤要照常丟出，外層才能告訴使用者暫存資料夾的磁碟已滿。
         var error = Record.Exception(() => spool.StartReading(throwOnInvalidBytes: false));
 
         Assert.Equal(DiskFullHResult, Assert.IsAssignableFrom<IOException>(error).HResult);
@@ -385,7 +385,7 @@ public sealed class ExportWriterResourceReleaseTests
             {
                 var rewritten = ExportSpoolFile.Create(".jet-cover-rewrite-cancel-test-", 4_096);
                 temporary = rewritten.Stream;
-                // 暫存檔的緩衝裡有寫不出去的內容：暫存資料夾所在磁碟已滿。改寫剛開始，審計員就取消匯出。
+                // 暫存檔的緩衝裡有寫不出去的內容：暫存資料夾所在磁碟已滿。改寫剛開始，使用者就取消匯出。
                 WriteByteBeyondFreeSpace(temporary, Path.GetTempPath());
                 cancellation.Cancel();
                 return rewritten;

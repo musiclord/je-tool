@@ -109,7 +109,7 @@ public sealed class AccountMappingTemplateExportTests
         Assert.Equal(NameHeader, ws.Cell("B3").GetString());
         Assert.Equal(CategoryHeader, ws.Cell("C3").GetString());
 
-        // A/B 已填、C 留空（供審計員填）。
+        // A/B 已填、C 留空（供使用者填）。
         Assert.Equal("1101", ws.Cell("A4").GetString());
         Assert.Equal("現金", ws.Cell("B4").GetString());
         Assert.True(ws.Cell("C4").IsEmpty());
@@ -118,7 +118,7 @@ public sealed class AccountMappingTemplateExportTests
         Assert.True(ws.Cell("C6").IsEmpty());
 
         // C4 的 DataValidation：list 型、inCellDropdown；List!A1 保留範本靜態標題，
-        // 來源是 A 欄第 2 列以下整欄：五個內建分類在 A2:A6，審計員加在清單最後的名稱也選得到。
+        // 來源是 A 欄第 2 列以下整欄：五個內建分類在 A2:A6，使用者加在清單最後的名稱也選得到。
         var dv = ws.DataValidations.GetAllInRange(ws.Cell("C4").AsRange().RangeAddress).Single();
         Assert.Equal(XLAllowedValues.List, dv.AllowedValues);
         Assert.True(dv.InCellDropdown);
@@ -272,7 +272,7 @@ public sealed class AccountMappingTemplateExportTests
         }
     }
 
-    // 審計員照舊版範本的做法，在 List 工作表的清單最後加上分類名稱，再回 C 欄選用；匯入後那個名稱成為案件的自訂分類。
+    // 使用者照舊版範本的做法，在 List 工作表的清單最後加上分類名稱，再回 C 欄選用；匯入後那個名稱成為案件的自訂分類。
     [Fact]
     public async Task Template_CategoryAddedOnListSheet_IsCoveredByDropdownAndCreatedOnImport()
     {
@@ -486,7 +486,7 @@ public sealed class AccountMappingTemplateExportTests
                 Path.GetDirectoryName(templatePath),
                 StringComparer.OrdinalIgnoreCase);
 
-            // 審計員填 C 欄（1101→Cash、2101→Receivables、5101→Revenue），原檔另存後上傳。
+            // 使用者填 C 欄（1101→Cash、2101→Receivables、5101→Revenue），原檔另存後上傳。
             var fill = new Dictionary<string, string>
             {
                 ["1101"] = AccountMappingCategories.Cash,
@@ -569,7 +569,7 @@ public sealed class AccountMappingTemplateExportTests
 
     /// <summary>
     /// 範本與差異清單、科目清單用同一份可配對科目母體：總帳的空白科目編號由第四步資料缺漏輔助檢視的「空白科目編號」列出，
-    /// 不能變成範本的一列；否則審計員填完再匯入，會因「科目編號空白」整份被拒收。
+    /// 不能變成範本的一列；否則使用者填完再匯入，會因「科目編號空白」整份被拒收。
     /// </summary>
     [Theory]
     [InlineData("sqlite")]

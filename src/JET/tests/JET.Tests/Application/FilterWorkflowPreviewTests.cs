@@ -39,7 +39,7 @@ public sealed class FilterWorkflowPreviewTests
         var withoutOrigins = JsonSerializer.SerializeToElement(new { name = "空白摘要", rationale = "Synthetic", source = "common", groups = scenario.GetProperty("groups") });
         var withPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         var withoutPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = withoutOrigins }));
-        // Demo 的期間內摘要空白固定為 18 筆，編輯來源不得參與審計判定。
+        // Demo 的期間內摘要空白固定為 18 筆，編輯來源不得參與命中判定。
         Assert.Equal(18, withPreview.GetProperty("scenario").GetProperty("count").GetInt64());
         Assert.Equal(18, withoutPreview.GetProperty("scenario").GetProperty("count").GetInt64());
         await host.DispatchAsync("project.releaseLock");

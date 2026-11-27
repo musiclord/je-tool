@@ -7,7 +7,7 @@ using static JET.Tests.Application.TaiwanSmeScenarioSupport;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 台灣中小企業年度查核（查核期間 2025-01-01 到 2025-12-31）的 GL 範圍、GL 與 TB 完整性、
+/// 台灣中小企業一個年度（查核期間 2025-01-01 到 2025-12-31）的 GL 範圍、GL 與 TB 完整性、
 /// 借貸不平與空值檢查。資料全為合成，預期值依規則手算。
 /// </summary>
 public sealed class TaiwanSmePopulationAndCompletenessTests
@@ -76,7 +76,7 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         // 總帳日期條件放寬到 2024-12-01 至 2026-01-31，仍只會選到 GL 內的 P2、P3、P6 共 6 列。
         var wideDate = OneRule("寬鬆日期區間",
             """{"type":"fieldValue","field":"glDate","operator":"between","from":"2024-12-01","to":"2026-01-31"}""");
-        // 總帳日期空白的列不在 GL，所以「總帳日期空白」條件一定是 0 筆，預覽時直接請審計員移除。
+        // 總帳日期空白的列不在 GL，所以「總帳日期空白」條件一定是 0 筆，預覽時直接請使用者移除。
         var blankDate = OneRule("總帳日期空白", """{"type":"fieldValue","field":"glDate","operator":"isBlank"}""");
         var blankDateRejected = await Assert.ThrowsAsync<JetActionException>(() => PreviewAsync(host, blankDate));
         Assert.Equal("第 1 組第 1 條：GL 中的總帳日期不會空白，請移除這條條件", blankDateRejected.Message);

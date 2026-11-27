@@ -27,9 +27,9 @@ public sealed class FrontendSourceOnlyRulesTests
     [Fact]
     public void FilterConditionValues_AreNeverMoneyFormatted()
     {
-        // 輸入框與篩選條件值照審計員輸入的樣子顯示，不經過金額格式化。
+        // 輸入框與篩選條件值照使用者輸入的樣子顯示，不經過金額格式化。
         // 為什麼行為測試替代不了：條件值的輸入框種類很多，行為測試只測了讀回句子的一種；
-        // filter-values.js 任何地方呼叫 Ui.money( 都會改掉審計員打的值，只能看原始碼擋下。
+        // filter-values.js 任何地方呼叫 Ui.money( 都會改掉使用者打的值，只能看原始碼擋下。
         Assert.DoesNotContain("Ui.money(", ReadFrontend("js", "filter-values.js"), StringComparison.Ordinal);
     }
 

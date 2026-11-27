@@ -206,8 +206,8 @@ public sealed record FilterGroupSpec(
 }
 
 /// <summary>
-/// 篩選情境來源標記（wire 欄位 scenario.source）：標明此情境是查核員手寫，
-/// 還是用了「常用篩選條件」的卡片。空／null／未知值一律視為查核員手寫。
+/// 篩選情境來源標記（wire 欄位 scenario.source）：標明此情境是使用者手寫，
+/// 還是用了「常用篩選條件」的卡片。空值、null 與未知值一律視為使用者手寫。
 /// </summary>
 public static class FilterScenarioSources
 {

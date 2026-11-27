@@ -46,7 +46,7 @@ internal sealed class ExportSpoolFile : IDisposable
 
     /// <summary>
     /// 寫完之後從頭讀回：先把緩衝裡的內容寫進檔案，再回到開頭。
-    /// 這時寫不進去的錯誤照常丟出，由外層轉成給審計員看的訊息。
+    /// 這時寫不進去的錯誤照常丟出，由外層轉成給使用者看的訊息。
     /// </summary>
     internal BinaryReader StartReading(bool throwOnInvalidBytes)
     {

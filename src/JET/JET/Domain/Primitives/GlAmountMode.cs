@@ -2,7 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// GL 金額表示模式（四選一）。
-/// 舊版 JET 的 status_Amount mode 3 以欄位型別分支同時涵蓋
+/// 舊版以同一個模式依欄位型別同時涵蓋
 /// AmountWithSide 與 AmountWithFlag；本系統拆為兩個明確模式，比較邏輯共用。
 /// </summary>
 public enum GlAmountMode

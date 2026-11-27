@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "erd",
   "meta": {
-    "title": "SQLite：結果狀態與操作紀錄",
+    "title": "SQLite：案件設定、結果狀態與操作紀錄",
     "locale": "zh-TW",
     "output": "archify/system-erd/system-erd.html",
     "quality_profile": "standard",
@@ -30,9 +30,9 @@
   },
   "layout": {
     "mode": "grid",
-    "gapX": 56,
+    "gapX": 36,
     "gapY": 44,
-    "entityW": 240
+    "entityW": 216
   },
   "entities": [
     {
@@ -52,7 +52,7 @@
         }
       ],
       "tag": "執行與版本",
-      "sublabel": "結構版本與篩選資料版本"
+      "sublabel": "結構版本、篩選資料版本與日期提醒"
     },
     {
       "id": "result_stale_state",
@@ -192,6 +192,58 @@
       ],
       "tag": "操作紀錄",
       "sublabel": "重新匯入、發布等操作留痕"
+    },
+    {
+      "id": "project_setting",
+      "label": "project_setting",
+      "row": 1,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "singleton",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "period_start",
+          "type": "TEXT"
+        },
+        {
+          "name": "period_end",
+          "type": "TEXT"
+        },
+        {
+          "name": "money_scale",
+          "type": "INTEGER"
+        },
+        {
+          "name": "roc_date_enabled",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sample_seed",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sample_seed_version",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operator_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_accounting_period_date",
+          "type": "TEXT"
+        },
+        {
+          "name": "non_working_days",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "案件設定",
+      "sublabel": "以案件資料庫為準的案件設定",
+      "width": 268
     }
   ],
   "relationships": [],
@@ -201,8 +253,16 @@
       "title": "資料修改後的處理",
       "items": [
         "驗證與預篩選各自儲存摘要。上游資料改動時，清除受影響的結果並標記失效。",
-        "schema_info 以 key 記錄結構版本 schema_version（第 20 版）與篩選資料版本 filter_data_revision。篩選命中失效時，filter_data_revision 加一。",
+        "schema_info 以 key 記錄建案時寫入的結構版本 schema_version、篩選資料版本 filter_data_revision，以及確認 GL 配對時存下的日期提醒 gl_date_notices。開啟案件時不讀 schema_version，改和建表程式比對資料表結構；篩選命中失效時，filter_data_revision 加一。",
         "操作紀錄保存重新匯入與發布等事件；寫入失敗時留下支援日誌，並在回應附提醒。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "案件設定",
+      "items": [
+        "project_setting 只有一列，建案時和資料表在同一個交易裡寫入。",
+        "查核期間、金額存放倍率、民國年選項、隨機種子序號與抽樣演算法版本、建案者在建案後不能改，由觸發條件擋下修改，整列也不能刪除；期末財報準備日與每週休息日只在 JET 修改時更新。"
       ]
     }
   ]

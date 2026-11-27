@@ -1,6 +1,6 @@
 /*
   第三步：欄位配對。
-  來源欄位 → JET 邏輯欄位的對應；審計員逐項手動選取，提交標準化在後端執行。
+  來源欄位 → JET 邏輯欄位的對應；使用者逐項手動選取，提交標準化在後端執行。
 
   每個資料集（GL/TB）的狀態模型：
     未匯入        → 警示（請先匯入資料）
@@ -523,9 +523,9 @@
     Ui.bindStepFooter(container);
   }
 
-  // 「由底稿匯入欄位」：從 JET 匯出的工作底稿或其他有配對紀錄的 JET 報告帶入當時的欄位配對，填成草稿，審計員按確認配對才儲存。
-  //舊版 IDEA JET 的工作底稿由後端讀欄位對照表推得草稿，
-  // 回應形狀相同，畫面不必知道配對是從哪裡讀到的。給另一個案件用：同一客戶的下一年度、同事做過的案件，或刪除重建的案件。
+  // 「由底稿匯入欄位」：從 JET 匯出的工作底稿或其他有配對紀錄的 JET 報告帶入當時的欄位配對，填成草稿，使用者按確認配對才儲存。
+  // 舊版的工作底稿由後端讀欄位對照表推得草稿，
+  // 回應形狀相同，畫面不必知道配對是從哪裡讀到的。這個功能可用在其他案件，包括刪除後重建的案件。
   // GL 匯入後才有來源欄可以比對。
   // 按鈕與結果放在配對區上方的托盤：上面一排按鈕與一句說明，失敗原因是托盤裡的琥珀色提示，
   // 下面一張白紙寫帶入的檔名與欄數，逐項列出要重新選擇的欄位；GL 與 TB 卡片頂端不再重複列出。
@@ -597,7 +597,7 @@
     });
   }
 
-  // 檔案裡找不到的來源欄列在托盤請審計員重選；沒有匯入 TB 時只帶入 GL，原因寫在托盤。
+  // 檔案裡找不到的來源欄列在托盤請使用者重選；沒有匯入 TB 時只帶入 GL，原因寫在托盤。
   // 取消選檔時什麼都不送、不記。
   function bindRestoreFromReport(container) {
     var btn = container.querySelector('[data-action="restore-mapping-from-report"]');
@@ -1324,7 +1324,7 @@
     return (notices || []).reduce(function (sum, notice) { return sum + (notice.count || 0); }, 0);
   }
 
-  // 確認配對後訊息面板的那一則摘要。有無法辨識的日期時照舊版 IDEA JET 的說法，逐欄寫出對應的來源欄位與筆數；
+  // 確認配對後訊息面板的那一則摘要。有無法辨識的日期時照舊版的說法，逐欄寫出對應的來源欄位與筆數；
   // 年份不尋常與底稿寫成文字的日期只寫合計筆數。沒有無法辨識的日期時只寫合計筆數。
   function dateNoticeMessage(label, notices) {
     var unrecognized = notices.filter(function (notice) { return notice.kind === 'unrecognized'; });
@@ -1730,7 +1730,7 @@
   }
 
   // 編輯畫面頂端的狀態提示。重建整步與輸入時的就地更新共用這一份，兩條路徑的文字不會分歧。
-  // 同次開啟保留目前草稿；重開案件才帶回上次確認的配對。缺少的來源欄逐一列出，讓審計員補選。
+  // 同次開啟保留目前草稿；重開案件才帶回上次確認的配對。缺少的來源欄逐一列出，讓使用者補選。
   // 由底稿匯入欄位時找不到的來源欄也記在 droppedFields（fromReport），但只列在配對區上方的托盤，這裡不重複列出。
   function mappingBannerHtml(kind, mappingState, committed, matches) {
     var dropped = (mappingState.droppedFields || []).filter(function (item) { return !item.fromReport; });
@@ -2509,7 +2509,7 @@
             committed.availableGlFields = data.availableGlFields || null;
             // GL 中每一筆都有值的欄位，第五步照它收起「空白」的選項，原樣存下。
             committed.neverBlankGlFields = data.neverBlankGlFields || null;
-            // 這次投影往下填補了幾格，摘要列出來；審計員據此記在 CAATs 文件。
+            // 這次投影往下填補了幾格，摘要列出來。
             committed.fillDownCount = data.fillDownCount || 0;
             // 這次投影由 GL 借方平均算出的尾數 0 的個數，第四步卡片與第五步預設跟著更新。
             committed.zerosThreshold = data.zerosThreshold || null;

@@ -40,7 +40,7 @@ public sealed class PrescreenRunLoggingTests
             HasAuthorizedPreparers: true,
             NonWorkingDays: null)
         {
-            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數；這則只核對日誌，帶 6 不影響結果。
+            // 0 的個數照舊版由 GL 算出，請求要帶 0 的個數；這則只核對日誌，帶 6 不影響結果。
             ZerosThreshold = 6
         });
 

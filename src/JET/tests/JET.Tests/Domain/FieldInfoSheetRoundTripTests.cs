@@ -250,7 +250,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// 過帳狀態：來源欄照原樣留著，另外複製出「過帳碼_JE」，說明句寫來源欄與過帳判斷值（算已過帳的過帳狀態值）；
-    /// 審計員勾了「空白也算已過帳」時句尾寫明。最後一列是只有空白算已過帳、沒有其他值。
+    /// 使用者勾了「空白也算已過帳」時句尾寫明。最後一列是只有空白算已過帳、沒有其他值。
     /// </summary>
     [Theory]
     [InlineData(new[] { "Y" }, false)]
@@ -304,7 +304,7 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// 數字型的傳票號碼與會計科目編號：原欄照 IDEA 的叫法留成「_Temp 原欄」（配對後欄位名稱空白），
+    /// 數字型的傳票號碼與會計科目編號：原欄照舊版的叫法留成「_Temp 原欄」（配對後欄位名稱空白），
     /// 另外追加轉成文字的欄位寫標準欄名。推回時只看追加的那一列，配對仍是原本的來源欄。
     /// </summary>
     [Fact]
@@ -507,7 +507,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// TB 借減貸與期末減期初，說明句都寫成兩欄相減「A - B」。
-    /// TB 只有兩欄相減時，看不出是借減貸還是期末減期初，不帶入金額，列出來請審計員選。
+    /// TB 只有兩欄相減時，看不出是借減貸還是期末減期初，不帶入金額，列出來請使用者選。
     /// 所以預期是 spec 去掉這兩欄，另列一項「年度變動金額」，來源寫說明句冒號後的算式。
     /// 草稿的金額方式不是 spec 的設定，這裡不比對；推得規則給的值另見 FieldInfoSheetMappingTests。
     /// </summary>
@@ -678,7 +678,7 @@ public sealed class FieldInfoSheetRoundTripTests
     /// <summary>
     /// 借貸兩欄寫成「借方欄-貸方欄」，TB 期初那一組寫成「期初借-期初貸」，減號前後都不空格。
     /// 欄名本身有「-」，表上又另有來源欄讓同一句有兩種切法時，看不出是哪兩欄：不帶入金額，
-    /// 列出「金額」與「年度變動金額」請審計員在第三步選，來源寫說明句冒號後的算式；其他配對照樣帶回。
+    /// 列出「金額」與「年度變動金額」請使用者在第三步選，來源寫說明句冒號後的算式；其他配對照樣帶回。
     /// </summary>
     [Fact]
     public void DashedNamesReadableTwoWays_ListTheAmountsForTheAuditor()

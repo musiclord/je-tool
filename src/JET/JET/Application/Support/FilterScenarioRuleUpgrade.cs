@@ -143,7 +143,7 @@ internal static partial class FilterScenarioRuleUpgrade
 
         // 開案也逐一檢查：開案和儲存、移除、重新檢查用同一段逐筆檢查，已是目前版本的情境也檢查，
         // 因其他資料改變而不合格的情境開案時就列出，不會解鎖後查詢才失敗。條件內容讀不出來的情境也逐筆列出，
-        // 審計員才能移除它。
+        // 使用者才能移除它。
         var problems = Problems(Review(scenarios, validationContext, moneyScale));
         if (problems.Count > 0)
         {

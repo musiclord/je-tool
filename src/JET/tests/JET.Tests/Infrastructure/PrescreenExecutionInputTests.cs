@@ -46,7 +46,7 @@ public sealed class PrescreenExecutionInputTests
             HasAuthorizedPreparers: true,
             NonWorkingDays: [0, 6])
         {
-            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數；這裡用 5，下面核對執行輸入照請求帶出。
+            // 0 的個數照舊版由 GL 算出，請求要帶 0 的個數；這裡用 5，下面核對執行輸入照請求帶出。
             ZerosThreshold = 5
         };
         var reviewPlan = JetAuditProgram.Plan(
@@ -133,7 +133,7 @@ public sealed class PrescreenExecutionInputTests
             HasAuthorizedPreparers: false,
             NonWorkingDays: [0, 6])
         {
-            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數。
+            // 0 的個數照舊版由 GL 算出，請求要帶 0 的個數。
             ZerosThreshold = 6
         });
 

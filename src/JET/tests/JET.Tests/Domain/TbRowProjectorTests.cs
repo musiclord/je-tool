@@ -196,7 +196,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal((TbChangeMode)999, exception.ActualValue);
     }
 
-    // OpenClose（legacy SA=2）：本期變動 = 期末 − 期初。BVA/等價分割：正變動、負變動、
+    // OpenClose：本期變動 = 期末 − 期初。BVA/等價分割：正變動、負變動、
     // 零期初、零期末、零變動。oracle：規格手算（closing − opening）× scale。
     [Theory]
     [InlineData("1000", "1500", 5_000_000L)]    // 正變動 +500
@@ -251,7 +251,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(0L, projected!.ChangeAmountScaled);
     }
 
-    // OpenCloseBySide（legacy SA=4）：本期變動 = (期末借 − 期末貸) − (期初借 − 期初貸)。
+    // OpenCloseBySide：本期變動 = (期末借 − 期末貸) − (期初借 − 期初貸)。
     // 決策表：借方科目、貸方科目、借貸交叉、全零、負變動。oracle：規格手算 × scale。
     [Theory]
     [InlineData("1000", "0", "1500", "0", 5_000_000L)]     // 借方科目 +500
@@ -412,7 +412,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(11, error!.SourceRowNumber);
         Assert.Equal("change", error.Field);
         Assert.Equal("79228162514264337593543950335", error.RawValue);
-        // 訊息不叫審計員調整小數位數，因為案件沒有這個設定。
+        // 訊息不叫使用者調整小數位數，因為案件沒有這個設定。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 

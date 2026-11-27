@@ -10,7 +10,7 @@ public sealed class SuspiciousKeywordDefaultsTests
     [Fact]
     public void Defaults_RetainLegacySimplifiedVariants_WithoutOffBookKeyword()
     {
-        // IDEA R2 的固定字串集合；不把繁簡轉換推廣到其他人員或科目識別值。
+        // 舊版 R2 的固定字串集合；不把繁簡轉換推廣到其他人員或科目識別值。
         foreach (var keyword in new[] { "调整", "回转", "冲销", "重分类", "避险", "重编", "错误", "计画外", "预算外" })
             Assert.Contains(keyword, SuspiciousKeywordDefaults.Defaults);
         Assert.DoesNotContain("帳外", SuspiciousKeywordDefaults.Defaults);

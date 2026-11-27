@@ -115,7 +115,7 @@ public sealed class SupportLogDiagnosisTests
         var first = await host.DispatchAsync("export.validationReports", payload, correlationId: "report-first");
         var report = first.GetProperty("publishedReports").EnumerateArray()
             .Single(item => item.GetProperty("kind").GetString() == "validationReport");
-        // 審計員用 Excel 開著上一份報告：其他程式仍可讀，但不能覆蓋。
+        // 使用者用 Excel 開著上一份報告：其他程式仍可讀，但不能覆蓋。
         using (File.Open(report.GetProperty("fullPath").GetString()!, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
             await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(

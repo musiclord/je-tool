@@ -1,7 +1,7 @@
 'use strict';
 // 長作業、忙碌中再按與取消，以及訊息面板「複製紀錄」的情境測試。
 //
-// 審計員的操作：
+// 使用者的操作：
 //   長作業：按「執行驗證」與「執行預篩選」看忙碌畫面的經過時間與提示，匯入時沒有那句提示；忙碌中又按了別的按鈕；
 //           開案時按「取消作業」；產生工作底稿途中取消，取消成功、動作剛好做完與取消失敗；
 //           長作業成功與失敗後在訊息面板看到的句子；後端錯誤沒有附原因。另外直接用 Ui.run 走過「完成後重新整理」的規則。
@@ -327,7 +327,7 @@ function namedForm(form) {
   for (const node of form.querySelectorAll('input,select')) { const name = node.getAttribute('name'); if (name) form[name] = node; }
   return form;
 }
-// 後端用這兩種錯誤代碼回覆時，操作都不算失敗：審計員自己取消，或另一項作業還在進行。
+// 後端用這兩種錯誤代碼回覆時，操作都不算失敗：使用者自己取消，或另一項作業還在進行。
 // 訊息面板各記一則，等級分別是一般說明與需要注意，都不是錯誤。
 const CANCELLED = { code: 'operation_cancelled', message: '合成：已取消' };
 const OTHER_RUNNING = { code: 'operation_in_progress', message: '合成：另一項作業還在進行' };

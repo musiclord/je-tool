@@ -1,7 +1,7 @@
 'use strict';
 // 開案、換案、離開與重新開案的情境測試。
 //
-// 審計員的操作：開一個本機案件，再從案件清單換開另一個；在案件裡快速切換步驟；按頁首與第四步的「開啟資料夾」；
+// 使用者的操作：開一個本機案件，再從案件清單換開另一個；在案件裡快速切換步驟；按頁首與第四步的「開啟資料夾」；
 // 作業進行中想回首頁；重新開案後看到情境版本與報告清單，直接到第六步匯出。
 // 夾具：support/frontend-fixtures.cjs 的 remapAppFixture（正式 state、ui-core、各步驟與 app.js 的頁首綁定、render、案件清單）。
 //
@@ -100,7 +100,7 @@ test('the header "open case folder" button only shows inside a case and asks for
   f.store.setImportResult('gl', importedState.gl); f.store.setImportResult('tb', importedState.tb);
   f.store.setMappingCommitted('gl', { mapping: {}, mode: 'dual' }); f.store.setMappingCommitted('tb', { mapping: {}, mode: 'debitCredit' });
   f.store.setResult('validate', validationResultData('v1')); f.draw('validate');
-  // 科目配對檔的按鈕在「用 Excel 配對」分頁裡：審計員先切到這個分頁。
+  // 科目配對檔的按鈕在「用 Excel 配對」分頁裡：使用者先切到這個分頁。
   f.$('[data-action="toggle-account-excel"]').fire('click'); f.draw('validate');
   const stepFour = f.$('[data-action="open-account-mapping-folder"]');
   assert.ok(stepFour, 'step-four folder button rendered once the GL mapping is confirmed');

@@ -1,13 +1,13 @@
 'use strict';
 // 前端測試的假後端用正式後端的資料形狀核對自己。
 //
-// tests/JET.Tests/Fixtures/action-shapes.json 由 C# 的 ActionShapeContractTests 產生：正式的 dispatcher 照審計員的順序走一遍
+// tests/JET.Tests/Fixtures/action-shapes.json 由 C# 的 ActionShapeContractTests 產生：正式的 dispatcher 照使用者的操作順序走一遍
 // 合成案件，記下每個 action 收到的資料與回應的欄位和型別。這裡用它核對兩件事：
 //   checkResponse(action, data)：假回應的每個欄位都要在正式回應裡出現過，型別也要出現過。欄位可以少，不可以多。
 //   checkRequest(action, payload)：前端送出的每個欄位都要是正式後端收過的，型別相同；後端每次都收到的欄位不能少。
 // 對不上就丟出錯誤，所以前端測試不能假造後端不會回的欄位，也不能送後端沒收過的欄位。
 // 刻意假造的失敗或極端狀態用 unchecked('原因', data) 包起來，就不核對；原因寫在呼叫的地方。
-// 核對的是形狀，不是值；審計結果仍由各自算獨立答案的測試判定。
+// 核對的是形狀，不是值；計算結果仍由各自算獨立答案的測試判定。
 //
 // 對不上的錯誤可能在前端的請求流程裡丟出，被畫面當成後端失敗處理掉，測試本身看不到。
 // 所以每次對不上也記在這個程序裡，由 node --test 在每個測試結束時判定那個測試失敗。

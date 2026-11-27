@@ -249,7 +249,7 @@ internal static class GlExcludedPopulation
                 nameof(matcher));
         }
 
-        // 來源有內容卻讀不成日期，和空白分開記，審計員才知道要回頭看來源寫了什麼。
+        // 來源有內容卻讀不成日期，和空白分開記，使用者才分得出是來源寫了讀不成日期的內容，還是本來就空白。
         if (glDateUnrecognized)
         {
             return new GlExcludedPopulationClassification(GlExclusionReason.UnrecognizedGlDate);

@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 旅程測試：審計員照設計流程操作，或在 JET 之外動了報告檔，案件都要能繼續。
+/// 旅程測試：使用者照設計流程操作，或在 JET 之外動了報告檔，案件都要能繼續。
 /// </summary>
 public sealed class ReportTrustJourneyTests
 {
@@ -135,7 +135,7 @@ public sealed class ReportTrustJourneyTests
         await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { resultId }));
         var templatePath = Assert.Single(Directory.GetFiles(projectDirectory, "*AccountMapping*.xlsx"));
 
-        // 審計員用 Excel 開範本、填 C 欄、存回原檔：位元組一定會變。
+        // 使用者用 Excel 開範本、填 C 欄、存回原檔：位元組一定會變。
         using (var workbook = new XLWorkbook(templatePath))
         {
             var sheet = workbook.Worksheet("AccountMapping");
@@ -153,7 +153,7 @@ public sealed class ReportTrustJourneyTests
             "import.accountMapping.fromFile",
             JsonSerializer.Serialize(new { filePath = templatePath }));
 
-        // 再匯出報告：範本檔和紀錄不符時，匯出照常完成，也不改動審計員存回的範本檔。
+        // 再匯出報告：範本檔和紀錄不符時，匯出照常完成，也不改動使用者存回的範本檔。
         await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
         Assert.Equal(filledTemplate, await File.ReadAllBytesAsync(templatePath));
 

@@ -9,12 +9,12 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 第五步篩選情境一次只存或刪一個。
-/// 開案時有情境不能套用目前規則，審計員仍要能一個一個改或刪：其他情境照資料庫原樣保留，不整批重新檢查；
+/// 開案時有情境不能套用目前規則，使用者仍要能一個一個改或刪：其他情境照資料庫原樣保留，不整批重新檢查；
 /// 錯誤只會屬於正在編輯的情境；全部改好或刪掉之前，高風險條件彙總、報告與第六步照樣鎖住。
 /// </summary>
 /// <remarks>
 /// 每個操作都透過「照畫面送法」的輔助方法送出。輔助方法記住畫面上的已存清單（開案與每次回應的 <c>scenarios</c>），
-/// 照畫面的送法組請求，所以測試失敗時重現的是審計員在畫面上會遇到的錯誤。
+/// 照畫面的送法組請求，所以測試失敗時重現的是使用者在畫面上會遇到的錯誤。
 /// </remarks>
 public sealed class FilterScenarioSingleChangeTests
 {
@@ -880,7 +880,7 @@ public sealed class FilterScenarioSingleChangeTests
         return wire;
     }
 
-    /// <summary>審計員改好這個情境：只留原本的借貸條件。</summary>
+    /// <summary>改好這個情境：只留原本的借貸條件。</summary>
     private static JsonObject Fixed(Screen screen, int position)
     {
         var wire = Wire(screen.Saved[position - 1]);

@@ -102,7 +102,7 @@ public sealed class ImportMakeupDayHandler : ImportCalendarHandler
 }
 
 /// <summary>
-/// import.holiday.fromFile 與 import.makeupDay.fromFile：匯入事務所的行事曆檔。
+/// import.holiday.fromFile 與 import.makeupDay.fromFile：匯入行事曆檔。
 /// 只收 .xlsx，標頭在第 2 列（LeadingRowsToSkip=1）。哪一欄是日期、怎麼轉成日期清單，由 AuditCore 決定。
 /// 每次匯入整份取代同一種日期，store 在同一個交易裡清掉受影響的規則結果。
 /// </summary>

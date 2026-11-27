@@ -12,7 +12,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 照審計員的順序，用正式的 dispatcher 走一遍合成案件，記下每個 action 收到的資料與回應的形狀。
+/// 照使用者操作的順序，用正式的 dispatcher 走一遍合成案件，記下每個 action 收到的資料與回應的形狀。
 /// 送出的資料照前端畫面實際組出來的格式寫（各 action 旁註明前端的出處）；前端測試再用記下的形狀核對自己送出的資料，
 /// 兩邊對不上就失敗，所以這裡的格式寫錯時會被前端測試抓到。
 /// 合成資料刻意放進幾種有問題的列，匯出後也回頭修改上游資料，讓差異清單、警告與條件失效這些畫面會遇到的回應都有紀錄。
@@ -147,7 +147,7 @@ internal static class ActionShapeJourney
             var projectCode = project.GetProperty("projectCode").GetString();
             var prepStartDate = project.GetProperty("prepStartDate").GetString();
             const string mismatchedPrepStartDate = "2020-01-01";
-            // create-step.js 允許先不填期末財報準備日（送 null），之後在案件資料補上；審計員先建了這樣一個案件。
+            // create-step.js 允許先不填期末財報準備日（送 null），之後在案件資料補上；這裡先建一個這樣的案件。
             var undatedProject = await Send("project.create", new
             {
                 projectName = "合成未填準備日",
@@ -172,7 +172,7 @@ internal static class ActionShapeJourney
             await FixSampleSeedAsync(projectId);
             // ui-core.js 開案只送案件名稱，之後回案件清單時重讀本機案件。
             await Send("project.load", new { projectId });
-            // 審計員在 JET 以外改了設定檔的建案者：重新開案時照案件資料庫改回，回應列出改回的項目。
+            // 使用者在 JET 以外改了設定檔的建案者：重新開案時照案件資料庫改回，回應列出改回的項目。
             await EditSettingsFileAsync(projectId, document => document["operatorId"] = "合成的另一位建案者");
             await Send("project.load", new { projectId });
             await Send("project.listLocal");
@@ -194,14 +194,14 @@ internal static class ActionShapeJourney
             shell.NextFiles = [glPath];
             await Send("host.selectFiles", new { title = "選擇 GL 來源檔（可多選）", extensions = SourceExtensions });
             await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx");
-            // 審計員先拿到文字檔版本的總帳，在待匯入清單指定編碼與分隔符整批取代；之後再換回 Excel 版。
+            // 先用文字檔版本的總帳，在待匯入清單指定編碼與分隔符整批取代；之後再換回 Excel 版。
             var glCsvPath = Track(WorkbookCsv(glPath, [], _ => []));
             await Send("import.gl.fromFile", new
             {
                 mode = "replace",
                 sources = new[] { new { filePath = glCsvPath, fileName = "合成總帳.csv", encoding = "utf-8", delimiter = "," } },
             });
-            // 來源檔前面有標題列時，審計員在待匯入清單指定「欄名在第幾列」，預覽與匯入都帶這個值（Access 不適用）。
+            // 來源檔前面有標題列時，使用者在待匯入清單指定「欄名在第幾列」，預覽與匯入都帶這個值（Access 不適用）。
             var glTitledCsvPath = Track(Path.Combine(Path.GetTempPath(), $"jet-shape-titled-{Guid.NewGuid():N}.csv"));
             File.WriteAllText(
                 glTitledCsvPath,
@@ -221,12 +221,12 @@ internal static class ActionShapeJourney
             await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx");
             await ImportAsync("import.tb.fromFile", tbPath, tbExport.GetProperty("fileName").GetString()!);
 
-            // 文字檔：審計員在待匯入清單指定編碼與分隔符（import-step.js）。同一份文字檔再加入一次時後端提醒可能重複匯入，
-            // 審計員再整批取代回來。
+            // 文字檔：使用者在待匯入清單指定編碼與分隔符（import-step.js）。同一份文字檔再加入一次時後端提醒可能重複匯入，
+            // 之後再用整批取代換回來。
             var tbMapping = JsonSerializer.Deserialize<Dictionary<string, string>>(
                 demo.GetProperty("tb").GetProperty("mapping").GetRawText())!;
             var tbCsvPath = Track(TrialBalanceCsv(tbPath, tbMapping[TbMappingKeys.DebitAmount], tbMapping[TbMappingKeys.CreditAmount]));
-            // 審計員誤選一份報表格式的文字檔（整份只有一欄）：檢查與預覽都附上提醒，審計員沒有加入它。
+            // 使用者誤選一份報表格式的文字檔（整份只有一欄）：檢查與預覽都附上提醒，使用者沒有把它加入待匯入清單。
             var reportLayoutPath = Track(Path.Combine(Path.GetTempPath(), $"jet-shape-report-{Guid.NewGuid():N}.txt"));
             File.WriteAllText(reportLayoutPath, "合成報表\n第一行\n第二行\n", new UTF8Encoding(false));
             await Send("import.inspectFile", new { filePath = reportLayoutPath });
@@ -265,7 +265,7 @@ internal static class ActionShapeJourney
             await Send("mapping.valueProfile", new
             {
                 dataset = "gl", sourceColumn = profileColumn, comparisonOnly = true,
-                // mapping-step.js 只濾掉空字串；審計員輸入只有空白的代碼時照樣送出，後端回的比對鍵是 null。
+                // mapping-step.js 只濾掉空字串；使用者輸入只有空白的代碼時照樣送出，後端回的比對鍵是 null。
                 comparisonValues = profile.GetProperty("values").EnumerateArray()
                     .Select(value => value.GetProperty("value").GetString()).Append("新代碼").Append(" ").ToArray(),
             });
@@ -283,19 +283,19 @@ internal static class ActionShapeJourney
                 new JsonObject { ["sourceColumn"] = "合成部門", ["label"] = "合成部門", ["valueType"] = "text" },
                 new JsonObject { ["sourceColumn"] = "合成金額欄", ["label"] = "合成金額欄", ["valueType"] = "amount" },
             };
-            // 傳票摘要先配到整欄空白的欄，後端回警告；審計員改回「摘要」欄再確認一次。
+            // 傳票摘要先配到整欄空白的欄，後端回警告；再改回「摘要」欄確認一次。
             var misMapped = new Dictionary<string, string>(syntheticGlMapping, StringComparer.Ordinal)
             {
                 [GlMappingKeys.Description] = "合成空白欄",
             };
             var firstGlCommit = await Send("mapping.commit.gl", GlCommit(misMapped, amountMode, newRdeFields));
             var rdeFields = CommittedRdeFields(firstGlCommit);
-            // 來源有一欄到期日，裡面有讀不成日期的值，也有年份不尋常的日期。審計員把它配成日期型別的攸關資料元素，
+            // 來源有一欄到期日，裡面有讀不成日期的值，也有年份不尋常的日期。使用者把它配成日期型別的攸關資料元素，
             // 回應帶日期提醒；看過之後不留這個欄位，照原本的攸關資料元素繼續。
             var withDueDate = (JsonArray)rdeFields.DeepClone();
             withDueDate.Add(new JsonObject { ["sourceColumn"] = "合成到期日", ["label"] = "合成到期日", ["valueType"] = "date" });
             await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, withDueDate));
-            // 審計員先試借方、貸方金額分開的配對，不配傳票項次，另配分錄來源與過帳狀態（只認列已過帳，空白也算），
+            // 先試借方、貸方金額分開的配對，不配傳票項次，另配分錄來源與過帳狀態（只認列已過帳，空白也算），
             // 人工/自動分錄只指定自動代碼、其餘算人工，空白不分類。重開案件看一次，再改回單一金額欄的配對。
             // mapping-step.js 有配過帳狀態時一併送 postingStatusPolicy；沒有配傳票核准日時 approvalDateMode 送 unmapped。
             var dualMapping = new[]
@@ -318,7 +318,7 @@ internal static class ActionShapeJourney
             };
             await Send("mapping.commit.gl", dualCommit);
             await Send("project.load", new { projectId });
-            // 審計員勾選傳票號碼與總帳日期往下填補空白；回應帶回勾選的欄位與填了幾格。
+            // 勾選傳票號碼與總帳日期往下填補空白；回應帶回勾選的欄位與填了幾格。
             var glCommit = await Send(
                 "mapping.commit.gl",
                 GlCommit(syntheticGlMapping, amountMode, rdeFields, fillDownFields: new JsonArray(GlMappingKeys.VoucherNumber, GlMappingKeys.GlDate)));
@@ -332,7 +332,7 @@ internal static class ActionShapeJourney
                 [TbMappingKeys.AccountName] = "合成空白欄",
             }, changeMode));
             // 變動金額另有三種給法：直接給年度變動、給期初與期末餘額、給期初與期末的借貸方（見 TrialBalanceCsv）。
-            // 審計員依來源檔的欄位選一種；這裡三種都確認一次，最後改回示範資料的借方、貸方金額。
+            // 使用者依來源檔的欄位選一種；這裡三種都確認一次，最後改回示範資料的借方、貸方金額。
             foreach (var (mode, columns) in new (string, Dictionary<string, string>)[]
             {
                 (TbChangeModeNames.Direct, new() { [TbMappingKeys.ChangeAmount] = "合成年度變動" }),
@@ -364,7 +364,7 @@ internal static class ActionShapeJourney
             await Send("query.dataPreview", new { dataset = "glExcluded", limit = 200, offset = 0, exclusionReason = "afterPeriod" });
             await Send("query.dataPreview", new { dataset = "glExcluded", limit = 1, offset = 1, exclusionReason = "afterPeriod" });
 
-            // 審計員還沒上傳假日檔、匯入授權編製人員清單與科目配對，就先跑一次驗證與預篩選。
+            // 還沒上傳假日檔、匯入授權編製人員清單與科目配對，就先跑一次驗證與預篩選。
             // 需要這些資料的規則無法執行，回應帶後端寫的原因，畫面只顯示這一句（validate-step.js）。
             await Send("validate.run");
             await Send("prescreen.run");
@@ -416,7 +416,7 @@ internal static class ActionShapeJourney
                 await Send("query.dataPreview", new { dataset });
             }
 
-            // 同一階段：審計員改用前面那份沒有傳票核准日與傳票建立人員的借貸分欄配對，再跑一次驗證與預篩選。
+            // 同一階段：改用前面那份沒有傳票核准日與傳票建立人員的借貸分欄配對，再跑一次驗證與預篩選。
             // 用到這兩欄的規則無法執行；週末與假日卡照常有總帳日期那一側，核准側只帶「只檢查了總帳日期」的說明。看完改回原本的配對。
             await Send("mapping.commit.gl", dualCommit);
             await Send("validate.run");
@@ -427,10 +427,10 @@ internal static class ActionShapeJourney
             await Send("query.accountMappingPage", new { cursor = (string?)null, pageSize = 100, search = "" });
             var accountExport = await Demo("demo.exportAccountMappingFile");
             var accountPath = Track(SyntheticAccountMapping(accountExport.GetProperty("filePath").GetString()!));
-            // 審計員先匯入一份欄名不是標準名稱的科目配對檔：後端依欄位順序對應並提醒，審計員改用正確的檔案再匯入。
+            // 先匯入一份欄名不是標準名稱的科目配對檔：後端依欄位順序對應並提醒，之後改用正確的檔案再匯入。
             var renamedAccountPath = Track(SyntheticAccountMapping(accountExport.GetProperty("filePath").GetString()!, renameHeaders: true));
             await Send("import.accountMapping.fromFile", new { filePath = renamedAccountPath, fileName = "合成科目配對（欄名不同）.xlsx" });
-            // 審計員改用文字檔匯入，其中一個科目名稱用引號包住、內含換行：匯入照常完成並附上提醒。
+            // 再改用文字檔匯入，其中一個科目名稱用引號包住、內含換行：匯入照常完成並附上提醒。
             var accountCsvPath = Track(AccountMappingCsvWithLineBreak(accountPath));
             await Send("import.accountMapping.fromFile", new { filePath = accountCsvPath, fileName = "合成科目配對.csv" });
             await Send("import.accountMapping.fromFile", new { filePath = accountPath, fileName = "合成科目配對.xlsx" });
@@ -592,7 +592,7 @@ internal static class ActionShapeJourney
             await PreviewAsync(voucherDraft);
             await SaveAsync(voucherDraft, null);
             // 情境範例：applyTemplate 照原樣深拷貝範例的條件，條件本身沒有 join（ui-core.js FILTER_SCENARIO_TEMPLATES 的
-            // 借現金、貸非現金）；名稱與動機算審計員給的。
+            // 借現金、貸非現金）；名稱與動機算使用者給的。
             var templateDraft = Scenario("借現金、貸非現金", "借方為現金，而整張傳票沒有貸方現金的分錄。", new JsonArray
             {
                 new JsonObject
@@ -679,7 +679,7 @@ internal static class ActionShapeJourney
             await Send("mapping.restoreDraft", new { filePath = workingPaperPath });
             var workingPaperCopy = Track(Path.Combine(Path.GetTempPath(), $"jet-shape-working-paper-{Guid.NewGuid():N}.xlsx"));
             File.Copy(workingPaperPath, workingPaperCopy);
-            // 第四步「用 Excel 配對」選了這份底稿：validate-step.js 先讀工作表清單，審計員選「自動化工具-科目配對資訊」後
+            // 第四步「用 Excel 配對」選了這份底稿：validate-step.js 先讀工作表清單，使用者選「自動化工具-科目配對資訊」後
             // 帶 sheetName 匯入。科目配對換了一份，和下面其他上游修改一樣讓已匯出的報告過期。
             await Send("import.inspectFile", new { filePath = workingPaperCopy });
             await Send("import.accountMapping.fromFile", new
@@ -715,13 +715,13 @@ internal static class ActionShapeJourney
                 await Send("accountCategory.save", categoryAfterExport);
             }
 
-            // 總帳再加入同一份檔案時，後端提醒可能重複匯入；審計員改用示範的原始總帳整批取代，試算表也重新匯入。
+            // 總帳再加入同一份檔案時，後端提醒可能重複匯入；之後改用示範的原始總帳整批取代，試算表也重新匯入。
             // 加入的那份總帳也正被 Excel 開著：回應同時有開著檔案與重複來源兩則提醒，只有前一則另列在 openElsewhereWarnings。
             using (HoldLikeExcel(glPath))
             {
                 await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx", "append");
             }
-            // 這時總帳有兩份來源檔。審計員先確認一次配對：日期提醒的列號另外寫出是哪一份來源檔。
+            // 這時總帳有兩份來源檔。先確認一次配對：日期提醒的列號另外寫出是哪一份來源檔。
             await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, new JsonArray
             {
                 new JsonObject { ["sourceColumn"] = "合成到期日", ["label"] = "合成到期日", ["valueType"] = "date" },
@@ -733,7 +733,7 @@ internal static class ActionShapeJourney
             {
                 await Send("import.tb.fromFile", new { mode = "replace", sources = new[] { csvSource } });
             }
-            // 原始總帳沒有攸關資料元素的欄，確認配對時一併拿掉。總帳重新投影會清掉科目配對，審計員重新匯入科目配對檔。
+            // 原始總帳沒有攸關資料元素的欄，確認配對時一併拿掉。總帳重新投影會清掉科目配對，所以重新匯入科目配對檔。
             await Send("mapping.commit.gl", GlCommit(glMapping, amountMode, new JsonArray()));
             await Send("mapping.commit.tb", TbCommit(tbMapping, changeMode));
             using (HoldLikeExcel(accountPath))
@@ -741,7 +741,7 @@ internal static class ActionShapeJourney
                 await Send("import.accountMapping.fromFile", new { filePath = accountPath, fileName = "合成科目配對.xlsx" });
             }
             await Send("project.load", new { projectId });
-            // 欄位配對改了，驗證結果跟著失效；審計員重跑資料驗證（原始總帳沒有差異），再存情境。
+            // 欄位配對改了，驗證結果跟著失效；這裡重跑資料驗證（原始總帳沒有差異），再存情境。
             var revalidated = await Send("validate.run");
             // 情境已被上游修改清掉，這時也能匯出底稿，第三步與第四步留空；
             // export-step.js 沒有已存情境時送 null 的篩選版本與空的情境清單。
@@ -774,10 +774,10 @@ internal static class ActionShapeJourney
             });
 
             // 較早版本的 JET 留下的案件：第三個情境改成用較早的規則版本存下、條件用到已拿掉的攸關金額欄。開案、重新檢查、
-            // 新增與修改其他情境時都列在條件失效提示；審計員先移除新增的情境，最後移除失效的情境。
+            // 新增與修改其他情境時都列在條件失效提示；使用者先移除新增的情境，最後移除失效的情境。
             await RewriteAsOlderScenarioAsync(projectId, 3, moneyFieldId);
             var reopened = await Send("project.load", new { projectId });
-            // 審計員打開這個舊情境，沒改掉用到已拿掉欄位的條件就按儲存：後端擋下並寫出原因。
+            // 使用者打開這個舊情境，沒改掉用到已拿掉欄位的條件就按儲存：後端擋下並寫出原因。
             var olderScenario = reopened.GetProperty("filterScenarios")[2];
             // 這裡要測的是已移除的欄位，條件結構與來源標記仍須完整，不可因壞結構回空條件而誤通過。
             Assert.Equal(moneyFieldId, olderScenario.GetProperty("groups")[0].GetProperty("conditions")[1].GetProperty("fieldId").GetString());
@@ -821,7 +821,7 @@ internal static class ActionShapeJourney
             await Send("support.log.export");
 
             // 回到案件清單後移除案件：app.js。案件資料夾裡還有被其他程式開著的檔案時，資料庫照樣刪除，回應提醒資料夾
-            // 沒有清乾淨；審計員自己刪掉剩下的檔案後再讀清單。
+            // 沒有清乾淨；使用者自己刪掉剩下的檔案後再讀清單。
             await Send("project.deletePreview", new { projectId });
             var projectDirectory = new JetProjectFolder(host.ProjectsRoot).GetProjectDirectory(projectId);
             var openFile = Path.Combine(projectDirectory, "合成開啟中的檔案.txt");
@@ -834,12 +834,12 @@ internal static class ActionShapeJourney
             Directory.Delete(projectDirectory, recursive: true);
             await Send("project.listLocal");
 
-            // 審計員打開一開始建的另一個案件，只匯入了總帳就從前面那份底稿帶入配對：只帶入 GL，tb 回 null。
+            // 使用者打開一開始建的另一個案件，只匯入了總帳就從前面那份底稿帶入配對：只帶入 GL，tb 回 null。
             var undatedProjectId = undatedProject.GetProperty("projectId").GetString();
             await Send("project.load", new { projectId = undatedProjectId });
             await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx");
             await Send("mapping.restoreDraft", new { filePath = workingPaperCopy });
-            // 審計員改匯入另一份總帳，其中一筆傳票核准日讀不成日期，確認配對後重開案件：GL 配對帶回這次確認的日期提醒。
+            // 使用者改匯入另一份總帳，其中一筆傳票核准日讀不成日期，確認配對後重開案件：GL 配對帶回這次確認的日期提醒。
             // 第四步「核准日不在期間」的明細裡，這一列的傳票核准日是空的，另帶來源那一格的原文。
             await ImportAsync("import.gl.fromFile", unreadableApprovalGlPath, "合成總帳（核准日讀不成）.xlsx");
             await Send("mapping.commit.gl", GlCommit(syntheticGlMapping, amountMode, new JsonArray()));
@@ -940,7 +940,7 @@ internal static class ActionShapeJourney
         }
 
         // filter-step.js 的預覽：先算命中，再讀第一頁命中傳票；展開第一張傳票讀它的分錄。
-        // filter-step.js 預覽草稿後讀傳票清單；審計員在清單搜尋合成傳票 SHAPE-9999 並展開，搜尋不到時展開第一張。
+        // filter-step.js 預覽草稿後讀傳票清單；使用者在清單搜尋合成傳票 SHAPE-9999 並展開，搜尋不到時展開第一張。
         async Task PreviewAsync(JsonObject scenario)
         {
             await Send("filter.preview", new JsonObject { ["populationScope"] = Scope, ["scenario"] = scenario.DeepClone() });
@@ -1071,7 +1071,7 @@ internal static class ActionShapeJourney
             ["manualAutoPolicy"] = new JsonObject { ["manualValues"] = new JsonArray("1"), ["automaticValues"] = new JsonArray("0") },
             ["rdeFields"] = rdeFields.DeepClone(),
         };
-        // mapping-step.js 只在審計員勾選了往下填補的欄位時才送 fillDownFields；沒勾選時不帶這個鍵。
+        // mapping-step.js 只在使用者勾選了往下填補的欄位時才送 fillDownFields；沒勾選時不帶這個鍵。
         if (fillDownFields is not null)
         {
             payload["fillDownFields"] = fillDownFields.DeepClone();

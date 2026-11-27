@@ -141,7 +141,7 @@ public sealed class CompletenessEligibilitySupportTests
     [Fact]
     public void Require_CompletedValidationWithoutHistoricImportTotals_AllowsContinuationWithWarning()
     {
-        // 沒有存入筆數與合計時，validate.run 輸出這個完整的 null 形狀；不是壞掉的摘要，審計員仍可繼續。
+        // 沒有存入筆數與合計時，validate.run 輸出這個完整的 null 形狀；不是壞掉的摘要，使用者仍可繼續。
         var summary = CurrentSummaryNode();
         summary["completenessTest"]!["storedTotals"] = JsonNode.Parse(
             """{"eligibleSource":null,"gl":null,"rowCountMatch":null,"amountMatch":null}""");
@@ -152,7 +152,7 @@ public sealed class CompletenessEligibilitySupportTests
         Assert.True(eligibility.GetProperty("isEligible").GetBoolean());
         // 提醒的開頭寫出是哪一項檢查，不用「控制總數」這個術語。
         // 新案件確認 GL 欄位配對時一定會算出這組數字；
-        // 萬一缺了，提醒和核對未通過相同，請審計員重新確認 GL 欄位配對。
+        // 萬一缺了，提醒和核對未通過相同，請使用者重新確認 GL 欄位配對。
         Assert.StartsWith("存入筆數與合計核對未通過：", eligibility.GetProperty("warning").GetString(), StringComparison.Ordinal);
     }
 

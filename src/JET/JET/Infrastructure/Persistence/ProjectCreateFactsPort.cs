@@ -28,7 +28,7 @@ internal sealed class ProjectCreateFactsPort(
         catch (ProjectStoreCollisionException exception)
         {
             // JsonFileProjectStore 的同名檢查也擋得住兩個建案在檢查過後同時發布的情形。
-            // 錯誤要標在畫面的哪個欄位由這裡決定：這裡知道名稱是審計員填的還是系統產生的，通用的 project store 不知道。
+            // 錯誤要標在畫面的哪個欄位由這裡決定：這裡知道名稱是使用者填的還是系統產生的，通用的 project store 不知道。
             throw new JetActionException(
                 JetErrorCodes.InvalidPayload,
                 plan.HasUserSuppliedProjectName

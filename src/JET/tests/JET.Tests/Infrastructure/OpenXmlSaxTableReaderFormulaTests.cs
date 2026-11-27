@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 有公式、卻沒有存計算結果的儲存格（有 f 沒有 v）。讀取器不重算公式，這些格子讀成空白；
-/// 逐列讀取時記下格數與第一格，交給匯入結果提醒審計員。活頁簿用 RawXlsxBuilder 手刻，值都是合成的。
+/// 逐列讀取時記下格數與第一格，交給匯入結果提醒使用者。活頁簿用 RawXlsxBuilder 手刻，值都是合成的。
 /// </summary>
 public sealed class OpenXmlSaxTableReaderFormulaTests
 {

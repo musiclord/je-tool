@@ -620,7 +620,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             "manualAutoPolicy", "rdeFields", "fillDownFields", "fillDownCount", "sourceBatchId", "committedUtc", "availableGlFields",
             // neverBlankGlFields：第五步依後端算好的清單，不替 GL 中一定有值的欄位提供「空白」的比較方式。
             "neverBlankGlFields",
-            // zerosThreshold：尾數 0 的個數照 IDEA 版由 GL 算出，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡。
+            // zerosThreshold：尾數 0 的個數照舊版由 GL 算出，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡。
             "zerosThreshold",
             // dateNotices：確認配對時的日期提醒隨配對存在案件資料庫，重開案件後第三步也列得出來。
             "dateNotices");

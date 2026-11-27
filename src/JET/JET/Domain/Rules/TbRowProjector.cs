@@ -48,7 +48,7 @@ public static class TbRowProjector
 
             case TbChangeMode.OpenClose:
             {
-                // 舊版 JET 的 SA=2：本期變動 = 期末 − 期初。
+                // 照舊版：本期變動 = 期末 − 期初。
                 if (!TryParseAmountCell(row, spec, TbMappingKeys.OpeningBalance, out var opening, out error)
                     || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingBalance, out var closing, out error))
                 {
@@ -61,7 +61,7 @@ public static class TbRowProjector
 
             case TbChangeMode.OpenCloseBySide:
             {
-                // 舊版 JET 的 SA=4：本期變動 = (期末借 − 期末貸) − (期初借 − 期初貸)。
+                // 照舊版：本期變動 = (期末借 − 期末貸) − (期初借 − 期初貸)。
                 if (!TryParseAmountCell(row, spec, TbMappingKeys.OpeningDebitBalance, out var openingDr, out error)
                     || !TryParseAmountCell(row, spec, TbMappingKeys.OpeningCreditBalance, out var openingCr, out error)
                     || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingDebitBalance, out var closingDr, out error)

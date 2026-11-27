@@ -3,7 +3,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 第三步「由底稿匯入欄位」入口：選檔案後填成草稿，審計員按確認配對才儲存。
+/// 第三步「由底稿匯入欄位」入口：選檔案後填成草稿，使用者按確認配對才儲存。
 /// </summary>
 public sealed class MappingMetadataMirrorTests
 {

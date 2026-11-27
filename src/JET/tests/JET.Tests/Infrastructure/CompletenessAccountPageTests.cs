@@ -26,7 +26,7 @@ public sealed class CompletenessAccountPageTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
-        // V5、底稿 step1 與差異頁的名稱先取 TB，TB 沒有名稱或科目只在 GL 時取 GL。
+        // V_Report 5、底稿 step1 與差異頁的名稱先取 TB，TB 沒有名稱或科目只在 GL 時取 GL。
         // 全部為合成資料，另外加入足夠的零差異科目，讓既有 50 筆分頁確實跨頁。
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         await using (var connection = database.CreateConnection(context.ProjectId))

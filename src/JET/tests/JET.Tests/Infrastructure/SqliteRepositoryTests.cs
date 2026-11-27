@@ -8,7 +8,7 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class SqliteRepositoryTests
 {
-    // 已存結果的產生時間讀不出來時，回報結果過期，請審計員重新執行。
+    // 已存結果的產生時間讀不出來時，回報結果過期，請使用者重新執行。
     [Theory]
     [InlineData("validation_result", ResultKind.Validation)]
     [InlineData("prescreen_result", ResultKind.Prescreen)]

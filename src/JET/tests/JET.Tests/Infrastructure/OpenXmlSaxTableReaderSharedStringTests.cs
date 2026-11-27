@@ -151,7 +151,7 @@ public sealed class OpenXmlSaxTableReaderSharedStringTests
         }
     }
 
-    /// <summary>給審計員看的句子逐字寫在這裡，當成獨立的預期值。</summary>
+    /// <summary>給使用者看的句子逐字寫在這裡，當成獨立的預期值。</summary>
     private static string ExpectedMessage(string path, string cell) =>
         $"檔案「{Path.GetFileName(path)}」工作表「{SheetName}」的儲存格 {cell} 讀不到文字內容，檔案可能已損壞。"
         + $"請用 Excel 開啟這個檔案確認 {cell} 的內容，另存新檔後再匯入。";

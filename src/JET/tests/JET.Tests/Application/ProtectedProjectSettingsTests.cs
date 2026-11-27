@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 查核期間、金額存放倍率、民國年選項、隨機種子、建案者、期末財報準備日與每週休息日以案件資料庫為準。
-/// 審計員可以用記事本改案件設定檔，改不了案件資料庫：作業一律照資料庫的值；重新開案時把設定檔改回資料庫的值，
+/// 使用者可以用記事本改案件設定檔，改不了案件資料庫：作業一律照資料庫的值；重新開案時把設定檔改回資料庫的值，
 /// 並列出哪些項目被改回。這裡用合成案件模擬在 JET 以外改設定檔。
 /// </summary>
 public sealed class ProtectedProjectSettingsTests
@@ -137,7 +137,7 @@ public sealed class ProtectedProjectSettingsTests
         Assert.Equal(seedBefore, validation.GetProperty("infSamplingTest").GetProperty("seed").GetInt64());
     }
 
-    // 建案在設定檔發布之後、資料庫建好之前中斷時，審計員沒有拿到這個案件。開案照建案的做法把資料庫建完：
+    // 建案在設定檔發布之後、資料庫建好之前中斷時，使用者沒有拿到這個案件。開案照建案的做法把資料庫建完：
     // 種子重新產生，建案者取開案的 Windows 身分，金額存放倍率與民國年選項用建案的預設值，不採用設定檔裡的這些值；
     // 查核期間與期末財報準備日是建案時填的，照設定檔。之後照常以資料庫為準。
     [Fact]
@@ -208,7 +208,7 @@ public sealed class ProtectedProjectSettingsTests
     private static async Task<ProjectDocument> ReadSettingsFileAsync(HandlerTestHost host, string projectId) =>
         (await new JsonFileProjectStore(new JetProjectFolder(host.ProjectsRoot)).FindAsync(projectId, CancellationToken.None))!;
 
-    // 照審計員的做法：取消唯讀，用文字編輯器改設定檔裡的值，每個值都仍然合法。
+    // 照使用者的做法：取消唯讀，用文字編輯器改設定檔裡的值，每個值都仍然合法。
     private static async Task EditSettingsFileAsync(HandlerTestHost host, string projectId, Action<JsonObject> edit)
     {
         var path = new JetProjectFolder(host.ProjectsRoot).GetProjectJsonPath(projectId);

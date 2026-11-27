@@ -237,8 +237,8 @@ public sealed class FormalReportRdeProjectionTests
         Assert.Empty(setup.DateNotices);
     }
 
-    // 舊版 JET 的攸關資料元素欄是把來源欄改名加 _JE，
-    // 條件篩選的明細頁再由 IDEA 匯出整個資料庫（Z_ExportDatabaseXLSX 的 IncludeAllFields），
+    // 舊版的攸關資料元素欄是把來源欄改名加 _JE，
+    // 條件篩選的明細頁再匯出整個資料庫的所有欄位，
     // 所以攸關資料元素欄的表頭與內容和它的來源欄外觀相同，沒有一般明細的框線。
     [Fact]
     public async Task CriteriaSheets_RdeColumnsUseTheAppearanceOfTheirSourceColumns()

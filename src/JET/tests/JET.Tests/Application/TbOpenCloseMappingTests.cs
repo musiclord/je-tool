@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// TB legacy 金額模式 OpenClose（legacy SA=2）與 OpenCloseBySide（legacy SA=4）的窄流程測試：
+/// TB 金額模式 OpenClose 與 OpenCloseBySide 的窄流程測試：
 /// 匯入 TB，用這兩種模式執行 mapping.commit.tb，再讀回 tb.change_amount_scaled。
 /// oracle：規格（舊版 JET 的換算式）與手算的固定資料集。
 /// 斷言核對每個科目編號對應的變動 scaled 值。scale=10000（HandlerTestHost 預設）。
@@ -26,7 +26,7 @@ public sealed class TbOpenCloseMappingTests
         }
         """;
 
-    /// <summary>期初/期末兩欄寬表（legacy 當年於 IDEA GUI 以科目碼 join 後的單一寬表）。</summary>
+    /// <summary>期初與期末兩欄的寬表，相當於舊版先用科目碼把兩張表合併成的一張表。</summary>
     private static string WriteOpenCloseWorkbook()
     {
         return TestWorkbookBuilder.WriteWorkbook(ws =>
@@ -51,7 +51,7 @@ public sealed class TbOpenCloseMappingTests
         });
     }
 
-    /// <summary>「設定借方貸方之期初期末金額」的四欄寬表（legacy SA=4）。</summary>
+    /// <summary>「設定借方貸方之期初期末金額」的四欄寬表。</summary>
     private static string WriteOpenCloseBySideWorkbook()
     {
         return TestWorkbookBuilder.WriteWorkbook(ws =>

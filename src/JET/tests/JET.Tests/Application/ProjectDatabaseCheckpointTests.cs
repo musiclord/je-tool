@@ -196,7 +196,7 @@ public sealed class ProjectDatabaseCheckpointTests
             () => host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = name })));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, rejected.Code);
 
-        // 沒有進入這個案件，開案途中開過的連線也要關掉，審計員才能在 JET 開著時搬移或刪除這個資料夾。
+        // 沒有進入這個案件，開案途中開過的連線也要關掉，使用者才能在 JET 開著時搬移或刪除這個資料夾。
         AssertNoSideFiles(databasePath, provider);
         Assert.True(CanOpenExclusively(databasePath), "開案被拒後 JET 不應再開著案件資料庫");
     }

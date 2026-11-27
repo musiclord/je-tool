@@ -26,39 +26,39 @@ internal static class LegacyReportStyles
     public const uint RawBody = 14;
 
     /// <summary>
-    /// 資料驗證報告 D20:D25 依條件標示的黃色底，取自舊版 JET 的 Step1。
+    /// 資料驗證報告 D20:D25 依條件標示的黃色底，外觀照舊版 JET。
     /// </summary>
     public const uint ValidationWarning = 15;
 
     /// <summary>
-    /// 資料驗證報告欄位資訊頁的 TB 表頭，取自舊版 JET 的 Step1：Calibri 12 點粗體，底色 FFF0F000。
+    /// 資料驗證報告欄位資訊頁的 TB 表頭，外觀照舊版 JET：Calibri 12 點粗體，底色 FFF0F000。
     /// 底色和 GL 表頭不同，兩者分開定義。
     /// </summary>
     public const uint ValidationTbHeader = 16;
 
     /// <summary>
-    /// 資料驗證報告欄位資訊頁的 GL 表頭，取自舊版 JET 的 Step1：Calibri 12 點粗體，底色 FFE6E600。
+    /// 資料驗證報告欄位資訊頁的 GL 表頭，外觀照舊版 JET：Calibri 12 點粗體，底色 FFE6E600。
     /// 底色和 TB 表頭不同，兩者分開定義。
     /// </summary>
     public const uint ValidationGlHeader = 17;
 
     /// <summary>
-    /// 依條件顯示的訊息，取自舊版 JET 的 Step5：Calibri 12 點粗體紅字。
+    /// 依條件顯示的訊息，外觀照舊版 JET：Calibri 12 點粗體紅字。
     /// 取了名稱，寫出程式就不必直接寫樣式的數字索引。
     /// </summary>
     public const uint LegacyConditionalMessage = 18;
 
     /// <summary>
-    /// 表格表頭，取自舊版 JET 的 Step5：Calibri 12 點粗體白字，底色 FF0066FF。
+    /// 表格表頭，外觀照舊版 JET：Calibri 12 點粗體白字，底色 FF0066FF。
     /// </summary>
     public const uint LegacyBlueTableHeader = 19;
 
     /// <summary>
-    /// 版本字樣那一列，取自舊版 JET 的 Step5：Calibri 16 點粗體紅字，底色 FF0066FF。
+    /// 版本字樣那一列，外觀照舊版 JET：Calibri 16 點粗體紅字，底色 FF0066FF。
     /// </summary>
     public const uint LegacyVersionBanner = 20;
 
-    // IDEA ExportDatabase 頁面使用的樣式。只能往後追加：0 到 20 號索引
+    // ExportDatabase 外觀的明細頁使用的樣式。只能往後追加：0 到 20 號索引
     // 已被範本套版使用，改動會讓輸出外觀跑掉。
     public const uint ExportDatabaseGeneral = 21;
     public const uint ExportDatabaseText = 22;
@@ -79,7 +79,7 @@ internal static class LegacyReportStyles
     private const uint ExportDatabaseAmountStyle =
         ExportDatabaseNumberStyleFirst + MaximumDecimalPlaces + 1;
 
-    // 字型的索引。上面 15 到 20 號 cellXf 常數的說明寫了各自取自舊版 JET 的哪一個步驟。
+    // 字型的索引。
     private const uint FontRegular = 0;
     private const uint FontTitle = 1;
     private const uint FontWhiteBold = 2;

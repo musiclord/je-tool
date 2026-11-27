@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 檔案沒有 JET 記下的隱藏配對時，讀「自動化工具-檔案欄位資訊」看得見的 A 到 E 欄。
-/// 舊版 IDEA JET 與新版 JET 的版面都用合成活頁簿檢查；配對怎麼推得另見 FieldInfoSheetMappingTests。
+/// 舊版與新版 JET 的版面都用合成活頁簿檢查；配對怎麼推得另見 FieldInfoSheetMappingTests。
 /// </summary>
 public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
 {

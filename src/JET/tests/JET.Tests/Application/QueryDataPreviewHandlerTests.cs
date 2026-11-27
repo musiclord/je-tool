@@ -294,7 +294,7 @@ public sealed class QueryDataPreviewHandlerTests
 
     /// <summary>
     /// GL(未納入測試) 的「日期不符」分成總帳日期空白、早於查核期間、晚於查核期間三種原因，
-    /// 各自計數，資料預覽可以只看其中一種；這個分法不影響 GL 範圍與審計結果。
+    /// 各自計數，資料預覽可以只看其中一種；這個分法不影響 GL 範圍與驗證結果。
     /// oracle：查核期間 2025-01-01 到 2025-12-31，下列 12 列逐列手算原因。日期先於過帳狀態判斷，
     /// 所以日期不符又是草稿的列算日期原因。四種原因的筆數刻意各不相同（1、2、3、4），計數放錯欄位就會失敗。
     /// </summary>
@@ -415,7 +415,7 @@ public sealed class QueryDataPreviewHandlerTests
             Assert.Equal("preview_exclusion_reason_invalid", JetPayloadRejection.CheckOf(rejected));
         }
 
-        // 審計結果不變：驗證摘要的日期不符仍是三種原因的合計。
+        // 驗證結果不變：驗證摘要的日期不符仍是三種原因的合計。
         var validation = await host.DispatchAsync("validate.run");
         var excludedSummary = validation.GetProperty("populationSummary").GetProperty("excluded");
         Assert.Equal(10, excludedSummary.GetProperty("rowCount").GetInt64());

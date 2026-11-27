@@ -358,7 +358,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
     }
 
     /// <summary>
-    /// 案件設定檔記著抽樣種子等設定。JET 寫好設定檔就設成唯讀，審計員用記事本或其他程式改它時存不了檔；
+    /// 案件設定檔記著抽樣種子等設定。JET 寫好設定檔就設成唯讀，使用者用記事本或其他程式改它時存不了檔；
     /// JET 自己要換檔或刪除案件時才取消唯讀。設不成唯讀時不讓這次建案或儲存失敗，因為設定檔已經寫好，
     /// 下一次儲存會再設一次；設定檔不在時不做事。
     /// </summary>

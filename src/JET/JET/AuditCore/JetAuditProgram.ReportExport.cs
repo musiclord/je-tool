@@ -30,7 +30,7 @@ internal sealed record ReportExportPlan(
     bool UseAtomicBatch);
 
 /// <summary>
-/// 發布的報告。OperationLogWarning 是報告已發布、卻寫不進操作紀錄時給審計員的提醒，
+/// 發布的報告。OperationLogWarning 是報告已發布、卻寫不進操作紀錄時給使用者的提醒，
 /// 寫進去時是 null。
 /// </summary>
 internal sealed record ReportExportFacts(IReadOnlyList<Report> Reports, string? OperationLogWarning = null);

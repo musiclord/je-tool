@@ -11,7 +11,7 @@ namespace JET.Infrastructure;
 /// WHERE 由 <see cref="GlFilterWhereBuilder"/> 組出，它不分資料庫種類：每種條件的 SQL 寫法只定義在
 /// <see cref="GlRulePredicates"/>，各資料庫不同的寫法由 <see cref="ISqlDialect"/> 提供。
 /// 本類只負責開連線與 SELECT 的外框。
-/// SQL 裡的欄位名稱只來自 GlFieldWhitelist 與固定的片段常數；審計員輸入的值一律用參數傳。
+/// SQL 裡的欄位名稱只來自 GlFieldWhitelist 與固定的片段常數；使用者輸入的值一律用參數傳。
 /// 每一句 SELECT 都經 <see cref="DiagnosticDb"/> 的擴充方法執行；記錄層級開到 Debug 時（開發用），診斷日誌會記下完整的 SQL 與參數。
 /// </summary>
 public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILogger<LocalFilterHitRepository>? logger = null)

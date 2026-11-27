@@ -103,15 +103,15 @@ iframe{height:72vh;min-height:420px}main{padding:14px 16px 36px}.top-inner{paddi
     &lt;PackageReference Include=&quot;ClosedXML&quot; Version=&quot;0.105.1&quot; /&gt;
     &lt;PackageReference Include=&quot;DocumentFormat.OpenXml&quot; Version=&quot;3.5.1&quot; /&gt;
     &lt;PackageReference Include=&quot;ExcelDataReader&quot; Version=&quot;3.9.0&quot; /&gt;
-    &lt;PackageReference Include=&quot;System.Data.OleDb&quot; Version=&quot;10.0.13&quot; /&gt;
-    &lt;PackageReference Include=&quot;Microsoft.Data.Sqlite&quot; Version=&quot;10.0.13&quot; /&gt;
+    &lt;PackageReference Include=&quot;System.Data.OleDb&quot; Version=&quot;10.0.15&quot; /&gt;
+    &lt;PackageReference Include=&quot;Microsoft.Data.Sqlite&quot; Version=&quot;10.0.15&quot; /&gt;
     &lt;!-- 直接引用較新的 bundle,取代 Microsoft.Data.Sqlite 間接引用的 2.1.x。原生程式庫改由 SQLite 套件提供,
          版本不得低於 CVE-2025-6965(GHSA-2m69-gcr7-jv3q)建議的 3.50.2;公告列為受影響的
          SQLitePCLRaw.lib.e_sqlite3 因此不在套件還原結果內。 --&gt;
     &lt;PackageReference Include=&quot;SQLitePCLRaw.bundle_e_sqlite3&quot; Version=&quot;3.0.5&quot; /&gt;
     &lt;!-- 診斷日誌用 Microsoft.Extensions.Logging 與 LoggerMessage 來源產生器 --&gt;
-    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging&quot; Version=&quot;10.0.13&quot; /&gt;
-    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging.Abstractions&quot; Version=&quot;10.0.13&quot; /&gt;
+    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging&quot; Version=&quot;10.0.15&quot; /&gt;
+    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging.Abstractions&quot; Version=&quot;10.0.15&quot; /&gt;
     &lt;PackageReference Include=&quot;Microsoft.Web.WebView2&quot; Version=&quot;1.0.4258.31&quot; /&gt;
   &lt;/ItemGroup&gt;
 
@@ -147,19 +147,19 @@ iframe{height:72vh;min-height:420px}main{padding:14px 16px 36px}.top-inner{paddi
         var filterHitMaterializer = new LocalFilterHitMaterializer(
             database, loggers.CreateLogger&lt;LocalFilterHitMaterializer&gt;());
         var filterCommits = new LocalFilterCommitRepository(
-            database, loggers.CreateLogger&lt;LocalFilterCommitRepository&gt;());</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 128–140 行</summary><pre>            // SQLite 的整組 repository 只組一次。建案與載入依案件的資料庫種類從 catalog 選組，連同案件編號存進 session；
+            database, loggers.CreateLogger&lt;LocalFilterCommitRepository&gt;());</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 155–167 行</summary><pre>            // SQLite 的整組 repository 只組一次。建案與載入依案件的資料庫種類從 catalog 選組，連同案件編號存進 session；
             // 其他動作在一開始取 session 的快照，只用快照裡那一組。刪除非作用中案件時依該案件自己的 project.json
             // 從 catalog 選組，不碰 session。catalog 只認得 SQLite，其他種類回 unsupported_provider。
             var repositoryCatalog = CreateProjectRepositoryCatalog(
                 new ProjectRepositoryAssembly(
-                    projectStore,
+                    protectedProjectStore,
                     new ProjectCreateBackendPort(sqliteDatabase),
                     localFileLockService,
                     baseReportStore,
                     loggerFactory,
                     session,
                     actionExecutionGate),
-                sqliteDatabase);</pre></details><details><summary>docs/jet-guide.md 第 921–930 行</summary><pre>## 9. 系統分層
+                sqliteDatabase);</pre></details><details><summary>docs/jet-guide.md 第 1116–1125 行</summary><pre>## 9. 系統分層
 
 | 層 | 責任 | 主要位置 |
 |:---|:---|:---|
@@ -168,7 +168,7 @@ iframe{height:72vh;min-height:420px}main{padding:14px 16px 36px}.top-inner{paddi
 | Bridge | 傳送請求、回應與非權威進度事件 | `src/JET/JET/Bridge/` |
 | Application | action 處理器、流程協調、取消與工作階段 | `src/JET/JET/Application/` |
 | Domain／AuditCore | 欄位、規則、金額與查核語意 | `src/JET/JET/Domain/`, `AuditCore/` |
-| Infrastructure | SQLite、檔案讀寫與報告輸出 | `src/JET/JET/Infrastructure/` |</pre></details><details><summary>docs/jet-guide.md 第 977–980 行</summary><pre>每種資料庫各有一組資料存取物件（repository），程式啟動時建好；目前只有 SQLite 一組（裁定 2026-11-06-08）。建立或載入案件時，
+| Infrastructure | SQLite、檔案讀寫與報告輸出 | `src/JET/JET/Infrastructure/` |</pre></details><details><summary>docs/jet-guide.md 第 1222–1225 行</summary><pre>每種資料庫各有一組資料存取物件（repository），程式啟動時建好；目前只有 SQLite 一組（裁定 2026-11-06-08）。建立或載入案件時，
 Application 依 `project.json` 記錄的資料庫種類選定這一組，種類不是 SQLite 時在動任何資料之前回 `unsupported_provider`；
 選定的一組和案件編號一起存進工作階段。其他動作開始時取一次這份紀錄，
 整個動作只用這一組；即使途中另一個請求載入了別的案件，進行中的動作也不會改用新的一組。刪除不在使用中的案件時，</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-likec4-C04">LikeC4 模型的全部關係：JET 桌面程序 到 WebView2 執行階段</a></li><li><a href="connections.html#c-deployment-ui">電腦環境與交付內容：JET 桌面程序 到 WebView2 執行階段</a></li><li><a href="connections.html#c-deployment-sql">電腦環境與交付內容：JET 桌面程序 到 內嵌資料庫引擎</a></li></ul></details></div></details><details class="group card fact" id="f-environment"><summary><h2>正式環境限制</h2></summary><div class="group-body"><p class="muted">依專案文件與使用者要求</p><p>正式環境不能假設使用者有系統管理員權限，本機案件處理要能在沒有企業中心服務時工作；使用者不能另外安裝程式，本機資料庫要內嵌在 JET 裡使用，不依賴另外安裝的驅動程式或資料庫。短期上線的版本只支援 SQLite，DuckDB 與 SQL Server 暫時移除。匯入 Access 一般資料表時使用公司電腦現有的 x64 ACE 16，目前只在本機 x64 ACE 環境驗證過。</p><details><summary>docs/project-context.md 第 64–71 行</summary><pre>## 開發電腦與正式環境不同
@@ -192,11 +192,12 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
   DuckDB 在短期上線期間暫時移除（裁定 2026-11-06-08）。
 - JET 可以匯入 .xls 與 Access 一般資料表，Access 讀取使用公司電腦現有的 ACE 16。這不是 Access 案件
   資料庫 provider，也不使其他格式依賴 Office。目前只在本機 x64 ACE 環境驗證過，不推定所有 Office
-  位元版本都已驗證。</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-likec4-C01">LikeC4 模型的全部關係：審計員 到 WebView2 畫面</a></li><li><a href="connections.html#c-likec4-C05">LikeC4 模型的全部關係：檔案讀寫與底稿發布 到 x64 ACE 16</a></li><li><a href="connections.html#c-maintenance-inventory_package">部署與維護程序草案：確認電腦環境 到 核對發布資料夾</a></li><li><a href="connections.html#c-deployment-access">電腦環境與交付內容：JET 桌面程序 到 x64 ACE 16</a></li></ul></details></div></details><details class="group card fact" id="f-bridge"><summary><h2>JavaScript 到 C# 的 action 通道</h2></summary><div class="group-body"><p>JetApi 送出 WebMessage，JetWebMessageBridge 交給 ActionDispatcher，由它依 action 名稱找出處理類別。要知道 filter.scenario.save 實際由哪個類別處理，得同時核對 AppCompositionRoot 的註冊和類別上的 Action 屬性；只看 C# 的方法呼叫關係看不出來。</p><details><summary>src/JET/JET/wwwroot/js/jet-api.js 第 5–45 行</summary><pre>(function (global) {
+  位元版本都已驗證。</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-likec4-C01">LikeC4 模型的全部關係：審計員 到 WebView2 畫面</a></li><li><a href="connections.html#c-likec4-C05">LikeC4 模型的全部關係：檔案讀寫與底稿發布 到 x64 ACE 16</a></li><li><a href="connections.html#c-maintenance-inventory_package">部署與維護程序草案：確認電腦環境 到 核對發布資料夾</a></li><li><a href="connections.html#c-deployment-access">電腦環境與交付內容：JET 桌面程序 到 x64 ACE 16</a></li></ul></details></div></details><details class="group card fact" id="f-bridge"><summary><h2>JavaScript 到 C# 的 action 通道</h2></summary><div class="group-body"><p>JetApi 送出 WebMessage，JetWebMessageBridge 交給 ActionDispatcher，由它依 action 名稱找出處理類別。要知道 filter.scenario.save 實際由哪個類別處理，得同時核對 AppCompositionRoot 的註冊和類別上的 Action 屬性；只看 C# 的方法呼叫關係看不出來。</p><details><summary>src/JET/JET/wwwroot/js/jet-api.js 第 5–46 行</summary><pre>(function (global) {
   &#x27;use strict&#x27;;
 
   var pending = Object.create(null);
   var requestStartedHandlers = [];
+  var requestFinishedHandlers = [];
 
   function isReady() {
     return !!(global.chrome &amp;&amp; global.chrome.webview &amp;&amp; global.chrome.webview.postMessage);
@@ -281,7 +282,7 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
         }
         catch (Exception ex)
         {
-            Post(new JetResponseEnvelope(requestId, false, null, ToErrorDto(ex), correlationId));</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 109–132 行</summary><pre>        var exclusive = ActionExecutionPolicy.IsExclusive(action);
+            Post(new JetResponseEnvelope(requestId, false, null, ToErrorDto(ex), correlationId));</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 120–143 行</summary><pre>        var exclusive = ActionExecutionPolicy.IsExclusive(action);
         IDisposable? executionLease = null;
 
         try
@@ -304,7 +305,7 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
             // token 同時傳入排程與 handler；Task.Run 本身只負責工作開始前的取消。
             var result = ActionExecutionPolicy.RunsInBackground(action)
                 ? await Task.Run(() =&gt; HandleWithCheckpointAsync(handler, payload, cancellationToken), cancellationToken).ConfigureAwait(false)
-                : await HandleWithCheckpointAsync(handler, payload, cancellationToken).ConfigureAwait(false);</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 207–219 行</summary><pre>    private async Task&lt;object?&gt; HandleWithCheckpointAsync(
+                : await HandleWithCheckpointAsync(handler, payload, cancellationToken).ConfigureAwait(false);</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 220–232 行</summary><pre>    private async Task&lt;object?&gt; HandleWithCheckpointAsync(
         IApplicationActionHandler handler, JsonElement payload, CancellationToken cancellationToken)
     {
         // 變更型作業結束後，把它用到的案件資料庫的記錄檔併回（見 IProjectDatabaseCheckpoint）。作業期間其他變更型
@@ -316,18 +317,18 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
         {
             cancellationToken.ThrowIfCancellationRequested();
             return await handler.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
-        }</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 211–215 行</summary><pre>            new FilterPreviewHandler(projectStore, session),
-            new FilterCommitHandler(projectStore, session, loggerFactory.CreateLogger&lt;FilterCommitHandler&gt;()),
-            new FilterScenarioSaveHandler(projectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioSaveHandler&gt;()),
-            new FilterScenarioRemoveHandler(projectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioRemoveHandler&gt;()),
-            new FilterScenarioRecheckHandler(projectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioRecheckHandler&gt;()),</pre></details><details><summary>src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs 第 25–48 行</summary><pre>    public string Action =&gt; FilterScenarioBatchWriter.SaveAction;
+        }</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 242–246 行</summary><pre>            new FilterPreviewHandler(protectedProjectStore, session),
+            new FilterCommitHandler(protectedProjectStore, session, loggerFactory.CreateLogger&lt;FilterCommitHandler&gt;()),
+            new FilterScenarioSaveHandler(protectedProjectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioSaveHandler&gt;()),
+            new FilterScenarioRemoveHandler(protectedProjectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioRemoveHandler&gt;()),
+            new FilterScenarioRecheckHandler(protectedProjectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioRecheckHandler&gt;()),</pre></details><details><summary>src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs 第 25–48 行</summary><pre>    public string Action =&gt; FilterScenarioBatchWriter.SaveAction;
 
-    /// &lt;summary&gt;存下情境後，案件至少推進到第五步。&lt;/summary&gt;
-    internal const int WorkflowStep = 5;
+    /// &lt;summary&gt;存下情境後，案件至少推進到匯出底稿這一步。&lt;/summary&gt;
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Export;
 
     public async Task&lt;object?&gt; HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var stores = new FilterScenarioStores(
             repositories.FilterScenarios,
             repositories.FilterFacts,
@@ -338,19 +339,19 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
             repositories.AuthorizedPreparers,
             repositories.AccountCategories,
             repositories.Calendar);
-        var prepared = await FilterScenarioBatchWriter.LoadAsync(projectStore, projectId, stores, payload, cancellationToken);
+        var prepared = await FilterScenarioBatchWriter.LoadAsync(_projectStore, projectId, stores, payload, cancellationToken);
         var saved = await stores.Scenarios.ListAsync(projectId, cancellationToken);
         var nowUtc = DateTimeOffset.UtcNow;
         var change = FilterScenarioBatchWriter.PlanSave(prepared, saved, payload, nowUtc);
         return await FilterScenarioBatchWriter.PublishAsync(
-            Action, WorkflowStep, projectStore, stores, prepared, change, skipWhenEmpty: false, nowUtc, logger, cancellationToken);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-action-sequence-m01">儲存篩選情境：呼叫順序：第五步畫面 到 接收畫面訊息</a></li><li><a href="connections.html#c-action-sequence-m02">儲存篩選情境：呼叫順序：接收畫面訊息 到 找到處理類別</a></li><li><a href="connections.html#c-action-sequence-m03">儲存篩選情境：呼叫順序：找到處理類別 到 情境儲存處理</a></li><li><a href="connections.html#c-action-sequence-m18">儲存篩選情境：呼叫順序：接收畫面訊息 到 第五步畫面</a></li><li><a href="connections.html#c-import-sequence-m01">取代匯入 TB：呼叫順序：匯入畫面 到 action 通道</a></li><li><a href="connections.html#c-import-sequence-m02">取代匯入 TB：呼叫順序：action 通道 到 TB 匯入處理</a></li><li><a href="connections.html#c-workpaper-sequence-m01">匯出正式底稿：呼叫順序：第六步畫面 到 底稿匯出處理</a></li><li><a href="connections.html#c-likec4-L01">LikeC4 模型的全部關係：WebView2 畫面 到 Action 通道</a></li><li><a href="connections.html#c-likec4-L02">LikeC4 模型的全部關係：Action 通道 到 Application 應用流程</a></li><li><a href="connections.html#c-likec4-F01">LikeC4 模型的全部關係：JetApi 到 JetWebMessageBridge</a></li><li><a href="connections.html#c-likec4-F02">LikeC4 模型的全部關係：JetWebMessageBridge 到 ActionDispatcher</a></li><li><a href="connections.html#c-likec4-F03">LikeC4 模型的全部關係：ActionDispatcher 到 IApplicationActionHandler</a></li><li><a href="connections.html#c-likec4-F04">LikeC4 模型的全部關係：FilterScenarioSaveHandler 到 IApplicationActionHandler</a></li></ul></details></div></details><details class="group card fact" id="f-filter-save"><summary><h2>儲存篩選情境的三種寫法</h2></summary><div class="group-body"><p>FilterScenarioSaveHandler 先讀取儲存需要的前提資料，再規劃本次要改的這一個情境。FilterScenarioBatchWriter.PublishAsync 先用 IResultStaleStateStore.ReadAsync 讀出存好的篩選結果有沒有過期，再由 FilterScenarioRuleUpgrade.PlanWrite 決定寫法，共有三支。其他情境都合格、已是目前規則，而且結果沒有過期時，只存這一個情境：JetAuditProgram.PlanOneScenario 規劃後，FilterFactsPort 呼叫 IFilterCommitRepository.SaveOneAsync，其他情境的結果照原樣。否則整批處理：整批都合格時執行 FilterPlan，經 CommitAsync 發布全部命中；仍有不合格的情境時，經 ReplaceAllAsync 只寫定義。寫入提交後讀回最新的情境與結果狀態，這一步不再接受這次的取消；讀不回來時不改報失敗，回應改附提醒，請審計員重新開啟案件。</p><details><summary>src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs 第 25–49 行</summary><pre>    public string Action =&gt; FilterScenarioBatchWriter.SaveAction;
+            Action, AdvancesTo, _projectStore, stores, prepared, change, skipWhenEmpty: false, nowUtc, _logger, cancellationToken);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-action-sequence-m01">儲存篩選情境：呼叫順序：第五步畫面 到 接收畫面訊息</a></li><li><a href="connections.html#c-action-sequence-m02">儲存篩選情境：呼叫順序：接收畫面訊息 到 找到處理類別</a></li><li><a href="connections.html#c-action-sequence-m03">儲存篩選情境：呼叫順序：找到處理類別 到 情境儲存處理</a></li><li><a href="connections.html#c-action-sequence-m18">儲存篩選情境：呼叫順序：接收畫面訊息 到 第五步畫面</a></li><li><a href="connections.html#c-import-sequence-m01">取代匯入 TB：呼叫順序：匯入畫面 到 action 通道</a></li><li><a href="connections.html#c-import-sequence-m02">取代匯入 TB：呼叫順序：action 通道 到 TB 匯入處理</a></li><li><a href="connections.html#c-workpaper-sequence-m01">匯出正式底稿：呼叫順序：第六步畫面 到 底稿匯出處理</a></li><li><a href="connections.html#c-likec4-L01">LikeC4 模型的全部關係：WebView2 畫面 到 Action 通道</a></li><li><a href="connections.html#c-likec4-L02">LikeC4 模型的全部關係：Action 通道 到 Application 應用流程</a></li><li><a href="connections.html#c-likec4-F01">LikeC4 模型的全部關係：JetApi 到 JetWebMessageBridge</a></li><li><a href="connections.html#c-likec4-F02">LikeC4 模型的全部關係：JetWebMessageBridge 到 ActionDispatcher</a></li><li><a href="connections.html#c-likec4-F03">LikeC4 模型的全部關係：ActionDispatcher 到 IApplicationActionHandler</a></li><li><a href="connections.html#c-likec4-F04">LikeC4 模型的全部關係：FilterScenarioSaveHandler 到 IApplicationActionHandler</a></li></ul></details></div></details><details class="group card fact" id="f-filter-save"><summary><h2>儲存篩選情境的三種寫法</h2></summary><div class="group-body"><p>FilterScenarioSaveHandler 先讀取儲存需要的前提資料，再規劃本次要改的這一個情境。FilterScenarioBatchWriter.PublishAsync 先用 IResultStaleStateStore.ReadAsync 讀出存好的篩選結果有沒有過期，再由 FilterScenarioRuleUpgrade.PlanWrite 決定寫法，共有三支。其他情境都合格、已是目前規則，而且結果沒有過期時，只存這一個情境：JetAuditProgram.PlanOneScenario 規劃後，FilterFactsPort 呼叫 IFilterCommitRepository.SaveOneAsync，其他情境的結果照原樣。否則整批處理：整批都合格時執行 FilterPlan，經 CommitAsync 發布全部命中；仍有不合格的情境時，經 ReplaceAllAsync 只寫定義。寫入提交後讀回最新的情境與結果狀態，這一步不再接受這次的取消；讀不回來時不改報失敗，回應改附提醒，請審計員重新開啟案件。</p><details><summary>src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs 第 25–49 行</summary><pre>    public string Action =&gt; FilterScenarioBatchWriter.SaveAction;
 
-    /// &lt;summary&gt;存下情境後，案件至少推進到第五步。&lt;/summary&gt;
-    internal const int WorkflowStep = 5;
+    /// &lt;summary&gt;存下情境後，案件至少推進到匯出底稿這一步。&lt;/summary&gt;
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Export;
 
     public async Task&lt;object?&gt; HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var stores = new FilterScenarioStores(
             repositories.FilterScenarios,
             repositories.FilterFacts,
@@ -361,22 +362,22 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
             repositories.AuthorizedPreparers,
             repositories.AccountCategories,
             repositories.Calendar);
-        var prepared = await FilterScenarioBatchWriter.LoadAsync(projectStore, projectId, stores, payload, cancellationToken);
+        var prepared = await FilterScenarioBatchWriter.LoadAsync(_projectStore, projectId, stores, payload, cancellationToken);
         var saved = await stores.Scenarios.ListAsync(projectId, cancellationToken);
         var nowUtc = DateTimeOffset.UtcNow;
         var change = FilterScenarioBatchWriter.PlanSave(prepared, saved, payload, nowUtc);
         return await FilterScenarioBatchWriter.PublishAsync(
-            Action, WorkflowStep, projectStore, stores, prepared, change, skipWhenEmpty: false, nowUtc, logger, cancellationToken);
+            Action, AdvancesTo, _projectStore, stores, prepared, change, skipWhenEmpty: false, nowUtc, _logger, cancellationToken);
     }</pre></details><details><summary>src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs 第 213–323 行</summary><pre>    /// &lt;summary&gt;
     /// 寫回並組成回應。儲存或移除時，其他情境都合格、已是目前規則而且存好的結果沒有過期，就只寫這一個：
     /// 儲存只算這一個情境的結果，移除只刪這一個的定義與結果，其他情境不重新檢查版本也不重算。
-    /// 否則照整批處理：全部合格時由 &lt;see cref=&quot;IFilterFactsPort&quot;/&gt; 一次寫入定義與命中，篩選結果的過期旗標也清掉，並把案件推進到第五步；
+    /// 否則照整批處理：全部合格時由 &lt;see cref=&quot;IFilterFactsPort&quot;/&gt; 一次寫入定義與命中，篩選結果的過期旗標也清掉，並把案件至少推進到 &lt;paramref name=&quot;advancesTo&quot;/&gt; 這一步；
     /// 有不合格的情境時只寫定義，同一筆交易清掉命中並標成失效，結果維持鎖住。
     /// 清單是空的而且不必寫入（重新檢查時沒有情境）就直接回應。
     /// &lt;/summary&gt;
     internal static async Task&lt;object&gt; PublishAsync(
         string action,
-        int workflowStep,
+        WorkflowStep advancesTo,
         IProjectStore projectStore,
         FilterScenarioStores stores,
         Prepared prepared,
@@ -424,7 +425,7 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
                     await MappingCommitShared.AdvanceStepAsync(
                         projectStore,
                         prepared.Document,
-                        workflowStep,
+                        advancesTo,
                         CancellationToken.None,
                         logger);
                 }
@@ -449,7 +450,7 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
                     await MappingCommitShared.AdvanceStepAsync(
                         projectStore,
                         prepared.Document,
-                        workflowStep,
+                        advancesTo,
                         CancellationToken.None,
                         logger);
                 }
@@ -505,7 +506,7 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
             &amp;&amp; orderedReview.All(item =&gt; item.Scenario.Position == editedPosition || item.IsCurrentVersion))
         {
             return new FilterScenarioBatchWrite(ordered, true, [], 0) { KeepsOtherResults = true };
-        }</pre></details><details><summary>src/JET/JET/AuditCore/FilterProgram.cs 第 201–216 行</summary><pre>    /// &lt;summary&gt;
+        }</pre></details><details><summary>src/JET/JET/AuditCore/JetAuditProgram.Filter.cs 第 201–216 行</summary><pre>    /// &lt;summary&gt;
     /// 一次只存或改一個情境、其他情境的結果仍可用時的計畫：只帶這一個情境的定義，檢查與整批發布相同，
     /// 執行時只換掉它自己的定義與結果。
     /// &lt;/summary&gt;
@@ -763,7 +764,7 @@ Application 依 `project.json` 記錄的資料庫種類選定這一組，種類�
         var filterHitMaterializer = new LocalFilterHitMaterializer(
             database, loggers.CreateLogger&lt;LocalFilterHitMaterializer&gt;());
         var filterCommits = new LocalFilterCommitRepository(
-            database, loggers.CreateLogger&lt;LocalFilterCommitRepository&gt;());</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 118–123 行</summary><pre>            FilterHits = filterHits,
+            database, loggers.CreateLogger&lt;LocalFilterCommitRepository&gt;());</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 119–124 行</summary><pre>            FilterHits = filterHits,
             FilterScenarios = filterScenarios,
             FilterVouchers = filterVouchers,
             FilterHitMaterializer = filterHitMaterializer,
@@ -893,7 +894,7 @@ public sealed class LocalFilterCommitRepository(
             context,
             _log,
             _provider,
-            cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 8–50 行</summary><pre>/// &lt;summary&gt;
+            cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 8–48 行</summary><pre>/// &lt;summary&gt;
 /// 寫入一個情境結果的唯一寫法：filter_hit 存命中的分錄，filter_hit_condition 存命中傳票裡每筆分錄符合第幾組第幾條。
 /// 儲存一個情境、整批發布與結果過期後重算都經過這裡。
 /// 結果在儲存情境時存好，檢視、換頁、展開與匯出都讀它。
@@ -918,9 +919,7 @@ internal static class FilterHitInsertSql
         string conditionPredicateSql) =&gt;
         $&quot;INSERT INTO {tablePrefix}filter_hit_condition (scenario_id, entry_id, group_no, condition_no) &quot;
         + $&quot;SELECT @scenarioId, g.entry_id, @groupNo, @conditionNo FROM {tablePrefix}gl g &quot;
-        + $&quot;WHERE {populationPredicateSql} AND g.voucher_number IN (&quot;
-        + $&quot;SELECT hg.voucher_number FROM {tablePrefix}filter_hit hh JOIN {tablePrefix}gl hg ON hg.entry_id = hh.entry_id &quot;
-        + &quot;WHERE hh.scenario_id = @scenarioId AND hg.voucher_number IS NOT NULL) &quot;
+        + $&quot;WHERE {populationPredicateSql} AND {HitVoucherRows.InOneSavedScenarioHitVouchers(&quot;g&quot;, tablePrefix)} &quot;
         + $&quot;AND ({conditionPredicateSql});&quot;;
 
     /// &lt;summary&gt;刪掉一個情境的結果；先刪符合第幾組第幾條，再刪命中。&lt;/summary&gt;
@@ -993,9 +992,9 @@ internal static class FilterHitInsertSql
 
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(CancellationToken.None);
-    }</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-action-sequence-m13">儲存篩選情境：呼叫順序：整批規劃與發布 到 案件資料庫</a></li><li><a href="connections.html#c-likec4-F09">LikeC4 模型的全部關係：FilterScenarioBatchWriter 到 IFilterScenarioStore</a></li><li><a href="connections.html#c-likec4-F13">LikeC4 模型的全部關係：LocalFilterScenarioStore 到 IFilterScenarioStore</a></li><li><a href="connections.html#c-likec4-F19">LikeC4 模型的全部關係：LocalFilterScenarioStore 到 案件資料庫</a></li><li><a href="connections.html#c-filter-save-decide_defs">儲存篩選情境：決定儲存範圍 到 只儲存情境設定</a></li><li><a href="connections.html#c-filter-save-defs_reply">儲存篩選情境：只儲存情境設定 到 讀回最新狀態</a></li></ul></details></div></details><details class="group card fact" id="f-tb-import"><summary><h2>試算表取代匯入</h2></summary><div class="group-body"><p>import.tb.fromFile 由 GL 與 TB 共用的 ImportFromFileHandler 產生 IntakePlan。它先讀完每個來源的標頭，再把逐列讀取的資料交給 IIntakeFactsPort；取代匯入時，IntakeFactsPort 呼叫 IImportRepository.ReplaceBatchAsync。</p><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs 第 45–165 行</summary><pre>    public async Task&lt;object?&gt; HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+    }</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-action-sequence-m13">儲存篩選情境：呼叫順序：整批規劃與發布 到 案件資料庫</a></li><li><a href="connections.html#c-likec4-F09">LikeC4 模型的全部關係：FilterScenarioBatchWriter 到 IFilterScenarioStore</a></li><li><a href="connections.html#c-likec4-F13">LikeC4 模型的全部關係：LocalFilterScenarioStore 到 IFilterScenarioStore</a></li><li><a href="connections.html#c-likec4-F19">LikeC4 模型的全部關係：LocalFilterScenarioStore 到 案件資料庫</a></li><li><a href="connections.html#c-filter-save-decide_defs">儲存篩選情境：決定儲存範圍 到 只儲存情境設定</a></li><li><a href="connections.html#c-filter-save-defs_reply">儲存篩選情境：只儲存情境設定 到 讀回最新狀態</a></li></ul></details></div></details><details class="group card fact" id="f-tb-import"><summary><h2>試算表取代匯入</h2></summary><div class="group-body"><p>import.tb.fromFile 由 GL 與 TB 共用的 ImportFromFileHandler 產生 IntakePlan。它先讀完每個來源的標頭，再把逐列讀取的資料交給 IIntakeFactsPort；取代匯入時，IntakeFactsPort 呼叫 IImportRepository.ReplaceBatchAsync。</p><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs 第 45–166 行</summary><pre>    public async Task&lt;object?&gt; HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var importPayload = ImportFromFilePayload.Parse(payload);
         var sourceCount = importPayload.Sources.Count;
         var plan = JetAuditProgram.Plan(
@@ -1009,7 +1008,7 @@ internal static class FilterHitInsertSql
                     return new IntakeSourceRequest(
                         source.FilePath,
                         fileExists,
-                        fileExists &amp;&amp; reader.Supports(source.FilePath));
+                        fileExists &amp;&amp; _reader.Supports(source.FilePath));
                 }).ToList(),
                 importPayload.Mode));
         var previous = await repositories.Imports.GetLatestBatchAsync(projectId, Kind, cancellationToken);
@@ -1021,9 +1020,10 @@ internal static class FilterHitInsertSql
             var sourcePayload = importPayload.Sources[index];
             try
             {
-                sourceRequests.Add((sourcePayload, TabularSourcePayload.Parse(
-                    sourcePayload.Payload,
-                    sourcePayload.FilePath)));
+                // 每個來源各記一份「有公式、卻沒有存計算結果」的格數，匯入完成後寫進提醒。
+                var request = TabularSourcePayload.Parse(sourcePayload.Payload, sourcePayload.FilePath)
+                    with { FormulasWithoutResult = new FormulaWithoutResultTally() };
+                sourceRequests.Add((sourcePayload, request));
             }
             catch (JetActionException error)
             {
@@ -1036,7 +1036,7 @@ internal static class FilterHitInsertSql
         var lineBreakTallies = sourceRequests.Select(static _ =&gt; new QuotedLineBreakTally()).ToArray();
         // Excel 開著的來源檔照樣匯入最後一次存檔的內容，匯入完成後提醒。
         var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(
-            reader,
+            _reader,
             sourceRequests.Select(item =&gt; (item.Payload.FilePath, item.Payload.FileName)));
 
         // 讀檔與大量寫入都移到 UI thread 以外執行，匯入期間畫面才不會凍結。
@@ -1051,7 +1051,7 @@ internal static class FilterHitInsertSql
                     var item = sourceRequests[index];
                     try
                     {
-                        columnsBySource.Add(await reader.ReadColumnsAsync(item.Request, cancellationToken));
+                        columnsBySource.Add(await _reader.ReadColumnsAsync(item.Request, cancellationToken));
                     }
                     catch (OperationCanceledException)
                     {
@@ -1087,9 +1087,9 @@ internal static class FilterHitInsertSql
                     // sourceNo 與 sourceCount 是這次 action 裡的第幾個來源與來源總數，不是這一批匯入累計的來源序號。
                     var rows = WithSourceContext(
                         WithProgress(
-                            reader.ReadRowsAsync(item.Request, cancellationToken),
+                            _reader.ReadRowsAsync(item.Request, cancellationToken),
                             ProgressRowInterval,
-                            rowsRead =&gt; eventPublisher.Publish(&quot;import.progress&quot;, new
+                            rowsRead =&gt; _eventPublisher.Publish(&quot;import.progress&quot;, new
                             {
                                 kind = Kind.ToStorageName(),
                                 sourceNo,
@@ -1113,7 +1113,7 @@ internal static class FilterHitInsertSql
                     inputs,
                     cancellationToken);
             },
-            cancellationToken);</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs 第 457–471 行</summary><pre>public sealed class ImportTbFromFileHandler : ImportFromFileHandler
+            cancellationToken);</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs 第 460–474 行</summary><pre>public sealed class ImportTbFromFileHandler : ImportFromFileHandler
 {
     internal ImportTbFromFileHandler(
         ITabularFileReader reader,
@@ -1152,7 +1152,7 @@ internal static class FilterHitInsertSql
                 &quot;未知的 intake operation。&quot;)
         };
 
-        return new IntakeFacts(result);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m02">取代匯入 TB：呼叫順序：action 通道 到 TB 匯入處理</a></li><li><a href="connections.html#c-import-sequence-m03">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件資料庫</a></li><li><a href="connections.html#c-import-sequence-m05">取代匯入 TB：呼叫順序：TB 匯入處理 到 表格檔讀取</a></li><li><a href="connections.html#c-import-sequence-m07">取代匯入 TB：呼叫順序：TB 匯入處理 到 表格檔讀取</a></li><li><a href="connections.html#c-import-sequence-m08">取代匯入 TB：呼叫順序：TB 匯入處理 到 匯入執行</a></li><li><a href="connections.html#c-import-sequence-m09">取代匯入 TB：呼叫順序：匯入執行 到 案件資料庫</a></li><li><a href="connections.html#c-import-sequence-m10">取代匯入 TB：呼叫順序：案件資料庫 到 表格檔讀取</a></li><li><a href="connections.html#c-likec4-C02">LikeC4 模型的全部關係：來源檔案 到 檔案讀寫與底稿發布</a></li><li><a href="connections.html#c-likec4-L03">LikeC4 模型的全部關係：Application 應用流程 到 AuditCore 與 Domain</a></li><li><a href="connections.html#c-likec4-L04">LikeC4 模型的全部關係：Application 應用流程 到 資料庫實作</a></li><li><a href="connections.html#c-likec4-L05">LikeC4 模型的全部關係：Application 應用流程 到 檔案讀寫與底稿發布</a></li><li><a href="connections.html#c-tb-import-request_plan">取代匯入 TB：選檔並匯入 TB 到 讀前一批次並建立計畫</a></li><li><a href="connections.html#c-tb-import-plan_headers">取代匯入 TB：讀前一批次並建立計畫 到 先讀完所有標頭</a></li><li><a href="connections.html#c-tb-import-headers_error">取代匯入 TB：先讀完所有標頭 到 回報失敗</a></li><li><a href="connections.html#c-intake-dataflow-tb_stage">來源檔如何成為審計資料：試算表檔案 到 PBC-TB</a></li><li><a href="connections.html#c-deployment-read">電腦環境與交付內容：來源檔案 到 JET 桌面程序</a></li><li><a href="connections.html#c-likec4-T01">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 JetAuditProgram</a></li><li><a href="connections.html#c-likec4-T02">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T03">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 ITabularFileReader</a></li><li><a href="connections.html#c-likec4-T04">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IIntakeFactsPort</a></li><li><a href="connections.html#c-likec4-T06">LikeC4 模型的全部關係：IntakeFactsPort 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T07">LikeC4 模型的全部關係：CompositeTabularFileReader 到 ITabularFileReader</a></li><li><a href="connections.html#c-likec4-T08">LikeC4 模型的全部關係：IntakeFactsPort 到 IIntakeFactsPort</a></li><li><a href="connections.html#c-likec4-T16">LikeC4 模型的全部關係：LocalImportRepository 到 CompositeTabularFileReader</a></li></ul></details></div></details><details class="group card fact" id="f-tb-transaction"><summary><h2>取代匯入的交易與取消時機</h2></summary><div class="group-body"><p>LocalImportRepository 在同一筆交易裡清除這個資料集的舊批次與標準化資料、把已確認的配對移到上一版、清除下游結果，再寫入新批次。提交前取消會嘗試回復交易；執行中的語句也能中途取消，CancellableSqliteCommand 把取消接到 sqlite3_interrupt，被中斷的寫入由 SQLite 回復，錯誤回報成取消。提交之後，匯入處理類別照樣更新步驟、寫操作紀錄並回應，提交後才到的取消不會讓這次匯入被當成沒做。回復失敗時會記下診斷資訊，所以不能說任何故障都一定能回復。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 30–90 行</summary><pre>    public async Task&lt;ImportBatchResult&gt; ReplaceBatchAsync(
+        return new IntakeFacts(result);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m02">取代匯入 TB：呼叫順序：action 通道 到 TB 匯入處理</a></li><li><a href="connections.html#c-import-sequence-m03">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件資料庫</a></li><li><a href="connections.html#c-import-sequence-m05">取代匯入 TB：呼叫順序：TB 匯入處理 到 表格檔讀取</a></li><li><a href="connections.html#c-import-sequence-m07">取代匯入 TB：呼叫順序：TB 匯入處理 到 表格檔讀取</a></li><li><a href="connections.html#c-import-sequence-m08">取代匯入 TB：呼叫順序：TB 匯入處理 到 匯入執行</a></li><li><a href="connections.html#c-import-sequence-m09">取代匯入 TB：呼叫順序：匯入執行 到 案件資料庫</a></li><li><a href="connections.html#c-import-sequence-m10">取代匯入 TB：呼叫順序：案件資料庫 到 表格檔讀取</a></li><li><a href="connections.html#c-likec4-C02">LikeC4 模型的全部關係：來源檔案 到 檔案讀寫與底稿發布</a></li><li><a href="connections.html#c-likec4-L03">LikeC4 模型的全部關係：Application 應用流程 到 AuditCore 與 Domain</a></li><li><a href="connections.html#c-likec4-L04">LikeC4 模型的全部關係：Application 應用流程 到 資料庫實作</a></li><li><a href="connections.html#c-likec4-L05">LikeC4 模型的全部關係：Application 應用流程 到 檔案讀寫與底稿發布</a></li><li><a href="connections.html#c-tb-import-request_plan">取代匯入 TB：選檔並匯入 TB 到 讀前一批次並建立計畫</a></li><li><a href="connections.html#c-tb-import-plan_headers">取代匯入 TB：讀前一批次並建立計畫 到 先讀完所有標頭</a></li><li><a href="connections.html#c-tb-import-headers_error">取代匯入 TB：先讀完所有標頭 到 回報失敗</a></li><li><a href="connections.html#c-intake-dataflow-tb_stage">來源檔如何成為審計資料：試算表檔案 到 PBC-TB</a></li><li><a href="connections.html#c-deployment-read">電腦環境與交付內容：來源檔案 到 JET 桌面程序</a></li><li><a href="connections.html#c-likec4-T01">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 JetAuditProgram</a></li><li><a href="connections.html#c-likec4-T02">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T03">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 ITabularFileReader</a></li><li><a href="connections.html#c-likec4-T04">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IIntakeFactsPort</a></li><li><a href="connections.html#c-likec4-T06">LikeC4 模型的全部關係：IntakeFactsPort 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T07">LikeC4 模型的全部關係：CompositeTabularFileReader 到 ITabularFileReader</a></li><li><a href="connections.html#c-likec4-T08">LikeC4 模型的全部關係：IntakeFactsPort 到 IIntakeFactsPort</a></li><li><a href="connections.html#c-likec4-T16">LikeC4 模型的全部關係：LocalImportRepository 到 CompositeTabularFileReader</a></li></ul></details></div></details><details class="group card fact" id="f-tb-transaction"><summary><h2>取代匯入的交易與取消時機</h2></summary><div class="group-body"><p>LocalImportRepository 在同一筆交易裡清除這個資料集的舊批次與標準化資料、把已確認的配對移到上一版、清除下游結果，再寫入新批次。提交前取消會嘗試回復交易；執行中的語句也能中途取消，CancellableSqliteCommand 把取消接到 sqlite3_interrupt，被中斷的寫入由 SQLite 回復，錯誤回報成取消。提交之後，匯入處理類別照樣更新步驟、寫操作紀錄並回應，提交後才到的取消不會讓這次匯入被當成沒做。回復失敗時會記下診斷資訊，所以不能說任何故障都一定能回復。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 30–88 行</summary><pre>    public async Task&lt;ImportBatchResult&gt; ReplaceBatchAsync(
         string projectId,
         DatasetKind kind,
         IReadOnlyList&lt;ImportSourceInput&gt; sources,
@@ -1172,9 +1172,7 @@ internal static class FilterHitInsertSql
         var targetTable = TargetTableFor(kind);
         var fieldInfos = FieldInfoAccumulator.Create(first.Columns);
 
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await database.ApplyImportSessionSettingsAsync(connection, cancellationToken);
+        await using var connection = await database.OpenImportConnectionAsync(projectId, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
 
@@ -1212,7 +1210,7 @@ internal static class FilterHitInsertSql
                 insertBatch.Transaction = transaction;
                 insertBatch.CommandText =
                     &quot;&quot;&quot;
-                    INSERT INTO import_batch</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 189–234 行</summary><pre>            await LocalFieldInfoPersistence.ReplaceScopeAsync(
+                    INSERT INTO import_batch</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 187–232 行</summary><pre>            await LocalFieldInfoPersistence.ReplaceScopeAsync(
                 connection,
                 transaction,
                 batchId,
@@ -1257,11 +1255,11 @@ internal static class FilterHitInsertSql
             var rollbackError = await TryRollbackAsync(transaction);
             ImportFailureDiagnostics.RecordRollback(error, rollbackError, _provider);
             if (rollbackError is null) txLog.RolledBack();
-            throw;</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs 第 166–213 行</summary><pre>        var result = JetAuditProgram.Finalize(plan, facts);
+            throw;</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs 第 167–216 行</summary><pre>        var result = JetAuditProgram.Finalize(plan, facts);
 
         // 資料庫交易已經提交，之後不再理會呼叫端的取消要求：案件的流程步驟一定要更新，
         // 不能因為晚到的取消，讓資料已經匯入而案件還停在舊的步驟。
-        await AdvanceStepAsync(projectId, WorkflowStep, CancellationToken.None);
+        await AdvanceStepAsync(projectId, AdvancesTo, CancellationToken.None);
 
         var batch = result.Data.Batch;
         string? operationLogWarning = null;
@@ -1276,7 +1274,7 @@ internal static class FilterHitInsertSql
                     Kind.ToStorageName(),
                     batch.RowCount,
                     replacedCount: 1),
-                logger);
+                _logger);
         }
 
         string[] warnings =
@@ -1284,11 +1282,13 @@ internal static class FilterHitInsertSql
             .. openElsewhereWarnings,
             .. DuplicateSourceWarnings(plan.Operation, previous, batch),
             .. QuotedLineBreakWarnings(sourceRequests, lineBreakTallies),
+            .. sourceRequests.SelectMany(item =&gt;
+                ImportMessages.FormulaWithoutResult(item.Payload.FileName, item.Request.FormulasWithoutResult)),
             .. operationLogWarning is null ? Array.Empty&lt;string&gt;() : [operationLogWarning]
         ];
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, _logger);
         return new
         {
             batchId = batch.BatchId,
@@ -1304,14 +1304,39 @@ internal static class FilterHitInsertSql
             staleState = mutationState.StaleState,
             reports = mutationState.Reports,
             reportWarning = mutationState.ReportWarning
-        };</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/CancellableSqliteConnection.cs 第 7–39 行</summary><pre>/// &lt;summary&gt;
+        };</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/CancellableSqliteConnection.cs 第 7–68 行</summary><pre>/// &lt;summary&gt;
 /// 讓 SQLite 執行中的語句可以取消。Microsoft.Data.Sqlite 的 &lt;see cref=&quot;SqliteCommand.Cancel&quot;/&gt; 不做任何事，
-/// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停（實測 54.7 秒）。
+/// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停。
 /// 這條連線建立的命令改用 &lt;see cref=&quot;CancellableSqliteCommand&quot;/&gt;；設定與基底的 &lt;c&gt;CreateCommand&lt;/c&gt; 相同。
+/// 有傳入監看模組時，命令在執行前後通知它，監看模組只記錄，不改變語句的執行與結果。
+/// 有傳入 &lt;paramref name=&quot;openSettings&quot;/&gt; 時，每次開啟都先執行這段設定。
 /// &lt;/summary&gt;
-internal sealed class CancellableSqliteConnection(string connectionString) : SqliteConnection(connectionString)
+internal sealed class CancellableSqliteConnection(
+    string connectionString,
+    ISqlStatementObserver? statementObserver = null,
+    string? openSettings = null)
+    : SqliteConnection(connectionString)
 {
-    public override SqliteCommand CreateCommand() =&gt; new CancellableSqliteCommand
+    /// &lt;summary&gt;
+    /// 連線池給回的連線保留上一次用過的設定，所以每次開啟都重新執行 &lt;c&gt;openSettings&lt;/c&gt;，
+    /// 不論這條連線先前被誰改過，開好時的設定都一樣。非同步開啟也經過這裡。
+    /// 這段設定不是哪一個作業的語句，所以用基底的命令執行，不通知監看模組。
+    /// &lt;/summary&gt;
+    public override void Open()
+    {
+        var wasOpen = State == ConnectionState.Open;
+        base.Open();
+        if (wasOpen || openSettings is null)
+        {
+            return;
+        }
+
+        using var settings = base.CreateCommand();
+        settings.CommandText = openSettings;
+        settings.ExecuteNonQuery();
+    }
+
+    public override SqliteCommand CreateCommand() =&gt; new CancellableSqliteCommand(statementObserver)
     {
         Connection = this,
         CommandTimeout = DefaultTimeout,
@@ -1325,7 +1350,11 @@ internal sealed class CancellableSqliteConnection(string connectionString) : Sql
 /// 取消只在執行呼叫期間登記，呼叫返回前解除，
 /// 不會中斷之後在同一條連線上執行的其他語句。
 /// &lt;/summary&gt;
-internal sealed class CancellableSqliteCommand : SqliteCommand
+/// &lt;remarks&gt;
+/// 非同步的執行與讀取會通知 &lt;paramref name=&quot;statementObserver&quot;/&gt;：開始、每次進出 SQLite、讀到幾列、完成或失敗。
+/// 通知只記錄，例外照原樣往外丟；沒有監看模組時直接略過。
+/// &lt;/remarks&gt;
+internal sealed class CancellableSqliteCommand(ISqlStatementObserver? statementObserver) : SqliteCommand
 {
     private const int SqliteInterrupt = 9;
 
@@ -1336,7 +1365,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         {
             raw.sqlite3_interrupt(connection.Handle);
         }
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 425 行</summary><pre>        var connection = new CancellableSqliteConnection(connectionString);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m09">取代匯入 TB：呼叫順序：匯入執行 到 案件資料庫</a></li><li><a href="connections.html#c-import-sequence-m10">取代匯入 TB：呼叫順序：案件資料庫 到 表格檔讀取</a></li><li><a href="connections.html#c-import-sequence-m16">取代匯入 TB：呼叫順序：TB 匯入處理 到 action 通道</a></li><li><a href="connections.html#c-likec4-L10">LikeC4 模型的全部關係：資料庫實作 到 案件資料庫</a></li><li><a href="connections.html#c-tb-import-headers_clear">取代匯入 TB：先讀完所有標頭 到 清除舊 TB 與相關結果</a></li><li><a href="connections.html#c-tb-import-clear_write">取代匯入 TB：清除舊 TB 與相關結果 到 逐列寫入新批次</a></li><li><a href="connections.html#c-tb-import-write_commit">取代匯入 TB：逐列寫入新批次 到 提交交易</a></li><li><a href="connections.html#c-tb-import-commit_step">取代匯入 TB：提交交易 到 更新案件步驟</a></li><li><a href="connections.html#c-tb-import-step_reply">取代匯入 TB：更新案件步驟 到 回應批次摘要</a></li><li><a href="connections.html#c-tb-import-audit_reply">取代匯入 TB：寫入操作紀錄 到 回應批次摘要</a></li><li><a href="connections.html#c-tb-import-write_rollback">取代匯入 TB：逐列寫入新批次 到 嘗試回復交易</a></li><li><a href="connections.html#c-tb-import-rollback_error">取代匯入 TB：嘗試回復交易 到 回報失敗或取消</a></li><li><a href="connections.html#c-likec4-T06">LikeC4 模型的全部關係：IntakeFactsPort 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T09">LikeC4 模型的全部關係：LocalImportRepository 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T17">LikeC4 模型的全部關係：LocalImportRepository 到 案件資料庫</a></li></ul></details></div></details><details class="group card fact" id="f-tb-policy"><summary><h2>TB 修改會清除哪些資料</h2></summary><div class="group-body"><p>依失效政策 AuditDependencyPolicy，TB 匯入會清除科目配對、驗證、預篩選、篩選命中與全部已存的情境定義；分類定義與存入筆數與合計核對的數字 gl_control_total 保留。實際清了哪些資料表，要把這份政策和 ResultReset 的 SQL 一起看。</p><details><summary>src/JET/JET/Domain/Rules/AuditDependencyPolicy.cs 第 39–62 行</summary><pre>    internal static AuditDependencyImpact For(AuditMutation mutation) =&gt; mutation switch
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 492 行</summary><pre>        var connection = new CancellableSqliteConnection(connectionString, statementObserver, openSettings);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m09">取代匯入 TB：呼叫順序：匯入執行 到 案件資料庫</a></li><li><a href="connections.html#c-import-sequence-m10">取代匯入 TB：呼叫順序：案件資料庫 到 表格檔讀取</a></li><li><a href="connections.html#c-import-sequence-m16">取代匯入 TB：呼叫順序：TB 匯入處理 到 action 通道</a></li><li><a href="connections.html#c-likec4-L10">LikeC4 模型的全部關係：資料庫實作 到 案件資料庫</a></li><li><a href="connections.html#c-tb-import-headers_clear">取代匯入 TB：先讀完所有標頭 到 清除舊 TB 與相關結果</a></li><li><a href="connections.html#c-tb-import-clear_write">取代匯入 TB：清除舊 TB 與相關結果 到 逐列寫入新批次</a></li><li><a href="connections.html#c-tb-import-write_commit">取代匯入 TB：逐列寫入新批次 到 提交交易</a></li><li><a href="connections.html#c-tb-import-commit_step">取代匯入 TB：提交交易 到 更新案件步驟</a></li><li><a href="connections.html#c-tb-import-step_reply">取代匯入 TB：更新案件步驟 到 回應批次摘要</a></li><li><a href="connections.html#c-tb-import-audit_reply">取代匯入 TB：寫入操作紀錄 到 回應批次摘要</a></li><li><a href="connections.html#c-tb-import-write_rollback">取代匯入 TB：逐列寫入新批次 到 嘗試回復交易</a></li><li><a href="connections.html#c-tb-import-rollback_error">取代匯入 TB：嘗試回復交易 到 回報失敗或取消</a></li><li><a href="connections.html#c-likec4-T06">LikeC4 模型的全部關係：IntakeFactsPort 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T09">LikeC4 模型的全部關係：LocalImportRepository 到 IImportRepository</a></li><li><a href="connections.html#c-likec4-T17">LikeC4 模型的全部關係：LocalImportRepository 到 案件資料庫</a></li></ul></details></div></details><details class="group card fact" id="f-tb-policy"><summary><h2>TB 修改會清除哪些資料</h2></summary><div class="group-body"><p>依失效政策 AuditDependencyPolicy，TB 匯入會清除科目配對、驗證、預篩選、篩選命中與全部已存的情境定義；分類定義與存入筆數與合計核對的數字 gl_control_total 保留。實際清了哪些資料表，要把這份政策和 ResultReset 的 SQL 一起看。</p><details><summary>src/JET/JET/Domain/Rules/AuditDependencyPolicy.cs 第 39–62 行</summary><pre>    internal static AuditDependencyImpact For(AuditMutation mutation) =&gt; mutation switch
     {
         AuditMutation.GlImport or AuditMutation.GlProjection or AuditMutation.TbImport or AuditMutation.TbProjection =&gt;
             Impact(validation: true, prescreen: true, filterHits: true, clearAccountMapping: true),
@@ -1440,7 +1469,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, &quot;validation_result_id_missing&quot;);
         // 還沒有儲存篩選情境時，畫面送 null 或不送篩選版本。
         var scenarioRevision = PayloadReader.GetOptionalString(payload, &quot;scenarioRevision&quot;);
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var planWriter = repositories.WorkingPaperPlanWriter;
         var planningFactsPort = repositories.WorkingPaperPlanningFacts;
         var scenarioStore = repositories.FilterScenarios;
@@ -1456,7 +1485,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             projectId,
             cancellationToken);
         ReportExportSupport.RequireRequestedValidationResult(validationResult, validationResultId);
-        var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
+        var progressSession = new ExportProgressSession(_eventPublisher, cancellationToken);
         var reportProgress = progressSession.Start(ReportKind.WorkingPaper);
 
         SupportOperationStage.Enter(&quot;scenario_read&quot;);
@@ -1486,7 +1515,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             cancellationToken,
             filterDataRevision);
         SupportOperationStage.Enter(&quot;metadata_read&quot;);
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         // 儲存情境時已經存下每個情境的結果，底稿直接用存好的結果，不重算；只照重算前的同一套檢查確認選定的情境仍能套用。
@@ -1507,7 +1536,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         var filterResultsCurrent = !(await resultStaleStateStore.ReadAsync(projectId, cancellationToken)).Filter;
 
         var selected = selectedPositions.ToHashSet();
-        var selectedScenarios = scenarios</pre></details><details><summary>src/JET/JET/Application/Support/ReportExportSupport.cs 第 138–159 行</summary><pre>    public static (string? Revision, GlPopulationScope PopulationScope) RequireWorkingPaperRevisionState(
+        var selectedScenarios = scenarios</pre></details><details><summary>src/JET/JET/Application/Support/ReportExportSupport.cs 第 154–175 行</summary><pre>    public static (string? Revision, GlPopulationScope PopulationScope) RequireWorkingPaperRevisionState(
         IReadOnlyList&lt;SavedFilterScenario&gt; scenarios,
         string? requestedRevision)
     {
@@ -1547,7 +1576,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         IReadOnlyList&lt;SavedFilterScenario&gt; scenarios,
         IReadOnlyCollection&lt;int&gt;? selectedPositions,
         CancellationToken cancellationToken) =&gt;
-        _ = await PrepareAsync(projectId, document, scenarios, selectedPositions, cancellationToken);</pre></details><details><summary>src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs 第 172–230 行</summary><pre>        var plan = JetAuditProgram.Plan(new WorkingPaperRequest(
+        _ = await PrepareAsync(projectId, document, scenarios, selectedPositions, cancellationToken);</pre></details><details><summary>src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs 第 175–233 行</summary><pre>        var plan = JetAuditProgram.Plan(new WorkingPaperRequest(
             ProjectId: projectId,
             PeriodStart: document.PeriodStart,
             PeriodEnd: document.PeriodEnd,
@@ -1640,7 +1669,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
                     bytes,
                     LastWriteUtc: null,
                     Stale: false);
-                staged.Add(new StagedReport(stagePath, finalPath, report));</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 272–366 行</summary><pre>            // 所有暫存檔都完整寫出後才通知「即將發布」，再逐一改名；取消只會發生在改名之前。
+                staged.Add(new StagedReport(stagePath, finalPath, report));</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 272–369 行</summary><pre>            // 所有暫存檔都完整寫出後才通知「即將發布」，再逐一改名；取消只會發生在改名之前。
             SupportOperationStage.Enter(&quot;report_publish&quot;);
             if (publishingReport is not null)
             {
@@ -1703,6 +1732,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
                 }
 
                 // 工作底稿每次都是新檔；其他報告覆蓋同名檔，清單只留最新一筆。
+                // 這次的檔名和清單記的不同時，例如查核期間改了，之前的檔案留在案件資料夾，不改名也不刪除。
                 var publishedNames = published
                     .Select(report =&gt; report.RelativeFileName)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -1730,11 +1760,13 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
                 }
 
                 if (exception is not IOException and not UnauthorizedAccessException) throw;
+                // 備份同名舊檔與寫報告清單索引都要再占空間；磁碟已滿時關閉 Excel 或取消唯讀都沒有用。
+                if (ExportFileWriteErrors.IsDiskFull(exception)) throw ExportFileWriteErrors.DiskFull(exception);
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
                     &quot;報告檔無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再重新匯出。&quot;,
                     innerException: exception);
-            }</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 22 行</summary><pre>    public const string ManifestFileName = &quot;reports.json&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 374–380 行</summary><pre>        }
+            }</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 21 行</summary><pre>    public const string ManifestFileName = &quot;reports.json&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 377–383 行</summary><pre>        }
         finally
         {
             foreach (var stagePath in stagePaths)
@@ -1752,7 +1784,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
 
             var keyColumn = schemaPrefix.Length == 0 ? &quot;key&quot; : &quot;[key]&quot;;
             statements.Add($&quot;UPDATE {schemaPrefix}schema_info SET value = CAST(CAST(value AS BIGINT) + 1 AS VARCHAR(40)) &quot;
-                + $&quot;WHERE {keyColumn} = &#x27;filter_data_revision&#x27;;&quot;);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 180–188 行</summary><pre>        -- scenario_id 是情境不變的編號，結果依它存放；position 是畫面上的順序，移除情境後由後面的往前補。
+                + $&quot;WHERE {keyColumn} = &#x27;filter_data_revision&#x27;;&quot;);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 184–192 行</summary><pre>        -- scenario_id 是情境不變的編號，結果依它存放；position 是畫面上的順序，移除情境後由後面的往前補。
         CREATE TABLE IF NOT EXISTS filter_scenario (
             scenario_id     INTEGER PRIMARY KEY,
             position        INTEGER NOT NULL,
@@ -1760,7 +1792,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             rationale       TEXT NOT NULL,
             definition_json TEXT NOT NULL,
             saved_utc       TEXT NOT NULL
-        );</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 249–268 行</summary><pre>        -- 進階篩選的命中結果：儲存情境時把這個情境命中的 entry_id 依情境編號存在這裡，
+        );</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 253–272 行</summary><pre>        -- 進階篩選的命中結果：儲存情境時把這個情境命中的 entry_id 依情境編號存在這裡，
         -- 檢視、高風險條件彙總與匯出都讀這裡。這是可重算的衍生資料，由 ResultReset 隨其他結果一起清除。
         CREATE TABLE IF NOT EXISTS filter_hit (
             scenario_id INTEGER NOT NULL,
@@ -1846,7 +1878,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         Assert.Equal(new byte[] { 1 }, await File.ReadAllBytesAsync(first.FullPath!));
         var manifest = await File.ReadAllTextAsync(Path.Combine(directory, ProjectReportStore.ManifestFileName));
         Assert.DoesNotContain(&quot;fullPath&quot;, manifest, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(root.Path, manifest);</pre></details></div></details><details class="group card fact" id="f-frontend"><summary><h2>三個前端操作入口</h2></summary><div class="group-body"><p>jet-api.js 把 action 名稱轉成前端方法名稱，例如 filter.scenario.save 變成 filterScenarioSave；循序圖從畫面呼叫 JetApi 的這些方法開始。篩選、匯入與匯出三個步驟的頁面都有對應的呼叫。</p><details><summary>src/JET/JET/wwwroot/js/jet-api.js 第 215–256 行</summary><pre>  // action name → lowerCamelCase method：第一段保留小寫，後續段首字母大寫。
+        Assert.DoesNotContain(root.Path, manifest);</pre></details></div></details><details class="group card fact" id="f-frontend"><summary><h2>三個前端操作入口</h2></summary><div class="group-body"><p>jet-api.js 把 action 名稱轉成前端方法名稱，例如 filter.scenario.save 變成 filterScenarioSave；循序圖從畫面呼叫 JetApi 的這些方法開始。篩選、匯入與匯出三個步驟的頁面都有對應的呼叫。</p><details><summary>src/JET/JET/wwwroot/js/jet-api.js 第 235–282 行</summary><pre>  // action name → lowerCamelCase method：第一段保留小寫，後續段首字母大寫。
   // 例：mapping.commit.gl → mappingCommitGl
   function toMethodName(action) {
     var parts = action.split(&#x27;.&#x27;);
@@ -1875,21 +1907,26 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
     requestStartedHandlers.push(handler);
   }
 
+  // request 有了結果時通知，handler 收到 { requestId }；和 onRequestStarted 成對，UI 用來知道取消鈕對準的 request 已經結束。
+  function onRequestFinished(handler) {
+    requestFinishedHandlers.push(handler);
+  }
+
   var JetApi = {
     isReady: isReady,
     invoke: invoke,
     on: on,
     off: off,
-    onRequestStarted: onRequestStarted
+    onRequestStarted: onRequestStarted,
+    onRequestFinished: onRequestFinished
   };
 
   SUPPORTED_ACTIONS.forEach(function (action) {
     JetApi[toMethodName(action)] = function (payload) {
       return invoke(action, payload);
     };
-  });</pre></details><details><summary>src/JET/JET/wwwroot/js/steps/filter-step.js 第 587–612 行</summary><pre>        if (scenarios.length &gt; Ui.FILTER_MAX_SAVED_SCENARIOS) {
-          var limitText = &#x27;最多可儲存 &#x27; + Ui.FILTER_MAX_SAVED_SCENARIOS + &#x27; 個篩選情境，請先移除不需要的情境。&#x27;;
-          Store.addMessage(limitText, &#x27;warn&#x27;); showSaveNotice(limitText, true);
+  });</pre></details><details><summary>src/JET/JET/wwwroot/js/steps/filter-step.js 第 664–702 行</summary><pre>        if (scenarios.length &gt; Ui.FILTER_MAX_SAVED_SCENARIOS) {
+          blockSave(&#x27;listFull&#x27;, &#x27;最多可儲存 &#x27; + Ui.FILTER_MAX_SAVED_SCENARIOS + &#x27; 個篩選情境，請先移除不需要的情境。&#x27;);
           return Promise.resolve(SAVE_NOT_SENT);
         }
         // 新增或另存時加在最後，和後端的算法相同；修改時後端用 expectedName 確認畫面清單和資料庫是同一個情境。
@@ -1902,17 +1939,31 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
           return completeScenarioSave(saveSnapshot, data, data.position - 1, authored) ? data : null;
         }).catch(function (error) {
           if (!acceptsFilterCommit(saveSnapshot)) { return; }
-          if (Store.getState().filter.draft === saveSnapshot.draft &amp;&amp; Store.getFilterDraftRev() === saveSnapshot.revision) {
+          var sameDraft = Store.getState().filter.draft === saveSnapshot.draft &amp;&amp; Store.getFilterDraftRev() === saveSnapshot.revision;
+          if (Ui.isCancelledOrInProgress(error)) {
+            // 取消與另一項作業還在進行不是儲存失敗，不標條件列，也不在儲存按鈕上方寫原因；送出前畫面上的錯誤與提示照原樣放回來。
+            if (sameDraft) { restoreSubmissionProblems(earlierProblems); }
+          } else if (sameDraft) {
             // 能對到條件列的錯誤就地標紅；重名這類沒有位置的錯誤寫在儲存按鈕上方。
-            if (!markRuleErrors(container, error, targetPosition)) { showSaveNotice(saveFailureText(error, targetPosition)); }
+            if (recordRuleErrors(error, targetPosition)) {
+              // 條件列只畫在「篩選與檢視」分頁；審計員在另一個分頁時看不到，原因改在步驟上方顯示。
+              failureShown = FilterStep.viewState.workspacePane === &#x27;filter&#x27;;
+              revealRuleErrors();
+            } else {
+              raiseSaveNotice({ kind: &#x27;failed&#x27;, text: saveFailureText(error, targetPosition), warning: false,
+                sent: draftContentKey(saveSnapshot.draft) });
+              failureShown = true;
+              drawSubmissionProblems();
+              revealSaveNotice(FilterStep.shownContainer);
+            }
           }
           throw error;
         });
       }, {
-        // 儲存失敗時，原因已經就地寫在條件列或儲存按鈕上方，不再另外在步驟上方顯示。
-        inlineError: true,
+        // 儲存失敗的原因已經寫在條件列或儲存按鈕上方時，不再另外在步驟上方顯示；條件在等待期間改過、原因沒有地方寫時才顯示。
+        inlineError: function () { return failureShown; },
         completionMessage: function (data) {
-          return data &amp;&amp; data !== SAVE_NOT_SENT ? &#x27;已儲存篩選情境（&#x27; + data.savedCount + &#x27; / 10）。&#x27; : &#x27;&#x27;;</pre></details><details><summary>src/JET/JET/wwwroot/js/steps/import-step.js 第 1217–1244 行</summary><pre>  }
+          return data &amp;&amp; data !== SAVE_NOT_SENT ? &#x27;已儲存篩選情境（&#x27; + data.savedCount + &#x27; / 10）。&#x27; : &#x27;&#x27;;</pre></details><details><summary>src/JET/JET/wwwroot/js/steps/import-step.js 第 1261–1292 行</summary><pre>  }
 
   function confirmWizard(kind, label) {
     var items = includedWizardItems();
@@ -1938,8 +1989,12 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
       var itemIndex = Math.max(0, Math.min(items.length - 1, Number(data.sourceNo || 1) - 1));
       updateProgress(kind, items[itemIndex], itemIndex, Number(data.sourceCount) || items.length, data);
     };
-    global.JetApi.on(&#x27;import.progress&#x27;, onProgress);
-    var unsubscribe = function () { global.JetApi.off(&#x27;import.progress&#x27;, onProgress); };</pre></details><details><summary>src/JET/JET/wwwroot/js/steps/export-step.js 第 340–360 行</summary><pre>      return resultId(data);
+    var unsubscribe = function () { global.JetApi.off(&#x27;import.progress&#x27;, onProgress); };
+
+    Ui.run(&#x27;匯入 &#x27; + label, function () {
+      // 匯入真的開始時才訂閱進度、進入匯入態；另一項作業還在進行時這裡不會執行，精靈留在原本的樣子。
+      // 作業開始時不會重畫中央面板，所以這裡重畫一次：橫幅換成「匯入中」、動作鈕收起。
+      global.JetApi.on(&#x27;import.progress&#x27;, onProgress);</pre></details><details><summary>src/JET/JET/wwwroot/js/steps/export-step.js 第 338–358 行</summary><pre>      return resultId(data);
     });
   }
 
@@ -1959,9 +2014,10 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
 
   function requireExportActive(project, payload, completed) {
     var state = Store.getState();
-    if ((!completed &amp;&amp; state.cancellationRequested) || state.project !== project</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-action-sequence-m01">儲存篩選情境：呼叫順序：第五步畫面 到 接收畫面訊息</a></li><li><a href="connections.html#c-import-sequence-m01">取代匯入 TB：呼叫順序：匯入畫面 到 action 通道</a></li><li><a href="connections.html#c-workpaper-sequence-m01">匯出正式底稿：呼叫順序：第六步畫面 到 底稿匯出處理</a></li><li><a href="connections.html#c-likec4-L01">LikeC4 模型的全部關係：WebView2 畫面 到 Action 通道</a></li><li><a href="connections.html#c-likec4-F01">LikeC4 模型的全部關係：JetApi 到 JetWebMessageBridge</a></li></ul></details></div></details><details class="group card fact" id="f-schema"><summary><h2>SQLite 資料表欄位</h2></summary><div class="group-body"><p>資料表關聯圖依 SQLite 的現行建表程式畫成，結構版本是第 20 版。新案件在一筆交易裡一次建好全部資料表；已有資料表的案件不逐版升級，只檢查版本，不是現行版本就請審計員刪除案件後重建。只畫資料表本身的欄位，不展開 JSON 欄位裡的內容；名稱相同的欄位也不推定為資料庫外鍵。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 13–370 行</summary><pre>    /// &lt;summary&gt;
-    /// 案件資料庫的現行結構，建成後標成第 20 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
-    /// 不是現行版本就請審計員刪除案件後重建（案件資料庫只留現行結構）。
+    if ((!completed &amp;&amp; state.cancellationRequested) || state.project !== project</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-action-sequence-m01">儲存篩選情境：呼叫順序：第五步畫面 到 接收畫面訊息</a></li><li><a href="connections.html#c-import-sequence-m01">取代匯入 TB：呼叫順序：匯入畫面 到 action 通道</a></li><li><a href="connections.html#c-workpaper-sequence-m01">匯出正式底稿：呼叫順序：第六步畫面 到 底稿匯出處理</a></li><li><a href="connections.html#c-likec4-L01">LikeC4 模型的全部關係：WebView2 畫面 到 Action 通道</a></li><li><a href="connections.html#c-likec4-F01">LikeC4 模型的全部關係：JetApi 到 JetWebMessageBridge</a></li></ul></details></div></details><details class="group card fact" id="f-schema"><summary><h2>SQLite 資料表欄位</h2></summary><div class="group-body"><p>資料表關聯圖依 SQLite 的現行建表程式畫成。新案件在一筆交易裡一次建好全部資料表，並寫入以案件資料庫為準的案件設定 project_setting。已有資料表的案件開啟時不讀結構版本，改和建表程式比對表、欄位、索引與觸發條件：缺少的索引與觸發條件在一個交易裡補上；缺少不能補上的表或欄位時，表示是首次發布以前的 JET 建立的案件，請審計員刪除後重建。只畫資料表本身的欄位，不展開 JSON 欄位裡的內容；名稱相同的欄位也不推定為資料庫外鍵。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 16–403 行</summary><pre>    /// &lt;summary&gt;
+    /// 案件資料庫的現行結構。新資料庫在一個交易裡執行這段；已有資料表的資料庫開啟時和它比對，缺少的索引與觸發條件補上。
+    /// 在這裡新增表或欄位時，要登記在 &lt;see cref=&quot;CurrentSchema&quot;/&gt; 的新增清單，欄位另附 ALTER TABLE，
+    /// 已經建立的案件開啟時才會補上。每一句都要能在已有資料的案件上重複執行而不改變資料。
     /// 匯入暫存表的 row_number 是同一個批次裡只增不減的排序鍵，INF 抽樣以它為準；
     /// source_row_number 是來源檔裡實際的列號，錯誤訊息用它指出是哪一列；source_no 對應 import_batch_source。
     /// &lt;/summary&gt;
@@ -2312,11 +2368,44 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             SELECT RAISE(ABORT, &#x27;project audit log is append-only&#x27;);
         END;
 
+        -- 以案件資料庫為準的案件設定，只有一列，建案時和資料表在同一個交易裡寫入。
+        -- 建案後不能改的欄位由觸發器擋下修改，整列也不能刪除；準備日與每週休息日只在 JET 修改時更新。
+        CREATE TABLE IF NOT EXISTS project_setting (
+            singleton                   INTEGER PRIMARY KEY CHECK (singleton = 1),
+            period_start                TEXT NOT NULL,
+            period_end                  TEXT NOT NULL,
+            money_scale                 INTEGER NOT NULL,
+            roc_date_enabled            INTEGER NOT NULL CHECK (roc_date_enabled IN (0,1)),
+            sample_seed                 INTEGER NOT NULL,
+            sample_seed_version         INTEGER NOT NULL,
+            operator_id                 TEXT NOT NULL,
+            last_accounting_period_date TEXT,
+            non_working_days            TEXT
+        );
+        CREATE TRIGGER IF NOT EXISTS trg_project_setting_fixed
+        BEFORE UPDATE OF singleton, period_start, period_end, money_scale, roc_date_enabled,
+            sample_seed, sample_seed_version, operator_id ON project_setting
+        BEGIN
+            SELECT RAISE(ABORT, &#x27;project settings fixed at creation cannot change&#x27;);
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_project_setting_no_delete
+        BEFORE DELETE ON project_setting
+        BEGIN
+            SELECT RAISE(ABORT, &#x27;project settings cannot be deleted&#x27;);
+        END;
+
         INSERT INTO schema_info (key, value) VALUES (&#x27;filter_data_revision&#x27;, &#x27;0&#x27;)
         ON CONFLICT(key) DO NOTHING;
-        INSERT INTO schema_info (key, value) VALUES (&#x27;schema_version&#x27;, &#x27;20&#x27;)
+
+        -- JET 開啟案件時不讀這一列。首次發布的 JET 開啟案件時要讀到 21，才認得是它能開的案件，
+        -- 所以新建的案件照首次發布的值寫入，已經有這一列的案件不改。
+        INSERT INTO schema_info (key, value) VALUES (&#x27;schema_version&#x27;, &#x27;21&#x27;)
         ON CONFLICT(key) DO NOTHING;
-        &quot;&quot;&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 473–526 行</summary><pre>    private async Task EnsureCreatedCoreAsync(string projectId, bool allowCreate, CancellationToken cancellationToken)
+        &quot;&quot;&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 627–695 行</summary><pre>    private async Task EnsureCreatedCoreAsync(
+        string projectId,
+        bool allowCreate,
+        Func&lt;CancellationToken, Task&lt;ProtectedProjectSettings&gt;&gt;? settings,
+        CancellationToken cancellationToken)
     {
         var databasePath = GetDatabasePath(projectId);
         if (!allowCreate)
@@ -2334,13 +2423,10 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 已經建過表的資料庫只檢查版本：不是現行版本就在任何寫入之前擋下，檔案保持原狀。
+        // 已經建過表的資料庫先和現行結構比對，只讀不寫：缺少不能補上的表或欄位時在任何寫入之前擋下，檔案保持原狀。
         var existing = await HasSchemaInfoAsync(connection, cancellationToken);
-        if (existing)
-        {
-            LocalSchemaReadiness.RejectUnsupportedSchemaVersion(await ReadVersionAsync(connection, cancellationToken));
-        }
-        else if (!allowCreate)
+        var requiresCompletion = existing &amp;&amp; await _projectSchema.CheckAsync(connection, cancellationToken);
+        if (!existing &amp;&amp; !allowCreate)
         {
             // 有檔案但沒有任何資料表，同樣是沒有內容；在任何寫入之前回報，檔案保持原狀。
             throw LocalSchemaReadiness.EmptyDatabase(projectId);
@@ -2356,40 +2442,77 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
 
         if (existing)
         {
+            // 缺少的索引、觸發條件，以及首次發布之後新增的表與欄位在這裡補上，之後的讀寫都面對現行結構。
+            if (requiresCompletion)
+            {
+                await _projectSchema.CompleteAsync(connection, cancellationToken);
+            }
+
             return;
         }
+
+        // 案件設定在開交易之前取得，取得時可能要等使用者全名查好。
+        var recordedSettings = settings is null ? null : await settings(cancellationToken);
 
         // 新資料庫在同一個交易裡建好全部的表，中途失敗時不留下只建一半的資料庫。
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = SchemaSql;
+            command.CommandText = _projectSchema.CreateSql;
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        if (recordedSettings is not null)
+        {
+            await LocalProjectSettingSql.InsertAsync(connection, transaction, recordedSettings, cancellationToken);
+        }
+
         await transaction.CommitAsync(cancellationToken);
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalSchemaReadiness.cs 第 93–113 行</summary><pre>    /// &lt;summary&gt;SQLite 案件資料庫的現行結構版本；建表程式直接寫這一版。&lt;/summary&gt;
-    internal const int CurrentSchemaVersion = 20;
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/ProjectSchema.cs 第 18–61 行</summary><pre>/// &lt;summary&gt;
+/// 案件資料庫的結構：一份建表程式，加上首次發布之後新增的表與欄位清單。JET 不讀資料庫裡的版本紀錄，只比對結構。
+/// 已經建立的案件開啟時，和建表程式建出的表、欄位、索引與觸發條件比對：
+/// 全部都在時不寫入任何東西；缺少索引、觸發條件或清單上的表與欄位時，在一個交易裡補上；
+/// 缺少清單以外的表或欄位，表示是首次發布以前的 JET 建立的，不開啟，檔案保持原狀。
+/// 案件裡多出建表程式沒有的表、欄位或索引時照常開啟，不讀也不改它們。
+/// &lt;/summary&gt;
+internal sealed class ProjectSchema
+{
+    private readonly Lazy&lt;Task&lt;SchemaShape&gt;&gt; _reference;
+
+    internal ProjectSchema(string createSql, IReadOnlyList&lt;ProjectSchemaAddition&gt; additions)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(createSql);
+        ArgumentNullException.ThrowIfNull(additions);
+        CreateSql = createSql;
+        Additions = additions;
+        _reference = new Lazy&lt;Task&lt;SchemaShape&gt;&gt;(BuildReferenceAsync, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
+
+    /// &lt;summary&gt;建表程式。每一句都要能在已有資料的案件上重複執行而不改變資料。&lt;/summary&gt;
+    internal string CreateSql { get; }
+
+    /// &lt;summary&gt;首次發布之後新增的表與欄位，依加入的先後排列；補上時照這個順序執行。&lt;/summary&gt;
+    internal IReadOnlyList&lt;ProjectSchemaAddition&gt; Additions { get; }
 
     /// &lt;summary&gt;
-    /// 已經建過表的資料庫只接受現行版本：案件資料庫只留現行結構，版本不符時請審計員刪除後重建。
-    /// 低於現行版本是較早版本的 JET 建立的案件；版本值缺漏、讀不出整數或高於現行版本時無法判斷內容，當成版本資訊無法辨識。
-    /// 呼叫端必須在執行任何寫入之前檢查，讓檔案保持原狀。
+    /// 只讀取、不寫入。結構齊全時回 false，需要補上索引、觸發條件或新增的表與欄位時回 true；
+    /// 缺少不能補上的表或欄位時，用請審計員刪除後重建的訊息拒絕。
     /// &lt;/summary&gt;
-    internal static void RejectUnsupportedSchemaVersion(string? existingVersion)
+    internal async Task&lt;bool&gt; CheckAsync(DbConnection connection, CancellationToken cancellationToken)
     {
-        if (!int.TryParse(existingVersion, NumberStyles.Integer, CultureInfo.InvariantCulture, out var version)
-            || version &gt; CurrentSchemaVersion)
-        {
-            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.UnreadableDatabaseVersion);
-        }
+        ArgumentNullException.ThrowIfNull(connection);
+        var plan = await PlanAsync(connection, transaction: null, cancellationToken).ConfigureAwait(false);
+        return plan.RequiresCompletion;
+    }
 
-        if (version &lt; CurrentSchemaVersion)
-        {
-            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.OldVersionProject());
-        }
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/AccountCategoryHierarchy.cs 第 6–29 行</summary><pre>/// &lt;summary&gt;科目分類樹的祖先與子孫對照表 account_category_path；每次儲存分類樹時整份改寫。&lt;/summary&gt;
+    /// &lt;summary&gt;
+    /// 在一個交易裡補齊結構：先依清單加上缺少的欄位，再執行建表程式建立缺少的表、索引與觸發條件；
+    /// 任何一句失敗，整個交易復原，資料庫保持原狀。取得交易後重新比對一次，另一條連線已經補好時不再執行。
+    /// 磁碟已滿、檔案唯讀或損毀這類認得的資料庫錯誤，照一般的資料庫錯誤回報，使用者才知道要處理的是檔案本身；
+    /// 另一個程式正在寫入而取不到交易，以及其他失敗，回報開啟失敗，請使用者關閉其他程式後再開啟。
+    /// &lt;/summary&gt;
+    internal async Task CompleteAsync(DbConnection connection, CancellationToken cancellationToken)</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/AccountCategoryHierarchy.cs 第 6–29 行</summary><pre>/// &lt;summary&gt;科目分類樹的祖先與子孫對照表 account_category_path；每次儲存分類樹時整份改寫。&lt;/summary&gt;
 internal static class AccountCategoryHierarchy
 {
     internal static async Task SavePathsAsync(DbConnection connection, DbTransaction transaction,
@@ -2412,7 +2535,7 @@ internal static class AccountCategoryHierarchy
                 await command.ExecuteNonQueryAsync(ct);
             }
         }
-    }</pre></details><details><summary>src/JET/JET/AuditCore/JetSchemaCatalog.cs 第 84–153 行</summary><pre>    public static readonly IReadOnlyList&lt;SchemaTableEntry&gt; All =
+    }</pre></details><details><summary>src/JET/JET/AuditCore/JetSchemaCatalog.cs 第 84–155 行</summary><pre>    public static readonly IReadOnlyList&lt;SchemaTableEntry&gt; All =
     [
         // ── Source:客戶提供、照匯入原樣保存的資料(DataView) ──────────────────
         new(&quot;pbc_gl&quot;, &quot;PBC-GL&quot;, SchemaLayer.Source, SchemaAudience.DataView,
@@ -2469,12 +2592,14 @@ internal static class AccountCategoryHierarchy
             &quot;存入筆數與合計核對的控制總數(單列中間計算;投影時落地供 validate 對值)&quot;),
         new(&quot;result_stale_state&quot;, &quot;RESULT_STALE_STATE&quot;, SchemaLayer.System, SchemaAudience.Hidden,
             &quot;上游資料修改後，驗證、預篩選與篩選結果的過期狀態&quot;),
+        new(&quot;project_setting&quot;, &quot;PROJECT_SETTING&quot;, SchemaLayer.System, SchemaAudience.Hidden,
+            &quot;以案件資料庫為準的案件設定(查核期間、金額存放倍率、民國年選項、隨機種子、建案者、期末財報準備日與每週休息日)&quot;),
         new(&quot;message_log&quot;, &quot;MESSAGE_LOG&quot;, SchemaLayer.System, SchemaAudience.Hidden,
             &quot;前端狀態與訊息的持久化(UX 輔助紀錄,非審計留痕)&quot;),
         new(&quot;operation_log&quot;, &quot;OPERATION_LOG&quot;, SchemaLayer.System, SchemaAudience.Hidden,
             &quot;會改變或銷毀已保存審計資料之操作的最小 append-only 留痕&quot;),
         new(&quot;schema_info&quot;, &quot;SCHEMA_INFO&quot;, SchemaLayer.System, SchemaAudience.Hidden,
-            &quot;案件的結構版本(開案時核對是不是現行版本，舊版案件請審計員刪除後重建)&quot;),
+            &quot;案件的結構版本(開案時核對，可升級的較早版本升到現行版本，其他版本不開啟)&quot;),
         new(&quot;pbc_account_mapping&quot;, &quot;ACCOUNT_MAPPING_PBC&quot;, SchemaLayer.Staging, SchemaAudience.Hidden,
             &quot;科目配對匯入原貌暫存(實體表不曝光;accountMapping 以固定三欄有界預覽)&quot;),
         new(&quot;pbc_authorized_preparer&quot;, &quot;AUTHORIZED_PREPARER_PBC&quot;, SchemaLayer.Staging, SchemaAudience.Hidden,
@@ -2535,15 +2660,15 @@ internal static class AccountCategoryHierarchy
     &lt;PackageReference Include=&quot;ClosedXML&quot; Version=&quot;0.105.1&quot; /&gt;
     &lt;PackageReference Include=&quot;DocumentFormat.OpenXml&quot; Version=&quot;3.5.1&quot; /&gt;
     &lt;PackageReference Include=&quot;ExcelDataReader&quot; Version=&quot;3.9.0&quot; /&gt;
-    &lt;PackageReference Include=&quot;System.Data.OleDb&quot; Version=&quot;10.0.13&quot; /&gt;
-    &lt;PackageReference Include=&quot;Microsoft.Data.Sqlite&quot; Version=&quot;10.0.13&quot; /&gt;
+    &lt;PackageReference Include=&quot;System.Data.OleDb&quot; Version=&quot;10.0.15&quot; /&gt;
+    &lt;PackageReference Include=&quot;Microsoft.Data.Sqlite&quot; Version=&quot;10.0.15&quot; /&gt;
     &lt;!-- 直接引用較新的 bundle,取代 Microsoft.Data.Sqlite 間接引用的 2.1.x。原生程式庫改由 SQLite 套件提供,
          版本不得低於 CVE-2025-6965(GHSA-2m69-gcr7-jv3q)建議的 3.50.2;公告列為受影響的
          SQLitePCLRaw.lib.e_sqlite3 因此不在套件還原結果內。 --&gt;
     &lt;PackageReference Include=&quot;SQLitePCLRaw.bundle_e_sqlite3&quot; Version=&quot;3.0.5&quot; /&gt;
     &lt;!-- 診斷日誌用 Microsoft.Extensions.Logging 與 LoggerMessage 來源產生器 --&gt;
-    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging&quot; Version=&quot;10.0.13&quot; /&gt;
-    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging.Abstractions&quot; Version=&quot;10.0.13&quot; /&gt;
+    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging&quot; Version=&quot;10.0.15&quot; /&gt;
+    &lt;PackageReference Include=&quot;Microsoft.Extensions.Logging.Abstractions&quot; Version=&quot;10.0.15&quot; /&gt;
     &lt;PackageReference Include=&quot;Microsoft.Web.WebView2&quot; Version=&quot;1.0.4258.31&quot; /&gt;
   &lt;/ItemGroup&gt;
 
@@ -2600,13 +2725,12 @@ public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
         =&gt; Path.Combine(GetProjectDirectory(projectId), DatabaseFileName);
 
     public string GetProjectJsonPath(string projectId)
-        =&gt; Path.Combine(GetProjectDirectory(projectId), ProjectJsonFileName);</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 11–22 行</summary><pre>/// &lt;summary&gt;
+        =&gt; Path.Combine(GetProjectDirectory(projectId), ProjectJsonFileName);</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 11–21 行</summary><pre>/// &lt;summary&gt;
 /// 案件內報告檔的儲存：把內容寫成同目錄暫存檔、完整後改名，再在 &lt;c&gt;reports.json&lt;/c&gt; 記下
 /// JET 寫了什麼。它不核對檔案內容，不擋載入；審計員在 JET 之外改了檔案，&lt;see cref=&quot;ListAsync&quot;/&gt; 只在
 /// &lt;see cref=&quot;Report.FileState&quot;/&gt; 回報。
 ///
-/// JET 預設審計員可信，所以這裡不另外記錄寫入過程，不把檔案移到隔離區，不用 SHA-256 核對內容，
-/// 也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
+/// JET 預設審計員可信，所以這裡不核對檔案內容，也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
 /// 工作底稿每次匯出寫新版本檔，其餘報告覆蓋同名檔。
 /// &lt;/summary&gt;
 public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
@@ -2665,7 +2789,7 @@ public sealed class SupportLogExportHandler(
         var filePath = await ProjectLogFileWriter.WriteAsync(
             projectLocator,
             projectId,
-            &quot;JET-support&quot;,
+            ProjectLogFile.Support,
             CountAsync(history.LinesAsync(Header(scope, history.Summary), cancellationToken), () =&gt; lineCount++),
             cancellationToken).ConfigureAwait(false);
 
@@ -2684,7 +2808,7 @@ public sealed class SupportLogExportHandler(
             .ToArray();
         var filePath = await ProjectLogFileWriter.WriteToDirectoryAsync(
             supportLogDirectory,
-            &quot;JET-support&quot;,
+            ProjectLogFile.Support,
             ProjectLogFileWriter.ToAsyncLines(lines),
             cancellationToken).ConfigureAwait(false);
 
@@ -2719,7 +2843,7 @@ public sealed class SupportLogExportHandler(
             message = &quot;JET support log snapshot&quot;,
             fields = new
             {
-                // 第 3 版起每筆事件帶 processInstance 與 sequence，例外列出整條例外鏈與 JET 方法位置；
+                // 格式版本 3：每筆事件帶 processInstance 與 sequence，例外列出整條例外鏈與 JET 方法位置；
                 // 指定案件時讀入跨次開啟的案件紀錄，history 寫出紀錄的起點與缺口。
                 schemaVersion = 3,
                 processInstance = supportLog.ProcessInstance,
@@ -2747,7 +2871,7 @@ public sealed class SupportLogExportHandler(
 /// &lt;/summary&gt;
 internal sealed class SupportCaseHistoryExport</pre></details><details><summary>src/JET/JET/wwwroot/js/app.js 第 518–533 行</summary><pre>  // 案件清單看不到訊息面板，所以另放一個「輸出支援日誌」。
   // 它只給開發人員用，和 DEV 面板一樣只在 Debug 組建出現（system.ping.devToolsEnabled），
-  // 放在卡片外的頁尾。開案後訊息面板的「輸出支援日誌」在 Release 照舊。
+  // 放在卡片外的頁尾。開案後訊息面板的「輸出支援日誌」在 Release 也有。
   // 不帶 projectId：後端匯出全部去識別紀錄到 logs 資料夾。剛發生開案或刪除失敗時，
   // 原始診斷日誌的出口也放在頁尾，並帶同一次 correlation。
   function pickerFooterHtml(state) {
@@ -2802,25 +2926,25 @@ public sealed class SystemPingHandler(bool devToolsEnabled) : IApplicationAction
 輸出位於 `src/JET/JET/bin/Release/net10.0-windows/publish/win-x64/`。這是資料夾發佈，不是 ClickOnce；結果是 Windows x64
 自含式，主程式為單一 `JET.exe`，同一資料夾保留必要的設定、Excel 範本與前端資產。VS Code 能 F5 不代表 Visual Studio
 已安裝自己的 SDK；如果 Visual Studio 顯示 `NETSDK1141`，在 Visual Studio Installer 確認已安裝「.NET 桌面開發」workload
-與 .NET 10 個別元件。</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-maintenance-inventory_package">部署與維護程序草案：確認電腦環境 到 核對發布資料夾</a></li><li><a href="connections.html#c-maintenance-package_smoke">部署與維護程序草案：核對發布資料夾 到 用合成資料試跑</a></li><li><a href="connections.html#c-maintenance-smoke_approve">部署與維護程序草案：用合成資料試跑 到 確認部署安排</a></li><li><a href="connections.html#c-maintenance-open_same">部署與維護程序草案：在目的地開副本 到 結果一致？</a></li><li><a href="connections.html#c-maintenance-same_use">部署與維護程序草案：結果一致？ 到 改用新位置</a></li><li><a href="connections.html#c-maintenance-same_record">部署與維護程序草案：結果一致？ 到 匯出支援日誌</a></li><li><a href="connections.html#c-maintenance-record_triage">部署與維護程序草案：匯出支援日誌 到 區分問題來源</a></li><li><a href="connections.html#c-maintenance-triage_restore">部署與維護程序草案：區分問題來源 到 用副本演練復原</a></li><li><a href="connections.html#c-maintenance-restore_resume">部署與維護程序草案：用副本演練復原 到 核對後恢復作業</a></li></ul></details></div></details><details class="group card fact" id="f-after-commit"><summary><h2>資料提交之後才更新步驟</h2></summary><div class="group-body"><p>匯入與篩選都在資料提交之後，才嘗試推進案件步驟。步驟存不進去時，AfterCommitAsync 只在支援日誌記一筆步驟失敗的事件，寫下例外的型別與位置：已完成的資料操作不會改報失敗，已提交的資料也不會因此回復。</p><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs 第 362–369 行</summary><pre>    private async Task AdvanceStepAsync(string projectId, int minimumStep, CancellationToken cancellationToken)
+與 .NET 10 個別元件。</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-maintenance-inventory_package">部署與維護程序草案：確認電腦環境 到 核對發布資料夾</a></li><li><a href="connections.html#c-maintenance-package_smoke">部署與維護程序草案：核對發布資料夾 到 用合成資料試跑</a></li><li><a href="connections.html#c-maintenance-smoke_approve">部署與維護程序草案：用合成資料試跑 到 確認部署安排</a></li><li><a href="connections.html#c-maintenance-open_same">部署與維護程序草案：在目的地開副本 到 結果一致？</a></li><li><a href="connections.html#c-maintenance-same_use">部署與維護程序草案：結果一致？ 到 改用新位置</a></li><li><a href="connections.html#c-maintenance-same_record">部署與維護程序草案：結果一致？ 到 匯出支援日誌</a></li><li><a href="connections.html#c-maintenance-record_triage">部署與維護程序草案：匯出支援日誌 到 區分問題來源</a></li><li><a href="connections.html#c-maintenance-triage_restore">部署與維護程序草案：區分問題來源 到 用副本演練復原</a></li><li><a href="connections.html#c-maintenance-restore_resume">部署與維護程序草案：用副本演練復原 到 核對後恢復作業</a></li></ul></details></div></details><details class="group card fact" id="f-after-commit"><summary><h2>資料提交之後才更新步驟</h2></summary><div class="group-body"><p>匯入與篩選都在資料提交之後，才嘗試推進案件步驟。步驟存不進去時，AfterCommitAsync 只在支援日誌記一筆步驟失敗的事件，寫下例外的型別與位置：已完成的資料操作不會改報失敗，已提交的資料也不會因此回復。</p><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs 第 365–372 行</summary><pre>    private async Task AdvanceStepAsync(string projectId, WorkflowStep minimumStep, CancellationToken cancellationToken)
     {
         await MappingCommitShared.AfterCommitAsync(async () =&gt;
         {
-            var document = await projectStore.FindAsync(projectId, cancellationToken);
-            if (document is not null &amp;&amp; document.CurrentStep &lt; minimumStep)
-                await projectStore.SaveAsync(document with { CurrentStep = minimumStep }, cancellationToken);
-        }, logger);</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 551–577 行</summary><pre>internal static class MappingCommitShared
+            var document = await _projectStore.FindAsync(projectId, cancellationToken);
+            if (document is not null &amp;&amp; document.CurrentStep &lt; (int)minimumStep)
+                await _projectStore.SaveAsync(document with { CurrentStep = (int)minimumStep }, cancellationToken);
+        }, _logger);</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 558–584 行</summary><pre>internal static class MappingCommitShared
 {
     public static async Task AdvanceStepAsync(
         IProjectStore projectStore,
         JET.Domain.ProjectDocument document,
-        int milestone,
+        WorkflowStep milestone,
         CancellationToken cancellationToken,
         ILogger? logger = null)
     {
         await AfterCommitAsync(async () =&gt;
         {
-            var nextStep = Math.Max(document.CurrentStep, milestone);
+            var nextStep = Math.Max(document.CurrentStep, (int)milestone);
             if (nextStep != document.CurrentStep)
                 await projectStore.SaveAsync(document with { CurrentStep = nextStep }, cancellationToken);
         }, logger);
@@ -2835,8 +2959,8 @@ public sealed class SystemPingHandler(bool devToolsEnabled) : IApplicationAction
             // 寫成支援日誌事件，記下例外型別與位置。
             if (logger is not null) SupportStepDiagnostics.StepFailed(logger, &quot;workflow.milestone&quot;, exception);
         }
-    }</pre></details><details><summary>src/JET/JET/Application/Support/SupportActionDiagnostics.cs 第 403–412 行</summary><pre>/// &lt;summary&gt;
-/// 操作中不影響結果的附帶步驟失敗：資料已保存後更新不了案件步驟、刪案後清不掉資料夾、開案失敗後放不掉工作鎖。
+    }</pre></details><details><summary>src/JET/JET/Application/Support/SupportActionDiagnostics.cs 第 446–455 行</summary><pre>/// &lt;summary&gt;
+/// 操作中不影響結果的附帶步驟失敗：資料已保存後更新不了案件步驟、刪案後清不掉資料夾、開案失敗後放不掉案件鎖。
 /// 畫面照原本規則回應；支援日誌記下步驟代號與例外的型別、位置。
 /// &lt;/summary&gt;
 internal static partial class SupportStepDiagnostics
@@ -2844,7 +2968,7 @@ internal static partial class SupportStepDiagnostics
     [LoggerMessage(EventId = 1005, EventName = SupportEventNames.ActionStepFailed, Level = LogLevel.Warning,
         Message = &quot;action step {step} failed&quot;)]
     public static partial void StepFailed(ILogger logger, string step, Exception exception);
-}</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m14">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件進度檔</a></li><li><a href="connections.html#c-tb-import-commit_step">取代匯入 TB：提交交易 到 更新案件步驟</a></li><li><a href="connections.html#c-filter-save-one_reply">儲存篩選情境：只換這一個情境 到 讀回最新狀態</a></li><li><a href="connections.html#c-filter-save-commit_reply">儲存篩選情境：儲存全部情境與結果 到 讀回最新狀態</a></li><li><a href="connections.html#c-likec4-T05">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IProjectStore</a></li></ul></details></div></details><details class="group card fact" id="f-rde-link"><summary><h2>自訂 RDE 欄位的對應方式</h2></summary><div class="group-body"><p>LocalGlRepository 依欄位定義寫入 gl_rde_field；產生標準 GL 時，再把每筆分錄的自訂 RDE 值連同 FieldId 寫進 gl_rde_value。兩表靠 field_id 對應，資料庫沒有宣告外鍵。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 439–554 行</summary><pre>        ILocalProjectDatabase database,
+}</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m14">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件進度檔</a></li><li><a href="connections.html#c-tb-import-commit_step">取代匯入 TB：提交交易 到 更新案件步驟</a></li><li><a href="connections.html#c-filter-save-one_reply">儲存篩選情境：只換這一個情境 到 讀回最新狀態</a></li><li><a href="connections.html#c-filter-save-commit_reply">儲存篩選情境：儲存全部情境與結果 到 讀回最新狀態</a></li><li><a href="connections.html#c-likec4-T05">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IProjectStore</a></li></ul></details></div></details><details class="group card fact" id="f-rde-link"><summary><h2>自訂 RDE 欄位的對應方式</h2></summary><div class="group-body"><p>LocalGlRepository 依欄位定義寫入 gl_rde_field；產生標準 GL 時，再把每筆分錄的自訂 RDE 值連同 FieldId 寫進 gl_rde_value。兩表靠 field_id 對應，資料庫沒有宣告外鍵。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 476–591 行</summary><pre>        ILocalProjectDatabase database,
         DbConnection connection,
         DbTransaction transaction,
         string batchId,
@@ -2976,14 +3100,24 @@ internal static partial class SupportStepDiagnostics
                 reader.GetString(2),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.IsDBNull(5) ? null : reader.GetInt64(5)));</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-gl-rde-erd-rde_entry">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl</a></li><li><a href="connections.html#c-gl-rde-erd-rde_field">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl_rde_field</a></li></ul></details></div></details><details class="group card fact" id="f-composition"><summary><h2>啟動時建立的物件</h2></summary><div class="group-body"><p>AppCompositionRoot 在程式啟動時建立 ActionDispatcher、各 action 的處理類別、讀檔器、報告存檔類別與 project.json 的讀寫元件，也只組一次 SQLite 案件用的整組 repository、facts port 與操作紀錄元件，再透過建構子交給使用它們的類別。圖上的「建立」線，以及介面背後實際類別的推論，都以這些建立位置為準，沒有執行紀錄。</p><details><summary>src/JET/JET/AppCompositionRoot.cs 第 52–56 行</summary><pre>    {
-        var folder = new JetProjectFolder(projectsRootPath);
-        var projectStore = new JsonFileProjectStore(folder);
-        // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
-        var sqliteDatabase = new SqliteProjectDatabase(folder);</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 110–111 行</summary><pre>        var baseReportStore = new ProjectReportStore(
-            folder,</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 144–145 行</summary><pre>            var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader(),
-                new BinaryExcelTableReader(), new AccessTableReader());</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 190–191 行</summary><pre>            new ImportGlFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger&lt;ImportGlFromFileHandler&gt;()),
-            new ImportTbFromFileHandler(fileReader, projectStore, session, events, loggerFactory.CreateLogger&lt;ImportTbFromFileHandler&gt;()),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 213 行</summary><pre>            new FilterScenarioSaveHandler(projectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioSaveHandler&gt;()),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 232 行</summary><pre>            new ExportWorkingPaperStreamHandler(projectStore, session, events),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 275–276 行</summary><pre>            var dispatcher = new ActionDispatcher(
+                reader.IsDBNull(5) ? null : reader.GetInt64(5)));</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-gl-rde-erd-rde_entry">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl</a></li><li><a href="connections.html#c-gl-rde-erd-rde_field">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl_rde_field</a></li></ul></details></div></details><details class="group card fact" id="f-composition"><summary><h2>啟動時建立的物件</h2></summary><div class="group-body"><p>AppCompositionRoot 在程式啟動時建立 ActionDispatcher、各 action 的處理類別、讀檔器、報告存檔類別與 project.json 的讀寫元件，也只組一次 SQLite 案件用的整組 repository、facts port 與操作紀錄元件，再透過建構子交給使用它們的類別。圖上的「建立」線，以及介面背後實際類別的推論，都以這些建立位置為準，沒有執行紀錄。</p><details><summary>src/JET/JET/AppCompositionRoot.cs 第 56–57 行</summary><pre>        var folder = new JetProjectFolder(projectsRootPath);
+        var projectStore = new JsonFileProjectStore(folder);</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 125–138 行</summary><pre>        // 只支援 SQLite 案件，每個案件資料夾一個 jet.db。
+        var sqliteDatabase = new SqliteProjectDatabase(
+            folder,
+            additionalSqlStatementObserver is null
+                ? operationMonitor
+                : new AdditionalSqlStatementObserver(operationMonitor, additionalSqlStatementObserver));
+        var baseReportStore = new ProjectReportStore(
+            folder,
+            logger: loggerFactory.CreateLogger&lt;ProjectReportStore&gt;());
+        var session = new ProjectSession();
+        // 開啟中的案件讀設定時，以案件資料庫記的設定為準。案件清單、建案、開案、刪除案件與刪除前預覽的 handler，
+        // 以及只顯示資料庫種類的開發者資料庫總覽，直接拿設定檔的 store：開案自己比對兩邊並提醒，其他的不靠這些設定作業。
+        IProjectStore protectedProjectStore = new ProtectedSettingsProjectStore(
+            projectStore, new LocalProjectSettingStore(sqliteDatabase));</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 131–132 行</summary><pre>        var baseReportStore = new ProjectReportStore(
+            folder,</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 171–172 行</summary><pre>            var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader(),
+                new BinaryExcelTableReader(), new AccessTableReader());</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 221–222 行</summary><pre>            new ImportGlFromFileHandler(fileReader, protectedProjectStore, session, events, loggerFactory.CreateLogger&lt;ImportGlFromFileHandler&gt;()),
+            new ImportTbFromFileHandler(fileReader, protectedProjectStore, session, events, loggerFactory.CreateLogger&lt;ImportTbFromFileHandler&gt;()),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 244 行</summary><pre>            new FilterScenarioSaveHandler(protectedProjectStore, session, loggerFactory.CreateLogger&lt;FilterScenarioSaveHandler&gt;()),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 263 行</summary><pre>            new ExportWorkingPaperStreamHandler(protectedProjectStore, session, events),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.cs 第 312–313 行</summary><pre>            var dispatcher = new ActionDispatcher(
                 handlers, loggerFactory.CreateLogger&lt;ActionDispatcher&gt;(), session,</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 36–54 行</summary><pre>    {
         var loggers = assembly.LoggerFactory;
         var imports = new LocalImportRepository(database, loggers.CreateLogger&lt;LocalImportRepository&gt;());
@@ -3003,7 +3137,7 @@ internal static partial class SupportStepDiagnostics
             database, loggers.CreateLogger&lt;LocalFilterHitMaterializer&gt;());
         var filterCommits = new LocalFilterCommitRepository(
             database, loggers.CreateLogger&lt;LocalFilterCommitRepository&gt;());</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 73–74 行</summary><pre>        IProjectOperationLog projectOperationLog = new BestEffortProjectOperationLog(
-            new LocalProjectOperationLog(database),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 107 行</summary><pre>            IntakeFacts = new IntakeFactsPort(imports),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 123 行</summary><pre>            FilterFacts = new FilterFactsPort(filterHits, filterCommits),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 156–168 行</summary><pre>            WorkingPaperPlanningFacts = new WorkingPaperPlanningFactsPort(
+            new LocalProjectOperationLog(database),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 108 行</summary><pre>            IntakeFacts = new IntakeFactsPort(imports),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 124 行</summary><pre>            FilterFacts = new FilterFactsPort(filterHits, filterCommits),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 156–168 行</summary><pre>            WorkingPaperPlanningFacts = new WorkingPaperPlanningFactsPort(
                 completenessDiffPages, voucherBalancePages, highRiskSummaryScenarios, fieldInfoFacts),
             WorkingPaperPlanWriter = CreateWorkingPaperWriter(
                 completenessAccountPages, completenessDiffPages, voucherBalancePages, preparerSummaryExport,
@@ -3015,14 +3149,14 @@ internal static partial class SupportStepDiagnostics
             PrescreenReportWriter = legacyReportWriter,
             CriteriaSelectionReportWriter = legacyReportWriter,
             ReportStore = new AuditedReportStore(assembly.BaseReportStore, projectOperationLog,
-                assembly.LoggerFactory.CreateLogger&lt;AuditedReportStore&gt;()),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 227–241 行</summary><pre>    private static WorkingPaperWriter CreateWorkingPaperWriter(
-        ICompletenessAccountPageRepository completenessAccountPages,
-        ICompletenessDiffPageRepository completenessDiffPages,
-        IVoucherBalancePageRepository voucherBalancePages,
+                assembly.LoggerFactory.CreateLogger&lt;AuditedReportStore&gt;()),</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 231–245 行</summary><pre>    private static WorkingPaperWriter CreateWorkingPaperWriter(
+        ICompletenessAccountStreamRepository completenessAccounts,
+        ICompletenessDiffStreamRepository completenessDiffs,
+        IUnbalancedVoucherDateRowStreamRepository unbalancedVoucherDateRows,
         IPreparerSummaryExportRepository preparerSummaryExport,
-        IInfSamplePageRepository infSamplePages,
-        IHighRiskSummaryVoucherPageRepository highRiskSummaryVoucherPages,
-        IHighRiskSummaryRowPageRepository highRiskSummaryRowPages,
+        IInfSampleStreamRepository infSamples,
+        IWorkingPaperHighRiskVoucherStreamRepository highRiskVouchers,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskVoucherDetailPreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarExport,
         IAccountMappingExportRepository accountMappingExport,
@@ -3031,7 +3165,7 @@ internal static partial class SupportStepDiagnostics
         IResultPageRdeValuesPort resultPageRdeValues) =&gt;
         new(</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-likec4-L07">LikeC4 模型的全部關係：啟動時建立物件 到 Action 通道</a></li><li><a href="connections.html#c-likec4-L08">LikeC4 模型的全部關係：啟動時建立物件 到 資料庫實作</a></li><li><a href="connections.html#c-likec4-L09">LikeC4 模型的全部關係：啟動時建立物件 到 檔案讀寫與底稿發布</a></li><li><a href="connections.html#c-likec4-L13">LikeC4 模型的全部關係：啟動時建立物件 到 Application 應用流程</a></li><li><a href="connections.html#c-likec4-F14">LikeC4 模型的全部關係：AppCompositionRoot 到 FilterScenarioSaveHandler</a></li><li><a href="connections.html#c-likec4-F15">LikeC4 模型的全部關係：AppCompositionRoot 到 FilterFactsPort</a></li><li><a href="connections.html#c-likec4-F16">LikeC4 模型的全部關係：AppCompositionRoot 到 LocalFilterCommitRepository</a></li><li><a href="connections.html#c-likec4-F17">LikeC4 模型的全部關係：AppCompositionRoot 到 LocalFilterScenarioStore</a></li><li><a href="connections.html#c-likec4-T11">LikeC4 模型的全部關係：AppCompositionRoot 到 ImportTbFromFileHandler</a></li><li><a href="connections.html#c-likec4-T12">LikeC4 模型的全部關係：AppCompositionRoot 到 CompositeTabularFileReader</a></li><li><a href="connections.html#c-likec4-T13">LikeC4 模型的全部關係：AppCompositionRoot 到 IntakeFactsPort</a></li><li><a href="connections.html#c-likec4-T14">LikeC4 模型的全部關係：AppCompositionRoot 到 LocalImportRepository</a></li><li><a href="connections.html#c-likec4-T15">LikeC4 模型的全部關係：AppCompositionRoot 到 JsonFileProjectStore</a></li><li><a href="connections.html#c-likec4-W11">LikeC4 模型的全部關係：AppCompositionRoot 到 WorkingPaperPlanningFactsPort</a></li><li><a href="connections.html#c-likec4-W12">LikeC4 模型的全部關係：AppCompositionRoot 到 AuditedReportStore</a></li><li><a href="connections.html#c-likec4-W13">LikeC4 模型的全部關係：AppCompositionRoot 到 ProjectReportStore</a></li></ul></details></div></details><details class="group card fact" id="f-action-policy"><summary><h2>分派前的互斥、背景執行與取消</h2></summary><div class="group-body"><p>ActionExecutionPolicy 判斷 action 是否互斥、是否在背景執行；會修改資料的互斥作業要先向 ActionExecutionGate 取得執行權，已有作業在跑時直接回錯誤，不排隊。已要求取消後，資料庫中止語句時丟出的其他例外一律回報成取消，畫面顯示「作業已取消」。Form1 建立 JetWebMessageBridge，它用 RequestCancellationRegistry.RunAsync 包住分派，畫面可依 requestId 取消。</p><details><summary>src/JET/JET/Domain/ActionExecutionPolicy.cs 第 26–66 行</summary><pre>    /// &lt;summary&gt;
     /// 資料庫的 async API 可能同步執行。除原生主機介面及取消控制外，dispatcher 一律在背景執行，
-    /// 包含唯讀查詢內的惰性補算；是否互斥仍由原有分類判定。
+    /// 包含唯讀查詢內的惰性補算；是否互斥由這個類別的分類判定。
     /// &lt;/summary&gt;
     public static bool RunsInBackground(string action) =&gt; action is not
         (&quot;host.selectFile&quot; or &quot;host.selectFiles&quot; or &quot;host.openFolder&quot; or &quot;host.exitApp&quot; or &quot;operation.cancel&quot;);
@@ -3069,7 +3203,7 @@ internal static partial class SupportStepDiagnostics
         &quot;export.criteriaSelectionReport&quot;,
         &quot;export.workingPaperStream&quot;,
         &quot;export.accountMappingTemplate&quot;,
-    };</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 109–126 行</summary><pre>        var exclusive = ActionExecutionPolicy.IsExclusive(action);
+    };</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 120–137 行</summary><pre>        var exclusive = ActionExecutionPolicy.IsExclusive(action);
         IDisposable? executionLease = null;
 
         try
@@ -3086,7 +3220,7 @@ internal static partial class SupportStepDiagnostics
                     ?? throw new JetActionException(
                         JetErrorCodes.OperationInProgress,
                         &quot;另一項作業正在進行中，請待其完成後再操作。&quot;);
-            }</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 183–189 行</summary><pre>            // 已要求取消時，資料庫驅動中止語句後丟出的例外一律回報成取消：驅動丟出的不一定是
+            }</pre></details><details><summary>src/JET/JET/Bridge/ActionDispatcher.cs 第 196–202 行</summary><pre>            // 已要求取消時，資料庫驅動中止語句後丟出的例外一律回報成取消：驅動丟出的不一定是
             // OperationCanceledException，畫面一律回「作業已取消」。業務錯誤照舊原樣放行。
             if (exception is not (JetActionException or OperationCanceledException)
                 &amp;&amp; cancellationToken.IsCancellationRequested)
@@ -3094,7 +3228,7 @@ internal static partial class SupportStepDiagnostics
                 throw new OperationCanceledException(&quot;作業已取消。&quot;, exception, cancellationToken);
             }</pre></details><details><summary>src/JET/JET/Bridge/JetWebMessageBridge.cs 第 54–56 行</summary><pre>            var data = await dispatcher.CancellationRegistry.RunAsync(
                 request.RequestId,
-                cancellationToken =&gt; dispatcher.DispatchAsync(</pre></details><details><summary>src/JET/JET/Form1.cs 第 465–466 行</summary><pre>            _bridge = new JetWebMessageBridge(_webView.CoreWebView2, _dispatcher);
+                cancellationToken =&gt; dispatcher.DispatchAsync(</pre></details><details><summary>src/JET/JET/Form1.cs 第 508–509 行</summary><pre>            _bridge = new JetWebMessageBridge(_webView.CoreWebView2, _dispatcher);
             _bridge.Attach();</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-action-sequence-m03">儲存篩選情境：呼叫順序：找到處理類別 到 情境儲存處理</a></li></ul></details></div></details><details class="group card fact" id="f-audit-log"><summary><h2>操作紀錄</h2></summary><div class="group-body"><p>SQLite 案件的 IProjectOperationLog 是 BestEffortProjectOperationLog，由它交給 LocalProjectOperationLog 寫入。操作紀錄都在資料提交之後才寫，統一經過 CommittedOperationLog.AppendAsync：寫入失敗記在支援日誌，動作仍回報成功，回應多一句提醒「變更已儲存，但這次變更沒有寫入操作紀錄。」，報告則是「檔案已產生，但這次產生的檔案沒有寫入操作紀錄。」。TB 重新匯入由 ImportFromFileHandler 寫，報告發布成功後由 AuditedReportStore 寫，重新確認配對由 MappingCommitGlHandler 與 MappingCommitTbHandler 寫。</p><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 73–74 行</summary><pre>        IProjectOperationLog projectOperationLog = new BestEffortProjectOperationLog(
             new LocalProjectOperationLog(database),</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/BestEffortProjectOperationLog.cs 第 13–36 行</summary><pre>public sealed class BestEffortProjectOperationLog(IProjectOperationLog inner, ILogger logger) : IProjectOperationLog
 {
@@ -3119,9 +3253,8 @@ internal static partial class SupportStepDiagnostics
             ProjectOperationLogDiagnostics.WriteFailed(logger, operationEvent.Operation, &quot;append&quot;, exception);
             return false;
         }
-    }</pre></details><details><summary>src/JET/JET/Application/Support/CommittedOperationLog.cs 第 11–33 行</summary><pre>internal static partial class CommittedOperationLog
+    }</pre></details><details><summary>src/JET/JET/Application/Support/CommittedOperationLog.cs 第 11–32 行</summary><pre>internal static partial class CommittedOperationLog
 {
-    /// &lt;summary&gt;這句的用字已定案。&lt;/summary&gt;
     internal const string AppendFailedWarning = &quot;變更已儲存，但這次變更沒有寫入操作紀錄。&quot;;
 
     /// &lt;summary&gt;產生報告時的提醒。&lt;/summary&gt;
@@ -3141,7 +3274,7 @@ internal static partial class SupportStepDiagnostics
             if (logger is not null) AppendFailed(logger, operationEvent.Operation, error.GetType().Name);
             return failedWarning;
         }
-    }</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs 第 173–186 行</summary><pre>        string? operationLogWarning = null;
+    }</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs 第 174–187 行</summary><pre>        string? operationLogWarning = null;
         if (replacesExistingBatch)
         {
             operationLogWarning = await CommittedOperationLog.AppendAsync(
@@ -3153,7 +3286,7 @@ internal static partial class SupportStepDiagnostics
                     Kind.ToStorageName(),
                     batch.RowCount,
                     replacedCount: 1),
-                logger);
+                _logger);
         }</pre></details><details><summary>src/JET/JET/Application/Support/AuditedReportStore.cs 第 165–185 行</summary><pre>    private Task&lt;string?&gt; RecordPublishedAsync(
         string projectId,
         IReadOnlyList&lt;Report&gt; reports,
@@ -3175,8 +3308,8 @@ internal static partial class SupportStepDiagnostics
             logger,
             CommittedOperationLog.ReportAppendFailedWarning);
     }</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 375–376 行</summary><pre>        var operationLogWarning = await CommittedOperationLog.AppendMappingRecommitAsync(
-            repositories.ProjectOperationLog, projectId, recordsRecommit, &quot;gl&quot;, result.Projection.ProjectedRowCount, logger);</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 530–531 行</summary><pre>        var operationLogWarning = await CommittedOperationLog.AppendMappingRecommitAsync(
-            repositories.ProjectOperationLog, projectId, recordsRecommit, &quot;tb&quot;, result.Projection.ProjectedRowCount, logger);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m15">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件資料庫</a></li><li><a href="connections.html#c-workpaper-sequence-m04">匯出正式底稿：呼叫順序：底稿匯出處理 到 記錄發布</a></li><li><a href="connections.html#c-workpaper-sequence-m12">匯出正式底稿：呼叫順序：記錄發布 到 底稿匯出處理</a></li><li><a href="connections.html#c-tb-import-step_audit">取代匯入 TB：更新案件步驟 到 寫入操作紀錄</a></li><li><a href="connections.html#c-tb-import-audit_reply">取代匯入 TB：寫入操作紀錄 到 回應批次摘要</a></li><li><a href="connections.html#c-workpaper-manifest_reply">匯出正式底稿：更新報告清單 到 回應檔案與列數</a></li></ul></details></div></details><details class="group card fact" id="f-report-store"><summary><h2>報告檔的兩層存檔類別</h2></summary><div class="group-body"><p>啟動時以 AuditedReportStore 包住 ProjectReportStore。外層另外實作 IAuditedReportPublishingStore，底稿匯出與其他報告經這個介面發布，回應裡才拿得到寫不進操作紀錄的提醒；外層只把內層當成 IReportStore 持有，呼叫前才轉型成 IReportPublishingStore。內層把報告寫在案件資料夾：先寫暫存檔，改名前最後檢查一次取消，再更新報告清單 reports.json。</p><details><summary>src/JET/JET/AppCompositionRoot.cs 第 110–111 行</summary><pre>        var baseReportStore = new ProjectReportStore(
+            repositories.ProjectOperationLog, projectId, recordsRecommit, &quot;gl&quot;, result.Projection.ProjectedRowCount, _logger);</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 537–538 行</summary><pre>        var operationLogWarning = await CommittedOperationLog.AppendMappingRecommitAsync(
+            repositories.ProjectOperationLog, projectId, recordsRecommit, &quot;tb&quot;, result.Projection.ProjectedRowCount, _logger);</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m15">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件資料庫</a></li><li><a href="connections.html#c-workpaper-sequence-m04">匯出正式底稿：呼叫順序：底稿匯出處理 到 記錄發布</a></li><li><a href="connections.html#c-workpaper-sequence-m12">匯出正式底稿：呼叫順序：記錄發布 到 底稿匯出處理</a></li><li><a href="connections.html#c-tb-import-step_audit">取代匯入 TB：更新案件步驟 到 寫入操作紀錄</a></li><li><a href="connections.html#c-tb-import-audit_reply">取代匯入 TB：寫入操作紀錄 到 回應批次摘要</a></li><li><a href="connections.html#c-workpaper-manifest_reply">匯出正式底稿：更新報告清單 到 回應檔案與列數</a></li></ul></details></div></details><details class="group card fact" id="f-report-store"><summary><h2>報告檔的兩層存檔類別</h2></summary><div class="group-body"><p>啟動時以 AuditedReportStore 包住 ProjectReportStore。外層另外實作 IAuditedReportPublishingStore，底稿匯出與其他報告經這個介面發布，回應裡才拿得到寫不進操作紀錄的提醒；外層只把內層當成 IReportStore 持有，呼叫前才轉型成 IReportPublishingStore。內層把報告寫在案件資料夾：先寫暫存檔，改名前最後檢查一次取消，再更新報告清單 reports.json。</p><details><summary>src/JET/JET/AppCompositionRoot.cs 第 131–132 行</summary><pre>        var baseReportStore = new ProjectReportStore(
             folder,</pre></details><details><summary>src/JET/JET/AppCompositionRoot.Repositories.cs 第 167–168 行</summary><pre>            ReportStore = new AuditedReportStore(assembly.BaseReportStore, projectOperationLog,
                 assembly.LoggerFactory.CreateLogger&lt;AuditedReportStore&gt;()),</pre></details><details><summary>src/JET/JET/Application/Support/AuditedReportStore.cs 第 6–36 行</summary><pre>/// &lt;summary&gt;正式報告發布的結果：發布的報告，以及寫不進操作紀錄時給審計員的提醒（寫進去時是 null）。&lt;/summary&gt;
 internal sealed record AuditedReportPublication(IReadOnlyList&lt;Report&gt; Reports, string? OperationLogWarning);
@@ -3201,14 +3334,14 @@ internal interface IAuditedReportPublishingStore
 
 /// &lt;summary&gt;
 /// 包住報告清單的 store。每次成功發布正式報告後，由這裡在案件的操作紀錄加一筆，記下發布了幾份、取代了幾份同種類的舊報告；
-/// 只有這裡記這種紀錄。寫不進操作紀錄時報告檔已經發布，兩種案件都不讓這次發布失敗；失敗記進支援日誌，
+/// 只有這裡記這種紀錄。寫不進操作紀錄時報告檔已經發布，不讓這次發布失敗；失敗記進支援日誌，
 /// 經 &lt;see cref=&quot;IAuditedReportPublishingStore&quot;/&gt; 發布時另回提醒。
 /// 被包住的檔案 store 只負責把暫存檔改名成正式檔，以及讀寫報告清單檔，沒有清理功能。
 /// &lt;/summary&gt;
 internal sealed class AuditedReportStore(
     IReportStore inner,
     IProjectOperationLog operationLog,
-    ILogger? logger = null) : IReportStore, IReportPublishingStore, IAuditedReportPublishingStore</pre></details><details><summary>src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs 第 208–230 行</summary><pre>        // 正式組裝的報告清單會寫操作紀錄；經這個介面發布才拿得到寫不進操作紀錄時的提醒。
+    ILogger? logger = null) : IReportStore, IReportPublishingStore, IAuditedReportPublishingStore</pre></details><details><summary>src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs 第 211–233 行</summary><pre>        // 正式組裝的報告清單會寫操作紀錄；經這個介面發布才拿得到寫不進操作紀錄時的提醒。
         Report report;
         string? operationLogWarning = null;
         if (reportStore is IAuditedReportPublishingStore auditedStore)
@@ -3241,7 +3374,7 @@ internal sealed class AuditedReportStore(
         var written = await WriteBatchCoreAsync(projectId, [request], publishingReport, cancellationToken)
             .ConfigureAwait(false);
         return written[0];
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 207–382 行</summary><pre>    private async Task&lt;IReadOnlyList&lt;Report&gt;&gt; WriteBatchCoreAsync(
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 207–385 行</summary><pre>    private async Task&lt;IReadOnlyList&lt;Report&gt;&gt; WriteBatchCoreAsync(
         string projectId,
         IReadOnlyList&lt;ReportWriteRequest&gt; requests,
         Action&lt;ReportKind&gt;? publishingReport,
@@ -3369,6 +3502,7 @@ internal sealed class AuditedReportStore(
                 }
 
                 // 工作底稿每次都是新檔；其他報告覆蓋同名檔，清單只留最新一筆。
+                // 這次的檔名和清單記的不同時，例如查核期間改了，之前的檔案留在案件資料夾，不改名也不刪除。
                 var publishedNames = published
                     .Select(report =&gt; report.RelativeFileName)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -3396,6 +3530,8 @@ internal sealed class AuditedReportStore(
                 }
 
                 if (exception is not IOException and not UnauthorizedAccessException) throw;
+                // 備份同名舊檔與寫報告清單索引都要再占空間；磁碟已滿時關閉 Excel 或取消唯讀都沒有用。
+                if (ExportFileWriteErrors.IsDiskFull(exception)) throw ExportFileWriteErrors.DiskFull(exception);
                 throw new JetActionException(
                     JetErrorCodes.FileReadError,
                     &quot;報告檔無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再重新匯出。&quot;,
@@ -3416,16 +3552,15 @@ internal sealed class AuditedReportStore(
                 DeleteFileBestEffort(stagePath);
             }
         }
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 566–569 行</summary><pre>        return new ProjectPaths(
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 569–572 行</summary><pre>        return new ProjectPaths(
             projectDirectory,
             JetProjectFolder.GetLockPathBesideProject(root, projectDirectory, LockPrefix),
-            Path.Combine(projectDirectory, ManifestFileName));</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 11–31 行</summary><pre>/// &lt;summary&gt;
+            Path.Combine(projectDirectory, ManifestFileName));</pre></details><details><summary>src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs 第 11–30 行</summary><pre>/// &lt;summary&gt;
 /// 案件內報告檔的儲存：把內容寫成同目錄暫存檔、完整後改名，再在 &lt;c&gt;reports.json&lt;/c&gt; 記下
 /// JET 寫了什麼。它不核對檔案內容，不擋載入；審計員在 JET 之外改了檔案，&lt;see cref=&quot;ListAsync&quot;/&gt; 只在
 /// &lt;see cref=&quot;Report.FileState&quot;/&gt; 回報。
 ///
-/// JET 預設審計員可信，所以這裡不另外記錄寫入過程，不把檔案移到隔離區，不用 SHA-256 核對內容，
-/// 也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
+/// JET 預設審計員可信，所以這裡不核對檔案內容，也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
 /// 工作底稿每次匯出寫新版本檔，其餘報告覆蓋同名檔。
 /// &lt;/summary&gt;
 public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
@@ -3439,7 +3574,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
     private const string ManifestTempPrefix = &quot;.report-manifest-&quot;;
     // 不列入 TemporaryPrefixes：還原失敗時，之後讀清單也必須保留原檔備份。
     private const string BackupPrefix = &quot;.report-backup-&quot;;
-    private const string LockPrefix = &quot;.reports-&quot;;</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-workpaper-sequence-m04">匯出正式底稿：呼叫順序：底稿匯出處理 到 記錄發布</a></li><li><a href="connections.html#c-workpaper-sequence-m05">匯出正式底稿：呼叫順序：記錄發布 到 寫檔與發布</a></li><li><a href="connections.html#c-workpaper-sequence-m06">匯出正式底稿：呼叫順序：寫檔與發布 到 底稿匯出處理</a></li><li><a href="connections.html#c-workpaper-sequence-m10">匯出正式底稿：呼叫順序：寫檔與發布 到 底稿匯出處理</a></li><li><a href="connections.html#c-likec4-L12">LikeC4 模型的全部關係：檔案讀寫與底稿發布 到 報告與正式工作底稿</a></li><li><a href="connections.html#c-workpaper-facts_stage">匯出正式底稿：建立底稿計畫 到 寫完暫存檔</a></li><li><a href="connections.html#c-workpaper-stage_rename">匯出正式底稿：寫完暫存檔 到 改名成新版本</a></li><li><a href="connections.html#c-workpaper-rename_manifest">匯出正式底稿：改名成新版本 到 更新報告清單</a></li><li><a href="connections.html#c-deployment-files">電腦環境與交付內容：JET 桌面程序 到 完整案件資料夾</a></li><li><a href="connections.html#c-likec4-W04">LikeC4 模型的全部關係：ExportWorkingPaperStreamHandler 到 IAuditedReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W05">LikeC4 模型的全部關係：AuditedReportStore 到 IReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W09">LikeC4 模型的全部關係：AuditedReportStore 到 IAuditedReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W10">LikeC4 模型的全部關係：ProjectReportStore 到 IReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W12">LikeC4 模型的全部關係：AppCompositionRoot 到 AuditedReportStore</a></li><li><a href="connections.html#c-likec4-W13">LikeC4 模型的全部關係：AppCompositionRoot 到 ProjectReportStore</a></li><li><a href="connections.html#c-likec4-W15">LikeC4 模型的全部關係：ProjectReportStore 到 ExportWorkingPaperStreamHandler</a></li><li><a href="connections.html#c-likec4-W16">LikeC4 模型的全部關係：ProjectReportStore 到 案件資料夾的報告檔</a></li></ul></details></div></details><details class="group card fact" id="f-project-file"><summary><h2>案件進度檔</h2></summary><div class="group-body"><p>JsonFileProjectStore 把 project.json 寫在案件資料夾，SQLite 資料庫檔 jet.db 也在同一個資料夾。新案先在暫存資料夾寫好 project.json 與建案中的標記再換名，更新時先寫暫存檔再換檔。檔內保存案件期間、目前步驟、資料庫種類與抽樣種子等設定。目前只支援 SQLite：檔內記錄 SQLite，或沒有記錄而資料夾裡只有 jet.db 時，才判斷成 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件，案件清單不列出，JET 也不動它們的資料夾。</p><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 21–80 行</summary><pre>    public async Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken)
+    private const string LockPrefix = &quot;.reports-&quot;;</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-workpaper-sequence-m04">匯出正式底稿：呼叫順序：底稿匯出處理 到 記錄發布</a></li><li><a href="connections.html#c-workpaper-sequence-m05">匯出正式底稿：呼叫順序：記錄發布 到 寫檔與發布</a></li><li><a href="connections.html#c-workpaper-sequence-m06">匯出正式底稿：呼叫順序：寫檔與發布 到 底稿匯出處理</a></li><li><a href="connections.html#c-workpaper-sequence-m10">匯出正式底稿：呼叫順序：寫檔與發布 到 底稿匯出處理</a></li><li><a href="connections.html#c-likec4-L12">LikeC4 模型的全部關係：檔案讀寫與底稿發布 到 報告與正式工作底稿</a></li><li><a href="connections.html#c-workpaper-facts_stage">匯出正式底稿：建立底稿計畫 到 寫完暫存檔</a></li><li><a href="connections.html#c-workpaper-stage_rename">匯出正式底稿：寫完暫存檔 到 改名成新版本</a></li><li><a href="connections.html#c-workpaper-rename_manifest">匯出正式底稿：改名成新版本 到 更新報告清單</a></li><li><a href="connections.html#c-deployment-files">電腦環境與交付內容：JET 桌面程序 到 完整案件資料夾</a></li><li><a href="connections.html#c-likec4-W04">LikeC4 模型的全部關係：ExportWorkingPaperStreamHandler 到 IAuditedReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W05">LikeC4 模型的全部關係：AuditedReportStore 到 IReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W09">LikeC4 模型的全部關係：AuditedReportStore 到 IAuditedReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W10">LikeC4 模型的全部關係：ProjectReportStore 到 IReportPublishingStore</a></li><li><a href="connections.html#c-likec4-W12">LikeC4 模型的全部關係：AppCompositionRoot 到 AuditedReportStore</a></li><li><a href="connections.html#c-likec4-W13">LikeC4 模型的全部關係：AppCompositionRoot 到 ProjectReportStore</a></li><li><a href="connections.html#c-likec4-W15">LikeC4 模型的全部關係：ProjectReportStore 到 ExportWorkingPaperStreamHandler</a></li><li><a href="connections.html#c-likec4-W16">LikeC4 模型的全部關係：ProjectReportStore 到 案件資料夾的報告檔</a></li></ul></details></div></details><details class="group card fact" id="f-project-file"><summary><h2>案件進度檔</h2></summary><div class="group-body"><p>JsonFileProjectStore 把 project.json 寫在案件資料夾，SQLite 資料庫檔 jet.db 也在同一個資料夾。新案先在暫存資料夾寫好 project.json 與建案中的標記再換名，更新時先寫暫存檔再換檔，寫好後把 project.json 設成唯讀。檔內保存案件期間、目前步驟、資料庫種類與抽樣種子等設定。目前只支援 SQLite：檔內記錄 SQLite，或沒有記錄而資料夾裡只有 jet.db 時，才判斷成 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件，案件清單不列出，JET 也不動它們的資料夾。</p><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 21–83 行</summary><pre>    public async Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken)
     {
         var directory = folder.GetProjectDirectory(document.ProjectId);
 
@@ -3481,6 +3616,9 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             {
                 throw new ProjectStoreCollisionException(document.ProjectId);
             }
+
+            // 發布之後才設成唯讀，清暫存資料夾時不會碰到唯讀檔。
+            SetReadOnly(folder.GetProjectJsonPath(document.ProjectId));
         }
         finally
         {
@@ -3498,7 +3636,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
                 }
             }
         }
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 88–126 行</summary><pre>    public async Task&lt;IReadOnlyList&lt;ProjectStoreEntry&gt;&gt; ListEntriesAsync(CancellationToken cancellationToken)
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 91–129 行</summary><pre>    public async Task&lt;IReadOnlyList&lt;ProjectStoreEntry&gt;&gt; ListEntriesAsync(CancellationToken cancellationToken)
     {
         var entries = new List&lt;ProjectStoreEntry&gt;();
 
@@ -3521,7 +3659,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             catch (JetActionException exception) when (
                 exception.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
             {
-                // 以前建立的 DuckDB 與 SQL Server 案件讀不通時同樣不列出。
+                // DuckDB 與 SQL Server 的案件讀不通時同樣不列出。
                 if (await IsRetiredProviderCaseAsync(projectId, cancellationToken))
                 {
                     continue;
@@ -3536,7 +3674,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
         return entries
             .OrderByDescending(entry =&gt; entry.Document?.LastOpenedUtc ?? entry.Document?.CreatedUtc)
             .ToList();
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 186–226 行</summary><pre>    public async Task&lt;string?&gt; FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 204–244 行</summary><pre>    public async Task&lt;string?&gt; FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
     {
         if (!JetProjectFolder.IsValidProjectId(projectId) || !Directory.Exists(folder.GetProjectDirectory(projectId)))
         {
@@ -3549,15 +3687,15 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             return recorded == ProjectDocument.DefaultDatabaseProvider ? recorded : null;
         }
 
-        // 沒有記錄種類：資料夾裡只有 jet.db、沒有以前的 DuckDB 資料庫檔時才算 SQLite 案件；其他情形判斷不出來。
+        // 沒有記錄種類：資料夾裡只有 jet.db、沒有 DuckDB 的資料庫檔時，才算 SQLite 案件；其他情形判斷不出來。
         var hasSqlite = File.Exists(folder.GetDatabasePath(projectId));
         return hasSqlite &amp;&amp; !HasRetiredDuckDbDatabase(projectId) ? ProjectDocument.DefaultDatabaseProvider : null;
     }
 
     /// &lt;summary&gt;
-    /// 這個資料夾是否確定是以前建立的 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
-    /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。案件清單用它藏起讀不通的舊案件，
-    /// 建案用它說明名稱被舊案件佔用。判斷不出來或沒有這個資料夾時回 false。
+    /// 這個資料夾是否確定是 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
+    /// 或沒有記錄種類、資料夾裡只有 DuckDB 的資料庫檔。案件清單用它藏起讀不通的這種案件，
+    /// 建案用它說明名稱已被這種案件佔用。判斷不出來或沒有這個資料夾時回 false。
     /// &lt;/summary&gt;
     public async Task&lt;bool&gt; IsRetiredProviderCaseAsync(string projectId, CancellationToken cancellationToken)
     {
@@ -3576,7 +3714,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
     }
 
     private bool HasRetiredDuckDbDatabase(string projectId) =&gt;
-        File.Exists(Path.Combine(folder.GetProjectDirectory(projectId), RetiredDuckDbDatabaseFileName));</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 286–337 行</summary><pre>    private async Task WriteAsync(ProjectDocument document, CancellationToken cancellationToken)
+        File.Exists(Path.Combine(folder.GetProjectDirectory(projectId), RetiredDuckDbDatabaseFileName));</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs 第 304–388 行</summary><pre>    private async Task WriteAsync(ProjectDocument document, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(document, JsonOptions);
         var destinationPath = folder.GetProjectJsonPath(document.ProjectId);
@@ -3594,6 +3732,8 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             {
                 if (File.Exists(destinationPath))
                 {
+                    // 唯讀的檔案換不掉，先取消唯讀；換好或換不成，都在 finally 設回唯讀。
+                    ClearReadOnly(destinationPath);
                     File.Replace(temporaryPath, destinationPath, destinationBackupFileName: null);
                 }
                 else
@@ -3606,8 +3746,8 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // 寫不進 project.json 是環境問題（唯讀、被其他程式開啟、磁碟滿），給使用者出路而不是裸例外
-            // （不寫檔名與例外型別）。
+            // 寫不進 project.json 是環境問題（唯讀、被其他程式開啟、磁碟滿），轉成告訴使用者接下來能做什麼的訊息，
+            // 不寫檔名與例外型別。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $&quot;案件「{document.ProjectId}」的設定未能儲存。請確認案件資料夾不是唯讀、設定檔沒有被其他程式開啟，再試一次。&quot;,
@@ -3624,22 +3764,55 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             }
             finally
             {
+                SetReadOnly(destinationPath);
                 gate.Release();
             }
         }
-    }</pre></details><details><summary>src/JET/JET/Domain/ProjectDocument.cs 第 3–44 行</summary><pre>/// &lt;summary&gt;
-/// 專案 metadata，持久化為 projects/{projectId}/project.json。
+    }
+
+    /// &lt;summary&gt;
+    /// 案件設定檔記著抽樣種子等設定。JET 寫好設定檔就設成唯讀，審計員用記事本或其他程式改它時存不了檔；
+    /// JET 自己要換檔或刪除案件時才取消唯讀。設不成唯讀時不讓這次建案或儲存失敗，因為設定檔已經寫好，
+    /// 下一次儲存會再設一次；設定檔不在時不做事。
+    /// &lt;/summary&gt;
+    private static void SetReadOnly(string path)
+    {
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            if (!attributes.HasFlag(FileAttributes.ReadOnly))
+            {
+                File.SetAttributes(path, attributes | FileAttributes.ReadOnly);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // 設定檔不在、或暫時被其他程式占住時，留待下一次儲存。
+        }
+    }
+
+    private static void ClearReadOnly(string path)
+    {
+        var attributes = File.GetAttributes(path);
+        if (attributes.HasFlag(FileAttributes.ReadOnly))
+        {
+            File.SetAttributes(path, attributes &amp; ~FileAttributes.ReadOnly);
+        }
+    }</pre></details><details><summary>src/JET/JET/Domain/ProjectDocument.cs 第 3–45 行</summary><pre>/// &lt;summary&gt;
+/// 案件的 metadata，存成案件位置底下的 {projectId}/project.json。
 /// ProjectCode 和 ClientName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 &quot;yyyy-MM-dd&quot; 字串保存，避免序列化時區歧義。
-/// SchemaVersion 是案件設定檔的格式版本；不是 &lt;see cref=&quot;CurrentSchemaVersion&quot;/&gt; 的案件是較早版本的 JET 建立的，讀取時明確拒絕，
-/// 請審計員刪除後重建；案件資料庫只留現行結構。
-/// DatabaseProvider 標示會計資料所在的資料庫；目前版本只支援 &quot;sqlite&quot;，設定檔一定寫明，缺欄位是設定檔損壞。
+/// SchemaVersion 是案件設定檔的格式版本。比 &lt;see cref=&quot;CurrentSchemaVersion&quot;/&gt; 舊的案件讀取時明確拒絕，
+/// 請審計員刪除後重建；比它新的案件由較新版本的 JET 寫過，請使用者改用較新版本開啟。
+/// DatabaseProvider 標示會計資料所在的資料庫，只接受 &quot;sqlite&quot;；設定檔一定寫明，缺欄位是設定檔損壞。
 /// 標示為 &quot;duckdb&quot; 或 &quot;sqlServer&quot; 的案件，案件清單不列出、JET 也不動它們的資料夾。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；
 /// SampleSeedVersion 是 INF 抽樣演算法版本。兩者由建案寫入，缺任一欄位或版本不對都是設定檔損壞，
-/// 讀取 project.json 時明確拒絕，不回退固定種子或舊排序法。
+/// 讀取 project.json 時明確拒絕，不改用固定種子或其他排序方式。
 /// CalendarImported 是日期檔成功 replace 的持久 marker；新案件一律明寫 false，讓合法零筆匯入與
 /// 從未匯入可區分。缺欄位時一律視為尚未匯入。
+/// 第 2 版設定檔可能帶有進位方式 roundingMode 欄位。金額的進位方式固定寫在 MoneyScaling，不是案件設定，
+/// 所以讀取時忽略這一欄，存檔時不寫出。
 /// &lt;/summary&gt;
 public sealed record ProjectDocument(
     string ProjectId,
@@ -3650,7 +3823,6 @@ public sealed record ProjectDocument(
     string PeriodEnd,
     string? LastAccountingPeriodDate,
     int MoneyScale,
-    string RoundingMode,
     DateTimeOffset CreatedUtc,
     int CurrentStep,
     int SchemaVersion,
@@ -3663,13 +3835,13 @@ public sealed record ProjectDocument(
     bool? CalendarImported = null)
 {
     public const int DefaultMoneyScale = 10_000;
-    public const string DefaultRoundingMode = &quot;AwayFromZero&quot;;
     /// &lt;summary&gt;
-    /// 案件設定檔的格式版本。第 1 版是拿掉案件資料庫升版程式之前建立的案件，第 2 版起只用現行結構的資料庫。
+    /// 案件設定檔的格式版本。比它舊的設定檔拒絕讀取；
+    /// 之後改了設定檔的格式，仍要讀得出第 2 版的設定檔。
     /// &lt;/summary&gt;
     public const int CurrentSchemaVersion = 2;
-    public const string DefaultDatabaseProvider = &quot;sqlite&quot;;</pre></details><details><summary>src/JET/JET/Application/Handlers/Project/ProjectListHandler.cs 第 6–25 行</summary><pre>/// &lt;summary&gt;
-/// project.listLocal：列出這台電腦上的 SQLite 案件。以前建立的 DuckDB 與 SQL Server 案件不列出，
+    public const string DefaultDatabaseProvider = &quot;sqlite&quot;;</pre></details><details><summary>src/JET/JET/Application/Handlers/Project/ProjectListLocalHandler.cs 第 6–25 行</summary><pre>/// &lt;summary&gt;
+/// project.listLocal：列出這台電腦上的 SQLite 案件。DuckDB 與 SQL Server 的案件不列出，
 /// 也不動它們的資料夾；設定檔讀不通的案件照常列成錯誤列，讓審計員能刪除。
 /// 依上次開啟時間從新到舊排列，沒開過的案件用建立時間；錯誤列排在最後。
 /// &lt;/summary&gt;
@@ -3687,8 +3859,8 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
             .OrderByDescending(document =&gt; document.LastOpenedUtc ?? document.CreatedUtc)
             .Select(ProjectListEntry.ToWire)
             .Concat(localEntries.Where(entry =&gt; entry.Document is null).Select(ProjectListEntry.ReadErrorToWire))
-            .ToList();</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m14">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件進度檔</a></li><li><a href="connections.html#c-likec4-L11">LikeC4 模型的全部關係：資料庫實作 到 案件進度檔</a></li><li><a href="connections.html#c-deployment-files">電腦環境與交付內容：JET 桌面程序 到 完整案件資料夾</a></li><li><a href="connections.html#c-likec4-T05">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IProjectStore</a></li><li><a href="connections.html#c-likec4-T10">LikeC4 模型的全部關係：JsonFileProjectStore 到 IProjectStore</a></li><li><a href="connections.html#c-likec4-T18">LikeC4 模型的全部關係：JsonFileProjectStore 到 案件進度檔</a></li></ul></details></div></details><details class="group card fact" id="f-intake-flow"><summary><h2>匯入與轉成標準資料的資料流</h2></summary><div class="group-body"><p>匯入時，讀檔器逐列讀出資料，LocalImportRepository 分批把原始列 JSON、批次與欄位定義寫在同一筆交易。確認配對時，LocalGlRepository 與 LocalTbRepository 從 pbc_gl 與 pbc_tb 逐列讀回，依配對轉換後分批寫入標準化資料表；審計員勾選往下填補空白的 GL 欄位，會在轉換前補成同一來源上一列的值。重新匯入時，已確認的配對移到上一版紀錄後刪除。</p><details><summary>src/JET/JET/AppCompositionRoot.cs 第 144–145 行</summary><pre>            var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader(),
-                new BinaryExcelTableReader(), new AccessTableReader());</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 30–236 行</summary><pre>    public async Task&lt;ImportBatchResult&gt; ReplaceBatchAsync(
+            .ToList();</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m14">取代匯入 TB：呼叫順序：TB 匯入處理 到 案件進度檔</a></li><li><a href="connections.html#c-likec4-L11">LikeC4 模型的全部關係：資料庫實作 到 案件進度檔</a></li><li><a href="connections.html#c-deployment-files">電腦環境與交付內容：JET 桌面程序 到 完整案件資料夾</a></li><li><a href="connections.html#c-likec4-T05">LikeC4 模型的全部關係：ImportTbFromFileHandler 到 IProjectStore</a></li><li><a href="connections.html#c-likec4-T10">LikeC4 模型的全部關係：JsonFileProjectStore 到 IProjectStore</a></li><li><a href="connections.html#c-likec4-T18">LikeC4 模型的全部關係：JsonFileProjectStore 到 案件進度檔</a></li></ul></details></div></details><details class="group card fact" id="f-intake-flow"><summary><h2>匯入與轉成標準資料的資料流</h2></summary><div class="group-body"><p>匯入時，讀檔器逐列讀出資料，LocalImportRepository 分批把原始列 JSON、批次與欄位定義寫在同一筆交易。確認配對時，LocalGlRepository 與 LocalTbRepository 從 pbc_gl 與 pbc_tb 逐列讀回，依配對轉換後分批寫入標準化資料表；審計員勾選往下填補空白的 GL 欄位，會在轉換前補成同一來源上一列的值。重新匯入時，已確認的配對移到上一版紀錄後刪除。</p><details><summary>src/JET/JET/AppCompositionRoot.cs 第 171–172 行</summary><pre>            var fileReader = new CompositeTabularFileReader(new OpenXmlSaxTableReader(), new CsvTableReader(),
+                new BinaryExcelTableReader(), new AccessTableReader());</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 30–234 行</summary><pre>    public async Task&lt;ImportBatchResult&gt; ReplaceBatchAsync(
         string projectId,
         DatasetKind kind,
         IReadOnlyList&lt;ImportSourceInput&gt; sources,
@@ -3708,9 +3880,7 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
         var targetTable = TargetTableFor(kind);
         var fieldInfos = FieldInfoAccumulator.Create(first.Columns);
 
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await database.ApplyImportSessionSettingsAsync(connection, cancellationToken);
+        await using var connection = await database.OpenImportConnectionAsync(projectId, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
 
@@ -3894,11 +4064,11 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
             if (rollbackError is null) txLog.RolledBack();
             throw;
         }
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 826–830 行</summary><pre>    internal static string StagingTableFor(DatasetKind kind) =&gt; kind switch
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 822–826 行</summary><pre>    internal static string StagingTableFor(DatasetKind kind) =&gt; kind switch
     {
         DatasetKind.Gl =&gt; &quot;pbc_gl&quot;,
         DatasetKind.Tb =&gt; &quot;pbc_tb&quot;,
-        _ =&gt; throw new ArgumentOutOfRangeException(nameof(kind), kind, null)</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 112–143 行</summary><pre>            SELECT row_number, source_no, source_row_number, row_json
+        _ =&gt; throw new ArgumentOutOfRangeException(nameof(kind), kind, null)</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 114–150 行</summary><pre>            SELECT row_number, source_no, source_row_number, row_json
             FROM pbc_gl
             WHERE batch_id = @batchId
             ORDER BY row_number;
@@ -3908,6 +4078,11 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
         await using var insert = database.CreateBulkRowWriter(connection, transaction, JetSchemaCatalog.GlTableName, TargetColumns);
 
         var errors = new ProjectionErrorCollector();
+        // 讀不成日期的值、年份不在 1900 到 2100 年之間的日期，以及早於 1900-03-01、底稿寫成文字的日期不擋確認配對，
+        // 逐列記下來，和配對一起存下，給畫面的日期提醒；判斷無法辨識的原因時用和讀日期相同的案件設定。
+        var dateNotices = new GlDateNoticeCollector(dateOptions);
+        // 讀不成日期的總帳日期另外照無法轉換的寫法記一份：整批沒有一列納入 GL 時，用它說明是哪些值讀不成日期。
+        var unrecognizedGlDates = new ProjectionErrorCollector();
         var insertedCount = 0;
         // 只指定一側的代碼時，人工/自動清單代碼有沒有出現在來源裡，逐列記錄，提交後給不擋的提醒。
         var manualAutoCodes = new ManualAutoListedCodeAudit(spec);
@@ -3929,12 +4104,14 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
 
         await using (var reader = await select.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken))
         {
-            while (await reader.ReadAsync(cancellationToken))</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 339 行</summary><pre>                INSERT INTO gl_control_total (</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 455 行</summary><pre>                &quot;INSERT INTO gl_rde_field &quot;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs 第 74 行</summary><pre>        await using var insert = database.CreateBulkRowWriter(connection, transaction, &quot;tb&quot;, TargetColumns);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs 第 59–75 行</summary><pre>    /// 重新匯入時，把目前已確認的配對搬到 &lt;c&gt;field_mapping_previous&lt;/c&gt; 再刪除，兩步在匯入的同一個交易裡。
+            while (await reader.ReadAsync(cancellationToken))</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 367 行</summary><pre>                INSERT INTO gl_control_total (</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 492 行</summary><pre>                &quot;INSERT INTO gl_rde_field &quot;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs 第 74 行</summary><pre>        await using var insert = database.CreateBulkRowWriter(connection, transaction, &quot;tb&quot;, TargetColumns);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs 第 89–109 行</summary><pre>    /// 重新匯入時，把目前已確認的配對搬到 &lt;c&gt;field_mapping_previous&lt;/c&gt; 再刪除，兩步在匯入的同一個交易裡。
     /// 目前沒有已確認的配對時（例如連續匯入兩次都還沒確認）不覆蓋，留著更早那一次確認的配對。
     /// SELECT 帶 WHERE，SQLite 才不會把 ON CONFLICT 讀成 join 的一部分。
+    /// 重新匯入 GL 時，確認配對時存下的日期提醒一起刪掉：提醒說的是舊的 PBC-GL，和已確認的配對同時失效；
+    /// 上次確認的配對當草稿帶回時不帶提醒。
     /// &lt;/summary&gt;
     internal const string RetireCommittedMappingSql =
-        &quot;&quot;&quot;
+        $&quot;&quot;&quot;
         INSERT INTO field_mapping_previous
             (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
         SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
@@ -3945,7 +4122,9 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
             mode_name = excluded.mode_name,
             source_batch_id = excluded.source_batch_id,
             committed_utc = excluded.committed_utc,
-            format_version = excluded.format_version,</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m10">取代匯入 TB：呼叫順序：案件資料庫 到 表格檔讀取</a></li><li><a href="connections.html#c-likec4-C02">LikeC4 模型的全部關係：來源檔案 到 檔案讀寫與底稿發布</a></li><li><a href="connections.html#c-intake-dataflow-gl_stage">來源檔如何成為審計資料：總帳檔案 到 PBC-GL</a></li><li><a href="connections.html#c-intake-dataflow-gl_back">來源檔如何成為審計資料：PBC-GL 到 產生標準 GL</a></li><li><a href="connections.html#c-intake-dataflow-gl_target">來源檔如何成為審計資料：產生標準 GL 到 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_stage">來源檔如何成為審計資料：試算表檔案 到 PBC-TB</a></li><li><a href="connections.html#c-intake-dataflow-tb_back">來源檔如何成為審計資料：PBC-TB 到 產生標準 TB</a></li><li><a href="connections.html#c-intake-dataflow-tb_target">來源檔如何成為審計資料：產生標準 TB 到 TB</a></li><li><a href="connections.html#c-intake-dataflow-gl_mapping">來源檔如何成為審計資料：審計員確認配對 到 產生標準 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_mapping">來源檔如何成為審計資料：審計員確認配對 到 產生標準 TB</a></li><li><a href="connections.html#c-deployment-read">電腦環境與交付內容：來源檔案 到 JET 桌面程序</a></li><li><a href="connections.html#c-likec4-T16">LikeC4 模型的全部關係：LocalImportRepository 到 CompositeTabularFileReader</a></li></ul></details></div></details><details class="group card fact" id="f-audit-flow"><summary><h2>驗證、預篩選與命中在資料庫計算</h2></summary><div class="group-body"><p>驗證與預篩選以 SQL 在 gl 上計數與彙總，只把摘要 JSON 存進 validation_result 或 prescreen_result。進階篩選把條件樹轉成 SQL，以 INSERT 搭配 SELECT 在資料庫寫入命中的情境編號與分錄 ID，並寫入命中傳票裡每筆分錄符合第幾組第幾條。WorkingPaperPlanningFactsPort 只讀規劃需要的少量資料。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs 第 173–371 行</summary><pre>            FROM gl;
+            format_version = excluded.format_version,
+            options_json = excluded.options_json;
+        DELETE FROM field_mapping WHERE dataset_kind = @kind;</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-import-sequence-m10">取代匯入 TB：呼叫順序：案件資料庫 到 表格檔讀取</a></li><li><a href="connections.html#c-likec4-C02">LikeC4 模型的全部關係：來源檔案 到 檔案讀寫與底稿發布</a></li><li><a href="connections.html#c-intake-dataflow-gl_stage">來源檔如何成為審計資料：總帳檔案 到 PBC-GL</a></li><li><a href="connections.html#c-intake-dataflow-gl_back">來源檔如何成為審計資料：PBC-GL 到 產生標準 GL</a></li><li><a href="connections.html#c-intake-dataflow-gl_target">來源檔如何成為審計資料：產生標準 GL 到 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_stage">來源檔如何成為審計資料：試算表檔案 到 PBC-TB</a></li><li><a href="connections.html#c-intake-dataflow-tb_back">來源檔如何成為審計資料：PBC-TB 到 產生標準 TB</a></li><li><a href="connections.html#c-intake-dataflow-tb_target">來源檔如何成為審計資料：產生標準 TB 到 TB</a></li><li><a href="connections.html#c-intake-dataflow-gl_mapping">來源檔如何成為審計資料：審計員確認配對 到 產生標準 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_mapping">來源檔如何成為審計資料：審計員確認配對 到 產生標準 TB</a></li><li><a href="connections.html#c-deployment-read">電腦環境與交付內容：來源檔案 到 JET 桌面程序</a></li><li><a href="connections.html#c-likec4-T16">LikeC4 模型的全部關係：LocalImportRepository 到 CompositeTabularFileReader</a></li></ul></details></div></details><details class="group card fact" id="f-audit-flow"><summary><h2>驗證、預篩選與命中在資料庫計算</h2></summary><div class="group-body"><p>驗證與預篩選以 SQL 在 gl 上計數與彙總，只把摘要 JSON 存進 validation_result 或 prescreen_result。進階篩選把條件樹轉成 SQL，以 INSERT 搭配 SELECT 在資料庫寫入命中的情境編號與分錄 ID，並寫入命中傳票裡每筆分錄符合第幾組第幾條。WorkingPaperPlanningFactsPort 只讀規劃需要的少量資料。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs 第 173–371 行</summary><pre>            FROM gl;
             &quot;&quot;&quot;;
         command.AddWithValue(&quot;@postingStatusReason&quot;, GlExcludedPopulation.PostingStatusStorageReason);
 
@@ -4012,19 +4191,19 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
     {
         var count = await ScalarAsync(
             connection, transaction, input, cancellationToken,
-            CompletenessDiffCte + &quot;\nSELECT COUNT(*) FROM diff WHERE tb_s &lt;&gt; gl_s;&quot;);
+            _completenessDiffCte + &quot;\nSELECT COUNT(*) FROM diff WHERE &quot; + ValidationProcedures.CompletenessDifferencePredicate + &quot;;&quot;);
 
         var diffs = new List&lt;CompletenessDiffAccount&gt;();
 
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
-            CompletenessDiffCte +
+            _completenessDiffCte +
             $&quot;&quot;&quot;
 
             SELECT account_number, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb
             FROM diff
-            WHERE tb_s &lt;&gt; gl_s
+            WHERE {ValidationProcedures.CompletenessDifferencePredicate}
             ORDER BY ABS(tb_s - gl_s) DESC, account_number
             LIMIT {ResultPreviewLimits.SummaryRows};
             &quot;&quot;&quot;;
@@ -4147,7 +4326,7 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
 /// 用集合式 SQL 執行預篩選規則。逐筆判斷的規則都用同一句
 /// SELECT COUNT(*), COUNT(DISTINCT voucher_number) FROM gl g WHERE 加上各自的條件，
 /// 一次取得命中的分錄數與不重複的傳票數。
-/// 編製者彙總與罕用科目是彙總查詢，各自最多回 50 列。每條逐筆規則的條件都從 &lt;see cref=&quot;PrescreenRulePredicates&quot;/&gt; 取，和第五步同一個方法。</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs 第 162–276 行</summary><pre>    private async Task&lt;(long HitLines, long HitVouchers)&gt; CountWhereAsync(
+/// 編製者彙總與罕用科目是彙總查詢，各自最多回 50 列。每條逐筆規則的條件都從 &lt;see cref=&quot;PrescreenRulePredicates&quot;/&gt; 取，和第五步同一個方法。</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs 第 160–271 行</summary><pre>    private async Task&lt;(long HitLines, long HitVouchers)&gt; CountWhereAsync(
         DbConnection connection,
         PrescreenExecutionInput input,
         CancellationToken cancellationToken,
@@ -4178,7 +4357,7 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
         await using var command = connection.CreateCommand();
         // 編製者彙總與預篩選規則共用有效分錄母體。人員依去空白、不分大小寫的識別值分組，
         // 顯示值固定取同一組裡碼位最小的去空白寫法（例如 U1 與 u1 顯示 U1），所以結果不受資料列順序影響。
-        var person = PersonKey(database.Dialect);
+        var person = PersonIdentity.PreparerDisplay(database.Dialect);
         command.CommandText =
             $&quot;&quot;&quot;
             SELECT MIN({person}),
@@ -4188,9 +4367,9 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
                    COALESCE(SUM(CASE WHEN is_manual = 1 THEN 1 ELSE 0 END), 0)
             FROM gl
             WHERE {GlExcludedPopulation.SqlPredicate()}
-            GROUP BY {database.Dialect.Upper(person)}
-            ORDER BY COUNT(*) DESC, MIN({person})
-            LIMIT {SummaryRowLimit};
+            GROUP BY {PersonIdentity.GroupKey(database.Dialect, person)}
+            ORDER BY {ConcentrationLimits.MostEntriesFirst}, MIN({person})
+            LIMIT {ConcentrationLimits.CandidateRows};
             &quot;&quot;&quot;;
         var rows = new List&lt;PreparerSummaryRow&gt;();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
@@ -4207,9 +4386,6 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
         return rows;
     }
 
-    /// &lt;summary&gt;編製者的分組鍵：空白視為 &#x27;&#x27;，去掉和 .NET 相同的空白字元；呼叫端再套方言的 Upper 做不分大小寫分組。&lt;/summary&gt;
-    internal static string PersonKey(ISqlDialect dialect) =&gt; dialect.Trim(&quot;COALESCE(created_by, &#x27;&#x27;)&quot;);
-
     /// &lt;summary&gt;
     /// 編製者集中度的兩個分母，一次掃描取得：期間分錄總筆數與相異編製人員總數。
     /// 分組鍵與編製者彙總同為去空白、不分大小寫的識別值，故各人筆數合計恆等於總筆數。
@@ -4222,7 +4398,7 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
         command.CommandText =
             $&quot;&quot;&quot;
             SELECT COUNT(*),
-                   COUNT(DISTINCT {database.Dialect.Upper(PersonKey(database.Dialect))})
+                   COUNT(DISTINCT {PersonIdentity.GroupKey(database.Dialect, PersonIdentity.PreparerDisplay(database.Dialect))})
             FROM gl
             WHERE {GlExcludedPopulation.SqlPredicate()};
             &quot;&quot;&quot;;
@@ -4259,8 +4435,8 @@ public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IAppli
             FROM gl
             WHERE {GlExcludedPopulation.SqlPredicate()}
             GROUP BY account_number
-            ORDER BY COUNT(*) ASC, account_number
-            LIMIT {SummaryRowLimit};
+            ORDER BY {ConcentrationLimits.FewestEntriesFirst}, account_number
+            LIMIT {ConcentrationLimits.CandidateRows};
             &quot;&quot;&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalResultStore.cs 第 52–53 行</summary><pre>            INSERT INTO {ResultTables.For(record.Kind)} (result_id, generated_utc, summary_json)
             VALUES (@resultId, @generatedUtc, @summaryJson);</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/ResultTables.cs 第 5–16 行</summary><pre>/// &lt;summary&gt;驗證結果與預篩選結果各存一張表；兩種結果對到哪一張表只在這裡決定。&lt;/summary&gt;
 internal static class ResultTables
@@ -4273,7 +4449,7 @@ internal static class ResultTables
         ResultKind.Validation =&gt; Validation,
         ResultKind.Prescreen =&gt; Prescreen,
         _ =&gt; throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
-    };</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 15–36 行</summary><pre>    public static string Build(
+    };</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 15–34 行</summary><pre>    public static string Build(
         string tablePrefix,
         string populationPredicateSql,
         string scenarioPredicateSql) =&gt;
@@ -4291,9 +4467,7 @@ internal static class ResultTables
         string conditionPredicateSql) =&gt;
         $&quot;INSERT INTO {tablePrefix}filter_hit_condition (scenario_id, entry_id, group_no, condition_no) &quot;
         + $&quot;SELECT @scenarioId, g.entry_id, @groupNo, @conditionNo FROM {tablePrefix}gl g &quot;
-        + $&quot;WHERE {populationPredicateSql} AND g.voucher_number IN (&quot;
-        + $&quot;SELECT hg.voucher_number FROM {tablePrefix}filter_hit hh JOIN {tablePrefix}gl hg ON hg.entry_id = hh.entry_id &quot;
-        + &quot;WHERE hh.scenario_id = @scenarioId AND hg.voucher_number IS NOT NULL) &quot;
+        + $&quot;WHERE {populationPredicateSql} AND {HitVoucherRows.InOneSavedScenarioHitVouchers(&quot;g&quot;, tablePrefix)} &quot;
         + $&quot;AND ({conditionPredicateSql});&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/WorkingPaperPlanningFactsPort.cs 第 17–68 行</summary><pre>    public async Task&lt;WorkingPaperPlanningFacts&gt; ExecuteAsync(
         WorkingPaperPlan plan,
         CancellationToken cancellationToken)
@@ -4303,7 +4477,7 @@ internal static class ResultTables
         var request = plan.Request;
         var firstRow = new PageRequest(null, 1);
         // 逐科目比對無法執行時不讀差異科目；只有 GL 的科目會被當成差異，不能拿來決定 Step1-3。
-        var accountComparisonApplicable = request.CompletenessNaReason is null;
+        var accountComparisonApplicable = AccountComparisonProcedure.IsApplicable(request.CompletenessNaReason);
         var hasCompletenessDifferences = accountComparisonApplicable
             &amp;&amp; (await completenessDiffs.GetPageAsync(
                 request.ProjectId,
@@ -4345,7 +4519,7 @@ internal static class ResultTables
             counts,
             targetTbDefinitions,
             targetGlDefinitions);
-    }</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-workpaper-sequence-m02">匯出正式底稿：呼叫順序：底稿匯出處理 到 讀規劃資料</a></li><li><a href="connections.html#c-likec4-L10">LikeC4 模型的全部關係：資料庫實作 到 案件資料庫</a></li><li><a href="connections.html#c-workpaper-recompute_facts">匯出正式底稿：確認篩選結果 到 建立底稿計畫</a></li><li><a href="connections.html#c-audit-dataflow-population_validation">審計結果如何供畫面與底稿使用：GL 與 TB 到 驗證與預篩選</a></li><li><a href="connections.html#c-audit-dataflow-validation_summary">審計結果如何供畫面與底稿使用：驗證與預篩選 到 執行摘要</a></li><li><a href="connections.html#c-audit-dataflow-conditions_filter">審計結果如何供畫面與底稿使用：情境定義 到 進階篩選</a></li><li><a href="connections.html#c-audit-dataflow-population_filter">審計結果如何供畫面與底稿使用：GL 與 TB 到 進階篩選</a></li><li><a href="connections.html#c-audit-dataflow-filter_hits">審計結果如何供畫面與底稿使用：進階篩選 到 命中分錄</a></li><li><a href="connections.html#c-audit-dataflow-summary_screen">審計結果如何供畫面與底稿使用：執行摘要 到 畫面查詢</a></li><li><a href="connections.html#c-audit-dataflow-hits_workbook">審計結果如何供畫面與底稿使用：命中分錄 到 正式底稿</a></li><li><a href="connections.html#c-audit-dataflow-summary_workbook">審計結果如何供畫面與底稿使用：執行摘要 到 正式底稿</a></li><li><a href="connections.html#c-likec4-W03">LikeC4 模型的全部關係：ExportWorkingPaperStreamHandler 到 IWorkingPaperPlanningFactsPort</a></li></ul></details></div></details><details class="group card fact" id="f-import-links"><summary><h2>匯入批次的連接欄位</h2></summary><div class="group-body"><p>LocalImportRepository 取代匯入時，依 import_batch 的 dataset_kind 找出 batch_id，再刪除同一批次的原始列、來源與欄位定義；寫入時三者都帶同一個 batch_id。這些是程式在 SQL 裡使用的欄位，不是資料庫宣告的外鍵。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 30–236 行</summary><pre>    public async Task&lt;ImportBatchResult&gt; ReplaceBatchAsync(
+    }</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-workpaper-sequence-m02">匯出正式底稿：呼叫順序：底稿匯出處理 到 讀規劃資料</a></li><li><a href="connections.html#c-likec4-L10">LikeC4 模型的全部關係：資料庫實作 到 案件資料庫</a></li><li><a href="connections.html#c-workpaper-recompute_facts">匯出正式底稿：確認篩選結果 到 建立底稿計畫</a></li><li><a href="connections.html#c-audit-dataflow-population_validation">審計結果如何供畫面與底稿使用：GL 與 TB 到 驗證與預篩選</a></li><li><a href="connections.html#c-audit-dataflow-validation_summary">審計結果如何供畫面與底稿使用：驗證與預篩選 到 執行摘要</a></li><li><a href="connections.html#c-audit-dataflow-conditions_filter">審計結果如何供畫面與底稿使用：情境定義 到 進階篩選</a></li><li><a href="connections.html#c-audit-dataflow-population_filter">審計結果如何供畫面與底稿使用：GL 與 TB 到 進階篩選</a></li><li><a href="connections.html#c-audit-dataflow-filter_hits">審計結果如何供畫面與底稿使用：進階篩選 到 命中分錄</a></li><li><a href="connections.html#c-audit-dataflow-summary_screen">審計結果如何供畫面與底稿使用：執行摘要 到 畫面查詢</a></li><li><a href="connections.html#c-audit-dataflow-hits_workbook">審計結果如何供畫面與底稿使用：命中分錄 到 正式底稿</a></li><li><a href="connections.html#c-audit-dataflow-summary_workbook">審計結果如何供畫面與底稿使用：執行摘要 到 正式底稿</a></li><li><a href="connections.html#c-likec4-W03">LikeC4 模型的全部關係：ExportWorkingPaperStreamHandler 到 IWorkingPaperPlanningFactsPort</a></li></ul></details></div></details><details class="group card fact" id="f-import-links"><summary><h2>匯入批次的連接欄位</h2></summary><div class="group-body"><p>LocalImportRepository 取代匯入時，依 import_batch 的 dataset_kind 找出 batch_id，再刪除同一批次的原始列、來源與欄位定義；寫入時三者都帶同一個 batch_id。這些是程式在 SQL 裡使用的欄位，不是資料庫宣告的外鍵。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 30–234 行</summary><pre>    public async Task&lt;ImportBatchResult&gt; ReplaceBatchAsync(
         string projectId,
         DatasetKind kind,
         IReadOnlyList&lt;ImportSourceInput&gt; sources,
@@ -4365,9 +4539,7 @@ internal static class ResultTables
         var targetTable = TargetTableFor(kind);
         var fieldInfos = FieldInfoAccumulator.Create(first.Columns);
 
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await database.ApplyImportSessionSettingsAsync(connection, cancellationToken);
+        await using var connection = await database.OpenImportConnectionAsync(projectId, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
 
@@ -4551,7 +4723,7 @@ internal static class ResultTables
             if (rollbackError is null) txLog.RolledBack();
             throw;
         }
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 826–838 行</summary><pre>    internal static string StagingTableFor(DatasetKind kind) =&gt; kind switch
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs 第 822–834 行</summary><pre>    internal static string StagingTableFor(DatasetKind kind) =&gt; kind switch
     {
         DatasetKind.Gl =&gt; &quot;pbc_gl&quot;,
         DatasetKind.Tb =&gt; &quot;pbc_tb&quot;,
@@ -4565,7 +4737,7 @@ internal static class ResultTables
         _ =&gt; throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
     };</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-intake-dataflow-gl_stage">來源檔如何成為審計資料：總帳檔案 到 PBC-GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_stage">來源檔如何成為審計資料：試算表檔案 到 PBC-TB</a></li><li><a href="connections.html#c-import-erd-source_batch">SQLite：匯入批次、來源檔與欄位定義：import_batch_source 到 import_batch</a></li><li><a href="connections.html#c-import-erd-definition_batch">SQLite：匯入批次、來源檔與欄位定義：field_info 到 import_batch</a></li><li><a href="connections.html#c-import-rows-erd-gl_batch">SQLite：匯入的原始資料列：pbc_gl 到 import_batch</a></li><li><a href="connections.html#c-import-rows-erd-tb_batch">SQLite：匯入的原始資料列：pbc_tb 到 import_batch</a></li></ul></details></div></details><details class="group card fact" id="f-projection-links"><summary><h2>標準化資料的連接欄位</h2></summary><div class="group-body"><p>LocalGlRepository 與 LocalTbRepository 依 batch_id 讀原始列，寫入標準化表時也寫入同一個 batch_id。GL 自訂欄位值以 entry_id 對應分錄、以 field_id 對應欄位定義。重新匯入時，LocalMappingStateStore 把同一 dataset_kind 的配對搬到上一版後刪除。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 29–31 行</summary><pre>    private static readonly string[] TargetColumns =
     [
-        &quot;batch_id&quot;, &quot;source_row_number&quot;,</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 114 行</summary><pre>            WHERE batch_id = @batchId</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 455–513 行</summary><pre>                &quot;INSERT INTO gl_rde_field &quot;
+        &quot;batch_id&quot;, &quot;source_row_number&quot;,</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 116 行</summary><pre>            WHERE batch_id = @batchId</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 492–550 行</summary><pre>                &quot;INSERT INTO gl_rde_field &quot;
                 + &quot;(field_id, source_column, label, value_type, ordinal, is_rde) &quot;
                 + &quot;VALUES (@fieldId, @sourceColumn, @label, @valueType, @ordinal, 1);&quot;;
             insertField.AddWithValue(&quot;@fieldId&quot;, field.FieldId);
@@ -4623,12 +4795,14 @@ internal static class ResultTables
                 return;
             }
 
-            await using var writer = database.CreateBulkRowWriter(</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs 第 26 行</summary><pre>        [&quot;batch_id&quot;, &quot;source_row_number&quot;, &quot;account_number&quot;, &quot;account_name&quot;, &quot;change_amount_scaled&quot;];</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs 第 69 行</summary><pre>            WHERE batch_id = @batchId</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs 第 59–75 行</summary><pre>    /// 重新匯入時，把目前已確認的配對搬到 &lt;c&gt;field_mapping_previous&lt;/c&gt; 再刪除，兩步在匯入的同一個交易裡。
+            await using var writer = database.CreateBulkRowWriter(</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs 第 26 行</summary><pre>        [&quot;batch_id&quot;, &quot;source_row_number&quot;, &quot;account_number&quot;, &quot;account_name&quot;, &quot;change_amount_scaled&quot;];</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalTbRepository.cs 第 69 行</summary><pre>            WHERE batch_id = @batchId</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalMappingStateStore.cs 第 89–109 行</summary><pre>    /// 重新匯入時，把目前已確認的配對搬到 &lt;c&gt;field_mapping_previous&lt;/c&gt; 再刪除，兩步在匯入的同一個交易裡。
     /// 目前沒有已確認的配對時（例如連續匯入兩次都還沒確認）不覆蓋，留著更早那一次確認的配對。
     /// SELECT 帶 WHERE，SQLite 才不會把 ON CONFLICT 讀成 join 的一部分。
+    /// 重新匯入 GL 時，確認配對時存下的日期提醒一起刪掉：提醒說的是舊的 PBC-GL，和已確認的配對同時失效；
+    /// 上次確認的配對當草稿帶回時不帶提醒。
     /// &lt;/summary&gt;
     internal const string RetireCommittedMappingSql =
-        &quot;&quot;&quot;
+        $&quot;&quot;&quot;
         INSERT INTO field_mapping_previous
             (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
         SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
@@ -4639,13 +4813,15 @@ internal static class ResultTables
             mode_name = excluded.mode_name,
             source_batch_id = excluded.source_batch_id,
             committed_utc = excluded.committed_utc,
-            format_version = excluded.format_version,</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-intake-dataflow-gl_target">來源檔如何成為審計資料：產生標準 GL 到 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_target">來源檔如何成為審計資料：產生標準 TB 到 TB</a></li><li><a href="connections.html#c-projection-erd-previous_current">SQLite：欄位配對、TB 與批次來源：field_mapping_previous 到 field_mapping</a></li><li><a href="connections.html#c-projection-erd-gl_batch">SQLite：欄位配對、TB 與批次來源：gl 到 import_batch</a></li><li><a href="connections.html#c-projection-erd-tb_batch">SQLite：欄位配對、TB 與批次來源：tb 到 import_batch</a></li><li><a href="connections.html#c-gl-rde-erd-rde_entry">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl</a></li><li><a href="connections.html#c-gl-rde-erd-rde_field">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl_rde_field</a></li></ul></details></div></details><details class="group card fact" id="f-rules-links"><summary><h2>科目分類、命中與抽樣的連接欄位</h2></summary><div class="group-body"><p>命中與抽樣明細以 entry_id 連回 gl 取顯示欄；命中以 scenario_id 連到 filter_scenario，再依畫面上的 position 選出情境。重算單一情境時依 scenario_id 刪除舊命中與符合條件的紀錄。科目配對以 category_id 連到分類，分類階層表的兩個欄位都指向分類代碼。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitsPageRepository.cs 第 34–40 行</summary><pre>        command.CommandText =
+            format_version = excluded.format_version,
+            options_json = excluded.options_json;
+        DELETE FROM field_mapping WHERE dataset_kind = @kind;</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-intake-dataflow-gl_target">來源檔如何成為審計資料：產生標準 GL 到 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_target">來源檔如何成為審計資料：產生標準 TB 到 TB</a></li><li><a href="connections.html#c-projection-erd-previous_current">SQLite：欄位配對、TB 與批次來源：field_mapping_previous 到 field_mapping</a></li><li><a href="connections.html#c-projection-erd-gl_batch">SQLite：欄位配對、TB 與批次來源：gl 到 import_batch</a></li><li><a href="connections.html#c-projection-erd-tb_batch">SQLite：欄位配對、TB 與批次來源：tb 到 import_batch</a></li><li><a href="connections.html#c-gl-rde-erd-rde_entry">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl</a></li><li><a href="connections.html#c-gl-rde-erd-rde_field">SQLite：GL 分錄與攸關資料元素欄位：gl_rde_value 到 gl_rde_field</a></li></ul></details></div></details><details class="group card fact" id="f-rules-links"><summary><h2>科目分類、命中與抽樣的連接欄位</h2></summary><div class="group-body"><p>命中與抽樣明細以 entry_id 連回 gl 取顯示欄；命中以 scenario_id 連到 filter_scenario，再依畫面上的 position 選出情境。重算單一情境時依 scenario_id 刪除舊命中與符合條件的紀錄。科目配對以 category_id 連到分類，分類階層表的兩個欄位都指向分類代碼。</p><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitsPageRepository.cs 第 34–40 行</summary><pre>        command.CommandText =
             &quot;SELECT g.voucher_number, g.line_item, g.gl_date, g.account_number, g.account_name, &quot; +
             &quot;       g.amount_scaled, g.dr_cr, g.description, g.entry_id&quot; + paging.SelectSuffix + &quot; &quot; +
             &quot;FROM filter_hit r JOIN filter_scenario fs ON fs.scenario_id = r.scenario_id &quot; +
             &quot;JOIN gl g ON g.entry_id = r.entry_id &quot; +
             $&quot;WHERE fs.position = @pos AND {GlExcludedPopulation.SqlPredicate(&quot;g&quot;)}&quot; + paging.Predicate + &quot; &quot; +
-            paging.OrderBy + &quot; &quot; + database.Dialect.LimitClause(&quot;@pageSize&quot;) + &quot;;&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalInfSamplePageRepository.cs 第 38 行</summary><pre>            &quot;JOIN gl g ON g.entry_id = s.entry_id &quot; +</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitMaterializer.cs 第 43–73 行</summary><pre>        foreach (var saved in scenarios)
+            paging.OrderBy + &quot; &quot; + database.Dialect.LimitClause(&quot;@pageSize&quot;) + &quot;;&quot;;</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalInfSamplePageRepository.cs 第 86 行</summary><pre>        &quot;JOIN gl g ON g.entry_id = s.entry_id &quot; +</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitMaterializer.cs 第 43–73 行</summary><pre>        foreach (var saved in scenarios)
         {
             if (!replaceAll)
             {
@@ -4675,12 +4851,12 @@ internal static class ResultTables
                 context,
                 _log,
                 _provider,
-                cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 38–43 行</summary><pre>    /// &lt;summary&gt;刪掉一個情境的結果；先刪符合第幾組第幾條，再刪命中。&lt;/summary&gt;
+                cancellationToken);</pre></details><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 36–41 行</summary><pre>    /// &lt;summary&gt;刪掉一個情境的結果；先刪符合第幾組第幾條，再刪命中。&lt;/summary&gt;
     public static IReadOnlyList&lt;string&gt; DeleteOne(string tablePrefix) =&gt;
     [
         $&quot;DELETE FROM {tablePrefix}filter_hit_condition WHERE scenario_id = @scenarioId;&quot;,
         $&quot;DELETE FROM {tablePrefix}filter_hit WHERE scenario_id = @scenarioId;&quot;
-    ];</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalAccountMappingRepository.cs 第 239–245 行</summary><pre>                           JOIN account_category t
+    ];</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalAccountMappingRepository.cs 第 243–249 行</summary><pre>                           JOIN account_category t
                              ON t.category_id = m.category_id
                            WHERE t.semantic_role = @revenue),
                    EXISTS (SELECT 1
@@ -4709,7 +4885,7 @@ internal static class AccountCategoryHierarchy
                 await command.ExecuteNonQueryAsync(ct);
             }
         }
-    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 322–330 行</summary><pre>        -- 科目分類樹的祖先與子孫對照，每個分類至少有自己對自己一列；之後由 AccountCategoryHierarchy.SavePathsAsync 整份改寫。
+    }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs 第 326–334 行</summary><pre>        -- 科目分類樹的祖先與子孫對照，每個分類至少有自己對自己一列；之後由 AccountCategoryHierarchy.SavePathsAsync 整份改寫。
         CREATE TABLE IF NOT EXISTS account_category_path (
             ancestor_id   TEXT NOT NULL,
             descendant_id TEXT NOT NULL,
@@ -4781,7 +4957,7 @@ internal static class AccountCategoryHierarchy
                 replacedCount),
             logger,
             CommittedOperationLog.ReportAppendFailedWarning);
-    }</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs 第 173–186 行</summary><pre>        string? operationLogWarning = null;
+    }</pre></details><details><summary>src/JET/JET/Application/Handlers/Import/ImportFromFileHandlers.cs 第 174–187 行</summary><pre>        string? operationLogWarning = null;
         if (replacesExistingBatch)
         {
             operationLogWarning = await CommittedOperationLog.AppendAsync(
@@ -4793,8 +4969,8 @@ internal static class AccountCategoryHierarchy
                     Kind.ToStorageName(),
                     batch.RowCount,
                     replacedCount: 1),
-                logger);
-        }</pre></details></div></details><details class="group card fact" id="f-hit-condition-links"><summary><h2>命中條件表的連接欄位</h2></summary><div class="group-body"><p>filter_hit_condition 以 scenario_id 連到 filter_scenario，以 entry_id 連回 gl。寫入時只在這個情境已命中的傳票裡，挑出符合某一條條件的分錄，記下第幾組第幾條；刪除一個情境或全部的結果時，先刪這張表再刪 filter_hit。這些是程式在 SQL 裡使用的欄位，不是資料庫宣告的外鍵。</p><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 9–50 行</summary><pre>/// 寫入一個情境結果的唯一寫法：filter_hit 存命中的分錄，filter_hit_condition 存命中傳票裡每筆分錄符合第幾組第幾條。
+                _logger);
+        }</pre></details></div></details><details class="group card fact" id="f-hit-condition-links"><summary><h2>命中條件表的連接欄位</h2></summary><div class="group-body"><p>filter_hit_condition 以 scenario_id 連到 filter_scenario，以 entry_id 連回 gl。寫入時只在這個情境已命中的傳票裡，挑出符合某一條條件的分錄，記下第幾組第幾條；刪除一個情境或全部的結果時，先刪這張表再刪 filter_hit。這些是程式在 SQL 裡使用的欄位，不是資料庫宣告的外鍵。</p><details><summary>src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs 第 9–48 行</summary><pre>/// 寫入一個情境結果的唯一寫法：filter_hit 存命中的分錄，filter_hit_condition 存命中傳票裡每筆分錄符合第幾組第幾條。
 /// 儲存一個情境、整批發布與結果過期後重算都經過這裡。
 /// 結果在儲存情境時存好，檢視、換頁、展開與匯出都讀它。
 /// &lt;/summary&gt;
@@ -4818,9 +4994,7 @@ internal static class FilterHitInsertSql
         string conditionPredicateSql) =&gt;
         $&quot;INSERT INTO {tablePrefix}filter_hit_condition (scenario_id, entry_id, group_no, condition_no) &quot;
         + $&quot;SELECT @scenarioId, g.entry_id, @groupNo, @conditionNo FROM {tablePrefix}gl g &quot;
-        + $&quot;WHERE {populationPredicateSql} AND g.voucher_number IN (&quot;
-        + $&quot;SELECT hg.voucher_number FROM {tablePrefix}filter_hit hh JOIN {tablePrefix}gl hg ON hg.entry_id = hh.entry_id &quot;
-        + &quot;WHERE hh.scenario_id = @scenarioId AND hg.voucher_number IS NOT NULL) &quot;
+        + $&quot;WHERE {populationPredicateSql} AND {HitVoucherRows.InOneSavedScenarioHitVouchers(&quot;g&quot;, tablePrefix)} &quot;
         + $&quot;AND ({conditionPredicateSql});&quot;;
 
     /// &lt;summary&gt;刪掉一個情境的結果；先刪符合第幾組第幾條，再刪命中。&lt;/summary&gt;
@@ -4835,7 +5009,7 @@ internal static class FilterHitInsertSql
     [
         $&quot;DELETE FROM {tablePrefix}filter_hit_condition;&quot;,
         $&quot;DELETE FROM {tablePrefix}filter_hit;&quot;
-    ];</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-filter-results-erd-condition_scenario">SQLite：篩選情境、命中與抽樣：filter_hit_condition 到 filter_scenario</a></li><li><a href="connections.html#c-filter-results-erd-condition_entry">SQLite：篩選情境、命中與抽樣：filter_hit_condition 到 gl</a></li></ul></details></div></details><details class="group card fact" id="f-mapping-transaction"><summary><h2>確認配對的交易</h2></summary><div class="group-body"><p>確認配對時，mapping.commit.gl 與 mapping.commit.tb 經 MappingFactsPort 呼叫 LocalGlRepository 或 LocalTbRepository 的 ProjectStagingToTargetAsync。兩者各在一筆交易裡清除舊的標準化資料與已有的規則結果，從 pbc_gl 或 pbc_tb 逐列轉換後寫入標準化資料表，再更新轉換後的欄位定義並保存已確認的配對，全部完成才提交。轉換有錯誤時整筆交易回復；GL 依查核期間與過帳狀態篩選後沒有可測試的分錄，或借方與貸方總額都是 0 時，也整筆回復並回報錯誤。</p><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 281 行</summary><pre>    public string Action =&gt; &quot;mapping.commit.gl&quot;;</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 345–354 行</summary><pre>        restoreAuthorizations.EnsureMatches(
+    ];</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-filter-results-erd-condition_scenario">SQLite：篩選情境、命中與抽樣：filter_hit_condition 到 filter_scenario</a></li><li><a href="connections.html#c-filter-results-erd-condition_entry">SQLite：篩選情境、命中與抽樣：filter_hit_condition 到 gl</a></li></ul></details></div></details><details class="group card fact" id="f-mapping-transaction"><summary><h2>確認配對的交易</h2></summary><div class="group-body"><p>確認配對時，mapping.commit.gl 與 mapping.commit.tb 經 MappingFactsPort 呼叫 LocalGlRepository 或 LocalTbRepository 的 ProjectStagingToTargetAsync。兩者各在一筆交易裡清除舊的標準化資料與已有的規則結果，從 pbc_gl 或 pbc_tb 逐列轉換後寫入標準化資料表，再更新轉換後的欄位定義並保存已確認的配對，全部完成才提交。轉換有錯誤時整筆交易回復；GL 依查核期間與過帳狀態篩選後沒有可測試的分錄，或借方與貸方總額都是 0 時，也整筆回復並回報錯誤。</p><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 281 行</summary><pre>    public string Action =&gt; &quot;mapping.commit.gl&quot;;</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 345–354 行</summary><pre>        _restoreAuthorizations.EnsureMatches(
             projectId,
             batch.BatchId,
             payload,
@@ -4844,7 +5018,7 @@ internal static class FilterHitInsertSql
 
         SupportOperationStage.Enter(&quot;projection&quot;);
         var projection = await Task.Run(
-            () =&gt; repositories.MappingFacts.ExecuteAsync(</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 466 行</summary><pre>    public string Action =&gt; &quot;mapping.commit.tb&quot;;</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 497–510 行</summary><pre>        SupportOperationStage.Enter(&quot;plan&quot;);
+            () =&gt; repositories.MappingFacts.ExecuteAsync(</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 473 行</summary><pre>    public string Action =&gt; &quot;mapping.commit.tb&quot;;</pre></details><details><summary>src/JET/JET/Application/Handlers/MappingHandlers.cs 第 504–517 行</summary><pre>        SupportOperationStage.Enter(&quot;plan&quot;);
         var plan = JetAuditProgram.Plan(
             new TbMappingRequest(
                 projectId,
@@ -4886,8 +5060,7 @@ internal static class FilterHitInsertSql
             plan.Request.MoneyScale,
             plan.Request.CommittedUtc,
             cancellationToken,
-            progress);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 83–103 行</summary><pre>        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
+            progress);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 83–105 行</summary><pre>        await using var connection = await database.OpenGlProjectionConnectionAsync(projectId, cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         using var txLog = DiagnosticDb.BeginTransaction(_log, _provider);
 
@@ -4901,12 +5074,15 @@ internal static class FilterHitInsertSql
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
+        // gl 的索引先刪掉，逐列寫完再一次建回，比每寫一列就更新每個索引快。
+        var glIndexes = await database.DeferIndexesAsync(connection, transaction, JetSchemaCatalog.GlTableName, cancellationToken);
+
         // 重新投影會改寫 gl，已有的規則結果跟著失效，在同一個交易裡清除；投影失敗 rollback 時，這次清除也一起回復。
         await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
-            AuditMutation.GlProjection);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 279–306 行</summary><pre>        if (errors.TotalErrorCount &gt; 0)
+            AuditMutation.GlProjection);</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 297–330 行</summary><pre>        if (errors.TotalErrorCount &gt; 0)
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
@@ -4917,6 +5093,12 @@ internal static class FilterHitInsertSql
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
+            // 沒有一列納入 GL，而且有總帳日期讀不成日期：多半是選錯日期欄或日期寫法不合，列出那些值與列號。
+            if (unrecognizedGlDates.TotalErrorCount &gt; 0)
+            {
+                return unrecognizedGlDates.FailedResult();
+            }
+
             throw new JetActionException(
                 JetErrorCodes.EmptyGl,
                 GlProjectionGuard.EmptyGlMessage);
@@ -4933,7 +5115,7 @@ internal static class FilterHitInsertSql
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
             throw new JetActionException(JetErrorCodes.GlAmountsAllZero, GlProjectionGuard.DegenerateAmountMessage);
-        }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 390–421 行</summary><pre>        var sourceDefinitions = await LocalFieldInfoPersistence.ReadStatesAsync(
+        }</pre></details><details><summary>src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs 第 418–457 行</summary><pre>        var sourceDefinitions = await LocalFieldInfoPersistence.ReadStatesAsync(
             connection,
             transaction,
             batchId,
@@ -4960,6 +5142,14 @@ internal static class FilterHitInsertSql
             connection,
             transaction,
             committedMapping,
+            cancellationToken);
+        // 日期提醒和配對在同一個交易寫下，重開案件時第三步列出的就是這次確認的提醒；
+        // 這次確認失敗而回復時，上一次的配對與提醒一起留著。
+        var notices = dateNotices.Notices();
+        await LocalMappingStateStore.SaveGlDateNoticesWithinAsync(
+            connection,
+            transaction,
+            notices,
             cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -5007,4 +5197,4 @@ internal static class FilterHitInsertSql
             cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(CancellationToken.None);
-        txLog.Committed();</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-intake-dataflow-gl_target">來源檔如何成為審計資料：產生標準 GL 到 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_target">來源檔如何成為審計資料：產生標準 TB 到 TB</a></li></ul></details></div></details><details class="group card" id="call-comparison"><summary><h2>RepoWise 與 Roslyn 的代表呼叫對照</h2></summary><div class="group-body"><p>2026-10-16 的研究人工選定 24 處呼叫，這份快照再比對一次：RepoWise 相符 16 處、漏列 8 處，Roslyn 全部相符。這是選定樣本，不能換算為全專案正確率。<a href="evidence/normalized-relations.json">完整對照資料</a></p></div></details></main><script>const items=[...document.querySelectorAll("details.fact")];function apply(){const q=fText.value.trim().toLowerCase();let n=0;for(const a of items){a.hidden=!!q&&!a.textContent.toLowerCase().includes(q);if(!a.hidden){n++;if(q)a.open=true}}fCount.textContent=(q?"符合 ":"共 ")+n+" 項"}fText.oninput=apply;apply();function openHash(){const id=decodeURIComponent(location.hash.slice(1));if(!id)return;const t=document.getElementById(id);if(!t)return;let d=t.closest("details");while(d){d.open=true;d=d.parentElement.closest("details")}if(t.tagName==="DETAILS")t.open=true;requestAnimationFrame(()=>t.scrollIntoView({block:"start"}))}addEventListener("hashchange",openHash);openHash();</script></body></html>
+        txLog.Committed();</pre></details><details><summary>用到這項事實的連線</summary><ul class="refs"><li><a href="connections.html#c-intake-dataflow-gl_target">來源檔如何成為審計資料：產生標準 GL 到 GL</a></li><li><a href="connections.html#c-intake-dataflow-tb_target">來源檔如何成為審計資料：產生標準 TB 到 TB</a></li></ul></details></div></details><details class="group card" id="call-comparison"><summary><h2>RepoWise 與 Roslyn 的代表呼叫對照</h2></summary><div class="group-body"><p>2026-10-16 的研究人工選定 24 處呼叫，這份快照再比對一次：RepoWise 相符 16 處、漏列 7 處、指到別的方法 1 處，Roslyn 全部相符。這是選定樣本，不能換算為全專案正確率。<a href="evidence/normalized-relations.json">完整對照資料</a></p></div></details></main><script>const items=[...document.querySelectorAll("details.fact")];function apply(){const q=fText.value.trim().toLowerCase();let n=0;for(const a of items){a.hidden=!!q&&!a.textContent.toLowerCase().includes(q);if(!a.hidden){n++;if(q)a.open=true}}fCount.textContent=(q?"符合 ":"共 ")+n+" 項"}fText.oninput=apply;apply();function openHash(){const id=decodeURIComponent(location.hash.slice(1));if(!id)return;const t=document.getElementById(id);if(!t)return;let d=t.closest("details");while(d){d.open=true;d=d.parentElement.closest("details")}if(t.tagName==="DETAILS")t.open=true;requestAnimationFrame(()=>t.scrollIntoView({block:"start"}))}addEventListener("hashchange",openHash);openHash();</script></body></html>

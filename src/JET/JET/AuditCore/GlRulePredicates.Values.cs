@@ -68,7 +68,7 @@ internal sealed partial class GlRulePredicates
         else if (FieldValueConditions.IsZeroRun(op))
         {
             // 尾數連續 N 個 0和第四步預篩選規則「分錄金額中有連續 0 的尾數」用同一個 ZeroRun，
-            // 0 的個數由審計員指定，加入時預設是由 GL 算出的個數。結果和子條件組
+            // 0 的個數由使用者指定，加入時預設是由 GL 算出的個數。結果和子條件組
             // 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」相同。
             if (!FieldValueConditions.TryParseZeroRun(rule.TypedValue, out var zeros))
                 throw Invalid("field_value_zero_run_invalid");
@@ -156,7 +156,7 @@ internal sealed partial class GlRulePredicates
             };
             positive = $"{column} {comparison} {Param(rule.TypedValue)}";
         }
-        // 日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
+        // 日期（與其他欄位）空白的分錄不列入，除非使用者勾選「空白也符合」。
         // 文字欄位的否定比較在畫面上預設勾選，畫面一律送出勾選結果；沒有帶這個值時當成不列入。
         var includeBlank = rule.IncludeBlank ?? false;
         return Complete($"(CASE WHEN ({blank}) THEN {(includeBlank ? 1 : 0)} WHEN ({positive}) THEN 1 ELSE 0 END = 1)", includeBlank);

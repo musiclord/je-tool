@@ -52,7 +52,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         // projectName 選填。有值時先驗證名稱、確認沒有重複，再拿它當 projectId 與資料夾名稱；
         // 沒有值時用 GUID 當 projectId，這是不經畫面、由程式直接建立案件時的做法。
         var projectNameRaw = PayloadReader.GetOptionalString(payload, "projectName");
-        // 畫面送來的 projectName 是空白時回錯誤，請審計員當場改正；完全沒帶 projectName 的呼叫才用 GUID。
+        // 畫面送來的 projectName 是空白時回錯誤，請使用者當場改正；完全沒帶 projectName 的呼叫才用 GUID。
         if (payload.TryGetProperty("projectName", out var projectNameValue)
             && projectNameValue.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(projectNameRaw))
             throw new JetActionException(JetErrorCodes.InvalidPayload,
@@ -71,7 +71,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             }
 
             // 同名資料夾即視為重複。DuckDB 或 SQL Server 的案件不列在案件清單，
-            // 撞到它時先說清楚是哪一種資料夾、審計員能怎麼做；它的設定檔讀不通時也不報那個看不到的案件的錯誤。
+            // 撞到它時先說清楚是哪一種資料夾、使用者能怎麼做；它的設定檔讀不通時也不報那個看不到的案件的錯誤。
             SupportOperationStage.Enter("name_check");
             if (await _projectStore.IsRetiredProviderCaseAsync(projectName, cancellationToken))
             {

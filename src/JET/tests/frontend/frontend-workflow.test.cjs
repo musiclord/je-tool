@@ -1426,7 +1426,7 @@ test('paged sorting and search retry the exact failed request without discarding
   assert.deepEqual(f.rows, ['matched']); assert.equal(f.input.value, 'JV'); assert.equal(f.more.disabled, true);
 });
 
-// 後端回 stale_result 表示手上的接續位置不能再用，原因句也請審計員從第一頁重新載入：
+// 後端回 stale_result 表示手上的接續位置不能再用，原因句也請使用者從第一頁重新載入：
 // 「重新載入」改讀第一頁，排序與搜尋照舊。其他原因的失敗照樣重送失敗的那一頁。
 test('a later page that can no longer continue reloads from the first page with the same sort and search', async () => {
   const f = pagedReadFixture(); f.start();
@@ -2347,7 +2347,7 @@ test('opening a worksheet preview shows the notice the preview returns next to t
   assert.ok(w.render().html().includes(NOTICE), 'the preview notice is shown next to the source');
 });
 
-// 來源檔前面有標題列時，審計員在待匯入清單指定「欄名在第幾列」，
+// 來源檔前面有標題列時，使用者在待匯入清單指定「欄名在第幾列」，
 // 預覽與匯入都帶這個值；匯入後的來源清單寫出「欄名在第 N 列」。
 test('a worksheet whose column names sit below a title row takes the header row in the pending list and sends it with the preview and the import', async () => {
   const previews = [], calls = [];
@@ -3383,7 +3383,7 @@ test('group and between-group AND/OR switches update only the intended saved joi
   dom.querySelectorAll = selector => selector === '[data-set-combinator]' ? [combinator] : selector === '[data-set-join]' ? [connector] : [];
   f.api.bind(dom);
   // 組內與組間的連接用 AND、OR 分段切換，每一格是一個單選鈕，只有被選中的那一格會改連接。
-  // 這裡的假控制項代表審計員點的那一格，所以標成已選中。
+  // 這裡的假控制項代表使用者點的那一格，所以標成已選中。
   combinator.checked = true; connector.checked = true;
   combinator.value = 'OR'; combinator.fire();
   assert.deepEqual(plain(draft.groups[0].conditions.map(rule => rule.join)), ['OR', 'OR']);
@@ -3697,7 +3697,7 @@ test('mapping date fields omit permanent explanations while invalid approval set
   assert.doesNotMatch(invalidApproval, /核准日選「不提供」/);
 });
 
-// 0 的個數照 IDEA 版由 GL 算出，跟著已確認的 GL 配對帶回：條件讀回寫這個案件的個數，沒有確認 GL 配對時寫規則名稱。
+// 0 的個數照舊版由 GL 算出，跟著已確認的 GL 配對帶回：條件讀回寫這個案件的個數，沒有確認 GL 配對時寫規則名稱。
 test('prescreen condition controls repeat the fourth-step logic and the case zero count while nested category hints remain row-scoped', () => {
   const f = stepScreensFixture();
   for (const [key, index] of [['prepPeriodApproval', 0], ['suspiciousKeywords', 1], ['unexpectedAccountPair', 2]]) {
@@ -3739,7 +3739,7 @@ test('prescreen report handler sends the selected run and ignores callbacks afte
 for (const entry of JSON.parse(fs.readFileSync(path.join(__dirname, '../JET.Tests/Fixtures/filter-readback-prep-start-date-and-trailing-zeros.json'), 'utf8'))) {
   test('shared preparation date and trailing zero readback sentence: ' + entry.id, () => {
     const f = stepScreensFixture(); f.store.getState().project.prepStartDate = entry.preparationDate;
-    // 0 的個數照 IDEA 版由 GL 算出，跟著已確認的 GL 配對帶回：夾具寫了 zerosThreshold 的那一筆，模擬已確認 GL 配對帶回這個個數。
+    // 0 的個數照舊版由 GL 算出，跟著已確認的 GL 配對帶回：夾具寫了 zerosThreshold 的那一筆，模擬已確認 GL 配對帶回這個個數。
     if (entry.zerosThreshold) f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {}, zerosThreshold: entry.zerosThreshold });
     const scenario = { name: entry.id, rationale: 'Synthetic preparation-date readback', __preserveJoins: true, ...plain(entry.scenario) };
     assert.equal(f.text(f.filter.readBackHtml(scenario, false)).replace(/^篩選條件：/, ''), entry.expected);
@@ -4237,7 +4237,7 @@ test('a GL source held open by Excel shows its reminder beside the import result
 
 test('constants keep separate fixed audit thresholds and unchanged full labels and custom defaults', () => {
   const f = stepScreensFixture();
-  // 0 的個數照 IDEA 版由 GL 算出，跟著已確認的 GL 配對帶回：前端沒有連續 0 個數的固定常數，標籤與說明不寫死個數。
+  // 0 的個數照舊版由 GL 算出，跟著已確認的 GL 配對帶回：前端沒有連續 0 個數的固定常數，標籤與說明不寫死個數。
   assert.deepEqual(f.ui.PRESCREEN_DEFAULTS && plain(f.ui.PRESCREEN_DEFAULTS), { preparerMaxEntries: 11, accountMaxEntries: 11 });
   // 一條規則只在一處定義，前端只有一份 PRESCREEN_RULES。
   const labels = Object.fromEntries(f.ui.PRESCREEN_RULES.map(item => [item.value, item.label]));
@@ -4249,7 +4249,7 @@ test('constants keep separate fixed audit thresholds and unchanged full labels a
   // 第四步照舊版，沒有編製分錄較少的人員與使用較少的科目；PRESCREEN_DEFAULTS 的兩個 11 筆是第五步常用查法的預設值。
   assert.equal(labels.rarePreparer, undefined);
   assert.equal(labels.rareAccount, undefined);
-  // 第四步的說明寫出找什麼、個數怎麼來、上下限、去哪裡改個數，以及照 IDEA 版的算法與例子；只核對這些資訊。
+  // 第四步的說明寫出找什麼、個數怎麼來、上下限、去哪裡改個數，以及照舊版的算法與例子；只核對這些資訊。
   const zeros = f.ui.prescreenConditionDescription('trailingZeros');
   for (const piece of ['整數部分', 'GL', '最少 1 個、最多 12 個', '「欄位條件」', '「尾數連續多個 0」', 'IDEA', '位數減一', '2,391,281', '6 個 0']) {
     assert.ok(zeros.includes(piece), piece + ' in: ' + zeros);
@@ -5222,7 +5222,7 @@ async function sendUpstreamProjectUpdate(f, field, value, effects) {
   f.request('projectUpdate').resolve({ project: { ...plain(f.state.project), [field]: value }, ...effects });
 }
 
-// 每一種上游修改在畫面上怎麼送出：step 是入口所在的步驟，send 照審計員的操作按下去，再用 effects 當成後端的回應。
+// 每一種上游修改在畫面上怎麼送出：step 是入口所在的步驟，send 照使用者的操作按下去，再用 effects 當成後端的回應。
 // 表的鍵要和清單裡畫面有入口的 case 相同；清單多一筆畫面入口，這裡就要補一種操作。
 const UPSTREAM_MUTATION_SCREENS = {
   'import.gl.fromFile': { step: 'import', send: (f, effects) => sendUpstreamImport(f, 'gl', effects) },
@@ -6159,7 +6159,7 @@ test('overview opened from the header button takes keyboard focus on its close b
   }
 });
 
-// 總覽開著時背景資料更新會整張重畫卡片：審計員正在用的頁籤或分析區標題要留住焦點，Escape 才接得住。
+// 總覽開著時背景資料更新會整張重畫卡片：使用者正在用的頁籤或分析區標題要留住焦點，Escape 才接得住。
 test('overview keeps keyboard focus on the same control when its data redraws while open', () => {
   const f = overviewDialogFixture(); const opener = f.$('[data-action="overview-open"]');
   f.store.setResult('validate', { resultRef: { resultId: 'v1' }, stats: { glRowCount: 4, voucherCount: 2, totalDebit: 100, totalCredit: 100 },
@@ -6626,7 +6626,7 @@ test('every common check adds its fixed rule shape to the active group', () => {
   const f = filterEditorsFixture();
   f.store.getState().project.prepStartDate = '2025-12-01';
   f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
-  // 0 的個數照 IDEA 版由 GL 算出，跟著已確認的 GL 配對帶回：尾數連續多個 0 加入時帶這個案件的個數，這裡帶 5。
+  // 0 的個數照舊版由 GL 算出，跟著已確認的 GL 配對帶回：尾數連續多個 0 加入時帶這個案件的個數，這裡帶 5。
   f.store.setMappingCommitted('gl', { mapping: { createdBy: 'Maker', approvedBy: 'Checker' }, mode: 'signed', options: {}, zerosThreshold: 5 });
   // 兩個「國定假日」查法要有國定假日清單才能加入；這個測試的前置都備齊，所以也補上清單。
   f.store.setCalendarState({ holidayCount: 3 });
@@ -7018,7 +7018,7 @@ test('group actions stay visible without a scope menu and allow either join', ()
   const f = filterOperationFixture(); f.click(cardSelector(BLANK)); f.click(cardSelector(TRAILING));
   assert.equal(!!f.$('.filter-relations'), false);
   assert.equal(f.$('.filter-group-menu'), null);
-  // 連接是 AND、OR 分段切換，這裡照審計員的操作點 OR 那一格。
+  // 連接是 AND、OR 分段切換，這裡照使用者的操作點 OR 那一格。
   const or = f.dom.content.querySelectorAll('[data-set-combinator]').find(radio => radio.value === 'OR');
   or.checked = true; or.fire('change');
   assert.equal(f.draft().groups[0].matchScope, 'row');
@@ -7290,7 +7290,7 @@ test('an example that needs a field asks only when the chosen field is about to 
 });
 
 // 訊息分三級（錯誤、需要注意、一般），操作失敗時在目前步驟顯示提示框，耗時寫成秒並合併。
-// 以下從審計員的操作寫：用正式的 app.js 畫出流程畫面與訊息區，按正式步驟的按鈕，後端回應用合成資料。
+// 以下從使用者的操作寫：用正式的 app.js 畫出流程畫面與訊息區，按正式步驟的按鈕，後端回應用合成資料。
 // 字句只比對結構（動作、原因、等級文字與耗時寫法）；其他訊息的用字另外確認。
 function stepFailureFixture(stepIndex = 5) {
   const f = remapAppFixture();

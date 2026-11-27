@@ -2,12 +2,12 @@
 require('./support/resource-guard.cjs');
 // 第五步組條件的情境測試。
 //
-// 「第五步常用篩選條件的卡片與範例」：審計員在四種科目配對狀態下看常用篩選條件的卡片與欄位的常用查法，
+// 「第五步常用篩選條件的卡片與範例」：使用者在四種科目配對狀態下看常用篩選條件的卡片與欄位的常用查法，
 // 加入「貸方為收入但借方非一般對方科目」那張卡看說明，並套用每一個情境範例。卡片列在「常用篩選條件」分頁，
 // 範例在右側條件組合上方的「從情境範例開始」；常用查法掛在欄位條件分頁的各欄位底下，收在按「加入」打開的選單裡，
-// 審計員用滑鼠或鍵盤選一項。另在「預篩選」分頁逐一加入每一條預篩選規則，
+// 使用者用滑鼠或鍵盤選一項。另在「預篩選」分頁逐一加入每一條預篩選規則，
 // 看前置不足的停用原因，並從分頁加入「未預期借貸組合」後查看傳票數量與分錄筆數。
-// 「第五步自訂條件與條件組」：審計員在欄位條件分頁從各家族各加一條、組成兩組，看組內條件的組合方式，
+// 「第五步自訂條件與條件組」：使用者在欄位條件分頁從各家族各加一條、組成兩組，看組內條件的組合方式，
 // 移除一條，用「加入到」的組號換加入的組，切換 AND 與 OR 並加整張傳票條件，加借貸科目組合並切換五種查找方式，
 // 在分類清單勾選分類，最後預覽，預覽的錯誤標在條件列上。另有兩段看科目樹的讀取晚到：科目還沒讀回來就把條件換成沒有科目樹的比較方式，
 // 或換到第四步（這一段用整個 JET 畫面的夾具 bootFullApp）。
@@ -71,7 +71,7 @@ function buildFixture(options = {}) {
   const $$ = selector => dom.content.querySelectorAll(selector);
   function click(selector) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.fire('click'); }
   function choose(selector, value) { const node = $(selector); assert.ok(node, 'missing ' + selector); node.value = value; node.fire('change'); }
-  // 分段切換（一組單選鈕）：選中值等於 value 的那一格，和審計員點那一格相同。
+  // 分段切換（一組單選鈕）：選中值等於 value 的那一格，和使用者點那一格相同。
   function pick(selector, value) { const node = $$(selector).find(radio => radio.value === value); assert.ok(node, 'missing ' + selector + ' ' + value);
     node.checked = true; node.fire('change'); }
   const draft = () => store.getState().filter.draft;
@@ -789,10 +789,10 @@ test('category ticks store each identity once and a renamed category keeps the c
 });
 
 // 「金額尾數連續多個 0」是一條條件，用自己的比較方式，排在篩選方式的「尾數」那一組。
-// 審計員從欄位條件加入金額，篩選方式選「尾數連續多個 0」，個數預設帶第四步預篩選的個數，輸入框只收 1 到 12，後面寫「個 0」，
+// 使用者從欄位條件加入金額，篩選方式選「尾數連續多個 0」，個數預設帶第四步預篩選的個數，輸入框只收 1 到 12，後面寫「個 0」，
 // 條件列寫出整數部分為 0 的金額不符合；改成「排除」換成沒有連續的比較方式；個數填 0 時說要填 1 到 12 的整數。
 // 這個比較方式不看正負號，攸關資料元素的金額選它時不出現比較基準。
-// 0 的個數照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回，預設是這個案件的個數，夾具帶 4。
+// 0 的個數照舊版由 GL 算出、跟著已確認的 GL 配對帶回，預設是這個案件的個數，夾具帶 4。
 test('the trailing-zero comparison defaults to the case zero count, takes one to twelve and has no amount basis', () => {
   const f = fieldPane({ rdeFields: [{ fieldId: 'rde.money', sourceColumn: 'Tax', label: '稅額', valueType: 'amount' }] });
   const ui = f.window.JetUi;
@@ -839,7 +839,7 @@ const ONE_SIDED_COMPARISONS = {
 const chosenKind = row => row.querySelector('[data-value-kind]').querySelectorAll('option')
   .filter(option => option.getAttribute('selected') !== null).map(option => [option.getAttribute('value'), option.textContent]);
 
-// 審計員加入金額或總帳日期，在篩選方式選單看到四個只比一邊的選項，接在指定值與區間後面。
+// 使用者加入金額或總帳日期，在篩選方式選單看到四個只比一邊的選項，接在指定值與區間後面。
 // 逐一選取後，條件的比較方式就是選到的那一種，選單停在那一項，讀回用同一個詞；
 // 含不含門檻直接寫在選項上，畫面沒有另外的勾選框。
 test('amount and date offer four one-sided comparisons each, inclusive first, worded like the readback and without an inclusive checkbox', () => {
@@ -916,7 +916,7 @@ test('date and amount ranges say beside the two inputs that both ends are includ
 });
 
 // 換篩選方式時，已填的值只在新方式下意思相同才留著。下面三個測試共用這組操作：
-// 在第一條條件選篩選方式、在單一值那一格打字，讀條件物件、輸入框與條件列要審計員補的事。
+// 在第一條條件選篩選方式、在單一值那一格打字，讀條件物件、輸入框與條件列要使用者補的事。
 function comparisonSwitcher(f) {
   const ui = f.window.JetUi;
   const at = '.rule-row[data-gi="0"][data-ri="0"] ';
@@ -933,8 +933,8 @@ function comparisonSwitcher(f) {
 }
 
 // 金額條件的單一值那一格，在不同篩選方式下裝的東西不一樣：金額本身、逗號分隔的數字串，或 0 的個數。
-// 審計員加入金額，選「大於或等於」填 300000，換成「大於」時 300000 留著；換成「整數部分的特定尾數」時那一格清空，
-// 不把 300000 當成尾數，條件列請審計員填值。尾數填 000,999 後換成「整數部分的特定數字」留著，兩種都是數字串；
+// 使用者加入金額，選「大於或等於」填 300000，換成「大於」時 300000 留著；換成「整數部分的特定尾數」時那一格清空，
+// 不把 300000 當成尾數，條件列請使用者填值。尾數填 000,999 後換成「整數部分的特定數字」留著，兩種都是數字串；
 // 換成「大於」清空，不把 000,999 讀成金額 999。金額填 5 後換成「尾數連續多個 0」，個數帶本案由 GL 算出的 4，不沿用 5；
 // 改成「排除」個數留著；再換成「整數部分的特定尾數」或「小於」都清空。中間經過「金額區間」也一樣不沿用。
 test('an amount typed for one comparison is kept only while it still means the same thing', () => {
@@ -977,8 +977,8 @@ test('an amount typed for one comparison is kept only while it still means the s
 });
 
 // 日期條件的單一值那一格裝的是日期或每月天數，值清單裝的是日期或每月幾日。
-// 審計員加入總帳日期，選「每月月初幾天」填 5，換成「每月月底幾天」時 5 留著；換成「早於」時清空，
-// 日期框是空的，條件列請審計員填值，不寫「日期「5」無法辨識」。填 2025-03-01 後換成「當日或以後」留著，
+// 使用者加入總帳日期，選「每月月初幾天」填 5，換成「每月月底幾天」時 5 留著；換成「早於」時清空，
+// 日期框是空的，條件列請使用者填值，不寫「日期「5」無法辨識」。填 2025-03-01 後換成「當日或以後」留著，
 // 再換成「每月月初幾天」回到預設的 2 天。天數填 7 後經過「日期區間」再選「晚於」，也不沿用。
 // 「指定日期」貼上兩個日期後換成「每月幾日」，清單清空；填 28,31 後改成「排除」留著，換回「指定日期」清空。
 test('a date condition keeps a typed value only while it still means the same thing', () => {
@@ -1071,9 +1071,8 @@ test('the large-amount check and the two large-amount examples include the thres
   assert.equal(preparer.draft().rationale, '指定建立人員且金額達到門檻的分錄；人員與門檻請自行填入。');
 });
 
-// 額外加入的攸關資料元素數值欄位，金額比較的預設照舊版用絕對值，仍可改成含正負號；
-// 舊版 IDEA JET 的數字條件一律用 @Abs 比較。從條件總覽按「加入」與在子條件組加入，
-// 兩條路徑都預設絕對值，改成含正負號後照實送出。
+// 額外加入的攸關資料元素數值欄位，金額比較的預設照舊版用絕對值，仍可改成含正負號。
+// 從條件總覽按「加入」與在子條件組加入，兩條路徑都預設絕對值，改成含正負號後照實送出。
 test('an extra amount field added from the overview or inside a sub-condition group compares absolute amounts by default', () => {
   const f = fieldPane({ rdeFields: [{ fieldId: 'rde.money', sourceColumn: 'Tax', label: '稅額', valueType: 'amount' }] });
   const ui = f.window.JetUi;
@@ -1168,10 +1167,10 @@ test('without the list from the backend the blank choices stay as they were', ()
   assert.equal(kinds.includes('blank'), true);
 });
 
-// 文字欄位的否定比較，例如「不包含」「不在清單中」，照舊版預設把欄位空白的分錄也列入，審計員可以取消；日期欄位不列入。
+// 文字欄位的否定比較，例如「不包含」「不在清單中」，照舊版預設把欄位空白的分錄也列入，使用者可以取消；日期欄位不列入。
 // 後端收到沒帶這個值的條件時當成不列入，所以這個預設只在畫面上。
 // 傳票摘要改成「排除」時自動勾選空白也列入，改回「符合」時取消；
-// 「完整內容相同」改成排除就是「不在清單中」，審計員取消勾選後照實送出，換到另一種排除的比較方式也保留這個選擇；傳票核准日與金額改成「排除」時不勾選。
+// 「完整內容相同」改成排除就是「不在清單中」，使用者取消勾選後照實送出，換到另一種排除的比較方式也保留這個選擇；傳票核准日與金額改成「排除」時不勾選。
 test('excluding text values counts blank entries by default and the auditor can untick it, while dates and amounts stay unticked', () => {
   const f = fieldPane();
   const ui = f.window.JetUi;
@@ -1227,7 +1226,7 @@ test('with flat categories the category list leaves no chevron slots and the acc
   assert.match(tree().textContent, /選分類時包含下層分類的科目/);
 });
 
-// 科目樹的讀取還沒回來，審計員就把這條條件的比較方式換成沒有科目樹的那一種，回應在這段時間回來。
+// 科目樹的讀取還沒回來，使用者就把這條條件的比較方式換成沒有科目樹的那一種，回應在這段時間回來。
 // 換回「完整內容相同」後，科目樹回到還沒讀取的樣子，不會一直寫「正在載入科目…」，也沒有把晚到的科目列出來；再選一次分類照常讀取。
 test('an account-tree answer that returns while the condition has no tree leaves no loading text behind', async () => {
   const f = fieldPane({ accountCategory: ACCOUNT_CATEGORIES });
@@ -1255,7 +1254,7 @@ test('an account-tree answer that returns while the condition has no tree leaves
   assert.ok(f.$(at + '[data-account-tree-code="1101"]') !== null, 'asking again lists the accounts');
 });
 
-// 審計員在科目清單的第二頁按下一頁，還沒讀回來就把比較方式換成沒有科目樹的那一種，回應在這段時間回來。
+// 使用者在科目清單的第二頁按下一頁，還沒讀回來就把比較方式換成沒有科目樹的那一種，回應在這段時間回來。
 // 換回「完整內容相同」後，科目樹回到還沒讀取的樣子，也不留下前一次的頁碼。
 test('an account-tree page answer that comes back after the tree was replaced leaves no page numbers behind', async () => {
   const f = fieldPane({ accountCategory: ACCOUNT_CATEGORIES });
@@ -1281,7 +1280,7 @@ test('an account-tree page answer that comes back after the tree was replaced le
   assert.equal(f.$(at + '[data-account-tree-previous]'), null);
 });
 
-// 審計員勾了「勾選此分類的科目」，科目還沒讀回來就換到第四步。回應在第四步回來：不改第五步的條件，也不重畫第四步。
+// 使用者勾了「勾選此分類的科目」，科目還沒讀回來就換到第四步。回應在第四步回來：不改第五步的條件，也不重畫第四步。
 // 回到第五步時科目樹不寫「正在載入科目…」，條件仍是空的；再勾一次就照常選入。
 test('an account-tree answer that returns after the auditor left step five changes no condition and redraws nothing', async () => {
   const CASE = { projectId: '合成科目樹案', databaseProvider: 'sqlite' };
@@ -1469,7 +1468,7 @@ test('every field shortcut sits on its field row, is added by its own button wit
     assert.equal(rules[0].type, type, key);
     // 新建的分類條件預設包含下層分類。
     if (key === 'categoryPair') assert.equal(rules[0].categorySelection, 'subtree');
-    // 0 的個數照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回：加入時帶這個案件的個數，夾具帶 4。
+    // 0 的個數照舊版由 GL 算出、跟著已確認的 GL 配對帶回：加入時帶這個案件的個數，夾具帶 4。
     if (key === 'trailingZeros') assert.deepEqual([rules[0].field, rules[0].operator, rules[0].value, rules[0].amountBasis], ['amount', 'endsWithZeros', '4', 'absolute']);
     const remove = f.$('.rule-row[data-ri="0"]').querySelector('[data-action="remove-rule"]');
     assert.ok(remove, key + ' offers a remove control on its row');
@@ -1495,7 +1494,7 @@ test('every field shortcut sits on its field row, is added by its own button wit
 // ------------------------------------------------------------------------------------------------
 
 // 有常用查法的欄位，「加入」鍵打開選單，第一項是這個欄位的一般條件、寫欄位名稱，下面是常用查法；欄位名稱只是文字。
-// 審計員按「加入」打開選單，按一項只加入那一條，選單隨即收起；也可以在「加入」上按方向鍵下打開，用方向鍵選，Esc 收起並回到「加入」。
+// 使用者按「加入」打開選單，按一項只加入那一條，選單隨即收起；也可以在「加入」上按方向鍵下打開，用方向鍵選，Esc 收起並回到「加入」。
 // 沒有常用查法的欄位按「加入」直接加入。選單是共用的 .jet-menu，一次只開一個。
 test('a field\'s add key opens its menu with the general condition first, adds one condition per choice and closes again', () => {
   const f = fieldPane({ glMapping: { createdBy: 'Maker', approvedBy: 'Checker', isManual: 'Manual' } });
@@ -1616,12 +1615,12 @@ test('a field that cannot be used keeps its menu shut and a shortcut that needs 
 // 預篩選分頁
 // ------------------------------------------------------------------------------------------------
 
-// 條件總覽有三個分頁；審計員習慣直接套用預篩選條件，所以預篩選分頁條列每一條規則，按「加入」直接帶入那一條。
+// 條件總覽有三個分頁；使用者常直接套用預篩選條件，所以預篩選分頁條列每一條規則，按「加入」直接帶入那一條。
 // 名稱逐字照預篩選規則的畫面名稱（ui-core.js 的 PRESCREEN_RULES，鏡像 Domain 標籤表），不從畫面推導。
 // 清單共十條，第四步照舊版不含編製分錄較少的人員與使用較少的科目。
 const PRESCREEN_RULES = [
   ['prepPeriodApproval', '財報準備日起核准'], ['suspiciousKeywords', '摘要特定描述'], ['unexpectedAccountPair', '未預期借貸組合'],
-  // 0 的個數照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回：知道個數時寫「金額尾數連續 N 個 0」，夾具帶 4。
+  // 0 的個數照舊版由 GL 算出、跟著已確認的 GL 配對帶回：知道個數時寫「金額尾數連續 N 個 0」，夾具帶 4。
   ['trailingZeros', '金額尾數連續 4 個 0'], ['weekendPosting', '週末過帳'], ['weekendApproval', '週末核准'],
   ['holidayPosting', '假日過帳'], ['holidayApproval', '假日核准'], ['blankDescription', '空白摘要'],
   ['nonAuthorizedPreparer', '非授權編製人員']
@@ -1804,7 +1803,7 @@ function describedText(f, node) {
   return f.$('#' + id).textContent;
 }
 const disabledKeys = (f, attribute) => f.$$('[' + attribute + ']').filter(button => button.disabled).map(button => button.getAttribute(attribute));
-// 審計員回第三步把欄位都配好、按「確認配對」：後端回傳完整的可用欄位清單，其他配對設定不變。
+// 使用者回第三步把欄位都配好、按「確認配對」：後端回傳完整的可用欄位清單，其他配對設定不變。
 function mapEverything(f) {
   const committed = plain(f.store.getState().mapping.gl.committed);
   f.store.setMappingCommitted('gl', { ...committed, availableGlFields: EVERY_GL_FIELD });

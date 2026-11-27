@@ -644,7 +644,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
+        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，使用者在畫面上無從修正，所以原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
         Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "condition_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
@@ -671,7 +671,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
+        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，使用者在畫面上無從修正，所以原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
         Assert.Equal("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
@@ -987,7 +987,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var replayed = loaded.GetProperty("filterScenarios")[0];
         Assert.Equal("auditPeriod", replayed.GetProperty("populationScope").GetString());
         Assert.Equal(JsonValueKind.Null, loaded.GetProperty("filterResultRef").ValueKind);
-        // 母體不是查核期間的情境不自動改版，回應列出這個情境請審計員修改。
+        // 母體不是查核期間的情境不自動改版，回應列出這個情境請使用者修改。
         var check = loaded.GetProperty("filterScenarioCheck");
         Assert.Equal("needsEdit", check.GetProperty("status").GetString());
         Assert.Equal(1, Assert.Single(check.GetProperty("problems").EnumerateArray()).GetProperty("position").GetInt32());

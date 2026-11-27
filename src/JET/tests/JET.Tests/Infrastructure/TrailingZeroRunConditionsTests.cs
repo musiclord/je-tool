@@ -77,7 +77,7 @@ public sealed class TrailingZeroRunConditionsTests
                   {"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute","join":"AND"}]}
                 """;
             Assert.Equal(hits, await Hits(oldGroup));
-            // 0 的個數照 IDEA 版由 GL 算出，預篩選規則讀條件環境帶入的個數。
+            // 0 的個數照舊版由 GL 算出，預篩選規則讀條件環境帶入的個數。
             // 每個個數都核對預篩選規則選到同一組分錄，1 個時也不選整數部分為 0 的 Z01、Z02。
             Assert.Equal(hits, await Hits("""{"type":"prescreen","prescreenKey":"trailingZeros"}""", context with { ZerosThreshold = zeros }));
         }

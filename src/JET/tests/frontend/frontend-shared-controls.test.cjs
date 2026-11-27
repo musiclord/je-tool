@@ -152,7 +152,7 @@ test('amount conditions follow the shared amount fixture', () => {
 
 // 「指定金額」清單的 100 個值上限和後端同一種數法：讀得成的金額看依案件金額存放倍率放大取整後的值，
 // 所以 1,000 與 1000 算一個值，倍率 100 時 2000.004 與 2000 也算一個值；讀不成金額的值照原文各算一個。
-// 送出的清單仍是審計員輸入的原文，換算交給後端。攸關資料元素的金額欄位也一樣。
+// 送出的清單仍是使用者輸入的原文，換算交給後端。攸關資料元素的金額欄位也一樣。
 test('amount lists count the value limit by scaled amounts like the backend', () => {
   const hundred = Array.from({ length: 100 }, (_, i) => String((i + 1) * 1000));
   const rule = { type: 'fieldValue', field: 'amount', operator: 'in', amountBasis: 'absolute', values: [] };

@@ -132,7 +132,7 @@ public sealed class WorkingPaperExportBranchTests
 
     // ── 改名成新版本時不覆寫同名底稿 ─────────────────────────────────────
 
-    /// <summary>檔名決定之後、改名之前，資料夾裡出現同名檔：不覆寫，請審計員重新匯出拿新檔名。</summary>
+    /// <summary>檔名決定之後、改名之前，資料夾裡出現同名檔：不覆寫，請使用者重新匯出拿新檔名。</summary>
     [Fact]
     public async Task SameNameAppearsBeforePublication_IsRefusedWithTheFixedReason_AndTheForeignFileStays()
     {

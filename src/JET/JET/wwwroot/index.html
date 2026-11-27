@@ -151,14 +151,14 @@
       <div class="overview-modal__card" role="dialog" aria-modal="true" aria-labelledby="overview-title"></div>
     </div>
 
-    <!-- 開發工具：資料庫檢視（僅 Debug 組建顯示與註冊，非審計 workflow） -->
+    <!-- 開發工具：資料庫檢視（僅 Debug 組建顯示與註冊，不屬於正式的操作流程） -->
     <details class="dev-panel" data-bind="dev-panel">
       <!-- 標題不寫資料庫種類；實際的資料庫資訊看面板內 dev-info 那一行，由後端的檢視程式回報。 -->
       <summary class="dev-panel__summary">DEV — 資料庫檢視</summary>
       <div class="dev-panel__body" data-bind="dev-panel-body"></div>
     </details>
 
-    <!-- 開發工具：診斷日誌匯出 NDJSON（僅 Debug 組建顯示與註冊，非審計 workflow） -->
+    <!-- 開發工具：診斷日誌匯出 NDJSON（僅 Debug 組建顯示與註冊，不屬於正式的操作流程） -->
     <details class="dev-panel" data-bind="dev-log-panel">
       <summary class="dev-panel__summary">DEV — 診斷日誌匯出（NDJSON）</summary>
       <div class="dev-panel__body" data-bind="dev-log-panel-body"></div>

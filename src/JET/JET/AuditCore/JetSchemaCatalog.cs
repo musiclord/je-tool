@@ -1,17 +1,17 @@
 namespace JET.AuditCore;
 
 /// <summary>
-/// 資料表在審計資料流裡屬於哪一層。沿用舊版 Excel-VBA 工具的三層：來源（Source）、標準化暫存（ETL-Staging）、
-/// 可報導的結果（Target-Report），另外加上只放系統表的 System 層。
+/// 資料表在資料流裡屬於哪一層：來源（Source）、標準化暫存（Staging）、可報導的結果（Target），
+/// 另外加上只放系統表的 System 層。
 ///
-/// 這裡分的是審計上的層，也就是資料從客戶提供、經過標準化、到成為可報導結果的三個階段，不能從實體表名推出來。
-/// 實體表名不帶分層字首,直接取畫面的名稱,或舊版工具(Excel-VBA 工具或 IDEA 版 JET)對這份資料的稱呼,
-/// 例如 <c>account_mapping</c> 與 <c>calendar_day</c> 在審計語義上都是 Source(客戶提供的科目對照與假日曆)。
-/// 所以分層依的是審計用名稱，不是實體表名。
+/// 前三層是資料從匯入、經過標準化、到成為可報導結果的三個階段，不能從實體表名推出來。
+/// 實體表名不帶分層字首,直接取畫面的名稱,或舊版對這份資料的稱呼,
+/// 例如 <c>account_mapping</c> 與 <c>calendar_day</c> 都屬於 Source,是匯入的科目對照與假日曆。
+/// 所以分層看登錄裡寫的層，不看實體表名。
 /// </summary>
 internal enum SchemaLayer
 {
-    /// <summary>來源層:客戶提供的匯入資料(PBC-GL、PBC-TB、ACCOUNT_MAPPING…)。</summary>
+    /// <summary>來源層:匯入的資料(PBC-GL、PBC-TB、ACCOUNT_MAPPING…)。</summary>
     Source,
 
     /// <summary>暫存層(ETL):標準化後的 GL 與 TB。</summary>
@@ -20,7 +20,7 @@ internal enum SchemaLayer
     /// <summary>報表層：可以判讀、報導的測試結果摘要與命中結果，例如 VALIDATION_OVERVIEW。</summary>
     Target,
 
-    /// <summary>系統層:組態、匯入批次與純引擎用表,不屬審計三層資料流。</summary>
+    /// <summary>系統層:組態、匯入批次與純引擎用表,不屬於前三層的資料流。</summary>
     System
 }
 
@@ -29,7 +29,7 @@ internal enum SchemaLayer
 /// </summary>
 internal enum SchemaAudience
 {
-    /// <summary>可逐列瀏覽,且出現在結構總覽(審計工作流程會直接接觸的資料)。</summary>
+    /// <summary>可逐列瀏覽,且出現在結構總覽(使用者在各步驟會直接用到的資料)。</summary>
     DataView,
 
     /// <summary>出現在結構總覽，但不開放逐列瀏覽。這類是結果表與設定表，內容由摘要或專用頁面呈現。</summary>
@@ -43,9 +43,9 @@ internal enum SchemaAudience
 /// 資料表登錄的一筆：一張實體表對應的審計用名稱、層、曝光程度與中文說明。
 /// </summary>
 /// <param name="PhysicalName">實體表名，就是 CREATE TABLE 用的名稱。</param>
-/// <param name="CanonicalName">審計用名稱，只用在資料表摘要的顯示，例如 PBC-GL、GL；它不是 SQL 識別字，也不是檔名。
-/// 資料名稱全系統一致：舊版 Excel-VBA 工具的 JE_PBC、TB_PBC、JE，在這裡是 PBC-GL、PBC-TB、GL。</param>
-/// <param name="Layer">所屬的層：審計三層之一，或 System。</param>
+/// <param name="CanonicalName">審計用名稱，只用在資料表摘要的顯示，例如 PBC-GL、PBC-TB、GL，和全系統的資料名稱一致；
+/// 它不是 SQL 識別字，也不是檔名。</param>
+/// <param name="Layer">所屬的層：來源、暫存、報表三層之一，或 System。</param>
 /// <param name="Audience">在資料預覽與結構總覽的曝光程度。</param>
 /// <param name="Description">一句中文說明，寫用途或由來。</param>
 internal sealed record SchemaTableEntry(
@@ -58,16 +58,16 @@ internal sealed record SchemaTableEntry(
 /// <summary>
 /// 案件資料庫每一張實體表的登錄：審計用名稱、層、曝光程度與說明都只定義在這裡。
 ///
-/// 審計方法沿用舊版 Excel-VBA 工具的三層結構（Source、ETL-Staging、Target-Report）與審計用的表名，
-/// 例如 JE_PBC、JE、ACCOUNT_MAPPING。現行的實體表名則是從資料預覽的名稱轉寫而來，例如 <c>pbc_gl</c>、<c>gl</c>。
-/// 這份登錄把兩套名稱並列，資料預覽才能用審計人員熟悉的審計用名稱顯示。
+/// 每張表有兩個名稱：審計用名稱是資料預覽顯示的名稱，例如 PBC-GL、GL、ACCOUNT_MAPPING；
+/// 實體表名從資料預覽的名稱轉寫而來，例如 <c>pbc_gl</c>、<c>gl</c>。
+/// 這份登錄把兩套名稱並列，資料預覽才能用審計用名稱顯示。
 ///
 /// 對外只有幾個查詢入口：<see cref="All"/>、<see cref="ByAudience"/>、<see cref="ResolveCanonical"/> 與 <see cref="TryGet"/>。
 /// 內容全部寫在 <see cref="All"/> 這一張表裡，新增資料表時加一列即可，不必在各處加判斷。
 /// 實體表要照 Infrastructure 的 SchemaSql 逐一登錄；漏登錄時，拿 sqlite_master 比對這份登錄的測試會失敗。
 ///
-/// 舊版 Excel-VBA 工具的 <c>COMPLETENESS_CALCULATED / DIFF / DETAIL</c>、<c>JE_IN_PERIOD /
-/// JE_NOT_IN_PERIOD</c> 與各個 <c>*_OVERVIEW</c>，在 JET 是查詢時才算出來的結果，不存成資料表，所以不在這份登錄裡。
+/// 完整性的計算、差異與明細，以及查核期間內與期間外的分錄，在 JET 是查詢時才算出來的結果，
+/// 不存成資料表，所以不在這份登錄裡。
 /// 它們由 ValidationProcedures 的 CTE 算出，或在查詢時依查核期間切分。
 /// </summary>
 internal static class JetSchemaCatalog
@@ -83,7 +83,7 @@ internal static class JetSchemaCatalog
     /// </summary>
     public static readonly IReadOnlyList<SchemaTableEntry> All =
     [
-        // ── Source:客戶提供、照匯入原樣保存的資料(DataView) ──────────────────
+        // ── Source:匯入的資料(DataView) ──────────────────
         new("pbc_gl", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView,
             "PBC-GL（匯入的總帳明細原樣，未經欄位配對整理）"),
         new("pbc_tb", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView,
@@ -158,7 +158,7 @@ internal static class JetSchemaCatalog
     public static IEnumerable<SchemaTableEntry> ByAudience(SchemaAudience audience) =>
         All.Where(entry => entry.Audience == audience);
 
-    /// <summary>指定審計層的條目。</summary>
+    /// <summary>指定層的條目。</summary>
     public static IEnumerable<SchemaTableEntry> ByLayer(SchemaLayer layer) =>
         All.Where(entry => entry.Layer == layer);
 

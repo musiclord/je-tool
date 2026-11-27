@@ -31,7 +31,7 @@ public sealed class PrescreenFinalizeApplicabilityTests
             HasAuthorizedPreparers: false,
             NonWorkingDays: null)
         {
-            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數；這則只核對適用性，帶 6 不影響結果。
+            // 0 的個數照舊版由 GL 算出，請求要帶 0 的個數；這則只核對適用性，帶 6 不影響結果。
             ZerosThreshold = 6
         };
         var plan = JetAuditProgram.Plan(request);

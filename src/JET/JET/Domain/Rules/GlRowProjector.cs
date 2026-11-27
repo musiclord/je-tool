@@ -55,7 +55,7 @@ public sealed record RowProjectionError(
 /// 依欄位配對，把匯入暫存表的一列轉成標準化的 GL 分錄。
 /// 這是純函式：一列失敗時回傳錯誤，要不要整批 rollback 由呼叫端決定。
 /// 日期讀不成日期時不算失敗：總帳日期與傳票核准日記成沒有日期，日期型別的攸關資料元素不產生值，
-/// 並把原文記在 <see cref="GlProjectedRow.DateIssues"/>，由呼叫端決定怎麼提醒審計員。
+/// 並把原文記在 <see cref="GlProjectedRow.DateIssues"/>，由呼叫端決定怎麼提醒使用者。
 /// </summary>
 public static class GlRowProjector
 {
@@ -301,7 +301,7 @@ public static class GlRowProjector
         return null;
     }
 
-    // 讀得成、照來源資料保留的日期要讓審計員知道的情形。年份早於 1900 的日期也早於 1900-03-01，只記年份不尋常，不重複記。
+    // 讀得成、照來源資料保留的日期要讓使用者知道的情形。年份早於 1900 的日期也早於 1900-03-01，只記年份不尋常，不重複記。
     private static GlDateIssueKind? KeptDateIssue(string isoDate) =>
         DateNormalizer.HasUnusualYear(isoDate) ? GlDateIssueKind.UnusualYear
         : DateNormalizer.IsBeforeFirstExcelFaithfulDate(isoDate) ? GlDateIssueKind.TextInWorkingPaper

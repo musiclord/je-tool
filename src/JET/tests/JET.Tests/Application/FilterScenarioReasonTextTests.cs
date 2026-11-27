@@ -28,7 +28,7 @@ public sealed class FilterScenarioReasonTextTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await CommitTwoAsync(host);
-        // 第 1 組的結合方式與第 2 條的借貸限定都損毀；第 3 條是審計員看得懂的已停用條件。
+        // 第 1 組的結合方式與第 2 條的借貸限定都損毀；第 3 條是使用者看得懂的已停用條件。
         await RewriteDefinitionAsync(host, context.ProjectId, provider, 1, definition =>
         {
             definition["logicVersion"] = OlderVersion;

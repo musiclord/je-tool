@@ -1,7 +1,7 @@
 'use strict';
 // 第六步匯出工作底稿的情境測試。
 //
-// 審計員的操作：到第六步依預篩選的狀態匯出：有目前的預篩選結果、還沒有、結果已過期、資料驗證判定不能繼續；
+// 使用者的操作：到第六步依預篩選的狀態匯出：有目前的預篩選結果、還沒有、結果已過期、資料驗證判定不能繼續；
 // 取消勾選「預篩選報告」；匯出途中換了案件、重新驗證或改了情境；看匯出途中忙碌畫面的進度。
 // 匯出失敗時第六步標題下方的紅色提示框，由 frontend-workflow.test.cjs 的「a failed workingPaper export shows a red notice…」
 // 經同一個匯出按鈕核對，這裡不重寫；按「取消作業」保留已完成的預篩選報告，
@@ -309,7 +309,7 @@ test('the scenario choice says it uses the saved conditions, exporting needs no 
   assert.match(step(f).querySelector('[data-bind="export-unsaved-draft"]').textContent, /尚未儲存.*儲存成情境.*納入底稿/);
   f.ui.FilterStep.hasUnsavedScenarioChanges = hasUnsavedScenarioChanges;
   f.store.touch(); await flush();
-  // 沒有條件篩選報告也能匯出，不叫審計員回第五步先產生報告。
+  // 沒有條件篩選報告也能匯出，不叫使用者回第五步先產生報告。
   assert.equal(f.state().reports.some(a => a.kind === 'criteriaSelectionReport'), false);
   assert.equal(exportButton(f).disabled, false);
   for (const jargon of ['版本參照', '測試母體區', '有界預覽', 'CriteriaSelectionReport', '匯出時會依目前資料重新計算']) {

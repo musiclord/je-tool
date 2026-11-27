@@ -8,7 +8,7 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 唯讀擷取檔案裡要帶入第三步的欄位配對。六份正式報表都有隱藏工作表 JET_Metadata，先讀它；
 /// 沒有時讀「自動化工具-檔案欄位資訊」F1:H1（驗證報告與工作底稿另寫的同一份配對）。
-/// 兩種隱藏紀錄都沒有時，例如舊版 IDEA JET 的底稿，改讀同一張工作表看得見的 A 到 E 欄，交給 handler 推得草稿；
+/// 兩種隱藏紀錄都沒有時，例如舊版的底稿，改讀同一張工作表看得見的 A 到 E 欄，交給 handler 推得草稿；
 /// 隱藏紀錄存在但格式不對時，仍整份不帶入。
 /// </summary>
 public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
@@ -178,7 +178,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
     /// <summary>
     /// 讀「自動化工具-檔案欄位資訊」看得見的 A 到 E 欄。用 A 欄的兩個段落標題找出 TB 段與 GL 段，不靠固定列號：
-    /// 舊版 IDEA JET 在兩段之間空一列，新版空兩列。標題下一列是表頭時跳過，
+    /// 舊版在兩段之間空一列，新版空兩列。標題下一列是表頭時跳過，
     /// 資料列讀到 A 到 E 整列空白，或遇到另一段標題為止。只回傳表格原文，配對怎麼推得由 Domain 的 FieldInfoSheetMapping 決定。
     /// </summary>
     private static FieldInfoSheet ReadFieldInfoSheet(
