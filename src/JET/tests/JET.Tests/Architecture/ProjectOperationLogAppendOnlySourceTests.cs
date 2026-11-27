@@ -41,7 +41,7 @@ public sealed partial class ProjectOperationLogAppendOnlySourceTests
     [InlineData("INSERT INTO operation_log (event_id) VALUES (@eventId)")]
     [InlineData("SELECT operation FROM operation_log WHERE target_id = @dataset")]
     [InlineData("CREATE INDEX ix_operation_log_occurred ON operation_log (occurred_utc, event_id)")]
-    [InlineData("UPDATE schema_info SET value = '9' WHERE key = 'schema_version'")]
+    [InlineData("UPDATE schema_info SET value = '9' WHERE key = 'filter_data_revision'")]
     public void GuardDetector_AllowsAppendReadAndSchemaStatements(string source)
     {
         Assert.DoesNotMatch(OperationLogMutation(), source);

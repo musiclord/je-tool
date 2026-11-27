@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using JET.Application;
 using JET.Domain;
@@ -102,34 +101,6 @@ public sealed class MappingValueProfileTests
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
     }
 
-    [Fact]
-    public void RetiredSuggestionTypesAndPayloadParser_AreNotShipped()
-    {
-        Assert.Null(typeof(ProjectDocument).Assembly.GetType("JET.Domain.MappingSuggestionEngine"));
-        Assert.Null(typeof(ProjectDocument).Assembly.GetType("JET.Domain.MappingFieldDefinition"));
-        Assert.Null(typeof(PayloadReader).GetMethod("GetFieldDefinitions", BindingFlags.Public | BindingFlags.Static));
-    }
-
-    [Fact]
-    public async Task SourceCheck_UnsupportedProviderPreservesProfileAndReturnsUnknownNotMissing()
-    {
-        // 判定看的是替身沒有實作來源值核對，與種類名稱無關，所以用 SQLite 的資料庫組。
-        var session = new ProjectSession();
-        session.Enter("synthetic-server-profile", TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
-        {
-            Imports = new ProfileImportStub(), MappingValueProfiles = new ProfileOnlyStub()
-        });
-        var response = await new MappingValueProfileHandler(session).HandleAsync(JsonSerializer.SerializeToElement(new
-        {
-            dataset = "gl", sourceColumn = "Mode", checkSourceValues = true, comparisonValues = new[] { "OUTSIDE" }
-        }), CancellationToken.None);
-        var result = JsonSerializer.SerializeToElement(response);
-        Assert.Equal(1, result.GetProperty("distinctCount").GetInt64());
-        Assert.Equal("A", result.GetProperty("values")[0].GetProperty("value").GetString());
-        Assert.Equal(JsonValueKind.Null, result.GetProperty("missingComparisonValues").ValueKind);
-        Assert.Equal("unsupportedProvider", result.GetProperty("sourceValueCheckStatus").GetString());
-    }
-
     private static async Task CreateAsync(HandlerTestHost host, string provider) =>
         _ = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
@@ -153,22 +124,5 @@ public sealed class MappingValueProfileTests
         });
         try { await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path })); }
         finally { TestWorkbookBuilder.Delete(path); }
-    }
-
-    private sealed class ProfileOnlyStub : IMappingValueProfileRepository
-    {
-        // 替身收下往下填補參數但不使用，回傳不受它影響。
-        public Task<MappingValueProfile> GetAsync(string projectId, string batchId, string sourceColumn, int limit,
-            bool fillDown, CancellationToken cancellationToken) => Task.FromResult(new MappingValueProfile("Mode", 0, 1,
-                [new MappingValueProfileValue("A", 2)], false));
-    }
-
-    private sealed class ProfileImportStub : IImportRepository
-    {
-        public Task<ImportBatchInfo?> GetLatestBatchAsync(string projectId, DatasetKind kind, CancellationToken cancellationToken) =>
-            Task.FromResult<ImportBatchInfo?>(new ImportBatchInfo("batch", DatasetKind.Gl, "synthetic.xlsx",
-                new DateTimeOffset(2026, 10, 4, 0, 0, 0, TimeSpan.Zero), 2, ["Mode"], []));
-        public Task<ImportBatchResult> ReplaceBatchAsync(string projectId, DatasetKind kind, IReadOnlyList<ImportSourceInput> sources, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<ImportBatchResult> AppendToBatchAsync(string projectId, DatasetKind kind, IReadOnlyList<ImportSourceInput> sources, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

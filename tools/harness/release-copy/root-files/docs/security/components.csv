@@ -1,0 +1,28 @@
+﻿元件,版本,引用方式,授權
+ClosedXML,0.105.1,直接,MIT
+DocumentFormat.OpenXml,3.5.1,直接,MIT
+ExcelDataReader,3.9.0,直接,MIT
+Microsoft.Data.Sqlite,10.0.15,直接,MIT
+Microsoft.Extensions.Logging,10.0.15,直接,MIT
+Microsoft.Extensions.Logging.Abstractions,10.0.15,直接,MIT
+Microsoft.Web.WebView2,1.0.4258.31,直接,Microsoft WebView2 SDK 授權（BSD-3-Clause 形式）
+SQLitePCLRaw.bundle_e_sqlite3,3.0.5,直接,Apache-2.0；內含的 SQLite 3.53.4 為公有領域（public domain）
+System.Data.OleDb,10.0.15,直接,MIT
+ClosedXML.Parser,2.0.0,間接,MIT
+DocumentFormat.OpenXml.Framework,3.5.1,間接,MIT
+ExcelNumberFormat,1.1.0,間接,MIT
+Microsoft.Data.Sqlite.Core,10.0.15,間接,MIT
+Microsoft.Extensions.DependencyInjection,10.0.15,間接,MIT
+Microsoft.Extensions.DependencyInjection.Abstractions,10.0.15,間接,MIT
+Microsoft.Extensions.Options,10.0.15,間接,MIT
+Microsoft.Extensions.Primitives,10.0.15,間接,MIT
+RBush.Signed,4.0.0,間接,MIT
+SixLabors.Fonts,1.0.0,間接,Apache-2.0
+SQLite,3.53.4,間接,公有領域
+SQLitePCLRaw.config.e_sqlite3,3.0.5,間接,Apache-2.0
+SQLitePCLRaw.core,3.0.5,間接,Apache-2.0
+SQLitePCLRaw.provider.e_sqlite3,3.0.5,間接,Apache-2.0
+Apache ECharts（含 d3.js 子元件）,5.5.0,前端,Apache-2.0；d3.js 子元件為 BSD-3-Clause
+Fluent UI System Icons,1.1.344,前端,MIT
+Instrument Sans,Google Fonts v4,前端,SIL Open Font License 1.1
+Noto Sans TC,未標示,前端,SIL Open Font License 1.1

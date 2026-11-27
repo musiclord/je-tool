@@ -19,7 +19,10 @@ public static class PageCursor
     public static string Encode(string key) =>
         Convert.ToBase64String(Encoding.UTF8.GetBytes(key));
 
-    /// <summary>null/空 → false(首頁,無游標述詞);格式不符 → false(由 handler 視為首頁或報參數錯,不靜默崩潰)。</summary>
+    /// <summary>
+    /// null 或空字串回 false，表示首頁、沒有游標條件；格式不符也回 false，
+    /// handler 再用 <see cref="IsMalformed"/> 判斷並報參數錯，不當成首頁。
+    /// </summary>
     public static bool TryDecode(string? cursor, out string key)
     {
         key = string.Empty;

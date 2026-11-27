@@ -118,7 +118,7 @@ public sealed class FrontendHardeningContractTests
 
         foreach (var requiredDisplayPhrase in new[]
         {
-            // Confirmed-state wording.
+            // 畫面一定要出現的用字。
             "已確認配對",
             "分類用途",
             "金額",

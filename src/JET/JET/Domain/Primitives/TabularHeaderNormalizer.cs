@@ -48,7 +48,7 @@ public static class TabularHeaderNormalizer
     }
 
     /// <summary>
-    /// 佔位欄名判定：恰為 Normalize 對空白標頭產生的正準形 COL_{數字}。
+    /// 佔位欄名判定：恰為 Normalize 對空白標頭產生的固定格式 COL_{數字}。
     /// 去重字尾產物（COL_3_2）與一般欄名都不是佔位欄。
     /// </summary>
     public static bool IsPlaceholder(string name)

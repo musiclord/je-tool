@@ -82,7 +82,7 @@ internal static class FilterPopulationScopeParser
         throw InvalidPayload();
     }
 
-    /// <summary>較早儲存的 definition 沒有這個欄位時當成 auditPeriod；值認不得或不是字串時回 stale_result。</summary>
+    /// <summary>definition 沒有這個欄位時當成 auditPeriod；值認不得或不是字串時回 stale_result。</summary>
     public static GlPopulationScope ReadDefinition(JsonElement definition)
     {
         if (definition.ValueKind != JsonValueKind.Object

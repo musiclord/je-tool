@@ -257,7 +257,6 @@ public sealed class ImportCalendarHandlersTests
 
             Assert.Equal(JetErrorCodes.ProjectionFailed, ex.Code);
             Assert.Equal(
-                                // 這句的用字已定案。
                                 "檔案有 1 列無法讀取：第 3 列：日期「2025/13/01」不是 2026-12-31 這種格式",
                 ex.Message);
         }

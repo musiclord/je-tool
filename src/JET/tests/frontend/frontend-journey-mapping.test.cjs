@@ -2,20 +2,20 @@
 require('./support/resource-guard.cjs');
 // 第三步欄位配對的情境測試。
 //
-// 情境 5「第三步配對內容與確認」：審計員在簡易清單指派過帳狀態欄、讀來源值、沒選值時想確認、選值後確認；
+// 「第三步配對內容與確認」：審計員在簡易清單指派過帳狀態欄、讀來源值、沒選值時想確認、選值後確認；
 // 設定人工與自動代碼（只指定一側的代碼、兩側都指定）；勾新的攸關資料元素欄、確認、拿到後端發的識別碼、改名再確認；
 // 「傳票建立日」下拉選到已經是別的欄位的來源欄，出現確認提示後又選回空白；
 // 取消指派過帳狀態欄後再確認；在簡易清單與對照表格比較能不能確認；切換金額格式。
 // 另外核對兩段：傳票核准日只有一個來源選擇（清掉來源欄、舊草稿互相矛盾、取消變更），
 // 以及確認失敗後在文字框打字要標成「設定已修改」。
-// 情境 6「第三步重繪、焦點、捲動與連續輸入」：全新草稿用下拉選欄；表格捲到一半後選欄；改借方代碼與攸關資料元素名稱，
+// 「第三步重繪、焦點、捲動與連續輸入」：全新草稿用下拉選欄；表格捲到一半後選欄；改借方代碼與攸關資料元素名稱，
 // 不離開輸入框直接按確認；確認後按重新配對再改一次；欄名含引號時選欄；重新匯入時舊的表格預覽晚到。
 //
 // 每個測試都經過 app.js 的 renderContent 畫出正式第三步（共用夾具 mappingRenderFixture）：
 // 正式的 state.js、ui-core.js、steps/mapping-step.js 與 app.js，Store 每次通知都走正式的重繪判斷，
 // 事件在假 DOM 上冒泡，setTimeout 收進佇列由測試執行。後端請求記在 f.requests，由測試 resolve 或 reject。
 //
-// 斷言規則：只有用字已定案的文字逐字比對，其他文字只比對意思；預期值寫死，不由被測程式算出；
+// 斷言依案例逐字核對或比對意思，預期值使用固定文字，
 // 送出的 payload 精確比對，而且不得帶 `__` 開頭的鍵。訊息面板的句子在本檔最後另外核對。
 //
 // 第三步的重繪慣例：會改變衍生畫面的寫入一律重繪。借方代碼與攸關資料元素名稱是例外：輸入時就地更新衍生畫面、
@@ -146,7 +146,7 @@ function assertNoInternalKeys(payload) {
   assert.ok(!JSON.stringify(payload).includes('"__'), 'payload has no __ keys: ' + JSON.stringify(payload));
 }
 
-/* ---- 情境 5：第三步配對內容與確認 ------------------------------------------------ */
+/* ---- 第三步配對內容與確認 ------------------------------------------------ */
 
 for (const kind of ['posting', 'manual']) test('' + kind + ' source read failures use the shared notice and retry wording', async () => {
   const f = journey({ draft: { ...DUAL, postingStatus: 'Posting', isManual: 'Manual' } });
@@ -179,7 +179,7 @@ for (const kind of ['manual', 'posting']) test('mapping: reading ' + kind + ' so
   const first = f.need(kind === 'manual' ? '.value-assign-list [data-manual-assign]' : '.value-option-list [data-posting-value]');
   assert.ok(list.contains(first));
   assert.ok(f.dom.document.activeElement === first, 'focus moves to the first control of the value list');
-  // 假 DOM 沒有版面，只能看接替的控制項在內容捲軸還原之後被捲進畫面（block: nearest 在已經看得到時不會動）；實機位置由瀏覽器主機確認。
+  // 假 DOM 沒有版面，只能看接替的控制項在內容捲軸還原之後被捲進畫面（block: nearest 在已經看得到時不會動）；實際位置要在 JET 的畫面上確認。
   assert.deepEqual(plain(first.scrolledIntoView), [{ block: 'nearest' }]);
 });
 
@@ -209,7 +209,7 @@ test('mapping: every control has a distinguishable name, the preview button read
   const f = journey({ tb: TB_COLUMNS, mode: 'side', draft: { isManual: 'Manual', postingStatus: 'Posting' } });
 
   // 下拉、借方代碼、逐值選項與三個「加入」按鈕都要有可分辨的名稱，名稱取自欄位目錄或來源值。
-  // 名稱的用字沒有定案，只比對意思。
+  // 名稱只比對意思。
   // 簡易清單：每一列的控制項都以那一列的 JET 欄位命名，名稱彼此不同。
   const rows = f.$$('tr.mapping-table__row');
   assert.ok(rows.length > 10, 'the list shows every field of the side format');
@@ -275,7 +275,7 @@ test('mapping: every control has a distinguishable name, the preview button read
   }
   const literal = f.need('input[data-mapping-key="drCrDebitCode"]');
   assert.match(literal.getAttribute('aria-label'), /借方代碼/);
-  // 提示用白話，不寫「字面值」。提示句的用字沒有定案，只比對意思：說明是哪一方的代碼，並舉例。
+  // 提示用白話，不寫「字面值」。提示句只比對意思：說明是哪一方的代碼，並舉例。
   const hint = f.need('#' + literal.getAttribute('aria-describedby'));
   assert.match(hint.textContent, /借方/, 'the grid code hint explains which side the code stands for');
   assert.match(hint.textContent, /例如.*D/, 'and gives an example code');
@@ -371,7 +371,7 @@ test('mapping: a mapped posting status needs an accepted value or blank before c
   f.choose('select[data-mapping-key="postingStatus"]', 'Posting');
   assert.ok(f.commitDisabled() === true, 'a posting column without an accepted value blocks confirming');
   // 停用的確認鈕不默默鎖住：按鈕上方列出還要補什麼。
-  // 句子的用字沒有定案，只比對意思。
+  // 句子只比對意思。
   assert.match(f.problems(), /補/, 'the notice says something is still needed');
   assert.match(f.problems(), /過帳/);
   f.press('[data-action="load-posting-profile"]');
@@ -589,7 +589,7 @@ test('mapping: approval date has a single source choice; clearing the source mea
   // 簡易清單只有一個核准日下拉：選來源欄、改選與總帳日期相同、重新匯入後來源欄不見。
   const list = journey({ draft: DUAL });
   // 傳票核准日那一列只有一個控制項；選項是「沒有核准日」、與總帳日期相同，以及每一個來源欄。
-  // 選項文字的用字沒有定案，只比對意思（GL_APPROVAL_DATE_MODES 的標籤）。
+  // 選項文字只比對意思（GL_APPROVAL_DATE_MODES 的標籤）。
   const approvalRow = list.$$('tr.mapping-table__row').find(row => row.querySelector('.mapping-table__label').textContent.includes('傳票核准日'));
   assert.ok(approvalRow !== undefined, 'the list has an approval date row');
   assert.equal(approvalRow.querySelectorAll('select, input').length, 1, 'approval date is set through one control');
@@ -751,7 +751,7 @@ test('mapping: a failed confirm is shown in place, and typing afterwards marks i
   assert.ok(f.need('[data-action="commit-gl"]') === commit, 'the confirm button is the same node');
 });
 
-/* ---- 情境 6：第三步重繪、焦點、捲動與連續輸入 ------------------------------------ */
+/* ---- 第三步重繪、焦點、捲動與連續輸入 ------------------------------------ */
 
 test('redraw: choosing a column redraws once, updates the required list and confirm, and keeps focus on the new select, also after remap', async () => {
   // 草稿餵給必填標示、「確認配對」能不能按與過帳等設定區，選欄後一定要重繪。只在輸入框或已確認時才重繪的話，全新草稿的下拉選欄
@@ -1580,7 +1580,7 @@ test('mapping messages: a confirmed mapping logs the row count with the elapsed 
   f.press('[data-action="commit-gl"]');
   f.last('mappingCommitGl').reject(Object.assign(new Error('合成：配對未通過檢查。'), { code: 'mapping_failed' }));
   await settleAll();
-  // 作業名稱的用字沒有定案，只確認提到 GL 與配對。
+  // 作業名稱只確認提到 GL 與配對。
   assert.match(messageList(f)[0].text, new RegExp('^[^：]*GL[^：]*配對[^：]*失敗：合成：配對未通過檢查（' + ELAPSED + '）。$'));
   assert.equal(messageList(f)[0].level, 'error');
 });
@@ -1637,7 +1637,7 @@ test('mapping: required fields are tagged where they are chosen, and the grid li
   for (const [key, column] of Object.entries(DUAL)) f.choose('select[data-mapping-key="' + key + '"]', column);
   assert.equal(f.need('.map-required__title').textContent, '必填欄位皆已配對');
   assert.equal(f.$$('tr.mapping-table__row').filter(row => classes(row).includes('is-missing')).length, 0);
-  // 借方代碼與貸方代碼共同標示至少填一個，保留單側即可確認的規則。
+  // 借方代碼與貸方代碼共同標示至少填一個，只填一側也能確認。
   const side = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } });
   for (const key of ['drCrDebitCode', 'drCrCreditCode']) {
     const row = side.need('input[data-mapping-key="' + key + '"]').closest('.mapping-table__row');
@@ -1788,7 +1788,7 @@ test('mapping: date notices mark the wrong part of each value and say how the ro
   assert.equal(f.$('[data-bind="mapping-date-notices"]'), null);
 });
 
-// 年份多打成五位數以上的日期，只標出年份那一段，原因寫年份超過四位數，不再只說不是日期。
+// 年份多打成五位數以上的日期，只標出年份那一段，原因寫年份超過四位數，不只寫不是日期。
 test('mapping: a date whose year has more than four digits says so and marks only the year', async () => {
   const f = journey({ draft: DUAL });
   f.press('[data-action="commit-gl"]');
@@ -1862,7 +1862,7 @@ test('mapping: dates before 1900-03-01 within 1900 say they are written as text 
   assert.equal(box.querySelectorAll('[data-action="preview-date-excluded"]').length, 0);
 });
 
-// 沒有無法辨識的日期，只有年份不尋常或底稿寫成文字的日期時，訊息面板照原本的說法只寫筆數。
+// 沒有無法辨識的日期，只有年份不尋常或底稿寫成文字的日期時，訊息面板只寫筆數。
 test('mapping: the message keeps the plain count when no date is unrecognized', async () => {
   const f = journey({ draft: DUAL });
   f.press('[data-action="commit-gl"]');

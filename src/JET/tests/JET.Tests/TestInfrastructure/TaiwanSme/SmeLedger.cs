@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Jet.Harness.TaiwanSme;
+namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
 /// <summary>總帳匯出檔的一列。借貸金額分兩欄，另一欄為 0；核准日為 null 時寫成空白儲存格。</summary>
 internal sealed record SmeLine(
@@ -32,12 +32,12 @@ internal sealed record SmeLine(
 /// <summary>固定種子的亂數（SplitMix64），跨 .NET 版本產生相同序列，案件每次重建都一樣。</summary>
 internal sealed class SmeRandom(ulong seed)
 {
-    private ulong state = seed;
+    private ulong _state = seed;
 
     public ulong NextUInt64()
     {
-        state += 0x9E3779B97F4A7C15UL;
-        var z = state;
+        _state += 0x9E3779B97F4A7C15UL;
+        var z = _state;
         z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
         z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
         return z ^ (z >> 31);
@@ -67,16 +67,16 @@ internal sealed class SmeRandom(ulong seed)
 /// </summary>
 internal sealed class SmeLedger(IReadOnlyDictionary<string, SmeAccount> accounts)
 {
-    private readonly List<SmeLine> lines = [];
-    private readonly Dictionary<string, int> sequences = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, decimal> balances =
+    private readonly List<SmeLine> _lines = [];
+    private readonly Dictionary<string, int> _sequences = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, decimal> _balances =
         accounts.Values.ToDictionary(account => account.Code, account => account.Opening, StringComparer.Ordinal);
 
-    public IReadOnlyList<SmeLine> Lines => lines;
+    public IReadOnlyList<SmeLine> Lines => _lines;
 
     /// <summary>目前餘額（借正貸負），只累計查核期間內已過帳的分錄，和 TB 期末餘額同一口徑。</summary>
     public decimal Balance(string code) =>
-        balances.TryGetValue(code, out var value)
+        _balances.TryGetValue(code, out var value)
             ? value
             : throw new InvalidOperationException($"科目 {code} 不在台灣中小企業科目表。");
 
@@ -126,8 +126,8 @@ internal sealed class SmeLedger(IReadOnlyDictionary<string, SmeAccount> accounts
 
         var (prefix, isManual) = SourceInfo(voucher.Source);
         var key = prefix + voucher.GlDate.ToString("yyMM", CultureInfo.InvariantCulture);
-        var next = sequences.GetValueOrDefault(key) + 1;
-        sequences[key] = next;
+        var next = _sequences.GetValueOrDefault(key) + 1;
+        _sequences[key] = next;
         var number = $"{key}-{next:0000}";
         var inPeriod = voucher.Posted
             && voucher.GlDate >= SmeCalendar.PeriodStart
@@ -138,10 +138,10 @@ internal sealed class SmeLedger(IReadOnlyDictionary<string, SmeAccount> accounts
             var account = Account(entry.AccountNumber);
             if (inPeriod)
             {
-                balances[account.Code] += entry.Debit - entry.Credit;
+                _balances[account.Code] += entry.Debit - entry.Credit;
             }
 
-            lines.Add(new SmeLine(
+            _lines.Add(new SmeLine(
                 number,
                 i + 1,
                 voucher.GlDate,
@@ -173,8 +173,8 @@ internal sealed class SmeVoucher(
 {
     internal sealed record Entry(string AccountNumber, decimal Debit, decimal Credit, string Description);
 
-    private readonly List<Entry> entries = [];
-    private bool committed;
+    private readonly List<Entry> _entries = [];
+    private bool _committed;
 
     public string Source { get; } = source;
     public DateOnly GlDate { get; } = glDate;
@@ -198,13 +198,13 @@ internal sealed class SmeVoucher(
 
     public void Post(bool allowUnbalanced = false)
     {
-        if (committed)
+        if (_committed)
         {
             throw new InvalidOperationException("同一張傳票不能過帳兩次。");
         }
 
-        committed = true;
-        ledger.Commit(this, entries, allowUnbalanced);
+        _committed = true;
+        ledger.Commit(this, _entries, allowUnbalanced);
     }
 
     private void Add(string accountNumber, decimal debit, decimal credit, string description)
@@ -215,7 +215,7 @@ internal sealed class SmeVoucher(
         }
 
         _ = ledger.Account(accountNumber);
-        entries.Add(new Entry(accountNumber, debit, credit, description));
+        _entries.Add(new Entry(accountNumber, debit, credit, description));
     }
 }
 

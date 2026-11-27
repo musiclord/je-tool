@@ -7,15 +7,15 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 漂移守門:中央三層表名登錄(<see cref="JetSchemaCatalog"/>)必須與真 SQLite schema 完全對齊。
+/// <see cref="JetSchemaCatalog"/> 登錄的資料表必須和 SQLite 實際建出的資料表完全一致。
 ///
-/// 機制:以 <see cref="SqliteProjectDatabase.EnsureCreatedAsync(string, CancellationToken)"/> 在 temp 目錄建一個全新專案 DB
-/// (跑權威 SchemaSql),再查 <c>sqlite_master</c> 取得全部使用者表(排除 <c>sqlite_%</c> 內部表,
+/// 機制:以 <see cref="SqliteProjectDatabase.EnsureCreatedAsync(string, CancellationToken)"/> 在 temp 目錄建一個全新案件 DB
+/// (跑正式的 SchemaSql),再查 <c>sqlite_master</c> 取得全部使用者表(排除 <c>sqlite_%</c> 內部表,
 /// 與 dev 檢視 inspector 同一過濾),雙向比對:
 ///   (a) 每張實體表都已登錄 → 日後加表卻忘了登錄(漏登錄)時測試會失敗(負向保護)。
 ///   (b) 登錄表沒有幽靈條目 → 登錄了一張其實不存在的表也會失敗。
 ///
-/// 這是 metadata 加法模型(不實體改名)的安全網:目錄是事實來源,本測試確保它不與真實 schema 漂移。
+/// 資料表的對外名稱寫在目錄裡，實體表名不改；這個測試確保目錄登錄的內容和實際建出的資料表一致。
 /// 注意 <c>sqlite_sequence</c> 由 AUTOINCREMENT 自動建立,屬 SQLite 內部簿記表,以 <c>sqlite_%</c>
 /// 過濾排除——故不需(也不應)登錄。
 /// </summary>
@@ -32,7 +32,7 @@ public sealed class SchemaCatalogDriftTests
             ProjectId = Guid.NewGuid().ToString("N");
             Directory.CreateDirectory(folder.GetProjectDirectory(ProjectId));
 
-            // 全新庫直接建到目前 schema 版本(SchemaSql 即實體表的權威清單)。
+            // 全新庫直接建到目前 schema 版本(實體表以 SchemaSql 的清單為準)。
             Database.EnsureCreatedAsync(ProjectId, CancellationToken.None).GetAwaiter().GetResult();
         }
 
@@ -66,14 +66,14 @@ public sealed class SchemaCatalogDriftTests
         public void Dispose() => _root.Dispose();
     }
 
-    /// <summary>每一張實體表都必須已登錄(漏登錄 → 紅)。</summary>
+    /// <summary>每一張實體表都必須已登錄，漏登錄時測試失敗。</summary>
     [Fact]
     public async Task EveryPhysicalTable_IsRegisteredInCatalog()
     {
         using var db = new FreshProjectDb();
         var physicalTables = await db.ReadUserTablesAsync();
 
-        // sanity:確有建出表(防「查到空集合假綠」)。
+        // 先確認真的建出了資料表，避免查到空集合時誤判通過。
         Assert.NotEmpty(physicalTables);
 
         var registered = JetSchemaCatalog.All
@@ -86,7 +86,7 @@ public sealed class SchemaCatalogDriftTests
             $"以下實體表存在於 SQLite schema 卻未登錄於 JetSchemaCatalog:{string.Join(", ", missing)}");
     }
 
-    /// <summary>登錄表不得有幽靈條目:每筆登錄都對應一張真實存在的表(登錄了不存在的表 → 紅)。</summary>
+    /// <summary>每筆登錄都要對應一張真實存在的表，登錄了不存在的表時測試失敗。</summary>
     [Fact]
     public async Task EveryCatalogEntry_MapsToARealTable()
     {

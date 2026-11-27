@@ -40,7 +40,7 @@ public sealed class BinaryExcelImportWorkflowTests
         Assert.Equal(original, await File.ReadAllBytesAsync(path));
     }
 
-    // Minimal BIFF2 workbook made solely from synthetic values; no Office or external fixture is needed.
+    // 只用合成值組成的最小 BIFF2 活頁簿，不需要 Office 或外部檔案。
     private static void WriteBiff2(string path)
     {
         using var stream = File.Create(path);

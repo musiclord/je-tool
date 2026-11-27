@@ -283,6 +283,27 @@ public sealed class MappingValueProfileHandlerTests
                 [new MappingValueProfileValue("A", 2), new MappingValueProfileValue("a", 2)],
                 true));
         }
+
+        // 替身把要核對的值都當成在來源裡，回空清單；只記值概況的呼叫次數，這裡不計入 Calls。
+        public Task<IReadOnlyList<string>> FindMissingValuesAsync(
+            string projectId,
+            string batchId,
+            string sourceColumn,
+            IReadOnlyList<string> comparisonValues,
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([]);
+
+        // 一起算時依序呼叫上面兩個方法，所以 Calls 也只記一次值概況。
+        public async Task<CheckedMappingValueProfile> GetWithSourceValueCheckAsync(
+            string projectId,
+            string batchId,
+            string sourceColumn,
+            int limit,
+            bool fillDown,
+            IReadOnlyList<string> comparisonValues,
+            CancellationToken cancellationToken) =>
+            new(
+                await GetAsync(projectId, batchId, sourceColumn, limit, fillDown, cancellationToken),
+                await FindMissingValuesAsync(projectId, batchId, sourceColumn, comparisonValues, cancellationToken));
     }
 
     private sealed class StubImportRepository(ImportBatchInfo? batch) : IImportRepository

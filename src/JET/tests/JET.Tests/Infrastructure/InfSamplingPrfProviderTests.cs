@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// INF v2 canonical C# fixed vectors 與三個真實 SQL provider 的逐筆等價 gate。
+/// INF v2 抽樣排序鍵：SQLite 算出的值要和 C# 標準實作的固定向量逐筆相同。
 /// </summary>
 public sealed class InfSamplingPrfProviderTests
 {
@@ -24,15 +24,15 @@ public sealed class InfSamplingPrfProviderTests
     ];
 
     [Fact]
-    public async Task V2FixedVectors_SqliteSqlEqualsCanonicalCSharp()
+    public async Task FixedVectors_SqliteSqlEqualsCanonicalCSharp()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
 
-        await AssertV2VectorsAsync(connection, SqliteDialect.Instance);
+        await AssertFixedVectorsAsync(connection, SqliteDialect.Instance);
     }
 
-    private static async Task AssertV2VectorsAsync(DbConnection connection, ISqlDialect dialect)
+    private static async Task AssertFixedVectorsAsync(DbConnection connection, ISqlDialect dialect)
     {
         foreach (var vector in Vectors)
         {

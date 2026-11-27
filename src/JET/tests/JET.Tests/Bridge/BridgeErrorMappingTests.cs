@@ -88,7 +88,6 @@ public sealed class BridgeErrorMappingTests
         Assert.Equal("情境名稱必填。", details[2].GetProperty("message").GetString());
     }
 
-    // 這句的用字已定案。
     private const string UnexpectedErrorText =
         "發生非預期的錯誤，此操作未完成。請再試一次。";
 

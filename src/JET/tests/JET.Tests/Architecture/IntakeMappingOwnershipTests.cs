@@ -93,16 +93,8 @@ public sealed class IntakeMappingOwnershipTests
         }
     }
 
-    [Fact]
-    public void LegacyResultResetScope_IsRemoved()
-    {
-        Assert.Null(
-            ProductionAssembly.GetType(
-                "JET.Infrastructure.ResultReset+Scope"));
-    }
-
     /// <remarks>
-    /// ReferenceDataFactsPort 在 Infrastructure/Persistence；倉儲只讀本機的科目配對與授權名單兩個。
+    /// ReferenceDataFactsPort 在 Infrastructure/Persistence；這裡讀的倉儲是科目配對與授權名單兩個。
     /// </remarks>
     [Fact]
     public void ReferenceDataProductionPath_UsesAuditCoreDecisionOwners()
@@ -119,7 +111,7 @@ public sealed class IntakeMappingOwnershipTests
             Environment.NewLine,
             ReadProduct("Infrastructure", "Persistence", "Local", "LocalAccountMappingRepository.cs"),
             ReadProduct("Infrastructure", "Persistence", "Local", "LocalAuthorizedPreparerRepository.cs"));
-        var core = ReadProduct("AuditCore", "IntakeMappingProgram.cs");
+        var core = ReadProduct("AuditCore", "JetAuditProgram.IntakeMapping.cs");
 
         Assert.DoesNotContain("AccountMappingColumnResolver", accountHandler, StringComparison.Ordinal);
         Assert.DoesNotContain("CalendarImportColumnResolver", calendarHandler, StringComparison.Ordinal);

@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 從建立案件、匯入 GL 一路做到匯出底稿，核對底稿「自動化工具-檔案欄位資訊」工作表。
 /// 配對前的欄名很長時，名稱欄維持寬度上限、欄名換行，列高跟著行數加高；沒有匯入 TB 時，TB 那一段沒有任何欄位列。
-/// 寫出程式的單元測試已經測過換行加高，這裡補上照審計員操作順序走正式流程匯出的底稿。
+/// 寫出程式的單元測試核對換行加高；這裡照審計員操作順序走正式流程，核對匯出的底稿。
 /// </summary>
 public sealed class WorkingPaperFieldInfoJourneyTests
 {

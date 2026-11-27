@@ -122,7 +122,7 @@ public sealed partial class ExportReadPortArchitectureTests
     [GeneratedRegex(@"\bRequiredWorksheet\s*\(\s*\)|\.Worksheet\b")]
     private static partial Regex WholeWorksheetLoad();
 
-    // 分頁查詢的介面名稱都以 PageRepository 結尾，方法是 GetPageAsync 或 GetEntryIdsPageAsync。
+    // 分頁查詢的介面名稱都以 PageRepository 結尾，方法名稱是 Get 開頭、PageAsync 結尾，例如 GetPageAsync。
     [GeneratedRegex(@"\bI\w+PageRepository\b|\bGet\w*PageAsync\s*\(")]
     private static partial Regex ScreenPagingReference();
 

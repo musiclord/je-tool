@@ -5,7 +5,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 台灣中小企業常見的調整分錄摘要、整數與重複尾數金額、編製與核准人員，以及使用次數少的人員與科目。
-/// 預期值依規則與條件目錄手算。
+/// 預期值依規則手算。
 /// </summary>
 public sealed class TaiwanSmeDescriptionAmountPreparerTests
 {
@@ -160,7 +160,7 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("非授權編製人員", """{"type":"prescreen","prescreenKey":"nonAuthorizedPreparer"}"""),
             OneRule("編製與核准同一人", """{"type":"preparerEqualsApprover"}"""),
-            OneRule("特定人員 財務長與總經理", """{"type":"text","field":"createdBy","mode":"exact","keywords":"CFO01、gm01"}"""));
+            OneRule("特定人員 財務長與總經理", """{"type":"fieldValue","field":"createdBy","operator":"in","values":["CFO01","gm01"]}"""));
         Assert.Equal(Keys("E7:1,2"), hits[0]);
         // E2 同為林經理；E3 的 cfo01 與 CFO01 視為同一人；E5、E6 有空白，不命中。
         Assert.Equal(Keys("E2:1,2;E3:1,2"), hits[1]);
@@ -193,7 +193,7 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         await host.DispatchAsync("validate.run");
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目，回應沒有 rareAccount、rarePreparer 與 rareAccountCount；
-        // 11 筆以下的邊界由下面第五步依審計目的的統計條件（預設 11 筆以下）核對同一組命中列。
+        // 11 筆以下的邊界由下面第五步欄位條件的常用查法（統計條件，預設 11 筆以下）核對同一組命中列。
         Assert.False(prescreen.TryGetProperty("rareAccount", out _));
         Assert.False(prescreen.TryGetProperty("rarePreparer", out _));
         // 科目筆數：6120 有 11 列、1102 有 11 + 1 = 12 列、1101 有 1 列，共 3 個科目。

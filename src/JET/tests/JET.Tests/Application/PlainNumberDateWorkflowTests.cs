@@ -79,9 +79,9 @@ public sealed class PlainNumberDateWorkflowTests
         finally { File.Delete(path); }
     }
 
-    // 每一列的總帳日期都讀不成日期時沒有任何分錄納入 GL，確認配對照舊不儲存，並列出那些值與列號。
+    // 每一列的總帳日期都讀不成日期時，沒有任何分錄納入 GL，確認配對不儲存，並列出那些值與列號。
     [Fact]
-    public async Task EveryGlDateUnrecognized_StillFailsAndListsTheValues()
+    public async Task EveryGlDateUnrecognized_RejectsTheMappingAndListsTheValues()
     {
         var path = Path.Combine(Path.GetTempPath(), $"jet-plain-number-date-{Guid.NewGuid():N}.csv");
         File.WriteAllText(path,

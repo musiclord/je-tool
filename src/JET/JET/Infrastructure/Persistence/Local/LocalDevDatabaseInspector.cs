@@ -108,7 +108,7 @@ public sealed class LocalDevDatabaseInspector(ILocalProjectDatabase database) : 
         {
             throw new JetActionException(
                 JetErrorCodes.FileNotFound,
-                $"專案資料庫檔案不存在：{databasePath}（唯讀檢視不會建立資料庫）。");
+                $"案件資料庫檔案不存在：{databasePath}（唯讀檢視不會建立資料庫）。");
         }
 
         var connection = database.CreateReadOnlyConnection(projectId);

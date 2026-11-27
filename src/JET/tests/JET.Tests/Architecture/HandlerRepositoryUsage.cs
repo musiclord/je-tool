@@ -8,7 +8,8 @@ namespace JET.Tests.Architecture;
 /// </summary>
 /// <remarks>
 /// handler 不從建構式收個別 repository，而是在一開始取
-/// <c>session.RequireActive()</c> 的快照，再從快照裡的資料庫組取用。依賴範圍檢查
+/// <c>session.RequireActive()</c> 的快照，再從快照裡的資料庫組取用。session 可以是主要建構式的參數 <c>session</c>，
+/// 也可以是建構式存起來的欄位 <c>_session</c>，兩種寫法都檢查。依賴範圍檢查
 /// 因此讀原始碼：handler 類別本體只能以名為 <c>repositories</c> 的變數、用 <c>repositories.屬性</c> 的形式取用，
 /// 不得把整組傳出去、不得用其他名稱或 <c>.Repositories</c> 取得整組，也不得把 session 交給別人，
 /// 讓「用到哪些屬性」可以從原始碼完整列出，範圍和建構式參數同樣窄。
@@ -131,28 +132,30 @@ internal static partial class HandlerRepositoryUsage
     [GeneratedRegex(@"\Grepositories\.(?<property>[A-Z][A-Za-z0-9_]*)\b", RegexOptions.CultureInvariant)]
     private static partial Regex PropertyAccess();
 
-    /// <summary>只認 <c>var (projectId, repositories) = session.RequireActive()</c> 與 <c>is (var projectId, var repositories)</c>。</summary>
+    /// <summary>只認 <c>var (projectId, repositories) = session.RequireActive()</c> 與 <c>is (var projectId, var repositories)</c>，session 也可以寫成 <c>_session</c>。</summary>
     [GeneratedRegex(
-        @"\G[ \t]*(?:var\s*\(\s*projectId\s*,\s*repositories\s*\)\s*=\s*session\.RequireActive\(\)|.*session\.Current\s+is\s+\(\s*var\s+projectId\s*,\s*var\s+repositories\s*\))",
+        @"\G[ \t]*(?:var\s*\(\s*projectId\s*,\s*repositories\s*\)\s*=\s*_?session\.RequireActive\(\)|.*_?session\.Current\s+is\s+\(\s*var\s+projectId\s*,\s*var\s+repositories\s*\))",
         RegexOptions.CultureInvariant)]
     private static partial Regex DeconstructionDeclaration();
 
     [GeneratedRegex(@"(?<=^|\s)//.*$", RegexOptions.CultureInvariant | RegexOptions.Multiline)]
     private static partial Regex LineComment();
 
-    [GeneratedRegex(@"(?<![A-Za-z0-9_.])session\b", RegexOptions.CultureInvariant)]
+    /// <summary>參數 <c>session</c> 或欄位 <c>_session</c>。</summary>
+    [GeneratedRegex(@"(?<![A-Za-z0-9_.])_?session\b", RegexOptions.CultureInvariant)]
     private static partial Regex SessionToken();
 
+    /// <summary>允許的用法：<c>RequireActive()</c>、<c>Current</c>、<c>CurrentProjectId</c>、<c>Leave()</c>，以及建構式裡的 <c>_session = session;</c>。</summary>
     [GeneratedRegex(
-        @"\Gsession(?:\.RequireActive\(\)|\.Current\b|\.CurrentProjectId\b|\.Leave\()",
+        @"\G(?:_?session(?:\.RequireActive\(\)|\.Current\b|\.CurrentProjectId\b|\.Leave\()|_session\s*=\s*session;)",
         RegexOptions.CultureInvariant)]
     private static partial Regex AllowedSessionUse();
 
-    /// <summary>建構式參數或欄位宣告：<c>ProjectSession session</c>。</summary>
+    /// <summary>建構式參數或欄位宣告：<c>ProjectSession session</c>、<c>ProjectSession _session</c>。</summary>
     [GeneratedRegex(@"\bProjectSession\s+$", RegexOptions.CultureInvariant)]
     private static partial Regex SessionDeclarationBefore();
 
-    /// <summary>建構式把參數存進欄位：<c>this.session = session;</c>。</summary>
-    [GeneratedRegex(@"\bthis\.session\s*=\s*$", RegexOptions.CultureInvariant)]
+    /// <summary>建構式把參數存進欄位：<c>_session = session;</c> 或 <c>this._session = session;</c>。</summary>
+    [GeneratedRegex(@"(?:\bthis\.|(?<![A-Za-z0-9_.]))_session\s*=\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex SessionAssignmentBefore();
 }

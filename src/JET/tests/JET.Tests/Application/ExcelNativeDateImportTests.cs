@@ -15,7 +15,7 @@ public sealed class ExcelNativeDateImportTests
     {
         foreach (var provider in new[] { "sqlite" })
         foreach (var format in new[] { "csv", "xlsx", "xlsx1904", "xls", "xls1904" })
-        // 日期角色沒有 voucherDate。
+        // 日期角色是總帳日期、傳票核准日與攸關資料元素。
         foreach (var field in new[] { "glDate", "approvalDate", "rde" }) yield return [provider, format, field];
     }
 

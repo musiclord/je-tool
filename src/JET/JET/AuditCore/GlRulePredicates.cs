@@ -35,7 +35,7 @@ internal sealed partial class GlRulePredicates(
     /// 但至少有一筆金額大於 0 的分錄（舊版先取這類傳票裡金額大於 0 的分錄，再依傳票號碼和收入貸方對上）。
     /// 整張傳票沒有正金額分錄時借貸一定不平，借貸不平測試會列出來，這條規則不挑。
     /// 正常對方科目要大於 0，0 元的應收或現金不算有正常對方科目，和舊版相同。
-    /// 直接命中的只有收入貸方這一列；第四步與預篩選報告要列整張傳票，由列出命中分錄的地方處理，判斷式不變。
+    /// 直接命中的只有收入貸方這一列；第四步與預篩選報告要列整張傳票時，由列出命中分錄的地方展開，這個判斷式只挑收入貸方。
     /// 「收入無一般對方科目」是另一條常用篩選條件：對方科目不含現金，借方側採 amount_scaled >= 0，也不要求正金額分錄。
     /// 現銷傳票與沒有正金額分錄的傳票只有它挑中；傳票的應收或預收借方只有 0 元、另有其他正金額分錄時，只有這條規則挑中。
     /// 其他借貸組合條件（accountPair、specialAccountCategoryPair）照樣以 amount_scaled >= 0 判定借方側。
@@ -215,7 +215,7 @@ internal sealed partial class GlRulePredicates(
 
     /// <summary>
     /// 依條件指定的選取方式比對：分類本身（node）、下層（subtree）或審計角色（role）。
-    /// 沒有指定選取方式的舊條件比對審計角色 semantic_role，所以角色相同的自訂分類結果不變。
+    /// 沒有指定選取方式時和 role 相同，比對審計角色 semantic_role，角色相同的自訂分類都會命中。
     /// 分類的 ID 一律用參數綁定；改分類的顯示名稱不影響命中。
     /// 分類清單是空的就直接丟出例外。「沒有」的模式在 DocHas 的片段前面加 NOT，遇到空清單會變成全部命中，
     /// 所以一定要在組 SQL 之前擋下：驗證器先擋一次，這裡是最後一道。
@@ -247,200 +247,6 @@ internal sealed partial class GlRulePredicates(
         Func<string> RowIsCreditSide,
         Func<string> DocHasDebitSide,
         Func<string> DocHasCreditSide);
-
-    /// <summary>
-    /// 攸關資料元素條件（<c>type:"typed"</c>）：對已確認配對的攸關資料元素欄位，依欄位的值型別比較。
-    /// 空白是指這筆分錄在 <c>gl_rde_value</c> 沒有對應的列。所有比較，包含 notEquals、notContains、notIn 這些否定的比較，
-    /// 都寫成「有一列值，而且那個值符合條件」的 EXISTS。(entry_id, field_id) 是主鍵，一筆分錄的一個欄位最多一個值，
-    /// 所以否定的比較是對那個值本身判斷，空白的分錄不會命中。要找空白或非空白，用 `isBlank` 與 `isNotBlank`。
-    /// 文字比較先去頭尾空白、不分大小寫，和 TextMatch 用的 UPPER(TRIM(...)) 相同。日期用整理成 yyyy-MM-dd 的字串比較。
-    /// 金額用 scaled 整數比較，amountBasis 決定比帶正負號的值還是絕對值。
-    /// fieldId 與所有比較值一律用參數綁定，不會成為 SQL 的識別字。
-    /// 案件的欄位清單裡找不到這個欄位，或比較方式和欄位的值型別不合時，丟出 invalid_scenario，檢查代號記在例外上。
-    /// 驗證器會先擋一次；已存的情境沒有再經過驗證器就執行時，這裡是最後一道。
-    /// </summary>
-    public string TypedField(
-        FilterSqlParameterPlanBuilder command,
-        FilterConditionSpec rule,
-        FilterConditionContext context,
-        string schemaPrefix = "")
-    {
-        if (string.IsNullOrEmpty(rule.FieldId))
-        {
-            throw Invalid("typed_field_unselected");
-        }
-
-        var field = context.RdeFields.FirstOrDefault(candidate =>
-                string.Equals(candidate.FieldId, rule.FieldId, StringComparison.Ordinal))
-            ?? throw Invalid("typed_field_not_mapped");
-        var op = rule.TypedOperator
-            ?? throw Invalid("typed_operator_unselected");
-        if (!TypedFieldOperatorSets.ForValueType(field.ValueType).Contains(op, StringComparer.Ordinal))
-        {
-            throw Invalid("typed_operator_type_mismatch");
-        }
-
-        var fieldParam = NextParam(command, field.FieldId);
-        if (TypedFieldOperatorSets.IsBlankFamily(op))
-        {
-            var existence = op == TypedFieldOperatorSets.IsNotBlank ? "EXISTS" : "NOT EXISTS";
-            return $"{existence} (SELECT 1 FROM {schemaPrefix}gl_rde_value v "
-                + $"WHERE v.entry_id = g.entry_id AND v.field_id = {fieldParam})";
-        }
-
-        var typeParam = NextParam(command, field.ValueType);
-        var valuePredicate = field.ValueType switch
-        {
-            RdeFieldValueTypeNames.Text => TypedTextPredicate(command, rule, op),
-            RdeFieldValueTypeNames.Date => TypedDatePredicate(command, rule, op, context.DateParseOptions),
-            RdeFieldValueTypeNames.Amount => TypedMoneyPredicate(command, rule, op, context.MoneyScale),
-            _ => throw Invalid("typed_value_type_unsupported")
-        };
-
-        return $"EXISTS (SELECT 1 FROM {schemaPrefix}gl_rde_value v "
-            + $"WHERE v.entry_id = g.entry_id AND v.field_id = {fieldParam} "
-            + $"AND v.value_type = {typeParam} AND {valuePredicate})";
-    }
-
-    private string TypedTextPredicate(
-        FilterSqlParameterPlanBuilder command,
-        FilterConditionSpec rule,
-        string op)
-    {
-        // 存下來的 text_value 一定不是空白，但可能帶頭尾空白，因為存的時候照原樣。
-        // 比較時兩邊都去頭尾空白並轉大寫；去掉的空白字元集合和 .NET 相同。
-        var columnExpr = dialect.Trim("v.text_value");
-        var upperExpr = dialect.Upper(columnExpr);
-        switch (op)
-        {
-            case "equals":
-                return $"{upperExpr} = {NextParam(command, TypedTextKey(rule.TypedValue))}";
-            case "notEquals":
-                return $"{upperExpr} <> {NextParam(command, TypedTextKey(rule.TypedValue))}";
-            case "contains":
-                return dialect.ContainsIgnoreCase(
-                    columnExpr, NextParam(command, TypedTextKey(rule.TypedValue)));
-            case "notContains":
-                return $"NOT {dialect.ContainsIgnoreCase(columnExpr, NextParam(command, TypedTextKey(rule.TypedValue)))}";
-            case TypedFieldOperatorSets.In:
-            case TypedFieldOperatorSets.NotIn:
-            {
-                var keys = TypedSetOperandKeys(
-                    rule,
-                    raw => TypedFieldOperandRules.TryNormalizeText(raw, out var normalized)
-                        ? TypedFieldOperandRules.TextComparisonKey(normalized)
-                        : throw Invalid("typed_text_value_blank"));
-                var parameters = string.Join(", ", keys.Select(key => NextParam(command, key)));
-                var membership = op == TypedFieldOperatorSets.In ? "IN" : "NOT IN";
-                return $"{upperExpr} {membership} ({parameters})";
-            }
-
-            default:
-                throw Invalid("typed_text_operator_unsupported");
-        }
-    }
-
-    private string TypedTextKey(string? raw) =>
-        TypedFieldOperandRules.TryNormalizeText(raw, out var normalized)
-            ? TypedFieldOperandRules.TextComparisonKey(normalized)
-            : throw Invalid("typed_text_value_blank");
-
-    private string TypedDatePredicate(
-        FilterSqlParameterPlanBuilder command,
-        FilterConditionSpec rule,
-        string op,
-        DateParseOptions dateOptions)
-    {
-        // date_value 由投影正規化為 yyyy-MM-dd。
-        const string columnExpr = "v.date_value";
-        string DateParam(string? raw) =>
-            TypedFieldOperandRules.TryNormalizeDate(raw, dateOptions, out var iso)
-                ? NextParam(command, iso)
-                : throw Invalid("typed_date_value_invalid");
-
-        return op switch
-        {
-            "on" => $"{columnExpr} = {DateParam(rule.TypedValue)}",
-            "before" => $"{columnExpr} < {DateParam(rule.TypedValue)}",
-            "onOrBefore" => $"{columnExpr} <= {DateParam(rule.TypedValue)}",
-            "after" => $"{columnExpr} > {DateParam(rule.TypedValue)}",
-            "onOrAfter" => $"{columnExpr} >= {DateParam(rule.TypedValue)}",
-            TypedFieldOperatorSets.Between =>
-                $"({columnExpr} >= {DateParam(rule.TypedFrom)} AND {columnExpr} <= {DateParam(rule.TypedTo)})",
-            _ => throw Invalid("typed_date_operator_unsupported")
-        };
-    }
-
-    private string TypedMoneyPredicate(
-        FilterSqlParameterPlanBuilder command,
-        FilterConditionSpec rule,
-        string op,
-        int moneyScale)
-    {
-        // 每條 money 條件都要帶 amountBasis，值只能是 signed 或 absolute：signed 比較帶號 scaled 值、absolute 比較 ABS。
-        var columnExpr = rule.AmountBasis switch
-        {
-            TypedAmountBasisNames.Signed => "v.amount_scaled",
-            TypedAmountBasisNames.Absolute => "ABS(v.amount_scaled)",
-            _ => throw Invalid("typed_amount_basis_missing")
-        };
-        long MoneyScaled(string? raw) =>
-            TypedFieldOperandRules.TryNormalizeMoney(raw, moneyScale, out var scaled)
-                ? scaled
-                : throw Invalid("typed_amount_value_invalid");
-        string MoneyParam(string? raw) => NextParam(command, MoneyScaled(raw));
-
-        return op switch
-        {
-            "equals" => $"{columnExpr} = {MoneyParam(rule.TypedValue)}",
-            "notEquals" => $"{columnExpr} <> {MoneyParam(rule.TypedValue)}",
-            "greaterThan" => $"{columnExpr} > {MoneyParam(rule.TypedValue)}",
-            "greaterThanOrEqual" => $"{columnExpr} >= {MoneyParam(rule.TypedValue)}",
-            "lessThan" => $"{columnExpr} < {MoneyParam(rule.TypedValue)}",
-            "lessThanOrEqual" => $"{columnExpr} <= {MoneyParam(rule.TypedValue)}",
-            TypedFieldOperatorSets.Between =>
-                $"({columnExpr} >= {MoneyParam(rule.TypedFrom)} AND {columnExpr} <= {MoneyParam(rule.TypedTo)})",
-            _ => throw Invalid("typed_amount_operator_unsupported")
-        };
-    }
-
-    /// <summary>
-    /// 整理 `in` 與 `notIn` 的比較值：依欄位的值型別整理後去掉重複，保留第一次出現的順序。
-    /// 所以同一組值即使重複輸入，綁定的參數也相同。清單是空的由呼叫它的 TypedSetOperandKeys 擋下，
-    /// 因為 `NOT IN` 遇到空清單會變成全部命中。
-    /// </summary>
-    private static IReadOnlyList<T> TypedSetOperandDistinct<T>(
-        IReadOnlyList<string> rawValues,
-        Func<string, T> normalize)
-        where T : notnull
-    {
-        var seen = new HashSet<T>();
-        var result = new List<T>(rawValues.Count);
-        foreach (var raw in rawValues)
-        {
-            var normalized = normalize(raw);
-            if (seen.Add(normalized))
-            {
-                result.Add(normalized);
-            }
-        }
-
-        return result;
-    }
-
-    private static IReadOnlyList<string> TypedSetOperandKeys(
-        FilterConditionSpec rule,
-        Func<string, string> normalize)
-    {
-        var values = rule.TypedValues;
-        if (values is null || values.Count == 0
-            || values.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
-        {
-            throw Invalid("typed_set_value_count_invalid");
-        }
-
-        return TypedSetOperandDistinct(values, normalize);
-    }
 
     // 驗證器已先檢查過同樣的條件；走到這裡是驗證器與執行時檢查不一致的程式錯誤。畫面只顯示非預期錯誤那一句，
     // 檢查代號記進支援日誌。check 只能是程式寫死的代號。
@@ -476,59 +282,6 @@ internal sealed partial class GlRulePredicates(
         $"(EXISTS (SELECT 1 FROM {schemaPrefix}authorized_preparer) " +
         $"AND {SqlBlankText.IsNotBlank(dialect, "g.created_by")} " +
         $"AND {PersonIdentity.Key(dialect, "g.created_by")} NOT IN (SELECT {PersonIdentity.Key(dialect, "name")} FROM {schemaPrefix}authorized_preparer))";
-
-    /// <summary>
-    /// 篩選的文字條件：多個關鍵字用 OR 連接。NotContains 與 NotExact 是在整個結果前面加 NOT；
-    /// 欄位值是 NULL 時當成空字串比對，NULL 的列才不會在加上 NOT 之後漏掉。
-    /// </summary>
-    public string TextMatch(
-        FilterSqlParameterPlanBuilder command,
-        string column,
-        IReadOnlyList<string> keywords,
-        TextMatchMode mode)
-    {
-        var positive = mode is TextMatchMode.Contains or TextMatchMode.NotContains
-            ? ContainsAnyKeyword(command, $"g.{column}", keywords)
-            : TextEqualsAny(command, $"g.{column}", keywords);
-
-        return mode is TextMatchMode.NotContains or TextMatchMode.NotExact
-            ? $"NOT {positive}"
-            : positive;
-    }
-
-    /// <summary>篩選的日期區間條件：用 yyyy-MM-dd 字串比較，起日與迄日當天都算在內；可以只給起日或只給迄日。</summary>
-    public string DateRange(FilterSqlParameterPlanBuilder command, string column, string? from, string? to)
-    {
-        var parts = new List<string>();
-        if (from is not null)
-        {
-            parts.Add($"g.{column} >= {NextParam(command, from)}");
-        }
-
-        if (to is not null)
-        {
-            parts.Add($"g.{column} <= {NextParam(command, to)}");
-        }
-
-        return $"({string.Join(" AND ", parts)})";
-    }
-
-    /// <summary>篩選的金額區間條件：比的是 scaled 金額的絕對值，下限與上限本身都算在內；可以只給下限或只給上限。</summary>
-    public string AmountRange(FilterSqlParameterPlanBuilder command, long? fromScaled, long? toScaled)
-    {
-        var parts = new List<string>();
-        if (fromScaled is not null)
-        {
-            parts.Add($"ABS(g.amount_scaled) >= {NextParam(command, fromScaled.Value)}");
-        }
-
-        if (toScaled is not null)
-        {
-            parts.Add($"ABS(g.amount_scaled) <= {NextParam(command, toScaled.Value)}");
-        }
-
-        return $"({string.Join(" AND ", parts)})";
-    }
 
     /// <summary>filter drCrOnly 條件。</summary>
     public string DrCrOnly(FilterSqlParameterPlanBuilder command, string drCr)
@@ -632,10 +385,8 @@ internal sealed partial class GlRulePredicates(
         + $"{categoryAlias}.category_id = {mappingAlias}.category_id";
 
     /// <summary>
-    /// 特定金額尾數(trailing_digits):純機械式尾數比對——把金額主單位整數(捨去小數)的末 k 位,
-    /// 與審計員指定的 k 位樣態逐字比對,相等即命中;多組樣態任一相等即命中。工具只回答「尾數是否相符」,
-    /// 不判斷風險、門檻或舞弊,也不把小數位、顯示補零、scale 或格式化結果納入比對——某個尾數是否值得篩、
-    /// 在特定案件代表什麼,一律由審計員自行判斷。
+    /// 特定金額尾數（trailing_digits）：把金額主單位整數（捨去小數）的末 k 位和審計員指定的 k 位樣態逐字比對，
+    /// 任一組樣態相等就命中；小數位、顯示補零、scale 與格式化結果都不納入比對。
     ///
     /// 相當於舊版 IDEA 的 @Right(@Str(@int(amount),1,0), k) = pattern。以整數運算表達:
     ///   整數化金額 intAmount = ABS(amount_scaled) / scale   ——整數除法,等同 @int(ABS(amount)),捨去小數;
@@ -733,8 +484,8 @@ internal sealed partial class GlRulePredicates(
         $"AND {PersonIdentity.Key(dialect, "g.created_by")} = {PersonIdentity.Key(dialect, "g.approved_by")})";
 
     /// <summary>
-    /// 文字欄位包含任一關鍵字：逐字比對、不分大小寫、關鍵字去頭尾空白，NULL 視為空字串。摘要特定描述、第五步「包含任一文字」
-    /// 與舊式自訂關鍵字條件都用這一個方法；沒有可用的關鍵字時不命中。
+    /// 文字欄位包含任一關鍵字：逐字比對、不分大小寫、關鍵字去頭尾空白，NULL 視為空字串。摘要特定描述與第五步「包含任一文字」
+    /// 都用這一個方法；沒有可用的關鍵字時不命中。
     /// </summary>
     public string ContainsAnyKeyword(
         FilterSqlParameterPlanBuilder command,
@@ -748,18 +499,6 @@ internal sealed partial class GlRulePredicates(
             .ToList();
 
         return clauses.Count == 0 ? "1 = 0" : $"({string.Join(" OR ", clauses)})";
-    }
-
-    private string TextEqualsAny(
-        FilterSqlParameterPlanBuilder command,
-        string columnExpr,
-        IReadOnlyList<string> keywords)
-    {
-        var clauses = keywords
-            .Where(k => !string.IsNullOrWhiteSpace(k))
-            .Select(k => $"{dialect.Upper(dialect.Trim($"COALESCE({columnExpr}, '')"))} = {NextParam(command, SourceText.ComparisonKey(k))}");
-
-        return $"({string.Join(" OR ", clauses)})";
     }
 
     /// <summary>參數名以現有計畫項目數量遞增，避免跨片段衝突。</summary>

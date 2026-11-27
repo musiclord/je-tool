@@ -29,7 +29,7 @@ public sealed class CalendarNonWorkingDaysHandlerTests
     private static System.Text.Json.JsonElement CalendarState(System.Text.Json.JsonElement loaded) =>
         loaded.GetProperty("importState").GetProperty("calendar");
 
-    // 新專案未設定 → project.load 回預設週日(0)、週六(6)。
+    // 新案件未設定 → project.load 回預設週日(0)、週六(6)。
     [Fact]
     public async Task ProjectLoad_FreshProject_ReturnsDefaultSatSun()
     {

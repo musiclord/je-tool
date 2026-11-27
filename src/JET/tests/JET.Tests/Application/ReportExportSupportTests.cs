@@ -37,7 +37,6 @@ public sealed class ReportExportSupportTests
                 "22222222222222222222222222222222"));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
-        // 這句的用字已定案。
         Assert.Equal(
             "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);

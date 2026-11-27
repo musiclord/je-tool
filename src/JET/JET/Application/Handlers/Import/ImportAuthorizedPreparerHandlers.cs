@@ -13,25 +13,25 @@ namespace JET.Application;
 /// </summary>
 public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationActionHandler
 {
-    private readonly ITabularFileReader reader;
-    private readonly ProjectSession session;
-    private readonly ILogger? logger;
+    private readonly ITabularFileReader _reader;
+    private readonly ProjectSession _session;
+    private readonly ILogger? _logger;
 
     internal ImportAuthorizedPreparerFromFileHandler(
         ITabularFileReader reader,
         ProjectSession session,
         ILogger? logger = null)
     {
-        this.reader = reader;
-        this.session = session;
-        this.logger = logger;
+        this._reader = reader;
+        this._session = session;
+        this._logger = logger;
     }
 
     public string Action => "import.authorizedPreparer.fromFile";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
 
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
         var fileName = ImportSourceFileName.Resolve(
@@ -54,13 +54,13 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             with { FormulasWithoutResult = new FormulaWithoutResultTally() };
         var source = new ImportSourceDescriptor(filePath, fileName, request.SheetName, null, null);
         // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒。
-        var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
+        var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(_reader, [(filePath, fileName)]);
 
         var facts = await Task.Run(
             async () =>
             {
-                var columns = await reader.ReadColumnsAsync(request, cancellationToken);
-                var rows = reader.ReadRowsAsync(request, cancellationToken);
+                var columns = await _reader.ReadColumnsAsync(request, cancellationToken);
+                var rows = _reader.ReadRowsAsync(request, cancellationToken);
                 var projection = JetAuditProgram.PrepareAuthorizedPreparerProjection(
                     columns,
                     plan.Request.SourceColumn);
@@ -81,7 +81,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
         ];
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, _logger);
         return new
         {
             batchId = result.Import.BatchId,

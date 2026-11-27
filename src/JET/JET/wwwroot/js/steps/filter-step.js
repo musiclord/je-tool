@@ -26,7 +26,6 @@
   var sameGeneration = forward('sameGeneration');
   var syncViewState = forward('syncViewState');
   var ownRequirementNote = forward('ownRequirementNote');
-  var rdeFieldValueType = forward('rdeFieldValueType');
   var prescreenRequirementNote = forward('prescreenRequirementNote');
   var hasCommonMarker = forward('hasCommonMarker');
   var scenarioSource = forward('scenarioSource');
@@ -47,7 +46,6 @@
   var filterCommitSnapshot = forward('filterCommitSnapshot');
   var acceptsFilterCommit = forward('acceptsFilterCommit');
   var completeScenarioSave = forward('completeScenarioSave');
-  var keywordValues = forward('keywordValues');
   var savedScenariosHtml = forward('savedScenariosHtml');
   var criteriaReportHtml = forward('criteriaReportHtml');
   var highRiskSummaryHtml = forward('highRiskSummaryHtml');
@@ -64,21 +62,21 @@
   var draftResponseGuard = FilterStep.draftResponseGuard;
   var COMMON_CARD_KEY = FilterStep.COMMON_CARD_KEY;
 
-  // wire 投影（單一收斂點）：把一個情境（草稿或已存）深拷貝成 filter.preview / filter.commit 的
-  // wire 形狀——{ source?:'common', name, rationale, groups }，且 groups 內每條 rule 都遞迴剝除 __commonCard 等
-  // 任何 UI-only 鍵。深拷貝是關鍵：淺取 groups 會讓 wire 仍指向帶標記的 rule 物件。所有送往後端的
+  // wire 投影（單一收斂點）：把一個情境（草稿或已存）深拷貝成 filter.preview 與 filter.scenario.save 的
+  // wire 形狀 { source?:'common', name, rationale, groups }，groups 內每條 rule 都遞迴剝除 __commonCard 等
+  // UI 專用鍵。深拷貝是關鍵：淺取 groups 會讓 wire 仍指向帶標記的 rule 物件。所有送往後端的
   // scenario/draft 一律經此，確保 UI-only 標記絕不外洩到 wire；明確剝除，不假設後端會忽略多餘欄位。
   function toWireScenario(s) { return projectWireScenario(s, false); }
 
-  // isDraft：編輯器草稿才依名稱與動機旗標產生命名來源。已儲存但沒有命名來源的舊情境原樣送回，
-  // 不在儲存或移除其他情境時被記成系統產生（規格：舊情境沒有命名來源時保留原文）。
+  // isDraft：編輯器草稿才依名稱與動機旗標產生命名來源。已儲存但沒有命名來源的情境原樣送回，
+  // 不在儲存或移除其他情境時被記成系統產生，名稱與動機保留原文。
   function projectWireScenario(s, isDraft) {
     // 條件組依畫面順序送出，不另排任何組。
     var ordered = s.groups || [];
     var wire = {
       name: s.name,
       rationale: s.rationale,
-      // 過濾掉沒有條件的群組：使用者「＋ 另一組條件」建到一半的空 set 不送出，後端不會報「群組沒有規則」。
+      // 過濾掉沒有條件的群組：按「條件組」建到一半的空 set 不送出，後端不會報「群組沒有規則」。
       groups: ordered.filter(function (g) { return (g.conditions || []).length > 0; }).map(function (g) {
         return {
           join: g.join,
@@ -93,7 +91,7 @@
                 clean[k] = Array.isArray(r[k]) ? r[k].slice() : r[k];
               }
             });
-            return clean.type === 'typed' ? typedWireRule(clean) : clean;
+            return clean;
           })
         };
       })
@@ -101,8 +99,7 @@
     var source = scenarioSource(s);
     var originGroups = ordered.filter(function (g) { return (g.conditions || []).length > 0; });
     if (s.editorOrigins && !s.__restoredOrigins) { wire.editorOrigins = JSON.parse(JSON.stringify(s.editorOrigins)); }
-    // 第 2 版的編輯來源逐條記卡片代號；第 1 版記的是字母，這一版只原樣送回、不讀取。
-    // 第 1 版的情境重新編輯後一律改存第 2 版，卡片要審計員重新點選（見 filter-step-saved 的 editScenario）。
+    // 編輯來源用第 2 版的格式，逐條記卡片代號；已存情境的編輯來源沒有讀回到條件上時原樣送回。
     else if (hasCommonMarker(s) || s.__restoredOrigins || isDraft) {
       wire.editorOrigins = { version: 2,
         nameIsAutomatic: !s.__nameDirty, rationaleIsAutomatic: !s.__rationaleDirty, groups: originGroups.map(function (g) {
@@ -116,39 +113,17 @@
     return wire;
   }
 
-  // 攸關資料元素條件的送出形狀：operand carrier 必須與比較方式一致，帶了不適用的欄位
-  // 會被系統端擋下。因此這裡只保留該比較方式真正使用的那一個 carrier，
-  // 並且只有金額型欄位才附比較基準。
-  function typedWireRule(clean) {
-    var carrier = Ui.typedOperatorCarrier(clean.operator);
-    var wire = {
-      join: clean.join,
-      type: 'typed',
-      fieldId: clean.fieldId,
-      operator: clean.operator
-    };
-    if (carrier === 'value') { wire.value = clean.value; }
-    if (carrier === 'range') { wire.from = clean.from; wire.to = clean.to; }
-    if (carrier === 'set') { wire.values = (clean.values || []).slice(); }
-    if (rdeFieldValueType(clean.fieldId) === 'amount') {
-      wire.amountBasis = clean.amountBasis;
-    }
-    return wire;
-  }
-
   function nestedWireRule(rule) {
     var clean = {};
     Object.keys(rule).forEach(function (key) { if (key.indexOf('__') !== 0) { clean[key] = rule[key]; } });
     if (clean.conditions) { clean.conditions = clean.conditions.map(nestedWireRule); }
     if (clean.type === 'fieldValue') { return Ui.FilterValues.wire(clean, Store.getState()); }
-    if (clean.type === 'text') {
-      clean.keywords = keywordValues(clean).join(',');
-    }
-    return clean.type === 'typed' ? typedWireRule(clean) : clean;
+    return clean;
   }
 
-  // 群組組合器：群組內規則 join 的一致值——任一規則為 OR 即「任一(OR)」，否則「全部(AND)」。空群組
-  // 回退「全部」。組合器＝把群組內各規則 join 設為同值，後端逐條 join 評估等價（全 AND＝符合全部、全 OR＝任一）。
+  // 群組組合器：群組內規則 join 的一致值，任一規則為 OR 就是 OR，否則是 AND；空群組用 AND。
+  // 設定組合器就是把群組內每條規則的 join 設成同一個值，後端逐條依 join 評估，結果相同
+  // （全部 AND 是符合全部條件，全部 OR 是符合任一條件）。
   function groupCombinator(group) {
     var rules = group.conditions.length > 1 ? group.conditions.slice(1) : group.conditions;
     return rules.some(function (r) { return effectiveConditionJoin(r) === 'OR'; }) ? 'OR' : 'AND';
@@ -198,7 +173,7 @@
   }
 
   function render(container, state) {
-    syncViewState(state); // 專案切換／已存清單替換時對齊檢視狀態（先於任何讀取 viewState 的 HTML 生成）
+    syncViewState(state); // 案件切換／已存清單替換時對齊檢視狀態（先於任何讀取 viewState 的 HTML 生成）
     FilterStep.shownContainer = container;
 
     if (!state.project) {
@@ -236,15 +211,6 @@
     restoreViewState(container);
   }
 
-  // 尚未選欄位或比較方式的攸關資料元素條件：先在畫面擋下，避免送出必被拒絕的形狀。
-  function hasIncompleteTypedRule(draft) {
-    return draft.groups.some(function (group) {
-      return group.conditions.some(function (rule) {
-        return rule.type === 'typed' && (!rule.fieldId || !rule.operator);
-      });
-    });
-  }
-
   // 條件在畫面上的位置：第幾組第幾條；子條件組或傳票條件內的子條件再寫「的第幾項」。
   // 組號與條件組標頭「第 N 組」相同（草稿順序），條件號是組內順序。
   function conditionPositionText(gi, path) {
@@ -253,7 +219,7 @@
     return text;
   }
 
-  // 單一條件在畫面上就能看出的缺值或錯誤（權威驗證仍在後端）。回傳條件名稱與原因，沒有問題回 null。
+  // 單一條件在畫面上就能看出的缺值或錯誤（驗證以後端為準）。回傳條件名稱與原因，沒有問題回 null。
   // 原因若以條件名稱開頭就去掉重複的名稱，讓訊息讀成「第 1 組第 2 條「總帳日期」請填入……」。
   function ruleProblem(rule) {
     var label = '', message = '';
@@ -273,16 +239,6 @@
       if (!countIsValid(rule.countFrom)) { message = '次數須為 0 以上的整數'; }
       else if (rule.countOperator === 'between' && !countIsValid(rule.countTo)) { message = '上限須為 0 以上的整數'; }
       else if (rule.countOperator === 'between' && Number(rule.countTo) < Number(rule.countFrom)) { message = '上限小於下限'; }
-    } else if (rule.type === 'dateRange' && rule.from && rule.to && rule.from > rule.to) {
-      label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'dateRange'; }) || {}).label || '';
-      message = '起日晚於迄日';
-    } else if (rule.type === 'textSet' && Array.isArray(rule.values) && rule.values.length > Ui.TEXT_SET_MAX_VALUES) {
-      // 清單超過上限時逐條寫出是哪一條條件，和欄位條件同一句。
-      label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'textSet'; }) || {}).label || '';
-      message = '請填 1 到 ' + Ui.TEXT_SET_MAX_VALUES + ' 個值';
-    } else if (rule.type === 'typed' && Array.isArray(rule.values) && rule.values.length > Ui.TYPED_SET_MAX_VALUES) {
-      label = rule.fieldId && rdeFieldValueType(rule.fieldId) ? Ui.rdeFieldLabel(Store.getState(), rule.fieldId) : '';
-      message = '請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值';
     }
     if (!message) { return null; }
     if (label && message.indexOf(label) === 0) { message = message.slice(label.length); }
@@ -313,14 +269,14 @@
     if (!row || !row.getClientRects().length) { return null; }
     var visible = function (control) { return control.getClientRects().length > 0; };
     var value = Array.from(row.querySelectorAll('[data-date-input], [data-value-key="values"], [data-value-key="daysOfMonth"], ' +
-      '[data-value-key="value"], [data-value-key="from"], [data-value-key="to"], [data-rule-bind="from"], [data-rule-bind="to"]'))
+      '[data-value-key="value"], [data-value-key="from"], [data-value-key="to"]'))
       .filter(function (control) { return !control.disabled && control.closest('.rule-row') === row; }).find(visible);
     if (value) { return value; }
     return Array.from(row.querySelectorAll('.rule-row__controls input:not([disabled]), .rule-row__controls select:not([disabled]), .rule-row__controls textarea:not([disabled]), .rule-row__controls button:not([disabled])'))
       .filter(function (control) { return control.closest('.rule-row') === row; }).find(visible) || null;
   }
 
-  // 預覽或儲存前還缺什麼，寫成提示框的句子；沒有缺項、名稱也沒有重複時 text 是空字串。權威驗證仍在後端。
+  // 預覽或儲存前還缺什麼，寫成提示框的句子；沒有缺項、名稱也沒有重複時 text 是空字串。驗證以後端為準。
   // 名稱與動機不必填：留白時後端補上依條件自動帶入的文字。
   function incompleteCheck(draft, includeSavedScenarios, skipDuplicateName) {
     var noCondition = (draft.groups.length === 0 ||
@@ -329,11 +285,8 @@
     // 每條缺值都寫出第幾組第幾條與條件名稱，審計員不必逐條找。
     var problems = draftRuleProblems(draft).map(function (item) { return item.text; });
     if (noCondition) { problems.push('至少一條篩選條件'); }
-    if (hasIncompleteTypedRule(draft)) {
-      problems.push('攸關資料元素欄位條件需選定欄位與比較方式');
-    }
 
-    // 名稱不可和其他已儲存情境相同；後端仍是權威，這裡先在名稱欄旁說明，不必送出才知道。
+    // 名稱不可和其他已儲存情境相同；是否重複以後端為準，這裡先在名稱欄旁說明，不必送出才知道。
     // 「另存為新情境」時名稱會另附「（副本）」，不在這裡比對。
     var duplicate = includeSavedScenarios && !skipDuplicateName ? duplicateScenarioName(draft) : '';
     var duplicateText = duplicate ? '已有同名情境「' + duplicate + '」，請改用其他名稱。' : '';
@@ -352,7 +305,7 @@
   function sentRuleKey(rule) { return JSON.stringify(nestedWireRule(rule)); }
 
   // 把後端 invalid_scenario 的 details（第幾組、第幾條、原因）記到草稿的條件上，回傳記下幾則；上一次記的先清掉。
-  // 沒有 details 的錯誤不記，維持 Ui.run 的整段訊息。這只是呈現，判定權威仍在後端。
+  // 沒有 details 的錯誤不記，維持 Ui.run 的整段訊息。這只是呈現，判定以後端為準。
   // 後端的組號是送出後的順序；送出時略過空組，所以先換回草稿裡有條件的組。
   // targetPosition 是這次儲存的情境在清單上的位置；細節標明屬於別的情境時不記在目前草稿上。
   function recordRuleErrors(error, targetPosition) {
@@ -471,7 +424,7 @@
       if (!box) { return; }
       if (target[1]) {
         box.textContent = notice.text;
-        // 清單已變更與已存滿只是需要注意，用琥珀色；尚需補齊與儲存失敗用紅色（訊息分三級）。
+        // 清單已變更與已存滿屬於「需要注意」，用琥珀色；尚需補齊與儲存失敗是錯誤，用紅色。
         if (notice.warning) { box.classList.add('form-notice--warning'); } else { box.classList.remove('form-notice--warning'); }
       }
       box.hidden = !target[1];
@@ -479,7 +432,7 @@
   }
 
   // 預覽／保存前的前端引導：條件未補齊或名稱重複時，於欄位旁（紅框＋紅字）
-  // 與按鈕上方（form-notice）就近提示並不送出。純呈現——後端 invalid_scenario 仍是權威。
+  // 與按鈕上方（form-notice）就近提示並不送出。純呈現——是否有效以後端的 invalid_scenario 為準。
   function scenarioGate(container, includeSavedScenarios, skipDuplicateName) {
     var draft = Store.getState().filter.draft;
     var nameInput = container.querySelector('[data-bind="scenario-name"]');
@@ -542,9 +495,9 @@
     drawRuleErrors(container, true);
   }
 
-  // 規則「值編輯」後即時刷新藍色 read-back：值編輯走 patchFilterCondition（只 notify、不重建面板以保住輸入
-  // 焦點），故 read-back（整段算好的 HTML）不會自己更新——這裡只抽換 .scenario-readback 這一段，不碰
-  // 任何輸入框，焦點不受影響（read-back 是條件清單之後的獨立節點）。
+  // 規則值編輯後即時刷新讀回：值編輯走 patchFilterCondition（只 notify、不重建面板，以保住輸入
+  // 焦點），所以讀回（整段算好的 HTML）不會自己更新。這裡只抽換 .scenario-readback 這一段，不碰
+  // 任何輸入框，焦點不受影響（讀回是條件清單之後的獨立節點）。
   function softRefreshReadback(container) {
     syncSuggestedMetadata(container);
     var el = Ui.findLive(container, '.filter-readback .scenario-readback');
@@ -657,13 +610,13 @@
           throw error;
         });
       }, { inlineError: function () { return previewMarked > 0; }, completionMessage: function (scenario) {
-        // 訊息句子維持原句；分錄數用和預覽摘要同一個 summaryRowCount。
+        // 訊息的分錄數用和預覽摘要同一個 summaryRowCount。
         return scenario ? '情境預覽：符合條件 ' + Ui.countText(scenario.summaryRowCount) + ' 筆分錄，' + Ui.countText(scenario.voucherCount) + ' 張傳票。' : '';
       } });
     });
 
     // 儲存沒有送出時，原因寫在儲存按鈕上方，不只留在訊息紀錄；訊息面板與提示用同一句。
-    // 清單已變更與已存滿只是需要注意，用琥珀色（訊息分三級）。
+    // 清單已變更與已存滿屬於「需要注意」，用琥珀色。
     function blockSave(kind, text) {
       Store.addMessage(text, 'warn');
       raiseSaveNotice({ kind: kind, text: text, warning: true });
@@ -778,14 +731,12 @@
   // 掛到共用的 FilterStep，供其他檔案與測試取用。
   FilterStep.toWireScenario = toWireScenario;
   FilterStep.projectWireScenario = projectWireScenario;
-  FilterStep.typedWireRule = typedWireRule;
   FilterStep.nestedWireRule = nestedWireRule;
   FilterStep.groupCombinator = groupCombinator;
   FilterStep.scenarioJoin = scenarioJoin;
   FilterStep.toWireDraft = toWireDraft;
   FilterStep.previewPaneHtml = previewPaneHtml;
   FilterStep.render = render;
-  FilterStep.hasIncompleteTypedRule = hasIncompleteTypedRule;
   FilterStep.conditionPositionText = conditionPositionText;
   FilterStep.ruleProblem = ruleProblem;
   FilterStep.draftRuleProblems = draftRuleProblems;

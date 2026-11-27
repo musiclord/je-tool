@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 篩選情境儲存（filter.scenario.save）的業務分支，各給一個固定輸入與寫死的預期結果。
 /// 分支有：前提不符、本次不合格、位置與名稱、整批合格、仍有不合格、推進到第五步、取消與例外。
-/// 合成母體固定四列：兩列借方、兩列貸方，所以借方情境的命中一定是 2 筆。這些測試鎖的是現行行為。
+/// 合成母體固定四列：兩列借方、兩列貸方，所以借方情境的命中一定是 2 筆。
 /// </summary>
 public sealed class FilterScenarioSaveBranchTests
 {
@@ -265,7 +265,7 @@ public sealed class FilterScenarioSaveBranchTests
         // 情境乙仍是目前版本，只是條件用的欄位已不在配對裡：開案與儲存都會把它列為待修。
         var invalid = JsonNode.Parse((await ReadScenariosAsync(host, projectId, provider))[1].DefinitionJson)!.AsObject();
         invalid["groups"]![0]!["conditions"]!.AsArray().Insert(0, JsonNode.Parse(
-            "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
+            "{\"join\":\"AND\",\"type\":\"fieldValue\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
         await ExecuteAsync(host, projectId, provider,
             "UPDATE filter_scenario SET definition_json = @definition WHERE position = 2;", ("@definition", invalid.ToJsonString()));
         Assert.Equal(4, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
@@ -292,7 +292,7 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task AdvancesToStepFive_OnlyWhenBehind(string provider)
+    public async Task AdvancesToExportStep_OnlyWhenBehind(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await PrepareAsync(host, provider);

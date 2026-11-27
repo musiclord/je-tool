@@ -5092,3 +5092,355 @@ Agent 回報第一版後問「第一版的版面與寫法可以的話，要接�
 - 新取的名稱 `calculation` 與 `prescreenConditionHint`，以及上面這些新句子。
 - 不在這次範圍、讀者或工作流程順帶指出的同類文字：處理紀錄每次驗證都寫「存入筆數與合計核對：筆數一致，合計一致」；
   逐科目比對的「差額顯示為「不足 0.01」時，完整數字請見驗證報告。」讀者看不懂為什麼不到 0.01 還算不符。
+
+## 2026-11-25：送審文件的文件記錄人員照使用者的設定
+
+使用者 2026-11-25 自己在 Word 與 Excel 修改送審文件並提交兩次，第二次的提交訊息是「更新文件記錄人員」：六份成品的作者清空，上次儲存者改成使用者的公司帳號名稱；
+另外改了三處文字，Office 存檔時也加上了公司的敏感度標籤。使用者要求「你可以稍微留意一下…我剛剛在測試環境中有修改的部分(主要針對文件紀錄人員)」。
+Agent 問文件記錄人員之後要不要照這次的設定保留，使用者選「照我的設定保留」（裁定 2026-11-25-05），接著補充「git 的部分維持用我的 github 帳號就好  只有文件紀錄不得以我(muro)或agent留下痕跡、指紋」。
+
+做了什麼：
+
+- 三處文字同步到產生文件用的原始文字：Code review rule 一句結尾的句號、設計原則「畫面以繁體中文為主」那一段、技術文件「外部參考資料如下」前的標點。
+- 作者與上次儲存者改寫在 `source/document-properties.json`。`Build-Documents.py`、`Update-WordFields.ps1`、`Set-WorkbookPrint.py` 與 `Build-Workflow.py` 都照它寫，
+  活頁簿沒有文件屬性時由 `Set-WorkbookPrint.py` 補上；`Update-WordFields.ps1` 仍檢查這台電腦的使用者名稱與本機路徑，只是不把這兩個欄位當成外洩。
+- 產生 Excel 的 `Set-WorkbookPrint.py` 與 `Build-Workflow.py` 另外檢查成品裡有沒有這台電腦的使用者名稱、電腦名稱與使用者資料夾路徑，Word 原本就有這項檢查。
+  `Workflow.xlsx` 原本的作者是 JET，重新產生後只有文件屬性改變。
+- `AGENTS.md`、SAT 文件的製作規範與產生工具的說明寫明這個例外。
+
+驗證：
+
+- 原始文字產生到暫存資料夾，四份 Word 除了目錄以外和使用者提交的版本逐段相同。
+- 在暫存資料夾跑完整的產生流程，四份 Word 與四份活頁簿的作者都是空白，上次儲存者都是設定檔的值；四份活頁簿用 Excel 在背景開得起來。
+  `docs/SAT` 只重新產生 `Workflow.xlsx`，其餘仍是使用者提交的版本。掃描 `docs/SAT` 全部成品，沒有找到 muro、AI 產品或產生工具的名稱。
+- 文件檢查通過。
+
+待使用者確認：
+
+- 重新產生時不會保留公司的敏感度標籤，要在公司的 Office 重新存檔，或另外決定要不要讓產生腳本保留。
+- 設定檔名稱 `document-properties.json` 與欄位 `creator`、`lastModifiedBy`。
+
+## 2026-11-26：送審的乾淨副本拿掉驗證框架的介面，重新量測測試數量與涵蓋率
+
+送審用的乾淨副本放在另一個儲存庫，程式在它的 `JET/` 底下；開發仍留在這個儲存庫。使用者要求副本不留 AI 的足跡與指紋，
+這次在副本裡拿掉只有這個儲存庫的驗證框架才會用到的部分，使用者選「兩處都清掉」：
+
+- 四支測試在設定環境變數時把證據檔寫到指定資料夾的程式，以及只能從這個環境變數觸發、用電腦上的 Office 讀 Access 檔的驗收程式。
+- 檢查原始碼註解有沒有開發紀錄的架構測試。
+- 同一類的前端測試開關 `JET_FRONTEND_TEST_WWWROOT` 與它的測試，以及提到改壞檢查工具的註解。
+
+這個儲存庫的 `src/JET` 沒有改，這些介面仍在；之後再從這裡整理副本時，要重新拿掉。
+
+使用者接著選「重量覆蓋率後更新」。照產生工具說明的做法，把副本的程式複製到暫存資料夾的 `src\JET` 量測：
+後端 5,710 項、前端 1,128 項全部通過，行涵蓋率 93.2%，共 49,068 行中執行 45,721 行。
+因此送審文件的測試紀錄現在描述的是副本，和這個儲存庫 `src/JET` 的測試數量不同。
+
+- `source/test-record.json` 由轉換工具重新寫入，Unit test Report 與 Technical Document 重新產生，再複製到副本。
+- 使用者 2026-11-25 在 Excel 把 Unit test Report 的驗收條件改成「上列命令執行的測試案例全數通過。」，
+  這次同步到 `Export-SatEvidence.py` 與 `source/test-record.json`；Technical Document 的驗收條件使用者沒有改，維持原句。
+- 重新產生的兩份文件和使用者提交的版本相比，只差測試日期、測試數量與涵蓋率的數字。文件檢查通過。
+- 重新產生的兩份文件沒有公司的敏感度標籤。使用者選「從舊版搬回標籤」：把使用者提交版本裡 Office 寫入的標籤資料原樣複製進新檔，
+  內容型別與關聯照舊版補上。Excel 與 Word 在背景唯讀開得起來；這台電腦的 Office 自動化介面讀不到標籤，舊版也一樣，
+  所以標籤只核對到和舊版逐字相同。之後重新產生這兩份文件時，標籤仍會消失，要再搬一次或在公司的 Office 重新存檔。
+
+## 2026-11-26：發布副本改由這個儲存庫產生，每次提交推送一起同步
+
+使用者 2026-11-26 說明兩個儲存庫的分工，原話：
+
+> 這確實值得注意，因為之後我仍然會在 je-tool 繼續請你更新開發，因為還有很多功能需要實作、完善，不過這個專案有非常多需要交代給 agent 的上下文紀錄，尤其是大量的 harness 機制跟背景脈絡，而 je-tool-clean 則是作為要更版至測試環境用的乾淨原始代碼
+>
+> 基於我回覆的內容，我需要解釋明白關於 je-tool 跟 je-tool-clean 這兩個專案的差別，主要開發和優化都會著重在 je-tool 只有在需要更版，也就是提交推送的階段，才會需要同步至 je-tool-clean 專案，如此一來的好處是，當我需要轉到測試環境(GD環境)去交給使用者操作時，我就可以直接以 je-tool-clean 為交代的版本，而不用再度同步 je-tool 到測試環境，並且公司環境中也有專屬的 github repo 需要同步，對此，同步上去的就會是以 je-tool-clean 為主，這樣如此一來將 je-tool-clean 同步上測試環境也就可以同步到公司專屬的私有 github repo 並執行 github security 等功能。
+>
+> 這其中應該會有不少需要你更新的知識，因此，請避免擅自解讀，並確保做好大量網路資料研究和更新知識後，建置一個符合我預期且穩健的機制來確保我描述的運作。
+
+同一則訊息另外要求：「對於這部分我想要請你做一次完整的大範圍掃描，確認 je-tool-clean 中是乾淨且沒有指紋的」。
+je-tool-clean 從這裡起叫「發布副本」（裁定 2026-11-26-07）。
+
+### 使用者的選擇
+
+Agent 用選擇題詢問，使用者同日回答：
+
+| 問題 | 使用者選的答案 | 裁定 |
+|:---|:---|:---|
+| 之後每次都要從 je-tool 產生 je-tool-clean，乾淨的狀態要維持在哪裡？ | 「je-tool 本身保持乾淨（建議）」 | 2026-11-26-01 |
+| je-tool-clean 要怎麼進到 GD 測試環境和公司的私有 GitHub repo？ | 「GD 能連個人 GitHub」 | 2026-11-26-02 |
+| 什麼時候把 je-tool 同步到 je-tool-clean？ | 「每次提交推送都同步」 | 2026-11-26-03 |
+| 註解是否還在描述修改經過要靠人讀，要怎麼讀？ | 「全部讀，多個子代理」 | 2026-11-26-04 |
+| 舊版範本留在檔案屬性裡的姓名、公司欄位與印表機名稱，以及外部連結與超連結，要怎麼處理？ | 「全部照舊」 | 2026-11-26-05 |
+| je-tool-clean 的提交要用哪一個 Git 身分？ | 「和 je-tool 相同」 | 2026-11-26-06 |
+| 同步機制的新名稱要照提議採用嗎？ | 「照提議採用（發布副本）」 | 2026-11-26-07 |
+
+### 做法
+
+- 這個儲存庫的 `src/JET` 和發布副本的 `JET/` 內容相同，乾淨的狀態由這裡的測試維持：
+  - 只給驗證框架用的程式搬到 `tools/harness/development-repository-tests/`：檢查原始碼註解的 `SourceCommentPolicyTests`、用電腦上的 Office 讀 Access 檔的 `NativeAccessImportAcceptance`，以及六份報告的佐證匯出。Excel 路線改用新的測試名稱。
+  - 其他三支測試在設定環境變數時寫出證據檔的程式刪除，驗證框架沒有用到它們。
+  - 命名空間 `Jet.Harness.TaiwanSme` 改成 `JET.Tests.TestInfrastructure.TaiwanSme`，瀏覽器主機跟著改。
+  - 前端改壞工具不再用 `JET_FRONTEND_TEST_WWWROOT` 換掉畫面程式，改成把前端測試與改壞的畫面程式複製到暫存資料夾，照原本的相對位置執行。
+  - 發布副本裡改過的註解搬回 `src/JET`，子代理讀出的問題也改在 `src/JET`。
+  - 「原始碼不寫開發紀錄的檢查」新增兩類樣式，先寫測試再改。
+- 發布副本的其他內容：`docs/SAT/` 照原位置複製，`data/` 的 10 份參考工作簿複製到 `data/`。發布副本自己的 README、`.gitignore`、`.gitattributes`、`.vscode/`、`JET/Package.ps1`，以及 `docs/README.md`、`docs/architecture/`、`docs/security/` 的檔案放在 `tools/harness/release-copy/root-files/`。
+- 同步工具 `tools/harness/release-copy/JetReleaseCopy.ps1`：
+  - 開頭先檢查 je-tool-clean 是 Git 儲存庫的根目錄、在 `main` 分支、推送時有 `origin`，也先檢查提交訊息；有問題時不必等建置與測試就停下。
+  - 整段執行期間拿 `tools/verify.ps1` 的共享鎖。同步時別的驗證會被擋下，兩次同步也不會同時改寫暫存資料夾。
+  - 從這個儲存庫已提交的版本取出檔案，照 `manifest.json` 組成發布副本，放在 `artifacts/` 底下的暫存資料夾。
+  - 掃描整份發布副本：不該帶的路徑、AI 工具與驗證框架的名稱、開發紀錄的寫法、看不見的字元、這台電腦的使用者名稱與 Git 信箱，以及 Office、PNG 與 PDF 的檔案屬性。舊版範本用檔案雜湊列為例外（裁定 2026-11-26-05）；送審 Word 與 Excel 的作者與上次儲存者要和 `document-properties.json` 相同（裁定 2026-11-25-05）。
+  - Excel 存檔時會在活頁簿記下存檔的資料夾路徑。送審活頁簿是使用者在 Excel 存的，每次存檔都會寫回這段，所以同步工具在暫存資料夾拿掉它；這是發布時唯一改動檔案內容的地方，`src/JET` 的範本由既有的測試擋下這段。
+  - 在暫存資料夾建置，執行後端與前端測試；全部通過才把檔案鏡像到 je-tool-clean。只動 Git 看得到的檔案，不刪 Git 忽略的檔案，也不碰 `.git`。
+    測試的排除條件、順序種子與要移除的環境變數，和這個儲存庫的 `Public` 讀同一份設定，測試不會讀到這台電腦實際的案件資料夾。
+  - 把 je-tool-clean 本機的提交身分設成和這個儲存庫相同（裁定 2026-11-26-06），寫入本機的忽略清單 `.git/info/exclude`，裝上提交與推送前的檢查。檢查擋下 AI 工具的署名、禁止的字詞與不同的提交身分。
+  - 在 `local/` 記下這個儲存庫的提交和發布副本提交的對應。
+  - 內容和上次提交相同時不提交，照樣加標籤與推送，推送失敗後可以直接重跑。
+- 提交推送時（裁定 2026-11-26-03）：先提交推送這個儲存庫，再執行同步工具，最後提交推送發布副本。發布副本的提交訊息由 Agent 另外寫，只寫產品的變更，不寫驗證框架與開發流程。使用者指定版本號時，才在發布副本加上版本標籤。
+- GD 的做法（裁定 2026-11-26-02）：第一次從個人 GitHub 下載發布副本，再加上公司 repo 的遠端並推送；之後每次先從個人 GitHub 拉下更新，再推到公司 repo。步驟寫在 `tools/harness/release-copy/README.md`，不放進發布副本。
+
+### 查到的資料（2026-11-26）
+
+- GitHub 的 dependency graph 與 Dependabot alerts 在所有方案都能用；私有 repo 要用 secret scanning 與 code scanning，公司要在 GitHub Team 或 Enterprise 方案另外購買 Secret Protection 或 Code Security。出處：[About GitHub Advanced Security](https://docs.github.com/en/get-started/learning-about-github/about-github-advanced-security)、[GitHub Advanced Security 計費](https://docs.github.com/en/billing/concepts/product-billing/github-advanced-security)。
+- CodeQL 掃描 C# 的預設設定用不需要建置的 `none` 模式。開啟位置是 repo 的 Settings，側欄「Security and quality」底下的 Advanced Security；在「Code Security」區段「CodeQL analysis」那一列的 Set up 選 Default，再按 Enable CodeQL。前提是已啟用 GitHub Code Security 與 GitHub Actions。CodeQL CLI 2.24.0（2026-01-26）起對 .NET 10 有基本支援，也支援 `.slnx`，C# 14 的新語法還沒完全支援。出處：[Configuring default setup for code scanning](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-default-setup-for-code-scanning)、[CodeQL code scanning for compiled languages](https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages)、[CodeQL 2.24.0 更新說明](https://codeql.github.com/docs/codeql-overview/codeql-changelog/codeql-cli-2.24.0/)。
+- 相依套件圖從 `.csproj` 這類專案檔讀 NuGet 套件，靜態分析列不出間接相依的套件；要看到時，在 repo 開啟自動相依提交，它用 GitHub Actions 執行。支援表在 NuGet 列的檔案沒有 `packages.lock.json`。JET 隨附的 ECharts 沒有 package.json，Dependabot 看不到。出處：[Dependency graph data](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-graph-data)、[Dependency graph supported package ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/dependency-graph-supported-package-ecosystems)。
+- AI 工具的署名：Claude Code 的設定頁寫 `attribution` 可以改或隱藏提交與 PR 的署名，子鍵 `commit` 與 `pr` 是字串；「設成空字串就不加」來自頁面摘要，原文沒有逐字讀到。Codex 的設定頁整頁讀過，沒有署名的設定，也沒寫預設會不會加。Copilot coding agent 的提交以 Copilot 為作者，交辦的人記為共同作者，提交訊息另加 `Agent-Logs-Url` 行，頁面沒寫能不能關掉。所以發布副本的提交只由同步流程在這台電腦建立，發布副本的提交檢查也擋這些署名。出處：[Claude Code settings](https://code.claude.com/docs/en/settings-reference)、[Codex config reference](https://developers.openai.com/codex/config-reference.md)（會轉到 learn.chatgpt.com 的同一份說明）、[GitHub changelog 2026-03-20](https://github.blog/changelog/2026-03-20-trace-any-copilot-coding-agent-commit-to-its-session-logs/)。
+- Excel 存檔時記下的資料夾路徑是活頁簿裡的 `x15ac:absPath`。出處：[Apache POI bug 60258](https://bz.apache.org/bugzilla/show_bug.cgi?id=60258)。
+- 離線帶進 GD 的備案是 git bundle，匯入前用 `git bundle verify` 檢查。這次使用者選了從個人 GitHub 下載，只在 GD 連不到時才用。出處：[git-bundle](https://git-scm.com/docs/git-bundle)。
+
+### 進度
+
+- 2026-11-26：掃描發布副本的全部檔案與檔案屬性；15 個子代理逐檔讀註解與文件，結果記在 `local/`。
+- 2026-11-26：發布副本裡改過的 88 個檔搬回 `src/JET`。`SourceCommentPolicyTests` 與 `NativeAccessImportAcceptance` 搬到開發專用的測試資料夾；六份工作簿的匯出改由同一個資料夾裡的新測試 `AccountMappingHandoff_ExportsSixWorkbooksWithManifest` 負責，三個新名稱記在名詞表，待使用者確認。改動範圍的 Focused、驗證框架的合約測試與瀏覽器主機的建置都通過；合約測試最後一項是文件檢查，裁定的落實位置寫了同步工具的檔案，要等那些檔案寫好才會通過。
+- 2026-11-26：子代理讀出的問題逐項核對，1,012 處註解與說明的改寫套用在 382 個檔，其中 2 處後來又再改寫。牽涉識別名稱、測試內容或要不要刪程式的不自行修改，列在下一步請使用者決定。
+- 2026-11-26：「原始碼不寫開發紀錄的檢查」新增「AI 工具與驗證框架的名稱」與「看不見的字元」兩類樣式，先加案例確認測試失敗再加樣式；測試的修改記在 `docs/history/test-change-records.md`。
+- 2026-11-26：同步工具、`manifest.json`、`root-files/` 與 `hooks/` 寫好。用 7 個刻意放進違規內容的檔案測掃描，17 項都抓到；提交與推送前的檢查測了 18 種情形，都照預期通過或擋下。在暫存的 Git 儲存庫用合成身分走完鏡像、提交、加標籤與推送；第二次執行照預期不提交、沿用標籤並推送。
+- 2026-11-26：同步工具改成整段執行期間拿共享鎖。實測別的程序拿著鎖時，同步工具立刻停下，或等到指定的秒數再停；同步期間執行 `tools/verify.ps1`，結果是被擋下，結束碼 2。
+- 2026-11-26：用工作樹的版本實際同步一次，建置、後端與前端測試都通過，1,287 個檔鏡像到 je-tool-clean，沒有提交。鏡像前逐檔比對 je-tool-clean 和這次不同的 397 個檔，沒有只在 je-tool-clean、需要搬回這裡的內容；鏡像前的備份放在 `local/`。個人 GitHub 上的 repo 目前沒有任何分支與標籤，第一次推送不會碰到舊的歷史。
+- 2026-11-26：使用者逐類決定上一版下一步列的九類事項（裁定 2026-11-26-08 到 2026-11-26-17）。技術文件改寫兩段並重新產生，`版本更新紀錄.xlsx` 補上文件屬性，`.claude/settings.json` 加上不署名的設定，六個只檢查已刪除東西的測試刪掉。
+- 2026-11-26：照裁定 2026-11-26-10 到 2026-11-26-12 做完。五種舊式條件型別先加進停用型別的測試、確認失敗，再刪掉前後端的程式；沒有用到的樣式、函式、第三步只給線上案件的分支與兩個只給測試用的分頁方法刪掉；`src/JET` 的用字照名詞表統一。中途電腦停機，移除舊式條件的修改由另一位子代理逐檔審查，沒有放寬和移除無關的斷言。契約檔重新產生，文件與測試修改紀錄同步。四種讀早期情境的寫法沒有刪，原因寫在裁定 2026-11-26-10。
+- 2026-11-26：完整公開測試找出一個漏改的測試，`HighRiskSummaryRowPageTests` 還用金額區間條件，改成欄位值條件後，完整公開測試通過，後端 5,714 個測試。
+- 2026-11-26：使用者對名稱清單回覆「全部照提議」（裁定 2026-11-26-18）。名詞表待確認的名稱照用；名稱寫著開發經過的測試照提議改名，六個類別的檔名跟著改，同系列的三個尾數條件測試名稱一起改。
+
+### 下一步
+
+1. 名稱還寫著開發經過的其他 36 個測試已列給使用者；使用者要求先把命名規範整理好，接續寫在下一節。列名稱時另外問使用者的六件事還沒回覆：八個只檢查已刪東西沒有回來的測試要不要刪、大約四十個沒用到的樣式要不要刪、舊版篩選表測試的兩個案例代號要不要改、畫面說明文件的「案件選擇」節名要不要改、科目配對值概況讀取介面的預設寫法要不要刪，以及不平傳票讀取類別的產品名稱要不要改。
+2. 測試名稱定案後，照單元測試報告的量測步驟重新量測，更新單元測試報告與技術文件的測試數量與涵蓋率。
+3. 使用者說要提交推送時，先提交推送這個儲存庫，再用同步工具從已提交的版本同步，提交並推送發布副本。
+
+## 2026-11-26：命名規範與程式結構呈現審計流程
+
+Agent 把其餘 36 個名稱寫著開發經過的測試列給使用者確認，使用者同日對其中兩題的說明回覆，並提出整體要求。原話逐字照錄。
+
+對「新建的案件資料庫是現行的第 21 版，而且有必要的資料表」這句說明：
+
+> 你還記得之前提到關於資料庫版本的事情嗎? 請回顧一下
+
+對「有差異時會產生 Step13 工作表，不會有 Step131 工作表」這句說明：
+
+> 對於先前沿用 IDEA JET 的命名，有很多不太直觀理解的 step n 的命名，應該被統一規範，這部分需要你去重新整理對應的流程、步驟，並歸類個別屬於的層級，這樣命名和程式分類上更好抓明白他們的脈絡
+
+整體要求：
+
+> 除了我回覆的意見之外，也請一併整理其他命名規範是否有對應的標準或命名原則，尤其是那些凌亂、散落的知識和資訊，都應該在這次被規範好，不只是要遵循 SOLID 去撰寫程式，同樣程式結構也應該能直觀的呈現 JET 的審計業務與流程，尤其是審計邏輯的層級，合理的運用 code as document 和 docs as code 的管理哲學
+
+### 案件資料庫版本的回顧
+
+- 裁定 2026-11-05-73：資料庫版本只在確定改到資料庫邏輯時才升。
+- 使用者 2026-11-20 對技術文件的意見：「連我都還沒確定資料庫的 schema 版本要怎麼處理，請避免 "資料庫 schema 為第 20 版" 這種內容被記錄。」
+- 裁定 2026-11-24-09：首次發布的版本起建立的案件，後續版本都要能開啟。首次發布定為第 21 版、不重設成第 1 版，是 Agent 定的；本計畫「2026-11-24：技術文件重整段落，案件資料庫加上升版機制」寫明待使用者確認，到現在還沒確認。
+- 裁定 2026-11-24-22：不再過度定義案件資料庫的版本，避免之後每次修改都要求審計員重建案件。
+- 所以 `SchemaV7MigrationTests` 的說明不該寫「第 21 版」。提議的新名稱寫「現行版本」，本來就不帶數字。
+
+### 盤點結果
+
+細節與位置記在本機的 `local/`，這裡只留結論。
+
+- 步驟編號用在八層：畫面步驟從 1 起算；畫面步驟索引從 0 起算，用在 `currentStep` 與後端的 `WorkflowStep`；工作底稿工作表 step1 到 step5，另有 1-1、1-2、1-3 與 4-1；資料驗證報告的 V_Report 1 到 6；規則舊代號 V1 到 V4 與 R1 到 R7；舊版 IDEA；舊版 VBA；早期原型。
+- 同一個數字在不同層指不同的東西。例如畫面第四步是資料驗證與測試，底稿 step4 是符合高風險條件傳票，資料來自畫面第五步，IDEA 的步驟四則是進階篩選。文件已經出現「底稿第四步」「第 4-1 步」這種把底稿編號寫成畫面說法的句子。
+- 後端 `WorkflowStep` 的值照 0 起算，註解卻照 1 起算寫。例如匯入完成時的值是 2，也就是欄位配對，註解卻寫「推進到第二步」。行為看起來正確，是註解寫錯。
+- 命名規則分散在大約 15 處。各層名稱的對照在名詞表；C#、action、錯誤碼、前端檔名與 CSS 的取名通則只寫在送審文件 Design Principle 的 4.1，現行文件沒有承接，建置也沒有命名檢查。
+- 程式依技術分層組織，產品程式只有六個命名空間。前端依六步分檔；後端沒有依審計流程分類的規則或圖，一個審計程序通常散在 7 到 12 個資料夾，例如完整性測試。
+- 名詞表有兩處和程式不符：265 列的 `Batch7Filter*Tests` 查不到；314 列把診斷紀錄的步驟值 `workflow.milestone` 寫在 action 欄。
+
+### 查到的標準（2026-11-26）
+
+- Microsoft 的 .NET 命名準則：型別與公開成員用 PascalCase；兩個字母的縮寫全大寫，三個字母以上只大寫第一個字母；改版時優先取有意義的新名稱，數字字尾是不得已才用。出處：[Capitalization Conventions](https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/capitalization-conventions)、[General Naming Conventions](https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/general-naming-conventions)、[Names of Namespaces](https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/names-of-namespaces)。
+- 建置時的命名檢查：命名規則違規是 IDE1006；命名空間和資料夾不一致是 IDE0130；測試專案可以關掉禁止底線的 CA1707。出處：[Code-style naming rules](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/naming-rules)、[IDE0130](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/style-rules/ide0130)、[CA1707](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca1707)。
+- 測試命名：Microsoft 建議依序寫受測對象、情境與預期行為；也有作者主張用領域專家聽得懂的話寫行為，不綁方法名稱。出處：[Best practices for writing unit tests](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-best-practices)、[You are naming your tests wrong](https://enterprisecraftsmanship.com/posts/you-naming-tests-wrong/)。
+- 讓結構呈現業務：最上層的結構要讓人看出系統在做什麼；開發者和領域專家共用同一套詞彙，程式照這套詞彙命名；同一功能的檔案放在一起。這些做法可以和分層並用。出處：[Screaming Architecture](https://blog.cleancoder.com/uncle-bob/2011/09/30/Screaming-Architecture.html)、[UbiquitousLanguage](https://martinfowler.com/bliki/UbiquitousLanguage.html)、[Vertical Slice Architecture](https://www.jimmybogard.com/vertical-slice-architecture/)。
+- 文件和程式一起管理：文件放在同一個儲存庫，走同樣的審查與自動檢查；文件和程式在同一次變更裡更新。出處：[Docs as Code](https://www.writethedocs.org/guide/docs-as-code/)、[Google documentation best practices](https://google.github.io/styleguide/docguide/best_practices.html)、[Documenting Architecture Decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)。
+- 步驟編號：沒有官方準則直接談 `Step1` 這種類別名稱。最接近的是上面微軟對數字字尾的說法，以及 [Bad Names](https://learn.microsoft.com/en-us/archive/blogs/ericlippert/bad-names)。
+
+### Agent 的提議（待使用者確認）
+
+1. 審計邏輯分四層，層級名稱待使用者確認後列進名詞表：
+   - 步驟：審計員在畫面依序操作的六步。
+   - 程序：步驟裡的一項審計工作，例如第四步的完整性測試、借貸不平測試、資料可靠性測試、資料缺漏輔助檢視與預篩選，第五步的進階條件篩選。
+   - 規則與條件：程序逐筆判斷的依據，例如預篩選的各條規則，進階條件篩選的情境、條件組與條件。
+   - 產出：報告與工作底稿的工作表。
+2. 步驟編號的規則：
+   - 程式與檔名不用畫面步驟的序號，改用前端已經在用的步驟代號 create、import、mapping、validate、filter、export。後端的 `WorkflowStep` 改成具名的步驟值，順序只在一個地方定義，寫錯的註解一起改。
+   - 底稿的工作表名稱照範本不改。程式裡的常數、類別、檔名與暫存表改用工作表的內容命名，例如常數 `Step13` 改成描述「完整性測試之差異說明」的名稱，值仍是範本的工作表名稱。名詞表每個工作表一列，寫範本名稱和程式名稱。
+   - 文件提到畫面步驟時寫步驟名稱，提到底稿時寫工作表的完整名稱，不再寫「底稿第四步」。
+   - 規則舊代號 V1 到 V4 與 R1 到 R7 只留在回查用的欄位與報告範本，不用在程式名稱。舊版 IDEA、VBA 與原型的編號只出現在 `legacy/` 與比對舊版的文件。
+3. 命名規則集中成一份現行文件：取名通則、步驟編號的規則，以及審計邏輯層級和命名空間的對應寫在一起；名詞表只管每個概念在各層叫什麼。送審文件 Design Principle 的 4.1 照這份寫，`AGENTS.md` 的地圖加一列。
+4. 自動檢查：建置時檢查命名規則；資料夾整理好之後，開啟命名空間和資料夾一致的檢查；新增測試擋下程式名稱裡的畫面步驟序號與開發經過的字，底稿工作表的名稱表除外。
+5. 程式結構：保留現在的分層與檢查分層依賴的測試；每一層裡面依步驟與程序分子資料夾，命名空間跟著資料夾。測試的資料夾跟著產品程式。
+6. 縮寫：程式現在一律寫 Gl、Tb、Rde、Inf，沒有混用。微軟準則要兩個字母的縮寫全大寫，但全面改要動上千個名稱，建議維持現況並寫明是 JET 的約定。
+7. 案件資料庫版本：首次發布維持第 21 版。改回第 1 版的話，已經建立的第 21 版案件會被判成較新版本的 JET 建立的，訊息會誤導，只能全部重建。版本數字只寫在定義版本的程式與首次發布的建表固定檔；測試名稱、文件與說明不寫數字。`RuleLogicVersionsTests` 裡判定較舊版本過期的七個測試併成一個帶參數的測試，各版本號放在測試資料裡。
+
+### 使用者的回覆（2026-11-27）
+
+使用者逐段回覆上面的提議（裁定 2026-11-27-01 到 2026-11-27-05），原話逐字照錄：
+
+| 回覆的段落 | 使用者的原話 |
+|:---|:---|
+| 資料庫版本：改回第 1 版會讓已建立的案件被判成較新版本的 JET 建立的，訊息會誤導 | 「不會誤導」 |
+| 資料庫版本：改回第 1 版最後只能全部重建 | 「不要重建」 |
+| 資料庫版本：數字只留在定義版本的程式與建表固定檔 | 「請重新定義後端對於資料庫版本的設計，請不要有版本，我想要確保資料綱要跟資料庫層級是乾淨的，避免每次開發都過度設計」 |
+| 畫面第四步叫「資料驗證與測試」 | 「維持這個命名」 |
+| 底稿 step4 與舊版 IDEA 步驟四的意思不同 | 「不需要另外更改，目前已經定版了所以再換回去會更混亂」 |
+| 後端註解與文件寫錯步驟的兩個問題 | 「我前面的回覆，主要是針對後端程式去整理，前端畫面顯示的文字先暫時維持定版的樣子」 |
+| 命名規則分散、結構照技術分層、名詞表兩處不符 | 「這得要整理乾淨」 |
+| 其餘提議 | 「其餘都可以照建議去處理」 |
+
+### 案件資料庫不設版本的做法（Agent 定，2026-11-27）
+
+- 開啟案件時不讀也不寫結構版本。JET 比對案件資料庫和現行建表程式的表、欄位、索引與觸發條件；全部都在時不寫入任何東西。
+- 缺少索引或觸發條件時，在一個交易裡用現行建表程式補上。
+- 定版之後新增的表或欄位，登記在建表程式旁的清單；案件缺少清單上的表或欄位時，開啟時在同一個交易裡建立，失敗就整個復原。清單現在是空的。
+- 缺少清單以外的表或欄位，表示是定版前的 JET 建立的，照原本的訊息請審計員刪除後重建，檔案不變。
+- 案件裡多出 JET 不認得的表或欄位時照常開啟，不讀也不改它們。
+- 已經建立的案件在 `schema_info` 留有 `schema_version` 這一列，JET 不讀它，也不刪它。
+- 驗證、預篩選與篩選結果記的規則邏輯版本不是資料庫版本，照裁定 2026-11-26-08 保留。
+- 案件設定檔 `project.json` 的版本，使用者這次只說資料庫，先不動，另外問使用者。
+
+### 案件資料庫不設版本的結果（2026-11-27）
+
+- 比對與補齊寫在 `src/JET/JET/Infrastructure/Persistence/Sqlite/ProjectSchema.cs`：比對用的現行結構，是在記憶體裡的空資料庫執行建表程式得到的，每個程序只建一次。
+  補齊用預設的 `BEGIN IMMEDIATE` 交易，取得交易後再比對一次；先執行登記的 `ALTER TABLE`，再執行建表程式。建表程式每一句都是 `IF NOT EXISTS` 或 `ON CONFLICT DO NOTHING`，在已有資料的案件上重複執行不改資料。
+- 拿掉的程式：`ProjectSchemaVersions`、`ProjectSchemaUpgrade`、`LocalSchemaReadiness.CurrentSchemaVersion`、`ProjectFolderMessages.UnreadableDatabaseVersion`、
+  建表程式寫入 `schema_version` 的那一句，以及匯出底稿 step4-1 前讀 `schema_version` 的檢查和它的計數。兩句訊息的文字照舊。
+- 測試先寫：新的 `ProjectSchemaCompatibilityTests` 19 個案例，改產品程式前 13 個失敗，改完後全部通過。改過的既有測試與第一次失敗記在測試修改紀錄。
+  相關的測試類別逐一用 `Focused` 跑過，都通過；完整公開測試還沒跑。
+- 已同步 `docs/jet-guide.md` 第 8 節、名詞表「案件資料庫的結構比對與補齊」、裁定總表三列的落實位置、送審文件兩份來源檔的版本規則與 `.agents/harness/sat-documents.md`。
+  送審的 Word 與 Excel 還沒重新產生；`tools/harness/sat-documents/source/test-record.json` 的涵蓋率資料還列著刪掉的檔案，重新產生單元測試報告時會更新。
+- 新取的名稱待使用者確認：`ProjectSchema`、`ProjectSchemaAddition`、`SqliteProjectDatabase.CurrentSchema`、`ProjectSchemaCompatibilityTests` 與其中的測試名稱、
+  `project-schema-first-release.sql`，以及 `CaseLimitJourneyTests.IncompleteDatabase_IsRejected_TheFileStaysUnchanged_AndTheCaseCanBeDeleted`。
+
+### 命名規則文件的結果（2026-11-27）
+
+- 新增 `docs/naming-conventions.md`：適用範圍、審計邏輯的四層與六個步驟代號、步驟與編號的規則與撞號表、名詞表原本的九條命名方式（照原文搬來）、C#、命名空間、資料庫、action、錯誤碼、事件、前端、報告、測試，以及現有與要加的自動檢查。
+- 名詞表的「命名方式」改成指向新文件，另加「審計流程的層級」一節，列審計邏輯的層級與畫面步驟兩個概念。
+- 同步：`docs/README.md` 的導覽表、文件權威與兩條寫作規範，`AGENTS.md` 的地圖，action 契約開頭的處理器命名改成指向新文件，`tools/README.md` 寫清楚 C# 專案裡的資料夾與檔名用 PascalCase，文件檢查清單，裁定 2026-11-27-04 與 2026-11-27-05 的落實位置。
+- 送審來源 `Design Principle.md` 的 4.1 加上縮寫、支援日誌事件、資料表與欄位三列，型別一列加上不以數字字尾區分版本；Word 還沒重新產生。第 3 節「命名空間為 JET 加上資料夾名稱」要等資料夾整理完再改。
+- 盤點時發現、這次沒改的：私有欄位有底線開頭與不加底線兩種寫法並存，要請使用者決定；前端說明說意思是留存時可以寫「保存」，前端用語測試卻一律擋下「保存」，屬於畫面文字，照裁定 2026-11-27-03 暫不處理。
+- 文件檢查通過。
+
+### 後端改名與搬移的提議（2026-11-27，待使用者確認）
+
+細節與逐項清單記在本機的 `local/`，這裡只留結論。程式還沒有改名或搬移。
+
+- 資料夾：每一層依步驟分 `Project`、`Import`、`Mapping`、`Validate`、`Filter`、`Export`，步驟裡再依程序分，例如 `Validate/Completeness`；跨步驟的放共用資料夾，新增 `Actions`、`Conditions`、`FieldInfo`、`OperationLog`，不用會和 .NET 同名的 `System`。命名空間跟著資料夾。
+- `JetAuditProgram` 與 `LegacyReportWriter` 是分在很多檔的部分類別，C# 規定同一個類別的檔要在同一個命名空間，所以各自留在一處，只改檔名。
+- 底稿工作表的程式名稱：step1 到 step5 九張表依內容取名，例如 step1-3 用 `CompletenessDifference`、step4-1 用 `HighRiskVoucherDetail`，已列進名詞表待確認。
+- 畫面步驟索引改成 Domain 的列舉 `WorkflowStep`，處理器的常數改名 `AdvancesTo`；`currentStep` 仍存整數。
+- 要改的名稱：產品程式 114 個、測試 149 個，另有參數。上一輪列給使用者的 36 個測試名稱併進同一份清單，違反新規則的幾項改掉。規則邏輯版本的過期測試併成兩個帶參數的測試。
+- 私有欄位：執行個體欄位底線開頭 381 個、不加底線 135 個；static 欄位幾乎都是 PascalCase。建議執行個體欄位統一成底線開頭，static 欄位維持 PascalCase。
+
+### 下一步
+
+1. 案件資料庫不設版本已改完。其他版本要不要拿掉，使用者已回覆，見下一章。
+2. 命名規則文件已寫完。私有欄位的寫法使用者已回覆，見下一章。
+3. 後端改名與搬移的清單已列出。使用者 2026-11-27 的回覆與之後的做法寫在下一章。
+4. 使用者確認後，先寫命名檢查並確認它擋下現有的違規，再改名與搬移，跑相關測試，最後跑完整公開測試。
+5. 重新產生送審文件與單元測試報告。
+6. 使用者說要提交推送時，照上一節的步驟提交推送並同步發布副本。
+
+## 2026-11-27：使用者對改名與搬移提議的回覆
+
+Agent 把後端改名與搬移的提議列成 14 題請使用者決定，使用者逐段回覆。原話逐字照錄，引號前是使用者回覆的那段提議。
+
+| 提議 | 使用者的回覆 |
+|:---|:---|
+| 程式資料夾改照審計流程分，每一層依步驟與程序分資料夾，例如每一層都有 `Validate/Completeness` | 「請依照程式模組的原則去寫，不需要特意分成多個目錄，而你提到的這概念其實就是當初我提出設計 AuditCore 的用意，請銘記。」 |
+| 審計核心總入口與四種報告的寫出程式各自留在一處，只改檔名 | 「可以只改檔名，避免過度設計而演變成重構」 |
+| step1 到 step3 六張表的程式名稱 | 「可以接受」 |
+| 「工作表名稱照範本，不改。」這句說明 | 「請注意你這句話的語調，這帶有 ai 味，請避免該問題出現，尤其是不得出現在產出成果上」 |
+| step4、step4-1、step5 的程式名稱 | 「這優先引用 IDEA JET 的命名方式，如果確實沒有再提出你認為適合的」 |
+| 改名清單的兩個例子：畫面步驟索引的測試名稱、規則邏輯版本測試的合併 | 「後端程式的部分可以整理」 |
+| 刪掉只檢查已刪程式沒有回來的測試，以及沒有用到的畫面樣式 | 「確認沒有隱憂後就可以刪掉」 |
+| 其餘各題 | 「其餘都可以照你的建議去處理」 |
+
+IDEA 版 JET 處理 step4 與 step4-1 時只用暫存檔名 `#To_WP_Sum`、`#To_WP`，step5 沒有程式處理；後來的 VBA 版有 `ShowHRCReport`、`ShowHRCDetails`、`ShowPostClosingEntries`。
+Agent 據此再問一題，使用者回答「這三張表在後端程式裡要用哪組名稱？」時選「HighRiskVoucher 等 (Recommended)」，也就是 step4 `HighRiskVoucher`、step4-1 `HighRiskVoucherDetail`、step5 `PostClosingEntries`。
+
+這些回覆記成裁定 2026-11-27-06 到 2026-11-27-12。
+
+### 照回覆調整的做法
+
+- 不搬資料夾，也不改命名空間；`docs/naming-conventions.md` 寫明後端程式依模組組織，每項程序的審計邏輯集中在 AuditCore。不開「命名空間要和資料夾一致」的建置檢查。
+- `JetAuditProgram` 分在 11 個檔，檔名改成 `JetAuditProgram.<步驟或程序>.cs`；`LegacyReportWriter` 的檔名已經是這個寫法，不動。
+- 改名只做後端：產品程式、C# 測試與測試輔助。前端測試的檔名與標題留著。
+- 刪測試與樣式之前，先逐一確認沒有其他程式或測試依賴它們。
+
+### 下一步
+
+1. 修正命名規則與名詞表裡講資料夾結構的段落，以及 Agent 寫的、帶 AI 味的短句。
+2. 先寫命名檢查，確認它擋下現有的違規，再做後端改名、畫面步驟的列舉與私有欄位。
+3. 刪測試與樣式，拿掉三個格式版本，處理其餘小項。
+4. 同步名詞表、測試修改紀錄與裁定的落實位置，跑相關測試；完整公開測試前先問使用者有沒有開遊戲。
+5. 重新產生送審文件與單元測試報告。
+6. 使用者說要提交推送時，提交推送並同步發布副本。
+
+## 2026-11-27：格式版本與已建立案件的相容
+
+Agent 第一次問三個格式版本要不要照舊寫入時，使用者回覆「請延伸說明這個問題，因為你給的選項解讀不夠完整我無法判讀」。
+Agent 查過舊版讀檔的方式、補充說明後再問一次。兩題的回覆原話逐字照錄，記成裁定 2026-11-27-13 與 2026-11-27-14。
+
+| 提議 | 使用者的回覆 |
+|:---|:---|
+| 舊版篩選表測試兩個案例代號的新名稱 | 「描述條件類型」 |
+| 新版存檔時要不要照舊寫入三個格式數字，讓舊版還讀得了 | 「目前先繼續維持相容舊版的資料庫，現在的代碼目的是要整理雜亂的動線，並同時相容 "683f323300119f107d1563af9e4aa5f7e1a10f7a" 的案件，因為使用者已經開始測試了，如果我再更新版本導致資料庫不相容則會嚴重影響到專案整理驗收進度」 |
+
+### 補充說明時查到的事實
+
+- `683f323` 的建表程式和測試用的首次發布結構檔，去掉註解與空白後逐行相同。工作樹的建表程式只少了寫入版本紀錄 21 的那一句。
+- `683f323` 開啟案件時讀這一列，讀不到數字就拒絕開啟，所以少了那一句之後，新版建立的案件在 `683f323` 打不開。
+- `683f323` 讀案件設定檔時要求 `schemaVersion` 存在而且等於 2，沒有這一欄時回報設定檔無法讀取。開啟案件時會改寫設定檔，新版不寫這一欄的話，舊版建立、新版開過的案件，舊版也打不開。
+- `683f323` 讀欄位配對紀錄與報告配對紀錄時，版本不符、多了或少了欄位都整份不帶入，請審計員自己選欄位。
+- 案件資料庫的 `field_mapping_previous.format_version` 規定一定要有值，也沒有預設值，已經建立的案件拿不掉這一欄。
+- `683f323` 不讀案件設定檔的 `roundingMode`，新版不寫這一欄，舊版照常開啟。
+
+### 照回覆的做法
+
+- 三個格式版本照舊寫入與核對，不拿掉。原本要一起拿掉的 `restoreDraft` 回應欄位 `formatVersion`、前端測試裡的假版本與版本不受支援的訊息都不動。
+- 建表程式補回寫入版本紀錄 21 的那一句，已經有這一列的案件不改；JET 開啟案件時仍不讀它，只比對結構。
+- 測試先改：新建的案件要寫入 21，和首次發布結構檔比對時不再跳過這一列。改產品程式前 2 個測試失敗，改完 `ProjectSchemaCompatibilityTests` 的 19 個測試都通過。
+- `MappingStateStore_LegacyV1Row_IsRejectedAsOldProject` 只改名為 `MappingStateStore_RowWithAnEarlierFormatVersion_IsRejectedAsOldProject`，內容不變。
+- 兩個案例代號照裁定 2026-11-27-13 改名，前端測試裡指向案例代號的值一起改。
+
+### 文件同步
+
+- 裁定總表有 33 則的落實位置還寫著改名前的檔案路徑，文件檢查找不到檔案，換成新檔名；說明欄裡記錄當時做法的舊檔名照原文保留。
+- 名詞表 17 列的現行名稱換成改名後的名稱，做完的列「確認的改法」改回照舊，並寫出原本的名稱。
+- 新增[後端改名紀錄](../history/2026-11-27-backend-rename-records.md)，列出改名的檔案與工作表序號換成什麼；完整的名稱對照存在本機的 `local/`。
+- 命名規則的「自動檢查」補上這次加的建置命名檢查與 `IdentifierNamingTests`，總入口分在 11 個檔的說明照實際檔名改寫。
+- 測試修改紀錄補一則這次測試改名的原因；`docs/jet-guide.md` 與 Excel 讀寫核對表裡的舊檔名換成新檔名。
+- 送審文件來源的元件圖與 UML 資料、單元測試紀錄還有舊檔名，重新產生送審文件時一起更新。
+
+### 重新產生送審文件
+
+- 使用者確認沒開遊戲後，完整公開測試通過。
+- 照產生工具說明把 `src/JET` 複製到儲存庫外量測：後端 5,609 個、前端 1,110 個測試全部通過，行涵蓋率 93.2%，共 48,345 行中執行 45,039 行；六項核心查核邏輯的 194 個案例都通過。
+- 技術文件第 9 節與設計原則第 8 節原本寫「案件資料庫不記錄結構版本」，和補回寫入版本紀錄 21 的建表程式不符，改成資料庫記錄結構版本、JET 開啟案件時不讀取。技術文件第 12 節的測試數字照這次量測改寫。
+- 複核資料裡固定值清單的檔名換成改名後的名稱，單元測試紀錄由轉換工具重新寫入，裡面的舊檔名跟著消失。
+- 重新產生 Technical Document、Design Principle 與 Unit test Report。五張圖重新產生後和原本相同。兩份規則文件用來源產生後文字和現有的相同，沒有覆蓋；Workflow 與版本更新紀錄的來源這次沒有改，沒有重新產生。
+- Code review.xlsx 的「開發人員」是使用者在 Excel 填的，重新產生會清掉，所以沿用使用者提交的版本，只把固定值清單那一格換成新檔名，列高照產生工具的值。
+- 重新產生的三份文件照 2026-11-26 的做法，從使用者提交的版本搬回敏感度標籤。四份文件在背景用 Word 與 Excel 唯讀開得起來，轉成 PDF 後看過有改動的頁面；文件檢查通過。
+
+### 提交前的畫面測試
+
+- 使用者確認沒開遊戲後執行另開 Windows 桌面的畫面測試。第一次在執行情境前停下：先跑的那組測試只有 30 個，低於下限 31。少的是照裁定 2026-11-27-10 刪掉的 `SupportedActionsParityTests.RemovedCalendarTemplateAction_IsNotRegisteredOrSupported`，所以下限改成 30，原因記在測試修改紀錄。
+- 改完重跑，建置、那組測試、單一執行檔的打包與 20 個情境全部通過。
+
+### 下一步
+
+1. 使用者說要提交推送時，提交推送並同步發布副本。
+2. 提交推送後，通知等待中的架構圖重繪工作開始。

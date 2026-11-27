@@ -8,8 +8,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 前端為了就近提示，持有幾份後端規則的副本。這裡逐份比對副本與後端權威值，任何一邊改了另一邊沒跟上就失敗。
-/// 後端仍是權威；本檔只讀前端原始碼與前端測試夾具並用正則擷取，不執行 JavaScript。所有資料都是合成值。
+/// 前端為了就近提示，持有幾份後端規則的副本。這裡逐份比對副本與後端的值，任何一邊改了另一邊沒跟上就失敗。
+/// 規則以後端為準；本檔只讀前端原始碼與前端測試夾具並用正則擷取，不執行 JavaScript。所有資料都是合成值。
 /// </summary>
 public sealed class FilterBackendRuleMirrorFrontendTests
 {
@@ -193,27 +193,6 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// 文字值清單（舊式條件 textSet）每條的值數上限，前端副本必須等於後端 <c>FilterScenarioLimits.MaxTextSetValuesPerRule</c>。
-    /// 前端行為測試讀不到後端常數，只能在這裡比對原始碼；
-    /// 101 個值時預覽與儲存都擋下的行為，由前端測試核對。
-    /// </summary>
-    [Fact]
-    public void TextSetMaxValues_MatchesBackendTextSetLimit()
-    {
-        var core = ReadFrontend("js", "ui-core.js");
-
-        var limitMatch = Regex.Match(
-            core,
-            @"var\s+TEXT_SET_MAX_VALUES\s*=\s*(?<value>\d+)\s*;",
-            RegexOptions.CultureInvariant);
-        Assert.True(limitMatch.Success, "ui-core.js 內找不到 TEXT_SET_MAX_VALUES。 ");
-        Assert.Equal(
-            FilterScenarioLimits.MaxTextSetValuesPerRule,
-            int.Parse(limitMatch.Groups["value"].Value));
-        Assert.Contains("TEXT_SET_MAX_VALUES: TEXT_SET_MAX_VALUES", core, StringComparison.Ordinal);
-    }
-
     [Fact]
     public void FilterValues_UsesSharedListLimitInsteadOfHardcodedNumbers()
     {
@@ -231,15 +210,14 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         // 100 筆與重複日期由 frontend-shared-controls.test.cjs 操作驗證。
         Assert.Contains("!duplicate && selected.length >= Ui.TYPED_SET_MAX_VALUES", values, StringComparison.Ordinal);
         Assert.Contains("'最多選取 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同日期，請先移除不需要的日期。'", values, StringComparison.Ordinal);
-        // Counts the exact distinct strings that wire() sends, not a second uppercase-derived set.
-        // The Node behavior case also fixes the 100/101 mixed-case wire counts; keep this source-to-limit guard.
+        // 計算 wire() 實際送出的相異字串，不另外用轉成大寫的集合計算。
+        // Node 的行為測試也固定 100 與 101 個大小寫混合值送出的筆數；這裡把原始碼和上限綁在一起。
         var problem = ExtractFunctionBody(values, "problem(rule, state)");
         Assert.Contains("var value = wire(rule, state), mode = carrier(rule.operator, selected.type);", problem, StringComparison.Ordinal);
         Assert.Contains("var inputs = mode === 'set' ? value.values", problem, StringComparison.Ordinal);
         // 尾數與一般清單共用超限指引，計數仍用 wire 的值；
         Assert.Contains("count > Ui.TYPED_SET_MAX_VALUES", problem, StringComparison.Ordinal);
         Assert.DoesNotContain("toUpperCase", problem, StringComparison.Ordinal);
-        // 這句的用字已定案。
         Assert.Contains("'請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值'", values, StringComparison.Ordinal);
     }
 
@@ -258,7 +236,6 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("data-bind=\"scenario-name\" maxlength=\"' + Ui.FILTER_MAX_SCENARIO_NAME_LENGTH + '\"", filter, StringComparison.Ordinal);
         // 用語以「已儲存」為準，前後端訊息都寫「儲存」。
         Assert.Contains(
-            // 這句的用字已定案。
             "'最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。'",
             filter,
             StringComparison.Ordinal);
@@ -266,7 +243,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
 
         // 後端 filter.commit 的 handler 與 AuditCore 規劃都引用同一個常數，不各自寫數字。
         var handler = ReadSource("Application", "Handlers", "FilterHandlers.cs");
-        var program = ReadSource("AuditCore", "FilterProgram.cs");
+        var program = ReadSource("AuditCore", "JetAuditProgram.Filter.cs");
         Assert.Contains("MaxScenarios = FilterScenarioLimits.MaxSavedScenarios;", handler, StringComparison.Ordinal);
         Assert.Contains("MaxFilterScenarios = FilterScenarioLimits.MaxSavedScenarios;", program, StringComparison.Ordinal);
     }
@@ -275,7 +252,6 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     /// 第五步各入口的停用原因讀 ui-core.js 的規則需求表，這張表逐項鏡像後端
     /// <see cref="JetRuleRequirements"/>，順序也相同，因為原因依表列的順序寫。預篩選比對每一個可篩選的鍵；條件型別比對每一種型別，
     /// 需要條件自己所選 GL 欄位的型別另列一份清單；GL 語意欄位的清單比對欄位目錄。
-    /// （前端還沒有這張表）。
     /// </summary>
     [Fact]
     public void RulePrerequisiteTables_MirrorTheBackendRequirementTable()
@@ -369,7 +345,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     /// <summary>
-    /// 第五步依 ui-core.js 的規則需求表與 rulePrerequisiteMet 停用條件；後端驗證器是權威。逐一把每個條件型別交給
+    /// 第五步依 ui-core.js 的規則需求表與 rulePrerequisiteMet 停用條件；結果以後端驗證器為準。逐一把每個條件型別交給
     /// 後端驗證器，在每一種科目配對狀態下比對「前端可用」與「後端不因科目配對擋下」是否一致。
     /// 前端可用由需求表算。
     /// </summary>
@@ -443,8 +419,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             var rule = new Dictionary<string, object?> { ["type"] = "prescreen", ["prescreenKey"] = key };
             foreach (var facts in MappingFactStates)
             {
-                // This compares the actual frontend helper, not a metadata flag: comparing a flag alone
-                // would miss the two-summary-flag requirement. Keep every snapshot and every key.
+                // 這裡比對實際的前端函式，不只比對 metadata 旗標：只比對旗標會漏掉需要兩個摘要旗標的條件。
+                // 每個 snapshot 與每個鍵都核對。
                 if (FrontendMet(prerequisites, facts) == BackendBlocksBecauseOfMapping(rule, facts))
                 {
                     mismatches.Add($"{key}（科目配對狀態：{facts}）");
@@ -675,7 +651,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             : char.ToLowerInvariant(prerequisite.Kind.ToString()[0]) + prerequisite.Kind.ToString()[1..])
         .ToArray();
 
-    // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES，每條規則的 prerequisites 寫在同一筆。
+    // 一條規則只有一個定義，前端只有一份 PRESCREEN_RULES，每條規則的 prerequisites 寫在同一筆。
     private static Dictionary<string, string[]> ReadPrescreenRuleTable(string source)
     {
         var match = Regex.Match(

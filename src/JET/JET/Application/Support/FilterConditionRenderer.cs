@@ -9,13 +9,12 @@ namespace JET.Application;
 /// 條件篩選報告摘要的「條件內容」就是這裡的輸出，由 <see cref="ExportCriteriaSelectionReportHandler"/> 計算，
 /// 經 <see cref="CriteriaSelectionReportContext.ScenarioConditionLogic"/> 傳給寫報告的程式。
 ///
-/// 這裡讀原始 JSON，不讀 <see cref="FilterScenarioSpec"/>。讀回要顯示使用者輸入的原文，例如 numRange 的 from 與 to；
-/// 解析成 <see cref="FilterScenarioSpec"/> 之後金額已經換算成整數，原文就不在了，所以只有讀原始 JSON 才能和前端寫得一樣。
-/// 文字條件的關鍵字照前端的寫法拆開、去掉重複再接回，見 <c>TextKeywords</c>。讀 JSON 的程式和 <see cref="FilterScenarioPayloadParser"/>
-/// 一樣放在 Application；中文標籤只定義在 Domain 的 <see cref="FilterConditionLabels"/>，前端另有一份相同的文字，由測試核對兩邊一致。
+/// 這裡讀原始 JSON，不讀 <see cref="FilterScenarioSpec"/>：讀回要照使用者輸入的原文寫出比較值；已停用的條件類型無法解析成
+/// <see cref="FilterScenarioSpec"/>，也要讀回「已停用的條件」，所以只有讀原始 JSON 才能和前端寫得一樣。
+/// 讀 JSON 的程式和 <see cref="FilterScenarioPayloadParser"/> 一樣放在 Application；中文標籤只定義在 Domain 的 <see cref="FilterConditionLabels"/>，前端另有一份相同的文字，由測試核對兩邊一致。
 ///
-/// 非營業日卡片保留子條件組，內含排除補班日的日期條件。已存情境裡用兩條預篩選組成的「週末過帳 或 假日過帳」
-/// 照條件樹原樣描述，不換成非營業日卡片的寫法，也不搬到其他位置；本類只影響顯示文字。
+/// 已存情境裡的子條件組照條件樹原樣描述：只含一條排除補班日日期條件的讀回「非營業日」，
+/// 兩條預篩選組成的讀回「（週末過帳 或 假日過帳）」；本類只影響顯示文字。
 ///
 /// 欄位名稱照原樣寫，不加任何符號，值用「」。畫面與文件（底稿與報告，<c>forDocument</c>）的寫法只差在統計條件：
 /// 畫面上的條件讀回、滑鼠提示與情境的自動名稱用「」包住欄位名稱，底稿與報告不加符號，欄位名稱前後各留一個半形空白。
@@ -29,7 +28,7 @@ public static class FilterConditionRenderer
     /// 科目配對條件讀回所選的分類時使用。省略時只認得內建分類的預設名稱，認不得的分類寫「已刪除的分類，請重新選擇」；
     /// 正式報表一律傳入案件的科目分類，才會反映使用者改過的顯示名稱。
     /// <paramref name="rdeFieldLabels"/> 是已確認配對裡攸關資料元素欄位的 fieldId 與顯示名稱的對照，
-    /// <c>typed</c> 條件與欄位值條件讀回時使用。用的是目前的名稱，所以欄位只改了名稱時會顯示新名稱；
+    /// 欄位值條件讀回時使用。用的是目前的名稱，所以欄位只改了名稱時會顯示新名稱；
     /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId。
     /// <paramref name="accountCategories"/> 帶完整分類用途與階層，才能列出實際納入分類。省略時不猜分類範圍。
     /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只用在讀回的說明文字，不存進條件。
@@ -200,7 +199,7 @@ public static class FilterConditionRenderer
         bool IsExactLeftFold);
 
     /// <summary>
-    /// 辨認舊情境裡「週末或假日」的寫法：子條件組（type 為 "group"）剛好有兩條子條件，兩條都是預篩選，
+    /// 辨認子條件組寫成的「週末或假日」：子條件組（type 為 "group"）剛好有兩條子條件，兩條都是預篩選，
     /// 鍵是 weekendPosting 與 holidayPosting 各一，而且第二條的連接詞是「或」。第一條左邊沒有條件，它的 join 不看。
     /// 符合時讀回「（週末過帳 或 假日過帳）」，意思仍是週末或假日，不表示已排除補班日。
     /// 「週末 且 假日」的意思不同，照一般括號讀回。前端 filter-step-rules.js 的 isLegacyWeekendHolidayBracket 是同一個判斷。
@@ -232,8 +231,7 @@ public static class FilterConditionRenderer
         return keys.SetEquals([PrescreenRuleKeys.WeekendPosting, PrescreenRuleKeys.HolidayPosting]);
     }
 
-    // 舊情境裡由非營業日卡片加入的子條件組，只有一條排除補班日的日期條件。卡片現在直接加入那一條條件，
-    // 已儲存情境裡的這種子條件組照舊讀回「非營業日」。
+    // 只含一條排除補班日日期條件的子條件組，讀回「非營業日」。
     private static bool IsNonBusinessDayBracket(JsonElement rule)
     {
         if (Str(rule, "type") != "group") return false;
@@ -265,12 +263,6 @@ public static class FilterConditionRenderer
             "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields),
             "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold, neverBlankGlFields),
             "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate, zerosThreshold),
-            "text" => GlFieldName(Str(r, "field")) + " "
-                + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + TextKeywords(r) + "」",
-            "textSet" => TextSetAtom(r),
-            "dateRange" => GlFieldName(Str(r, "field")) + " "
-                + Ellipsis(Str(r, "from")) + "～" + Ellipsis(Str(r, "to")),
-            "numRange" => NumRangeAtom(r),
             "drCrOnly" => Str(r, "drCr") == "credit" ? "僅貸方" : "僅借方",
             "manualAuto" => Str(r, "isManual") == "false" ? "自動分錄" : "人工分錄",
             "accountPair" => AccountPairAtom(r, categoryLabels),
@@ -286,7 +278,6 @@ public static class FilterConditionRenderer
             "revenueWithoutNormalCounterpart" => "貸方為收入但借方非一般對方科目",
             "manualRevenueEntry" => "收入之人工分錄",
             "preparerEqualsApprover" => "編製人員與核准人員相同",
-            "typed" => TypedFieldAtom(r, rdeFieldLabels),
             "fieldValue" => FieldValueAtom(r, rdeFieldLabels, compact, neverBlankGlFields),
             "accountSide" => AccountSideAtom(r, categoryLabels, accountCategories),
             _ => FilterConditionLabels.RetiredCondition,
@@ -405,86 +396,6 @@ public static class FilterConditionRenderer
         return field + " " + opLabel + operand + unit + blankText;
     }
 
-    /// <summary>
-    /// <c>typed</c> 條件的讀回文字。攸關資料元素欄位用目前欄位配對裡的顯示名稱，所以欄位只改了名稱時，讀回會跟著顯示新名稱。
-    /// 欄位已不存在或沒有提供名稱對照時寫「已不在欄位配對中的攸關資料元素欄位」，後面不接比較基準。
-    /// 比較的值照條件裡存的原始字串寫出：單一值讀 value，區間讀 from 與 to，清單讀 values。金額條件依 amountBasis 加註比較基準。
-    /// 運算子的中文名稱定義在 Domain 的 <see cref="FilterConditionLabels.TypedOperators"/>。
-    /// </summary>
-    private static string TypedFieldAtom(
-        JsonElement r,
-        IReadOnlyDictionary<string, string>? rdeFieldLabels)
-    {
-        var fieldId = Str(r, "fieldId");
-        var fieldKnown = rdeFieldLabels is not null && rdeFieldLabels.ContainsKey(fieldId);
-        var fieldLabel = fieldKnown ? rdeFieldLabels![fieldId] : FilterConditionLabels.MissingRdeField;
-        var op = Str(r, "operator");
-        var opLabel = FilterConditionLabels.TypedOperatorLabel(op);
-
-        string operand;
-        if (op is TypedFieldOperatorSets.IsBlank or TypedFieldOperatorSets.IsNotBlank)
-        {
-            operand = string.Empty;
-        }
-        else if (op is TypedFieldOperatorSets.Between)
-        {
-            operand = "「" + Ellipsis(Str(r, "from")) + "」～「" + Ellipsis(Str(r, "to")) + "」";
-        }
-        else if (op is TypedFieldOperatorSets.In or TypedFieldOperatorSets.NotIn)
-        {
-            operand = "「" + string.Join(FilterConditionLabels.CategoryListSeparator,
-                StringArrayItems(r, "values")) + "」";
-        }
-        else
-        {
-            operand = "「" + Str(r, "value") + "」";
-        }
-
-        var basis = !fieldKnown ? string.Empty : Str(r, "amountBasis") switch
-        {
-            TypedAmountBasisNames.Signed => "（" + FilterConditionLabels.TypedSignedAmountBasis + "）",
-            TypedAmountBasisNames.Absolute => "（" + FilterConditionLabels.TypedAbsoluteAmountBasis + "）",
-            _ => string.Empty
-        };
-
-        return fieldLabel + " " + opLabel + operand + basis;
-    }
-
-    /// <summary>
-    /// 文字條件的關鍵字用比對時的同一套分隔字元拆開、去掉重複，再用半形逗號接回，
-    /// 和前端讀回與送出的寫法相同，自動名稱與動機、報告與底稿的條件說明因此和畫面一致。
-    /// </summary>
-    private static string TextKeywords(JsonElement r) =>
-        string.Join(",", FieldValueConditions.SplitInputList(Str(r, "keywords")).Distinct(StringComparer.Ordinal));
-
-    private static string NumRangeAtom(JsonElement r)
-    {
-        var from = Str(r, "from");
-        var to = Str(r, "to");
-        return "金額（絕對值） "
-            + (from.Length > 0 ? "≥ " + from : string.Empty)
-            + (from.Length > 0 && to.Length > 0 ? "、" : string.Empty)
-            + (to.Length > 0 ? "≤ " + to : string.Empty);
-    }
-
-    private static string TextSetAtom(JsonElement r)
-    {
-        var modeLabel = Str(r, "mode") == "exact"
-            ? FilterConditionLabels.TextSetExactAny
-            : FilterConditionLabels.TextSetContainsAny;
-        var normalizationLabel = Str(r, "normalization") == "removeAsciiSpaces"
-            ? FilterConditionLabels.TextSetRemoveAsciiSpaces
-            : FilterConditionLabels.TextSetPreserveAsciiSpaces;
-        return GlFieldName(Str(r, "field"))
-            + " "
-            + modeLabel
-            + "「"
-            + string.Join("、", StringArrayItems(r, "values"))
-            + "」（"
-            + normalizationLabel
-            + "）";
-    }
-
     private static string AccountPairAtom(
         JsonElement r,
         IReadOnlyDictionary<string, string>? categoryLabels)
@@ -541,7 +452,7 @@ public static class FilterConditionRenderer
     }
 
     // 選的分類都沒有下層時，「包含下層分類」與「僅分類本身」選到的分類相同，讀回不寫選取依據與實際納入分類。新案件的分類都是
-    // 平的一層，條件說明就和舊版一樣只寫分類；「相同分類用途」會納入同用途的其他分類，照舊寫出。
+    // 平的一層，條件說明只寫分類；「相同分類用途」會納入同用途的其他分類，一律寫出選取依據與實際納入分類。
     // 沒有分類清單時當成沒有下層，和前端沒有分類設定時用內建分類一樣。前端 ui-core.js 的 categorySelectionMatters 是同一個規則。
     private static bool CategorySelectionMatters(JsonElement rule, IReadOnlyList<AccountCategory>? categories,
         params string[] idsProperties)
@@ -586,7 +497,7 @@ public static class FilterConditionRenderer
         return labels.Length == 0 ? "無" : string.Join(FilterConditionLabels.CategoryListSeparator, labels);
     }
 
-    /// <summary>空值以刪節號替代（同前端 <c>rule.from || '…'</c>）。</summary>
+    /// <summary>空值以刪節號替代，和前端讀回的寫法相同。</summary>
     private static string Ellipsis(string value) => value.Length > 0 ? value : "…";
 
     /// <summary>
@@ -634,7 +545,7 @@ public static class FilterConditionRenderer
 
     /// <summary>
     /// 把屬性讀成顯示用的字串。前端草稿的值都是字串，直接取用；遇到數字或布林時轉成它的字面寫法；
-    /// 沒有這個屬性時回空字串。空字串在這裡代表沒有值，numRange 與 dateRange 用它判斷有沒有填。
+    /// 沒有這個屬性時回空字串。空字串在這裡代表沒有值。
     /// </summary>
     private static string Str(JsonElement element, string name)
     {

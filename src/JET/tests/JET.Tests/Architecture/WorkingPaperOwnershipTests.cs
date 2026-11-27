@@ -31,14 +31,6 @@ public sealed class WorkingPaperOwnershipTests
         }
     }
 
-    [Fact]
-    public void RollbackAdapter_IsRemoved()
-    {
-        Assert.Null(
-            ProductionAssembly.GetType(
-                "JET.Application.WorkingPaperPlanWriterCompatibilityAdapter"));
-    }
-
     /// <remarks>
     /// handler 從作用中案件的資料庫組取 writer、planning port 與 repository，
     /// 建構式只收案件 store、session 與事件。這裡檢查：建構式只有一個且為 internal；
@@ -123,13 +115,6 @@ public sealed class WorkingPaperOwnershipTests
     }
 
     [Fact]
-    public void TemporaryMigrationState_IsRemoved()
-    {
-        Assert.Null(ProductionAssembly.GetType("JET.AuditCore.ProgramMigrationState"));
-    }
-
-
-    [Fact]
     public void ProductionWorkingPaperPath_UsesTypedLifecycleAndExistingStaleRefresh()
     {
         var handler = ReadProduct(
@@ -142,7 +127,7 @@ public sealed class WorkingPaperOwnershipTests
 
         Assert.Contains("ReportExportSupport.RefreshReportsAsync", handler, StringComparison.Ordinal);
         Assert.Contains("JetAuditProgram.Plan(", handler, StringComparison.Ordinal);
-        // AuditCore 不提供只轉手給 port 的 ExecuteAsync；handler 直接呼叫 planning facts port。
+        // handler 直接呼叫 planning facts port。
         Assert.Contains("planningFactsPort.ExecuteAsync(", handler, StringComparison.Ordinal);
         Assert.Contains("JetAuditProgram.Finalize(", handler, StringComparison.Ordinal);
         Assert.Contains("planWriter.WriteAsync(", handler, StringComparison.Ordinal);

@@ -331,7 +331,7 @@ internal static partial class DispatcherDiagnostics
 
 /// <summary>
 /// 記錄進行中的請求：每個 WebView requestId 對應一個 CancellationTokenSource。它由 dispatcher 持有，
-/// 所以和 dispatcher 放在同一個檔案，Bridge 維持三個檔案；請求完成、失敗或取消後，由 scope 把它移除並 dispose。
+/// 所以和 dispatcher 放在同一個檔案；請求完成、失敗或取消後，由 scope 把它移除並 dispose。
 /// </summary>
 public sealed class RequestCancellationRegistry : IOperationCancellationService
 {

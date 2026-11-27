@@ -19,9 +19,6 @@
 //     中欄是根節點裡的 <section data-bind="content">，f.draw() 畫進中欄，render() 重建中欄時不會清掉頁首。
 //   - overviewDialogFixture：可選擇裝上假的 ECharts 與 ResizeObserver，並收集 overview-bi.js 排定的 setTimeout。
 //
-// 改壞檢查：環境變數 JET_FRONTEND_TEST_WWWROOT 可把讀取的 wwwroot 換成副本，只給改壞檢查工具使用。
-// 設定時會在 stderr 印一行提醒；平常執行前端測試前，先確認沒有設定這個變數。
-//
 // 載入夾具的測試程序都受 resource-guard.cjs 的記憶體與時間上限保護。
 require('./resource-guard.cjs');
 // 假後端都經過 action-contract.cjs：假回應與送出的資料要符合正式後端記下的形狀。
@@ -32,17 +29,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const DEFAULT_WWWROOT = path.resolve(__dirname, '../../../JET/wwwroot');
-const wwwroot = resolveWwwroot();
+const wwwroot = DEFAULT_WWWROOT;
 const root = path.join(wwwroot, 'js');
-
-function resolveWwwroot() {
-  const override = process.env.JET_FRONTEND_TEST_WWWROOT;
-  if (!override) return DEFAULT_WWWROOT;
-  const resolved = path.resolve(override);
-  assert.ok(fs.existsSync(path.join(resolved, 'js', 'app.js')), 'JET_FRONTEND_TEST_WWWROOT must point at a copied wwwroot: ' + resolved);
-  process.stderr.write('[frontend-fixtures] JET_FRONTEND_TEST_WWWROOT=' + resolved + '：這次讀的是改壞檢查用的副本，不是工作樹的正式前端。\n');
-  return resolved;
-}
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -409,7 +397,7 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
 
 // 進階篩選操作測試的夾具。前半用合成 DOM 繪出正式第五步並以真實點擊操作；
 // 後半直接呼叫正式函式核對命名、送出形狀與預覽提示。名稱與動機的預期值逐字寫死，不由被測程式算出。
-// features 是這個版本隱藏的功能開關（Ui.FEATURES），在第一次畫出第五步之前設定；沒給時照正式程式的預設。
+// features 是預設關閉的功能開關（Ui.FEATURES），在第一次畫出第五步之前設定；沒給時照正式程式的預設。
 function filterOperationFixture({ saved = [], features = {} } = {}) {
   const dom = treeDom(), commits = [];
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
@@ -486,7 +474,7 @@ function remapAppFixture(options = {}) {
 
 // 審計員用鍵盤開關流程總覽：用正式 index.html 的總覽標記與 app.js 正式的開啟按鈕程式。
 // f.key 照瀏覽器的順序送鍵：先跑 document 捕獲階段的監聽，再從目標往上冒泡。
-// 假 DOM 的 focus() 不分元素能否取得焦點，實機焦點另由瀏覽器主機確認。
+// 假 DOM 的 focus() 不分元素能否取得焦點，所以這裡不核對實機焦點。
 // 比對兩個假 DOM 節點一律用 assert.ok(a === b)：assert.equal 失敗時會序列化整棵循環的假 DOM，記憶體用盡而看似卡住。
 // 本模組補：overviewDialogFixture({ charts: true }) 在載入 overview-bi.js 之前裝上假的 ECharts 與 ResizeObserver（f.charts），
 // setTimeout 收進 f.timers，window 的監聽記在 f.windowListeners，f.resizeWindow() 送出 resize。
@@ -825,7 +813,7 @@ function recordingJetApi(requests, extra = {}) {
   return contractJetApi({ on() {}, off() {}, isReady: () => true, ...extra }, requests);
 }
 
-// 右側資料預覽（情境 21）：切出 index.html 的 aside.data-preview，載入 state、ui-core、data-preview，
+// 右側資料預覽：切出 index.html 的 aside.data-preview，載入 state、ui-core、data-preview，
 // 呼叫正式的 Ui.initDataPreview。假 DOM 會冒泡、document 的監聽有作用（點面板外關閉「其他資料」選單）。
 // compact：一開始視窗是否在 1360px 以下，f.media.lists[0].change(true/false) 模擬跨過斷點。
 // queryDataPreview 等請求記在 f.requests，由測試 resolve 或 reject；setTimeout 收進 f.timers。
@@ -851,7 +839,7 @@ function dataPreviewFixture({ compact = false } = {}) {
     aside: () => $('[data-bind="data-preview"]'), body: () => $('[data-bind="data-preview-body"]') };
 }
 
-// 第三步經過 app.js 的 renderContent 重繪（情境 6）：建立在 usageJourneyFixture('mapping') 上，
+// 第三步經過 app.js 的 renderContent 重繪：建立在 usageJourneyFixture('mapping') 上，
 // 載入整個 app.js 並用 exposeAt 掛出 render 與 renderContent，訂閱 Store 後每次通知都呼叫正式的 renderContent
 // （它自己依 contentVersion 決定要不要重建）。setTimeout 收進 f.timers、事件會冒泡、元素有 attributes。
 // 步驟內容畫在 .stepflow-item--current .stepflow-item__body 裡；f.renderCount() 是呼叫 renderContent 的次數，
@@ -874,7 +862,7 @@ function mappingRenderFixture(options = {}) {
     body: () => f.dom.content.querySelector('.stepflow-item--current .stepflow-item__body') };
 }
 
-// 訊息面板的「複製紀錄」（情境 23）：切出 index.html 的訊息面板標記，載入 app.js 並用 exposeAt 掛出
+// 訊息面板的「複製紀錄」：切出 index.html 的訊息面板標記，載入 app.js 並用 exposeAt 掛出
 // copyRecentMessages 等函式，bindCopy() 在 app.js 內部執行正式的按鈕綁定，之後點按鈕就走正式流程。
 // clipboard: 'accept' 時剪貼簿收下文字（f.clipboardWrites），'reject' 時拒絕，正式程式改走 execCommand('copy')（f.copyCommands
 // 記下當時焦點元素的值）。logRecent 等請求記在 f.requests；setTimeout 收進 f.timers（按鈕文字 2.2 秒後還原）。
@@ -1008,7 +996,7 @@ function fullAppFixture({ autoReply = { 'log.append': {} } } = {}) {
 async function bootFullApp(projects = [], options) {
   const f = fullAppFixture(options);
   f.reply('system.ping', { devToolsEnabled: false }); await flush();
-  // 正式後端一定回身分物件，只有合格化的 Windows 帳號與帳號短名。
+  // 正式後端一定回身分物件，只有帶網域或電腦名稱的完整 Windows 帳號與帳號短名。
   f.reply('system.whoAmI', { principal: 'synthetic.auditor', shortName: '合成審計員' });
   f.reply('project.listLocal', { projects }); await flush();
   return f;

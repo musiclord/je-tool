@@ -72,7 +72,7 @@ internal sealed partial class LegacyReportWriter
             _templates,
             ReportTemplateCatalog.Validation,
             output,
-            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.Step13],
+            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.CompletenessDifference],
             (editor, ct) => FillValidationTemplateAsync(
                 editor,
                 context,
@@ -417,7 +417,7 @@ internal sealed partial class LegacyReportWriter
                         PageMargins: StandardMargins,
                         DefaultRowHeight: FormalWorkbookTypography.RowHeight(FormalFieldInfoStyles.BaseFontSize)));
                 // 第一列只放隱藏的配對資料（F 到 H 欄）。A1 不寫舊版的版本字樣 V.2019，底稿與驗證報告都一樣；
-                // 列號不動，配對資料的位置照舊。
+                // 其餘各列的列號和舊版相同。
                 var firstRow = new List<Cell>();
                 if (mappingMetadata is not null)
                 {
@@ -536,7 +536,7 @@ internal sealed partial class LegacyReportWriter
     {
         if (!emit)
         {
-            editor.RemoveWorksheet(WorkingPaperSheetCatalog.Step13, cancellationToken);
+            editor.RemoveWorksheet(WorkingPaperSheetCatalog.CompletenessDifference, cancellationToken);
             return;
         }
 
@@ -568,7 +568,7 @@ internal sealed partial class LegacyReportWriter
 
         WorksheetPart? rewrittenPart = null;
         editor.RewriteWorksheetPart(
-            WorkingPaperSheetCatalog.Step13,
+            WorkingPaperSheetCatalog.CompletenessDifference,
             (part, _) => rewrittenPart = part,
             cancellationToken);
         // RewriteWorksheetPart 會同步呼叫上面的回呼，回到這裡時一定已經取得工作表。
@@ -591,7 +591,7 @@ internal sealed partial class LegacyReportWriter
 
         var partNumber = 1;
         uint rowIndex = CompletenessDiffFirstRow;
-        var sheetName = WorkingPaperSheetCatalog.Step13;
+        var sheetName = WorkingPaperSheetCatalog.CompletenessDifference;
         var currentPart = templatePart;
         DirectTemplateStreamingSheetWriter? sheet = new(
             sheetName,
@@ -611,7 +611,7 @@ internal sealed partial class LegacyReportWriter
 
                     partNumber++;
                     rowIndex = CompletenessDiffFirstRow;
-                    sheetName = SeriesName(WorkingPaperSheetCatalog.Step13, partNumber);
+                    sheetName = SeriesName(WorkingPaperSheetCatalog.CompletenessDifference, partNumber);
                     var continuationPart = editor.AppendWorksheetClone(
                         templatePart,
                         continuationPrototype,

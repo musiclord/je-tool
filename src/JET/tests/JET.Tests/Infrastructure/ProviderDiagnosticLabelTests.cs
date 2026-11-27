@@ -7,7 +7,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 診斷事件的 provider 標籤：<c>Local*</c> repository 不寫死 <c>"sqlite"</c>，由
-/// <see cref="IProviderSqlDialect.ProviderName"/> 注入，SQLite 專案的 sql.executed 與 tx.* 事件標 <c>sqlite</c>。
+/// <see cref="IProviderSqlDialect.ProviderName"/> 注入，SQLite 案件的 sql.executed 與 tx.* 事件標 <c>sqlite</c>。
 /// </summary>
 public sealed class ProviderDiagnosticLabelTests
 {

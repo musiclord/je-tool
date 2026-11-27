@@ -5,8 +5,8 @@ namespace JET.Tests.AuditCore;
 
 /// <summary>
 /// 中央三層表名登錄(<see cref="JetSchemaCatalog"/>)的結構不變量與逐表對照。
-/// 純 AuditCore 單元測試(無 I/O):鎖「身分」(實體名 / 正準名唯一)+「值」(逐表 canonical / layer /
-/// audience),並守住「每筆都有層 + 曝光」「DataView/StructureOnly 必有非空正準名」等不變量。
+/// 純 AuditCore 單元測試(無 I/O):鎖「身分」(實體名 / 審計用名稱唯一)+「值」(逐表 canonical / layer /
+/// audience),並守住「每筆都有層 + 曝光」「DataView/StructureOnly 必有非空的審計用名稱」等不變量。
 /// 實體表是否「漏登錄」由 Infrastructure 的漂移守門測試對真 SQLite 把關(本檔不碰資料庫)。
 /// </summary>
 public sealed class JetSchemaCatalogTests
@@ -20,7 +20,7 @@ public sealed class JetSchemaCatalogTests
         Assert.Equal(names.Count, names.Distinct(StringComparer.Ordinal).Count());
     }
 
-    /// <summary>正準審計名是對外身分,必須唯一(序數)——兩張實體表不得映到同一審計名。</summary>
+    /// <summary>審計用名稱是對外身分,必須唯一(序數)——兩張實體表不得映到同一個審計用名稱。</summary>
     [Fact]
     public void All_CanonicalNames_AreUnique()
     {
@@ -40,20 +40,20 @@ public sealed class JetSchemaCatalogTests
         });
     }
 
-    /// <summary>每筆都必須有非空白的實體名、正準名、說明(目錄不得有半填條目)。</summary>
+    /// <summary>每筆都必須有非空白的實體名、審計用名稱、說明(目錄不得有半填條目)。</summary>
     [Fact]
     public void All_Entries_HaveNonEmptyNamesAndDescription()
     {
         Assert.All(JetSchemaCatalog.All, e =>
         {
             Assert.False(string.IsNullOrWhiteSpace(e.PhysicalName));
-            Assert.False(string.IsNullOrWhiteSpace(e.CanonicalName), $"{e.PhysicalName} 的正準名為空。");
+            Assert.False(string.IsNullOrWhiteSpace(e.CanonicalName), $"{e.PhysicalName} 的審計用名稱為空。");
             Assert.False(string.IsNullOrWhiteSpace(e.Description), $"{e.PhysicalName} 的說明為空。");
         });
     }
 
     /// <summary>
-    /// 曝光於資料預覽 / 結構總覽者(DataView / StructureOnly)必有非空正準名——
+    /// 曝光於資料預覽 / 結構總覽者(DataView / StructureOnly)必有非空的審計用名稱——
     /// 結構總覽拿這個名字顯示,不得是空字串。
     /// </summary>
     [Fact]
@@ -64,10 +64,10 @@ public sealed class JetSchemaCatalogTests
 
         Assert.All(exposed, e =>
             Assert.False(string.IsNullOrWhiteSpace(e.CanonicalName),
-                $"曝光表「{e.PhysicalName}」缺正準名。"));
+                $"曝光表「{e.PhysicalName}」缺審計用名稱。"));
     }
 
-    /// <summary>恰好 7 張 DataView 表(多 / 少一張即失敗,逼明確決策)。</summary>
+    /// <summary>恰好 7 張 DataView 表，多一張或少一張都會失敗。</summary>
     [Fact]
     public void DataView_HasExactlySevenTables()
     {
@@ -98,8 +98,8 @@ public sealed class JetSchemaCatalogTests
     }
 
     /// <summary>
-    /// 逐表決策對照(physical → canonical / layer / audience)。值＋身分同鎖:
-    /// 改正準名、改層、改曝光任一即失敗。涵蓋全部 24 張登錄表。
+    /// 逐表決策對照(physical → canonical / layer / audience)。值與身分一起鎖住:
+    /// 改審計用名稱、改層、改曝光任一即失敗。涵蓋全部 30 張登錄表。
     /// </summary>
     [Theory]
     // Source / DataView
@@ -118,7 +118,7 @@ public sealed class JetSchemaCatalogTests
     // 儲存情境時一併存下每筆分錄符合第幾組第幾條，只給傳票分錄的說明讀，不在結構總覽列出。
     [InlineData("filter_hit_condition", "FILTER_HIT_CONDITIONS", SchemaLayer.Target, SchemaAudience.Hidden)]
     [InlineData("inf_sample", "INF_SAMPLE", SchemaLayer.Target, SchemaAudience.StructureOnly)]
-    // System / StructureOnly
+    // System / StructureOnly 與 Hidden
     [InlineData("field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly)]
     [InlineData("field_mapping_previous", "FIELD_MAPPING_PREVIOUS", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("account_category", "ACCOUNT_CATEGORY", SchemaLayer.System, SchemaAudience.StructureOnly)]
@@ -175,7 +175,7 @@ public sealed class JetSchemaCatalogTests
         Assert.Equal(catalogPhysicals, decisionTablePhysicals);
     }
 
-    /// <summary>ResolveCanonical:已登錄回正準名;未登錄(臆造名)回 null(不臆造 fallback)。</summary>
+    /// <summary>ResolveCanonical:已登錄回審計用名稱;未登錄(臆造名)回 null(不臆造 fallback)。</summary>
     [Fact]
     public void ResolveCanonical_KnownAndUnknown()
     {
@@ -184,7 +184,7 @@ public sealed class JetSchemaCatalogTests
         Assert.Null(JetSchemaCatalog.ResolveCanonical("no_such_table"));
     }
 
-    /// <summary>正準名不得殘留 V/R/A 流水代號字樣(審計詞彙,非工程代號)。</summary>
+    /// <summary>審計用名稱不含 V/R/A 這類流水代號（審計用名稱是審計詞彙，不是工程代號）。</summary>
     [Fact]
     public void All_CanonicalNames_AreCodeFree()
     {

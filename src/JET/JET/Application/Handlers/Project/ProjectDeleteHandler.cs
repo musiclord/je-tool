@@ -11,12 +11,12 @@ namespace JET.Application;
 /// </summary>
 public sealed class ProjectDeleteHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectRepositoryCatalog repositoryCatalog;
-    private readonly CurrentPrincipal principal;
-    private readonly ProjectSession session;
-    private readonly ILogger? logger;
-    private readonly ISupportCaseHistory? supportHistory;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectRepositoryCatalog _repositoryCatalog;
+    private readonly CurrentPrincipal _principal;
+    private readonly ProjectSession _session;
+    private readonly ILogger? _logger;
+    private readonly ISupportCaseHistory? _supportHistory;
 
     internal ProjectDeleteHandler(
         IProjectStore projectStore,
@@ -26,12 +26,12 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         ILogger<ProjectDeleteHandler>? logger = null,
         ISupportCaseHistory? supportHistory = null)
     {
-        this.projectStore = projectStore;
-        this.repositoryCatalog = repositoryCatalog;
-        this.principal = principal;
-        this.session = session;
-        this.logger = logger;
-        this.supportHistory = supportHistory;
+        this._projectStore = projectStore;
+        this._repositoryCatalog = repositoryCatalog;
+        this._principal = principal;
+        this._session = session;
+        this._logger = logger;
+        this._supportHistory = supportHistory;
     }
 
     public string Action => "project.delete";
@@ -43,13 +43,13 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         SupportOperationStage.Enter("metadata_read");
         try
         {
-            found = await projectStore.FindAsync(projectId, cancellationToken);
+            found = await _projectStore.FindAsync(projectId, cancellationToken);
         }
         catch (JetActionException error) when (error.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
         {
             // 設定檔損壞、版本較舊或期間無效的案件，畫面請審計員從備份還原或另建案件，舊的這份也要能從案件清單刪掉。
             // 只處理確定是 SQLite 的案件；判斷不出來時維持原本的錯誤。
-            var localProvider = await projectStore.FindLocalDatabaseProviderAsync(projectId, cancellationToken);
+            var localProvider = await _projectStore.FindLocalDatabaseProviderAsync(projectId, cancellationToken);
             if (localProvider is null)
             {
                 throw;
@@ -74,7 +74,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
     {
         // 被刪的案件不一定是作用中案件，所以依它自己的 project.json 選資料庫組，不讀也不改 session 的那一組。
         // 未知種類在取刪案鎖之前回 unsupported_provider。
-        var repositories = repositoryCatalog.For(databaseProvider);
+        var repositories = _repositoryCatalog.For(databaseProvider);
         var deletionLockService = repositories.DeletionLockService;
         var reportStore = repositories.ReportStore;
         var databaseDeleter = repositories.DatabaseDeleter;
@@ -84,7 +84,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         SupportOperationStage.Enter("deletion_lock");
         var deletionLockOutcome = await deletionLockService.TryAcquireAsync(
             projectId,
-            principal.Name,
+            _principal.Name,
             cancellationToken);
         var deletionLease = deletionLockOutcome switch
         {
@@ -119,8 +119,8 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             {
                 // 支援紀錄保留到刪除案件，跟著案件資料夾刪除。先停止寫入這個案件，
                 // 紀錄檔不會在刪除時被占用；之後這個案件的事件只留在記憶體。
-                if (supportHistory is not null) await supportHistory.ForgetAsync(projectId, CancellationToken.None);
-                await projectStore.DeleteAsync(projectId, cancellationToken);
+                if (_supportHistory is not null) await _supportHistory.ForgetAsync(projectId, CancellationToken.None);
+                await _projectStore.DeleteAsync(projectId, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -129,7 +129,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             catch (Exception exception)
             {
                 // 支援日誌記下刪不掉的原因，例如檔案正被開啟。
-                if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "folder_delete", exception);
+                if (_logger is not null) SupportStepDiagnostics.StepFailed(_logger, "folder_delete", exception);
                 cleanupMessage = "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。";
             }
         }
@@ -138,7 +138,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             if (databaseDeleted)
             {
                 // 資料庫刪掉之後，案件就不存在了。即使刪資料夾時被取消，也不能留下指向這個案件的 session 或鎖。
-                session.Leave(projectId);
+                _session.Leave(projectId);
                 heldDeletionLease.Complete();
             }
         }

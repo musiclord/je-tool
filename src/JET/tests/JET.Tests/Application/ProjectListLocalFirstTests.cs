@@ -24,7 +24,7 @@ public sealed class ProjectListLocalFirstTests
 
         Assert.Equal(["projects"], data.EnumerateObject().Select(property => property.Name));
         var projects = data.GetProperty("projects").EnumerateArray().ToArray();
-        // 以前建立的 DuckDB 案件不列出，清單只有 SQLite 案件。
+        // DuckDB 與 SQL Server 的案件不列出，清單只有 SQLite 案件。
         var listed = Assert.Single(projects);
         Assert.Equal("sqlite-case", listed.GetProperty("projectId").GetString());
         Assert.All(projects, project =>

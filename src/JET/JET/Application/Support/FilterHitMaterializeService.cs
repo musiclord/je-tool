@@ -121,8 +121,8 @@ public sealed class FilterHitMaterializeService(
             materializable.Add(new MaterializableScenario(saved.Position, spec) { ScenarioId = saved.ScenarioId });
         }
 
-        // typed 條件（type 為 "typed"）能用的欄位，是已確認的 GL 配對裡的攸關資料元素欄位。
-        // 沒有配對或配對裡沒有這類欄位時是空集合；typed 條件在編譯成 SQL 之前就回錯誤，不會編出錯誤的 SQL。
+        // 欄位值條件能選的攸關資料元素欄位，是已確認的 GL 配對裡的欄位。
+        // 沒有配對或配對裡沒有這類欄位時是空集合；用到這類欄位的條件在編譯成 SQL 之前就回錯誤，不會編出錯誤的 SQL。
         var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var accountMapping = accountMappingStore is null ? null
             : await accountMappingStore.FindStateAsync(projectId, cancellationToken);

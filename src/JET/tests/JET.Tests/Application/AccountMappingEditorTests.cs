@@ -117,7 +117,7 @@ public sealed class AccountMappingEditorTests
             """));
         await Assert.ThrowsAsync<JetActionException>(() => Save(host, "c", "unknown"));
 
-        // 借貸方向與傳票佐證用明示寫法。
+        // 借貸方向用 drCrOnly 寫明，對方科目用整張傳票條件（voucher）找。
         var scenario = JsonDocument.Parse("""
           {"name":"Direct assignment","rationale":"Synthetic","groups":[{"conditions":[
             {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},

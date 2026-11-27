@@ -58,9 +58,6 @@ internal static class ActionShapeJourney
         // ImportAccountMappingFromFileHandler：匯入完成後計算兩種差異數失敗才回 null，匯入本身已完成；失敗無法穩定重現。
         ("import.accountMapping.fromFile response.mappingOnlyCount", "null"),
         ("import.accountMapping.fromFile response.unmappedCount", "null"),
-        // MappingValueProfileHandler：資料庫實作沒有來源值核對時回 null（sourceValueCheckStatus 是 unsupportedProvider）；
-        // SQLite 已實作，合成流程做不出這個值。
-        ("mapping.valueProfile response.missingComparisonValues", "null"),
     ];
 
     private const string Scope = "auditPeriod";
@@ -549,7 +546,7 @@ internal static class ActionShapeJourney
             var resaved = (JsonObject)legacyBare.DeepClone();
             resaved["editorOrigins"] = Origins(false, new string?[] { null });
             await SaveAsync(resaved, 3);
-            // 整張傳票條件與攸關資料元素條件（filter-step.js typedWireRule）。10-14 起「同一傳票」併進整張傳票條件，
+            // 整張傳票條件與攸關資料元素欄位的欄位值條件。「同一傳票」屬於整張傳票條件，
             // 條件組一律逐列比對。
             var voucherDraft = new JsonObject
             {
@@ -563,7 +560,7 @@ internal static class ActionShapeJourney
                         {
                             new JsonObject
                             {
-                                ["join"] = "AND", ["type"] = "typed", ["fieldId"] = moneyFieldId,
+                                ["join"] = "AND", ["type"] = "fieldValue", ["fieldId"] = moneyFieldId,
                                 ["operator"] = "greaterThanOrEqual", ["value"] = "10", ["amountBasis"] = "absolute",
                             },
                             new JsonObject
@@ -606,19 +603,18 @@ internal static class ActionShapeJourney
             });
             await PreviewAsync(templateDraft);
             await SaveAsync(templateDraft, null);
-            // 較早版本的 JET 存下、現在仍可編輯的條件：預篩選結果、文字值清單（每行一個值，可含逗號）、舊式攸關資料元素條件的區間，
-            // 以及子條件組裡的舊式條件。filter-step.js 編輯這些情境時照原樣送回（typedWireRule 只帶比較方式用到的值）。
-            var olderRulesDraft = Scenario("合成舊式條件", "合成：舊版存下的條件。", new JsonArray
+            // 預篩選結果、摘要包含任一文字（每行一個值，值裡可以有逗號）、攸關資料元素欄位的區間，以及子條件組裡的欄位值條件。
+            var olderRulesDraft = Scenario("合成多種條件", "合成：預篩選、值清單與區間條件。", new JsonArray
             {
                 new JsonObject { ["type"] = "prescreen", ["join"] = "AND", ["prescreenKey"] = "blankDescription" },
                 new JsonObject
                 {
-                    ["type"] = "textSet", ["join"] = "OR", ["field"] = "description", ["values"] = new JsonArray("調整,迴轉", "合成"),
-                    ["mode"] = "contains", ["normalization"] = "removeAsciiSpaces",
+                    ["type"] = "fieldValue", ["join"] = "OR", ["field"] = "description", ["operator"] = "contains",
+                    ["values"] = new JsonArray("調整,迴轉", "合成"),
                 },
                 new JsonObject
                 {
-                    ["join"] = "OR", ["type"] = "typed", ["fieldId"] = moneyFieldId, ["operator"] = "between",
+                    ["join"] = "OR", ["type"] = "fieldValue", ["fieldId"] = moneyFieldId, ["operator"] = "between",
                     ["from"] = "1", ["to"] = "100000", ["amountBasis"] = "absolute",
                 },
                 new JsonObject
@@ -627,7 +623,7 @@ internal static class ActionShapeJourney
                     {
                         new JsonObject
                         {
-                            ["join"] = "AND", ["type"] = "typed", ["fieldId"] = moneyFieldId, ["operator"] = "between",
+                            ["join"] = "AND", ["type"] = "fieldValue", ["fieldId"] = moneyFieldId, ["operator"] = "between",
                             ["from"] = "1", ["to"] = "200", ["amountBasis"] = "signed",
                         },
                     },
@@ -635,15 +631,14 @@ internal static class ActionShapeJourney
             });
             await PreviewAsync(olderRulesDraft);
             await SaveAsync(olderRulesDraft, null);
-            // 依審計目的「人工分錄」：filter-step-sources.js conditionFromSpec 以 ui-core.js newFilterCondition('manualAuto') 為底再套上規格，
+            // 欄位條件分頁「類別」組的「人工/自動分錄」：filter-step-sources.js conditionFromSpec 以 ui-core.js newFilterCondition('manualAuto') 為底再套上規格，
             // 其他類型的預設鍵也一起送出（frontend-journey-filter-build 的 filler 逐字斷言同一份資料）。
             var manualCheck = new JsonObject
             {
-                ["join"] = "AND", ["type"] = "manualAuto", ["prescreenKey"] = "suspiciousKeywords", ["field"] = "description",
-                ["keywords"] = "", ["values"] = new JsonArray(), ["mode"] = "contains", ["normalization"] = "preserve",
-                ["from"] = "", ["to"] = "", ["drCr"] = "debit", ["isManual"] = "true", ["pairMode"] = "exact",
+                ["join"] = "AND", ["type"] = "manualAuto", ["prescreenKey"] = "suspiciousKeywords",
+                ["drCr"] = "debit", ["isManual"] = "true", ["pairMode"] = "exact",
                 ["debitCategoryIds"] = new JsonArray("builtin.receivables"), ["creditCategoryIds"] = new JsonArray("builtin.revenue"),
-                ["fieldId"] = "", ["operator"] = "", ["amountBasis"] = "absolute", ["value"] = "", ["windowDays"] = "",
+                ["windowDays"] = "",
             };
             var commonCheckDraft = Scenario("自訂：人工分錄", "合成：人工分錄。", new JsonArray { manualCheck });
             await PreviewAsync(commonCheckDraft);
@@ -655,7 +650,7 @@ internal static class ActionShapeJourney
             var rechecked = await Send("filter.scenario.recheck", new { populationScope = Scope });
             var revision = rechecked.GetProperty("resultRef").GetProperty("revision").GetString()!;
             await PagedAsync("query.filterHitsPage", new JsonObject { ["scenarioPosition"] = 1 }, "voucherNumber", "SHAPE");
-            // 用到攸關資料元素的情境，命中明細多出那個欄位；舊式條件情境（第 6 個）搜尋 SHAPE，命中列的攸關金額有空白。
+            // 用到攸關資料元素的情境，命中明細多出那個欄位；多種條件的情境（第 6 個）搜尋 SHAPE，命中列的攸關金額有空白。
             await Send("query.filterHitsPage", new
             {
                 scenarioPosition = 4, cursor = (string?)null, pageSize = 200, sort = (object?)null, search = (string?)null,
@@ -1002,7 +997,7 @@ internal static class ActionShapeJourney
             definition["logicVersion"] = "filter-2026-09-18-v15";
             definition["groups"]![0]!["conditions"]!.AsArray().Add(new JsonObject
             {
-                ["join"] = "AND", ["type"] = "typed", ["fieldId"] = missingFieldId, ["operator"] = "isBlank",
+                ["join"] = "AND", ["type"] = "fieldValue", ["fieldId"] = missingFieldId, ["operator"] = "isBlank",
             });
             // 新增的條件要補逐條來源標記，null 表示手動條件；沒補會變成結構損壞，掩蓋要測的已移除欄位。
             definition["editorOrigins"]!["groups"]![0]!["cards"]!.AsArray().Add((JsonNode?)null);

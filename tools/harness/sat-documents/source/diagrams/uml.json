@@ -250,12 +250,12 @@
         },
         {
           "text": "~Plan(WorkingPaperRequest) : WorkingPaperPlan",
-          "file": "AuditCore/WorkingPaperProgram.cs",
+          "file": "AuditCore/JetAuditProgram.WorkingPaper.cs",
           "evidence": "internal static WorkingPaperPlan Plan(WorkingPaperRequest request)"
         },
         {
           "text": "~Finalize(WorkingPaperPlan, WorkingPaperPlanningFacts) : WorkingPaperPlan",
-          "file": "AuditCore/WorkingPaperProgram.cs",
+          "file": "AuditCore/JetAuditProgram.WorkingPaper.cs",
           "evidence": "internal static WorkingPaperPlan Finalize("
         }
       ]
@@ -291,7 +291,7 @@
     {
       "name": "IWorkingPaperPlanWriter",
       "stereotype": "interface",
-      "file": "AuditCore/WorkingPaperProgram.cs",
+      "file": "AuditCore/JetAuditProgram.WorkingPaper.cs",
       "declaration": "internal interface IWorkingPaperPlanWriter",
       "members": [
         {
@@ -542,7 +542,7 @@
       "kind": "uses",
       "label": "Publish",
       "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
-      "evidence": "new ExportProgressSession(eventPublisher"
+      "evidence": "new ExportProgressSession(_eventPublisher"
     },
     {
       "from": "WorkingPaperWriter",

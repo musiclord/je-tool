@@ -213,13 +213,13 @@ internal static class FilterScenarioBatchWriter
     /// <summary>
     /// 寫回並組成回應。儲存或移除時，其他情境都合格、已是目前規則而且存好的結果沒有過期，就只寫這一個：
     /// 儲存只算這一個情境的結果，移除只刪這一個的定義與結果，其他情境不重新檢查版本也不重算。
-    /// 否則照整批處理：全部合格時由 <see cref="IFilterFactsPort"/> 一次寫入定義與命中，篩選結果的過期旗標也清掉，並把案件推進到第五步；
+    /// 否則照整批處理：全部合格時由 <see cref="IFilterFactsPort"/> 一次寫入定義與命中，篩選結果的過期旗標也清掉，並把案件至少推進到 <paramref name="advancesTo"/> 這一步；
     /// 有不合格的情境時只寫定義，同一筆交易清掉命中並標成失效，結果維持鎖住。
     /// 清單是空的而且不必寫入（重新檢查時沒有情境）就直接回應。
     /// </summary>
     internal static async Task<object> PublishAsync(
         string action,
-        int workflowStep,
+        WorkflowStep advancesTo,
         IProjectStore projectStore,
         FilterScenarioStores stores,
         Prepared prepared,
@@ -267,7 +267,7 @@ internal static class FilterScenarioBatchWriter
                     await MappingCommitShared.AdvanceStepAsync(
                         projectStore,
                         prepared.Document,
-                        workflowStep,
+                        advancesTo,
                         CancellationToken.None,
                         logger);
                 }
@@ -292,7 +292,7 @@ internal static class FilterScenarioBatchWriter
                     await MappingCommitShared.AdvanceStepAsync(
                         projectStore,
                         prepared.Document,
-                        workflowStep,
+                        advancesTo,
                         CancellationToken.None,
                         logger);
                 }

@@ -508,7 +508,7 @@
       "name": "IWorkingPaperPlanWriter 等",
       "definedIn": "AuditCore",
       "declaration": {
-        "file": "AuditCore/WorkingPaperProgram.cs",
+        "file": "AuditCore/JetAuditProgram.WorkingPaper.cs",
         "text": "internal interface IWorkingPaperPlanWriter"
       },
       "providedBy": {
@@ -691,7 +691,7 @@
       "text": "WorkingPaperPlan plan,",
       "more": [
         {
-          "file": "AuditCore/WorkingPaperProgram.cs",
+          "file": "AuditCore/JetAuditProgram.WorkingPaper.cs",
           "text": "internal sealed record WorkingPaperPlan("
         },
         {
@@ -699,7 +699,7 @@
           "text": "ValidationReportPlan plan,"
         },
         {
-          "file": "AuditCore/ValidationReportProgram.cs",
+          "file": "AuditCore/JetAuditProgram.ValidationReport.cs",
           "text": "internal sealed record ValidationReportPlan("
         }
       ]

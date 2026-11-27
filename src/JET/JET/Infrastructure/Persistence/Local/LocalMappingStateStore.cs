@@ -57,7 +57,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
 
     /// <summary>
     /// 確認 GL 配對時存下的日期提醒放在 <c>schema_info</c> 的這一列，值是日期提醒清單的 JSON。
-    /// 日期提醒只是讓審計員回頭看的說明，不參與任何計算，也不寫進報告與底稿，所以不另建資料表、不改資料庫結構。
+    /// 日期提醒只是讓審計員回頭看的說明，不參與任何計算，也不寫進報告與底稿，所以放在 schema_info，不另建資料表。
     /// </summary>
     internal const string GlDateNoticesKey = "gl_date_notices";
 
@@ -124,7 +124,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         var stored = await command.ExecuteScalarAsync(cancellationToken);
         if (stored is null or DBNull)
         {
-            // 在保存日期提醒之前就確認過配對的案件沒有這一列，和從來沒有提醒一樣，重新確認配對後才有。
+            // 沒有這一列時，例如還沒確認過 GL 配對，或重新匯入 GL 後還沒重新確認，和沒有提醒一樣回空清單。
             return [];
         }
 
@@ -156,7 +156,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         CancellationToken cancellationToken) =>
         ReadAsync(projectId, kind, previous: false, cancellationToken);
 
-    // 上次確認的配對只用來帶回草稿；那一列讀不出來（例如日後配對格式改版）時當作沒有，不能因此擋住開案，
+    // 上次確認的配對只用來帶回草稿；那一列讀不出來（例如格式版本不是現行版本）時當作沒有，不能因此擋住開案，
     // 也不擋住確認 GL 配對（見 TryReadRow）。開不了資料庫這類錯誤照常往外丟，和讀有效配對（FindAsync）一樣；
     // 有效配對那一列讀不出來時也照常往外丟。
     public Task<CommittedMapping?> FindPreviousAsync(

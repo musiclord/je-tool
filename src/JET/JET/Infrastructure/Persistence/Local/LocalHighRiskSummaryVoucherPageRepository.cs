@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 /// </summary>
 public sealed class LocalHighRiskSummaryVoucherPageRepository(ILocalProjectDatabase database)
     : IHighRiskSummaryVoucherPageRepository,
-      IWorkingPaperStep4StreamRepository
+      IWorkingPaperHighRiskVoucherStreamRepository
 {
     public async Task<(PageResult<VoucherTagRow> Page, IReadOnlyDictionary<string, IReadOnlyList<int>> PositionsByDoc)> GetPageAsync(
         string projectId, GlPopulationContext context, PageRequest request,
@@ -24,8 +24,8 @@ public sealed class LocalHighRiskSummaryVoucherPageRepository(ILocalProjectDatab
             connection, database.Dialect, context, request, scenarioPositions, cancellationToken);
     }
 
-    async IAsyncEnumerable<WorkingPaperStep4VoucherRow>
-        IWorkingPaperStep4StreamRepository.StreamAsync(
+    async IAsyncEnumerable<WorkingPaperHighRiskVoucherRow>
+        IWorkingPaperHighRiskVoucherStreamRepository.StreamAsync(
             string projectId,
             GlPopulationContext context,
             IReadOnlyList<int> scenarioPositions,
@@ -36,7 +36,7 @@ public sealed class LocalHighRiskSummaryVoucherPageRepository(ILocalProjectDatab
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        await foreach (var row in WorkingPaperStep4StreamReader.ReadAsync(
+        await foreach (var row in WorkingPaperHighRiskVoucherStreamReader.ReadAsync(
                            connection,
                            database.Dialect,
                            context,

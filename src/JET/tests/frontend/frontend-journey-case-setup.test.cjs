@@ -1,21 +1,21 @@
 'use strict';
-// 情境 2：第一步建立與修改案件；情境 4：第二步匯入與行事曆。
+// 第一步建立與修改案件，以及第二步匯入與行事曆的情境測試。
 //
 // 審計員的操作：
-//   情境 2　填表建立案件；後端指出某一欄、沒指出欄位、指出不在白名單的欄位時各失敗一次；修改案件資料時失敗；
+//   建立與修改案件：填表建立案件；後端指出某一欄、沒指出欄位、指出不在白名單的欄位時各失敗一次；修改案件資料時失敗；
 //           填表到一半 Windows 身分才送到；表單剛打開就點進欄位；建好以後在頁首與案件清單看到案件名稱與客戶名稱。
 //           表單填到一半時別的作業失敗、步驟上方出現失敗提示，接著送出表單（建立案件與修改案件資料各一次）；
 //           案件建好以後接著開啟它時失敗或被取消，回到案件清單從清單開啟；JET 放不掉這個案件時再按一次「建立案件」；
 //           Debug 組建在開啟失敗後回到的案件清單按頁尾的「輸出診斷日誌」；
 //           從案件清單開啟案件，後端已經開啟、畫面沒有開成，以及這時放不掉案件。
 //           這三段在檔案最後，用整個 JET 畫面的 bootFullApp，原因寫在各段的開頭。
-//   情境 4　選 GL 與 TB 來源檔；匯入 0 筆的假日檔與補班檔；把整週都設成工作日；重存同一組非工作日但順序不同或重複；改成不同的非工作日。
+//   匯入與行事曆：選 GL 與 TB 來源檔；匯入 0 筆的假日檔與補班檔；把整週都設成工作日；重存同一組非工作日但順序不同或重複；改成不同的非工作日。
 // 夾具：support/frontend-fixtures.cjs 的 usageJourneyFixture（正式 state、ui-core、各步驟腳本，可訂閱重繪）
 // 與 remapAppFixture（另加上 app.js 的頁首、案件清單與中欄重繪）。這裡用 usageJourneyFixture 的假 DOM 畫正式的表單，
 // 畫出來的欄位、屬性與焦點都看得到。
 //
-// jet-api 把 wire 錯誤轉成 err.field，由 frontend-journey-transport.test.cjs 的情境 24 負責。
-// 流程總覽的標題由 frontend-journey-overview.test.cjs 的情境 18 負責。
+// jet-api 把 wire 錯誤轉成 err.field，由 frontend-journey-transport.test.cjs 負責。
+// 流程總覽的標題由 frontend-journey-overview.test.cjs 負責。
 //
 // 這個檔前面的測試刻意不斷言訊息面板的句子（建案成功、非工作日已更新或沒有變更、匯入完成等）、步驟提示框與操作名稱；
 // 這些在後面「訊息面板的句子」那一段斷言。後端原因句子只當作原樣顯示的合成字串，不比對正式句子。
@@ -62,7 +62,7 @@ const VALID_CREATE = { projectName: '合成案件甲', projectCode: 'SYN-01', cl
 function labelText(row) { return row.querySelector('.form__label').textContent.replace(/\s*\*$/, ''); }
 
 // =====================================================================================================
-// 情境 2　第一步建立與修改案件
+// 第一步建立與修改案件
 // =====================================================================================================
 
 test('the create form collects the case details without an operator field and labels carry no bracketed notes', () => {
@@ -208,8 +208,8 @@ test('a failed save of the case details marks the preparation date only when the
       periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: null, databaseProvider: 'sqlite' });
     f.click('[data-action="edit-project-metadata"]');
     let form = namedForm(f.$('[data-bind="project-update-form"]'));
-    // 修改表單的標籤一樣不寫「（選填）」。客戶名稱與案件編號是定案的名稱，逐字比對；
-    // 「期末財報準備日」的用字沒有定案，只比對意思。列數與順序照樣鎖住。
+    // 修改表單的標籤一樣不寫「（選填）」。「客戶名稱」與「案件編號」逐字比對；
+    // 「期末財報準備日」只比對意思。列數與順序照樣鎖住。
     const updateLabels = form.querySelectorAll('.form__row').map(labelText);
     assert.equal(updateLabels.length, 3);
     assert.deepEqual(updateLabels.slice(0, 2), ['客戶名稱', '案件編號']);
@@ -299,7 +299,7 @@ test('a field clicked before the step title takes focus keeps the focus, while a
 });
 
 // =====================================================================================================
-// 情境 4　第二步匯入與行事曆
+// 第二步匯入與行事曆
 // =====================================================================================================
 
 function importFixture() {
@@ -509,7 +509,7 @@ test('saving the same non-working days in another order or with repeats keeps re
 // =====================================================================================================
 // 訊息面板的句子
 // 前面的測試刻意不斷言訊息面板；訊息面板的句子集中在這一段斷言。
-// 逐字比對的句子都是定案的用字；後端提醒與原因一律用合成字串。
+// 訊息面板的句子逐字比對，失敗訊息裡的作業名稱除外；後端提醒與原因一律用合成字串。
 // =====================================================================================================
 
 const ELAPSED = /耗時(?: \d+\.\d 秒|不到 0\.1 秒|\d+ 分 \d+ 秒)/.source;
@@ -533,7 +533,7 @@ test('messages: creating a case logs that it was created with each backend warni
   submit(form);
   f.request('projectCreate').reject({ code: 'invalid_payload', field: 'projectName', message: '合成原因：名稱不可用。' }); await settle();
   // 原因結尾的句號去掉，括號後面加句號。
-  // 作業名稱的用字沒有定案，只確認提到建立案件的意思。
+  // 作業名稱只確認提到建立案件。
   assert.match(messageList(f)[0].text, new RegExp('^[^：]*建立[^：]*案件[^：]*失敗：合成原因：名稱不可用（' + ELAPSED + '）。$'));
   assert.equal(messageList(f)[0].level, 'error');
   // 原因寫在表單上方的錯誤框，第一步不另加提示框。
@@ -558,13 +558,12 @@ test('messages: saving the case details logs that they were updated with each ba
     periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20', databaseProvider: 'sqlite' },
   warnings: ['合成：準備日提醒。'], reports: [] });
   await settle(); await settle();
-  // 「案件資料已更新。」的用字已定案。
   assert.deepEqual(messageList(f).slice(0, 2), [{ text: '合成：準備日提醒。', level: 'warn' }, { text: '案件資料已更新。', level: 'info' }]);
   assert.equal(messageList(f).length, 2, 'no other completion line');
 
   f = setup();
   f.request('projectUpdate').reject({ code: 'invalid_payload', message: '合成原因：期末財報準備日。' }); await settle();
-  // 作業名稱的用字沒有定案，只確認提到儲存案件資料的意思；句型是定案的寫法。
+  // 作業名稱只確認提到儲存案件資料；其餘句型逐字比對。
   assert.match(messageList(f)[0].text, new RegExp('^[^：]*儲存[^：]*案件[^：]*失敗：合成原因：期末財報準備日（' + ELAPSED + '）。$'));
   assert.equal(messageList(f)[0].level, 'error');
   assert.equal(f.store.getState().operationFailure, null, 'the reason is on the form, not in a step notice');
@@ -627,7 +626,7 @@ test('a holiday or make-up day list held open by Excel shows its reminder in the
 });
 
 // =====================================================================================================
-// 情境 2 補充　建立與修改案件的表單在中央面板重畫之後
+// 補充　建立與修改案件的表單在中央面板重畫之後
 // =====================================================================================================
 //
 // 審計員的操作：建立案件的表單填到一半，別的作業失敗，步驟上方出現失敗提示；接著送出表單，後端指出某一欄有問題；
@@ -730,7 +729,7 @@ test('a failed save of the case details is shown on the edit form that is on scr
 });
 
 // =====================================================================================================
-// 情境 2 補充　案件建立成功，接著的開啟沒有成功
+// 補充　案件建立成功，接著的開啟沒有成功
 // =====================================================================================================
 //
 // 審計員的操作：填表按「建立案件」，案件建好了，接著開啟它時失敗，或審計員按了「取消作業」。
@@ -878,7 +877,7 @@ test('when the created case cannot be released the screen stays, and pressing cr
 });
 
 // =====================================================================================================
-// 情境 2 補充　從案件清單開啟案件，後端已經開啟，畫面沒有開成
+// 補充　從案件清單開啟案件，後端已經開啟，畫面沒有開成
 // =====================================================================================================
 //
 // 審計員的操作：在案件清單按「開啟」，後端已經開啟這個案件、握著它的案件鎖，畫面套用到一半出錯。

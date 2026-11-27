@@ -7,8 +7,8 @@ public sealed record MessageLogEntry(
     string Text);
 
 /// <summary>
-/// 前端「狀態與訊息」的每專案持久化儲存。UX 輔助紀錄，非審計留痕
-/// （審計留痕在 result_* 表與工作底稿）；每專案僅保留最近若干則，舊的自動修剪。
+/// 前端「狀態與訊息」在每個案件裡的儲存。這是操作輔助紀錄，不是審計留痕；審計留痕在 validation_result、
+/// prescreen_result 等結果表與工作底稿。每個案件只保留最近若干則，較舊的自動刪除。
 /// </summary>
 public interface IMessageLogStore
 {

@@ -14,7 +14,7 @@ public sealed class DevDbOverviewHandler(
         var (projectId, repositories) = session.RequireActive();
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
-            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到專案 '{projectId}'。");
+            ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, $"找不到案件 '{projectId}'。");
 
         var overview = await repositories.DevDatabaseInspector.GetOverviewAsync(projectId, cancellationToken);
 

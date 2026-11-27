@@ -13,7 +13,7 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 操作監看模組：從旁記錄每次操作的時間花在哪裡，不參與審計判斷，也不改變操作的流程與結果。
 /// 它只在四個地方接上程式：dispatcher 開始與結束一次操作、SQLite 命令執行與讀取、對前端發布事件，
-/// 以及原本就給診斷用的步驟紀錄 <see cref="SupportOperationStage"/> 進入步驟時；審計邏輯不呼叫它。記錄的內容：
+/// 以及診斷用的步驟紀錄 <see cref="SupportOperationStage"/> 進入步驟時；審計邏輯不呼叫它。記錄的內容：
 /// <list type="bullet">
 /// <item>操作跑太久時定時記一筆目前的步驟、SQL 用掉的時間，以及程式用掉的處理器時間與記憶體。</item>
 /// <item>SQL 在 SQLite 裡跑太久（還在跑或已跑完）、被取消或出錯時各記一筆；慢查詢在診斷日誌另附執行計畫。</item>

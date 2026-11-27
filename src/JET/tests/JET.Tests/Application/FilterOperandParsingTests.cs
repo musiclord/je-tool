@@ -21,13 +21,12 @@ public sealed class FilterOperandParsingTests
         foreach (var rule in new[]
         {
             $$"""{"type":"fieldValue","field":"glDate","operator":"on","value":"{{value}}"}""",
-            $$"""{"type":"fieldValue","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}""",
-            $$"""{"type":"typed","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}"""
+            $$"""{"type":"fieldValue","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}"""
         }) Assert.Empty(FilterScenarioValidator.Validate(Parse(rule), Context(rocEnabled)));
     }
 
     // 第五步的日期操作元也不把純數字當成 Excel 序列值。
-    // 「45292」在三種條件寫法、兩種民國年開關下都寫出那個值無法辨識。
+    // 「45292」在兩種條件寫法、兩種民國年開關下都寫出那個值無法辨識。
     [Theory]
     [InlineData("45292", true)]
     [InlineData("45292", false)]
@@ -38,8 +37,7 @@ public sealed class FilterOperandParsingTests
         foreach (var rule in new[]
         {
             $$"""{"type":"fieldValue","field":"glDate","operator":"on","value":"{{value}}"}""",
-            $$"""{"type":"fieldValue","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}""",
-            $$"""{"type":"typed","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}"""
+            $$"""{"type":"fieldValue","fieldId":"{{DateFieldId}}","operator":"on","value":"{{value}}"}"""
         })
         {
             var errors = FilterScenarioValidator.Validate(Parse(rule), Context(rocEnabled));
@@ -68,17 +66,8 @@ public sealed class FilterOperandParsingTests
             """{"type":"fieldValue","field":"glDate","operator":"in","values":["114/6/11","20250611"]}"""), Context(true)));
         var reversed = FilterScenarioValidator.Validate(Parse(
             """{"type":"fieldValue","field":"glDate","operator":"between","from":"2025/6/12","to":"114/6/11"}"""), Context(true));
-        // 原因只寫原因。
+        // 起日晚於迄日時，只寫條件位置與原因，不附其他說明。
         Assert.Equal(["第 1 組第 1 條：起日晚於迄日"], reversed);
-    }
-
-    // 這裡只核對文字條件。
-    [Theory]
-    [InlineData("text")]
-    public void LegacyStringLists_AcceptAllAgreedSeparators(string type)
-    {
-        var rule = JsonSerializer.Serialize(new { type, field = "description", keywords = " 00，11、22\t33\r\n44,55 " });
-        Assert.Equal(["00", "11", "22", "33", "44", "55"], Parse(rule).Groups[0].Conditions[0].Keywords);
     }
 
     [Fact]
@@ -115,7 +104,6 @@ public sealed class FilterOperandParsingTests
         var errors = FilterScenarioValidator.Validate(Parse(
             // 核心金額只比較絕對值；這裡核對數字格式的錯誤。
             """{"type":"fieldValue","field":"amount","operator":"in","amountBasis":"absolute","values":["10","abc"]}"""), Context(true));
-        // 這句的用字已定案。
         Assert.Equal(["第 1 組第 1 條：清單第 2 個值：金額「abc」不是數字"], errors);
         var detail = Assert.Single(FilterScenarioErrorDetails.Parse(errors));
         Assert.Equal(1, detail.Group);

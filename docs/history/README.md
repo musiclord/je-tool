@@ -30,6 +30,7 @@
 | [`2026-11-13-prepared-by-user-full-name-records.md`](2026-11-13-prepared-by-user-full-name-records.md) | 2026-11-13 建案者改記 Windows 帳號的使用者全名：使用者原話、查到的原因、這次的修改與限制（裁定 2026-11-13-04） |
 | [`2026-11-13-criteria-summary-header-records.md`](2026-11-13-criteria-summary-header-records.md) | 2026-11-13 條件篩選報告摘要頁第 4 列的四個欄名改回和舊版一樣保留：使用者原話、查到的原因與這次的修改（裁定 2026-11-13-03） |
 | [`2026-11-12-custom-account-category-records.md`](2026-11-12-custom-account-category-records.md) | 2026-11-12 讓「在 JET 配對」與「用 Excel 配對」都能新增科目分類：使用者原話、查到的原因、這次的修改，以及 Agent 定、使用者同日確認的做法（裁定 2026-11-12-34） |
+| [`2026-11-27-backend-rename-records.md`](2026-11-27-backend-rename-records.md) | 2026-11-27 整理後端程式名稱時改名的檔案，以及名稱裡的工作表序號換成什麼；讀到較早紀錄裡的舊檔名時，從這裡找現在的檔案（裁定 2026-11-27-07 到 2026-11-27-11） |
 | [`test-change-records.md`](test-change-records.md) | 修改既有測試的原因與第一次失敗的情形，用文字寫、不寫收據編號；2026-11-10 起記在這裡，不寫進測試的註解 |
 | [`2026-11-06-deferred-items-plan-execution-records.md`](2026-11-06-deferred-items-plan-execution-records.md) | 延後事項與前端整理計畫第 2 到第 21 步的做法與驗證紀錄；計畫快到長度上限時移出，原文照搬 |
 | [`2026-10-20-sqlserver-archive.md`](2026-10-20-sqlserver-archive.md) | 使用者 2026-10-20 要求封存的全部 SQL Server 事項：延後事項、企業環境範圍與暫緩期間的修改清單；重新開發 SQL Server 時從這裡取回 |

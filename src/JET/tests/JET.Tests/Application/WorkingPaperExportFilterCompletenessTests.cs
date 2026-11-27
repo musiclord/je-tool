@@ -31,7 +31,7 @@ public sealed class WorkingPaperExportFilterCompletenessTests
         { validationResultId, scenarioRevision = revision, scenarioPositions = new[] { 1 } }));
         using var workbook = new XLWorkbook(Path.Combine(host.ProjectsRoot, project.ProjectId,
             exported.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
-        var text = workbook.Worksheet(WorkingPaperSheetCatalog.Step3).Cell("C19").GetString();
+        var text = workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary).Cell("C19").GetString();
         Assert.StartsWith("新條件底稿" + Environment.NewLine + "篩選條件：", text, StringComparison.Ordinal);
         Assert.Contains("2025-01-15", text, StringComparison.Ordinal);
         Assert.Contains("2025-02-01", text, StringComparison.Ordinal);
@@ -60,7 +60,7 @@ public sealed class WorkingPaperExportFilterCompletenessTests
         XLWorkbook Open(JsonElement response) => new(Path.Combine(host.ProjectsRoot, project.ProjectId,
             response.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
         using var paper = Open(exported);
-        var chunks = paper.Worksheet(WorkingPaperSheetCatalog.Step3).Column(3).CellsUsed()
+        var chunks = paper.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary).Column(3).CellsUsed()
             .Where(cell => cell.Address.RowNumber >= 19).Select(cell => cell.GetString()).ToArray();
         Assert.All(chunks, chunk => Assert.InRange(chunk.Length, 1, 32_767));
         Assert.Equal("Long conditions\n篩選條件：" + expected, string.Concat(chunks).Replace("\r\n", "\n", StringComparison.Ordinal));

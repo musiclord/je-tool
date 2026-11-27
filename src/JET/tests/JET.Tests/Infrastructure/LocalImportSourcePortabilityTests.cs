@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 本地案件只保留來源檔名作顯示與追溯；來源機器的絕對路徑不得進入可搬移的專案資料庫。
+/// 本地案件只保留來源檔名作顯示與追溯；來源機器的絕對路徑不得進入可搬移的案件資料庫。
 /// </summary>
 public sealed class LocalImportSourcePortabilityTests
 {

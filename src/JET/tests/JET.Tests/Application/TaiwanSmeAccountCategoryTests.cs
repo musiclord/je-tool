@@ -7,7 +7,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 科目分類條件：借記固定資產且貸記費用的卡片（貸記營業費用，不含在建工程）與收入的非預期對方科目
-/// （收入無一般對方科目、預篩選「未預期借貸組合」、季末前借記收入）。預期值依規則與條件目錄手算。
+/// （收入無一般對方科目、預篩選「未預期借貸組合」、季末前借記收入）。預期值依規則手算。
 /// </summary>
 public sealed class TaiwanSmeAccountCategoryTests
 {
@@ -68,7 +68,7 @@ public sealed class TaiwanSmeAccountCategoryTests
         var node = Pair("固定資產與費用 僅分類本身", "node");
         var role = Pair("固定資產與費用 相同分類用途", "role");
         var noExpenseCredit = OneRule("貸方整張沒有營業費用",
-            //  Preserve the fixed whole-voucher answers with explicit absence.
+            // 整張傳票的貸方都沒有營業費用，用 quantifier none 明確寫出「沒有」。
             $$"""{"type":"voucher","quantifier":"none","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categorySelection":"subtree","categoryIds":["{{opex}}"]}]}""");
         // 這張卡預設包含下層：B1、B2、B6 三張。
         Assert.Equal((6L, 3L), await PreviewAsync(host, subtree));

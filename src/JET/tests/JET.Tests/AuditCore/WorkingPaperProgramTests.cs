@@ -20,7 +20,7 @@ public sealed class WorkingPaperProgramTests
     }
 
     [Fact]
-    public void Finalize_NoCompletenessDifference_OmitsOnlyStep13()
+    public void Finalize_NoCompletenessDifference_OmitsOnlyCompletenessDifference()
     {
         var finalized = JetAuditProgram.Finalize(
             JetAuditProgram.Plan(Request(prepStartDate: null)),
@@ -28,33 +28,33 @@ public sealed class WorkingPaperProgramTests
 
         Assert.True(finalized.IsFinalized);
         Assert.Equal(WorkingPaperSheetCatalog.All, finalized.Sheets.Select(sheet => sheet.SheetName));
-        Assert.False(Sheet(finalized, WorkingPaperSheetCatalog.Step13).Emit);
+        Assert.False(Sheet(finalized, WorkingPaperSheetCatalog.CompletenessDifference).Emit);
         Assert.DoesNotContain(
             finalized.Sheets,
             sheet => string.Equals(
                 sheet.SheetName,
                 "step1-3-1完整性差異調節",
                 StringComparison.Ordinal));
-        Assert.True(Sheet(finalized, WorkingPaperSheetCatalog.Step11).Emit);
-        Assert.False(Sheet(finalized, WorkingPaperSheetCatalog.Step11).IncludeExceptionTable);
+        Assert.True(Sheet(finalized, WorkingPaperSheetCatalog.VoucherBalance).Emit);
+        Assert.False(Sheet(finalized, WorkingPaperSheetCatalog.VoucherBalance).IncludeExceptionTable);
         Assert.Equal(
             WorkingPaperSheetCatalog.All.Count - 1,
             finalized.Sheets.Count(sheet => sheet.Emit));
-        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.Step1).NaText);
-        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.Step11).NaText);
-        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.Step12).NaText);
-        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.Step13).NaText);
+        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.Completeness).NaText);
+        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.VoucherBalance).NaText);
+        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.PreparerSummary).NaText);
+        Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.CompletenessDifference).NaText);
 
         // 沒有差異科目時，舊版 JET 不改寫範本原文。
         Assert.Equal(
             "基於上述程序，查核團隊對於JE測試母體之完整性，已取得足夠的查核證據。",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step1).Conclusion);
+            Sheet(finalized, WorkingPaperSheetCatalog.Completeness).Conclusion);
         Assert.Equal(
             "#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下：(已確認差異數均為0，可確認其完整性)",
-            Assert.Single(Sheet(finalized, WorkingPaperSheetCatalog.Step1).Methodology));
+            Assert.Single(Sheet(finalized, WorkingPaperSheetCatalog.Completeness).Methodology));
         Assert.Equal(
             "基於上述程序，查核團隊已取得足夠的查核證據，確認無借貸不平之情形。",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step11).Conclusion);
+            Sheet(finalized, WorkingPaperSheetCatalog.VoucherBalance).Conclusion);
     }
 
     [Fact]
@@ -65,25 +65,25 @@ public sealed class WorkingPaperProgramTests
             Facts(completenessDiffs: 1, unbalancedVouchers: 1));
 
         Assert.All(finalized.Sheets, sheet => Assert.True(sheet.Emit));
-        Assert.True(Sheet(finalized, WorkingPaperSheetCatalog.Step11).IncludeExceptionTable);
-        Assert.Null(Sheet(finalized, WorkingPaperSheetCatalog.Step1).NaText);
+        Assert.True(Sheet(finalized, WorkingPaperSheetCatalog.VoucherBalance).IncludeExceptionTable);
+        Assert.Null(Sheet(finalized, WorkingPaperSheetCatalog.Completeness).NaText);
         Assert.Equal("20240101", finalized.PrepStartDateDisplay);
         Assert.Equal("查核期間", finalized.PopulationScopeDisplay);
         Assert.Equal(
             "基於上述程序，查核團隊對於JE測試母體之完整性，尚需於Step1-3說明以取得足夠的查核證據。",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step1).Conclusion);
+            Sheet(finalized, WorkingPaperSheetCatalog.Completeness).Conclusion);
         Assert.Equal(
             "#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下：(有部分科目之差異數不為0，請於step1-3說明其理由，以確認JE母體的完整性)",
-            Assert.Single(Sheet(finalized, WorkingPaperSheetCatalog.Step1).Methodology));
+            Assert.Single(Sheet(finalized, WorkingPaperSheetCatalog.Completeness).Methodology));
         // 照舊版 JET 的作法依結果寫結論：本案例有不平傳票，
         // 舊版 JET 在有不平傳票時寫這一句。
         Assert.Equal(
             "基於上述程序，查核團隊發現有部分傳票借貸不平，但已取得足夠的查核證據，確認其理由尚屬合理。",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step11).Conclusion);
+            Sheet(finalized, WorkingPaperSheetCatalog.VoucherBalance).Conclusion);
         Assert.Equal(
             "基於上述程序，查核團隊對出現差異之科目均已取得足夠的查核證據，已確認其原因尚屬合理或進行調節使其無差異，" +
             "因此可確認JE測試母體之完整性。",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step13).Conclusion);
+            Sheet(finalized, WorkingPaperSheetCatalog.CompletenessDifference).Conclusion);
     }
 
     [Fact]
@@ -96,18 +96,18 @@ public sealed class WorkingPaperProgramTests
                 {
                     [1] = (2, 1),
                     [2] = (3, 0)
-                    // Existing writer treats a missing selected count as zero.
+                    // 寫出程式把沒有的選取筆數當成 0。
                 }));
 
         Assert.Equal(
             new[] { 1, 2, 3 },
-            Sheet(finalized, WorkingPaperSheetCatalog.Step3).ScenarioPositions);
+            Sheet(finalized, WorkingPaperSheetCatalog.HighRiskSummary).ScenarioPositions);
         Assert.Equal(
             new[] { 1, 2, 3 },
-            Sheet(finalized, WorkingPaperSheetCatalog.Step4).ScenarioPositions);
+            Sheet(finalized, WorkingPaperSheetCatalog.HighRiskVoucher).ScenarioPositions);
         Assert.Equal(
             new[] { 1 },
-            Sheet(finalized, WorkingPaperSheetCatalog.Step41).ScenarioPositions);
+            Sheet(finalized, WorkingPaperSheetCatalog.HighRiskVoucherDetail).ScenarioPositions);
         Assert.Equal(new[] { 1, 2, 3 }, finalized.AllScenarioPositions);
         Assert.Equal(new[] { 1 }, finalized.RowHitScenarioPositions);
         Assert.Collection(
@@ -205,7 +205,7 @@ public sealed class WorkingPaperProgramTests
     }
 
     [Fact]
-    public void Finalize_Step41Columns_UsesLegacyPriorityThenRemainingOrdinal()
+    public void Finalize_HighRiskVoucherDetailColumns_UsesLegacyPriorityThenRemainingOrdinal()
     {
         // step4-1 沒有傳票日期來源欄的排除。
         // step4-1 依欄位的來歷挑 JET 欄位，不看欄名結尾。ROW_TOKEN_JE、CUSTOM_FLAG_JE_S
@@ -234,50 +234,50 @@ public sealed class WorkingPaperProgramTests
             Facts(targetGlDefinitions: definitions));
 
         Assert.Collection(
-            finalized.Step41Columns,
+            finalized.HighRiskVoucherDetailColumns,
             column =>
             {
                 Assert.Equal("傳票號碼_JE", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.RawField, column.ValueSource);
+                Assert.Equal(WorkingPaperHighRiskVoucherDetailValueSource.RawField, column.ValueSource);
                 Assert.Equal("Document", column.RawFieldName);
             },
             column =>
             {
                 Assert.Equal("傳票文件項次_JE_S", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.LineItem, column.ValueSource);
+                Assert.Equal(WorkingPaperHighRiskVoucherDetailValueSource.LineItem, column.ValueSource);
             },
             column =>
             {
                 Assert.Equal("總帳日期_JE", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.GlDate, column.ValueSource);
+                Assert.Equal(WorkingPaperHighRiskVoucherDetailValueSource.GlDate, column.ValueSource);
             },
             column =>
             {
                 Assert.Equal("會計科目名稱_JE", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.RawField, column.ValueSource);
+                Assert.Equal(WorkingPaperHighRiskVoucherDetailValueSource.RawField, column.ValueSource);
                 Assert.Equal("ACCT_NAME", column.RawFieldName);
             },
             column =>
             {
                 Assert.Equal("傳票金額_JE", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.SignedAmount, column.ValueSource);
+                Assert.Equal(WorkingPaperHighRiskVoucherDetailValueSource.SignedAmount, column.ValueSource);
             },
             column =>
             {
                 Assert.Equal("人工傳票否_JE_S", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.IsManual, column.ValueSource);
+                Assert.Equal(WorkingPaperHighRiskVoucherDetailValueSource.IsManual, column.ValueSource);
                 Assert.Equal(LegacyFieldKind.Text, column.Kind);
                 Assert.Equal(0, column.DecimalPlaces);
             },
             column =>
             {
                 Assert.Equal("過帳碼_JE", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.PostingStatus, column.ValueSource);
+                Assert.Equal(WorkingPaperHighRiskVoucherDetailValueSource.PostingStatus, column.ValueSource);
             });
     }
 
     [Fact]
-    public void Finalize_Step41Columns_DuplicatePostMappingHeader_FailsClosed()
+    public void Finalize_HighRiskVoucherDetailColumns_DuplicatePostMappingHeader_FailsClosed()
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
             JetAuditProgram.Finalize(
@@ -305,11 +305,11 @@ public sealed class WorkingPaperProgramTests
             "(JE Testing)所需之程序。\n(有關高風險JE測試的篩選判斷由查核團隊在該工具執行過程中完成定義。)",
             Assert.Single(Sheet(finalized, WorkingPaperSheetCatalog.Intro).Methodology));
         // step2 的說明與測試程序全部是範本的原字，底稿計畫不帶這張表的說明文字。
-        Assert.Empty(Sheet(finalized, WorkingPaperSheetCatalog.Step2).Methodology);
+        Assert.Empty(Sheet(finalized, WorkingPaperSheetCatalog.InfSampling).Methodology);
         // Step 3 的 B7 與 B9 寫舊版原文，JET 寫的查核期間與排除範圍另起一行接在後面。
         Assert.Equal(
             "期末財務報表準備期間與整個財務報導期間之會計分錄\n查核期間內（2025-01-01 ~ 2025-12-31）之會計分錄",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step3).AuditCondition);
+            Sheet(finalized, WorkingPaperSheetCatalog.HighRiskSummary).AuditCondition);
         // 方法說明不寫「專案」，畫面與底稿統一用「案件」或直接寫查核期間。
         // 這裡逐字比對整句：不寫「矩陣」而寫高風險條件彙總，未納入原因寫「總帳日期空白」。
         // 底稿句子裡的欄位名稱照原樣寫，不加任何符號。
@@ -318,16 +318,16 @@ public sealed class WorkingPaperProgramTests
             + "亦會在整個財務報導期間中被記錄。這些都將會對財務報表的正確性造成影響。因此，除測試期末財務報表準備期間之分錄外，"
             + " 亦將對整個財務報表期間之會計分錄母體，篩選與舞弊風險類型相關之分錄。\n"
             + "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與總帳日期空白的分錄，不列入本版各情境的結果與彙總。",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step3).Methodology);
+            Sheet(finalized, WorkingPaperSheetCatalog.HighRiskSummary).Methodology);
         // 空白傳票號碼的列法寫在範本 A12，方法說明和範本同一句，後端不另外接。
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)"
             + "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step4).Methodology[^1]);
+            Sheet(finalized, WorkingPaperSheetCatalog.HighRiskVoucher).Methodology[^1]);
         Assert.Equal(
             "若查核團隊發現受查客戶在財務報表關帳後，尚有入帳之調整分錄(Post-closing entries)，" +
             "或未入帳直接對財務報表之調整(Other adjustments)，\n則可將此類調整記錄於此處，或說明無此類情形。\n",
-            Sheet(finalized, WorkingPaperSheetCatalog.Step5).AuditCondition);
+            Sheet(finalized, WorkingPaperSheetCatalog.PostClosingEntries).AuditCondition);
     }
 
     private static WorkingPaperRequest Request(
@@ -392,11 +392,6 @@ public sealed class WorkingPaperProgramTests
             key,
             Field: null,
             Keywords: [],
-            TextMatchMode.Contains,
-            FromDate: null,
-            ToDate: null,
-            FromAmountScaled: null,
-            ToAmountScaled: null,
             DrCr: null,
             IsManual: null);
 

@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/JET/JET/JET.csproj", "--configuration", "Debug"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build solution",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/JET/JET.slnx", "--configuration", "Debug"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test backend",
+      "type": "process",
+      "command": "${workspaceFolder}/JET/tests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe",
+      "args": ["--filter-not-trait", "TestProfile=Scale", "--results-directory", "${workspaceFolder}/artifacts/tests"],
+      "dependsOn": "build solution",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "test frontend",
+      "type": "process",
+      "command": "node",
+      "args": ["--test", "--test-concurrency=4", "tests/frontend/"],
+      "options": { "cwd": "${workspaceFolder}/JET" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "publish",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["publish", "${workspaceFolder}/JET/JET/JET.csproj", "--configuration", "Release", "-p:PublishProfile=FolderProfile"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "package",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/JET/Package.ps1"],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

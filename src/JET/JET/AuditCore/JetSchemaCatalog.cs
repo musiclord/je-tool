@@ -7,7 +7,7 @@ namespace JET.AuditCore;
 /// 這裡分的是審計上的層，也就是資料從客戶提供、經過標準化、到成為可報導結果的三個階段，不能從實體表名推出來。
 /// 實體表名不帶分層字首,直接取畫面的名稱,或舊版工具(Excel-VBA 工具或 IDEA 版 JET)對這份資料的稱呼,
 /// 例如 <c>account_mapping</c> 與 <c>calendar_day</c> 在審計語義上都是 Source(客戶提供的科目對照與假日曆)。
-/// 所以分層依的是正準審計名，不是實體表名。
+/// 所以分層依的是審計用名稱，不是實體表名。
 /// </summary>
 internal enum SchemaLayer
 {
@@ -40,10 +40,10 @@ internal enum SchemaAudience
 }
 
 /// <summary>
-/// 資料表登錄的一筆：一張實體表對應的正準審計名、層、曝光程度與中文說明。
+/// 資料表登錄的一筆：一張實體表對應的審計用名稱、層、曝光程度與中文說明。
 /// </summary>
 /// <param name="PhysicalName">實體表名，就是 CREATE TABLE 用的名稱。</param>
-/// <param name="CanonicalName">正準審計名，只用在資料表摘要的顯示，例如 PBC-GL、GL；它不是 SQL 識別字，也不是檔名。
+/// <param name="CanonicalName">審計用名稱，只用在資料表摘要的顯示，例如 PBC-GL、GL；它不是 SQL 識別字，也不是檔名。
 /// 資料名稱全系統一致：舊版 Excel-VBA 工具的 JE_PBC、TB_PBC、JE，在這裡是 PBC-GL、PBC-TB、GL。</param>
 /// <param name="Layer">所屬的層：審計三層之一，或 System。</param>
 /// <param name="Audience">在資料預覽與結構總覽的曝光程度。</param>
@@ -56,11 +56,11 @@ internal sealed record SchemaTableEntry(
     string Description);
 
 /// <summary>
-/// 專案資料庫每一張實體表的登錄：正準審計名、層、曝光程度與說明都只定義在這裡。
+/// 案件資料庫每一張實體表的登錄：審計用名稱、層、曝光程度與說明都只定義在這裡。
 ///
 /// 審計方法沿用舊版 Excel-VBA 工具的三層結構（Source、ETL-Staging、Target-Report）與審計用的表名，
 /// 例如 JE_PBC、JE、ACCOUNT_MAPPING。現行的實體表名則是從資料預覽的名稱轉寫而來，例如 <c>pbc_gl</c>、<c>gl</c>。
-/// 這份登錄把兩套名稱並列，資料預覽才能用審計人員熟悉的正準名顯示。
+/// 這份登錄把兩套名稱並列，資料預覽才能用審計人員熟悉的審計用名稱顯示。
 ///
 /// 對外只有幾個查詢入口：<see cref="All"/>、<see cref="ByAudience"/>、<see cref="ResolveCanonical"/> 與 <see cref="TryGet"/>。
 /// 內容全部寫在 <see cref="All"/> 這一張表裡，新增資料表時加一列即可，不必在各處加判斷。
@@ -79,7 +79,7 @@ internal static class JetSchemaCatalog
     public const string GlTableName = "gl";
 
     /// <summary>
-    /// 登錄表：專案資料庫的每一張實體表剛好一列。順序大致照資料流：來源、暫存、報表、系統。
+    /// 登錄表：案件資料庫的每一張實體表剛好一列。順序大致照資料流：來源、暫存、報表、系統。
     /// </summary>
     public static readonly IReadOnlyList<SchemaTableEntry> All =
     [
@@ -178,7 +178,7 @@ internal static class JetSchemaCatalog
         return false;
     }
 
-    /// <summary>用實體表名找正準審計名。沒有登錄的表回 null，要顯示什麼由呼叫端決定。</summary>
+    /// <summary>用實體表名找審計用名稱。沒有登錄的表回 null，要顯示什麼由呼叫端決定。</summary>
     public static string? ResolveCanonical(string physicalName) =>
         TryGet(physicalName, out var entry) ? entry.CanonicalName : null;
 }

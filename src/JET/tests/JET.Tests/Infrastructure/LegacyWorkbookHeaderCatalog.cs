@@ -71,8 +71,7 @@ internal static class LegacyWorkbookHeaderCatalog
         {
             return SpreadsheetContentHeaderRule.Fixed(16);
         }
-        // Validation v4：blank post date 不建 V7，改由條件式
-        // `Source_Quality` 揭示總帳日期空白明細。
+        // 資料驗證報告不為總帳日期空白建 V7；總帳日期空白的明細放在視情況產生的 `Source_Quality` 工作表。
         if (IsSeries(sheetName, "Source_Quality", localizedSuffix: false))
         {
             return SpreadsheetContentHeaderRule.Fixed(1);

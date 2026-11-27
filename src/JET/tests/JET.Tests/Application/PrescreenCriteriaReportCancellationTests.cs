@@ -243,7 +243,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             prescreenHitEntries,
@@ -395,7 +395,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
             projectDirectory,
             "*.tmp",
             SearchOption.AllDirectories));
-        // 確認現行的暫存檔都沒有留下。
+        // 報告清單寫入時用的暫存報告、暫存清單與備份也都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
     }
 

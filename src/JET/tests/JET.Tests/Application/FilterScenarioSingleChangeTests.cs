@@ -14,7 +14,7 @@ namespace JET.Tests.Application;
 /// </summary>
 /// <remarks>
 /// 每個操作都透過「照畫面送法」的輔助方法送出。輔助方法記住畫面上的已存清單（開案與每次回應的 <c>scenarios</c>），
-/// 照畫面的送法組請求，所以測試失敗時重現的是審計員在畫面上遇到的錯誤，而不是「動作不存在」。
+/// 照畫面的送法組請求，所以測試失敗時重現的是審計員在畫面上會遇到的錯誤。
 /// </remarks>
 public sealed class FilterScenarioSingleChangeTests
 {
@@ -38,7 +38,7 @@ public sealed class FilterScenarioSingleChangeTests
         // 規則版本仍是目前版本，只是條件用的攸關資料元素欄位已不在配對裡（合成的「其他資料改變」）。
         await RewriteDefinitionAsync(host, context.ProjectId, provider, 2, definition =>
             definition["groups"]![0]!["conditions"]!.AsArray().Insert(0, JsonNode.Parse(
-                "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}")));
+                "{\"join\":\"AND\",\"type\":\"fieldValue\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}")));
         var before = await ReadScenariosAsync(host, context.ProjectId, provider);
         Assert.All(before, row => Assert.True(IsCurrent(row)));
 
@@ -440,7 +440,7 @@ public sealed class FilterScenarioSingleChangeTests
         var before = await ReadScenariosAsync(host, projectId, provider);
         var stillInvalid = Wire(screen.Saved[0]);
         stillInvalid["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
-            "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
+            "{\"join\":\"AND\",\"type\":\"fieldValue\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
 
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
             SaveLikeTheScreenAsync(host, screen, 1, stillInvalid));
@@ -823,7 +823,7 @@ public sealed class FilterScenarioSingleChangeTests
                             else if (position == 2 && invalidSecond)
                             {
                                 rules.Insert(0, JsonNode.Parse(
-                                    "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
+                                    "{\"join\":\"AND\",\"type\":\"fieldValue\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
                             }
                         });
                     }

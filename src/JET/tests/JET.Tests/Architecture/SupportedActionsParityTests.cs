@@ -16,21 +16,11 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed class SupportedActionsParityTests
 {
-    // 產品沒有假日範本入口；確認後端與前端都沒有 export.calendarTemplates 這個 action。
-    [Fact]
-    public void RemovedCalendarTemplateAction_IsNotRegisteredOrSupported()
-    {
-        using var host = new HandlerTestHost();
-        Assert.DoesNotContain("export.calendarTemplates", host.Dispatcher.RegisteredActions);
-        Assert.DoesNotContain("export.calendarTemplates", ReadFrontendSupportedActions());
-        Assert.False(ActionExecutionPolicy.IsClassified("export.calendarTemplates"));
-    }
-
     [Fact]
     public void FrontendSupportedActions_MatchDispatcherForBuildConfiguration()
     {
         var frontendActions = ReadFrontendSupportedActions();
-        Assert.NotEmpty(frontendActions); // 空集合守門：解析失敗不得真空通過
+        Assert.NotEmpty(frontendActions); // 解析結果不得是空集合，避免解析失敗時比對照樣通過。
 
         using var host = new HandlerTestHost(enableDevTools: true);
         var backendActions = host.Dispatcher.RegisteredActions

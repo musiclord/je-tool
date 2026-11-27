@@ -48,12 +48,6 @@ test('every date input caps the year at four digits', () => {
   }
   const list = dateFixture({ type: 'fieldValue', field: 'glDate', operator: 'in', values: ['2025-01-02'] });
   capped([list.$('[data-date-input]')], 1, 'date list');
-  const range = dateFixture({ type: 'dateRange', field: 'glDate', from: '2025-01-01', to: '2025-01-31' });
-  capped(['from', 'to'].map(key => range.$('[data-rule-bind="' + key + '"]')), 2, 'legacy date range');
-  const typed = dateFixture({ type: 'typed', fieldId: 'rde.date', operator: 'between', from: '2025-01-01', to: '2025-01-31' });
-  typed.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: { rdeFields: [
-    { fieldId: 'rde.date', sourceColumn: 'Date', label: '合成日期', valueType: 'date' }] } });
-  capped(['from', 'to'].map(key => typed.$('[data-rule-bind="' + key + '"]')), 2, 'legacy typed date');
 });
 
 for (const operator of ['on', 'before', 'between']) test('' + operator + ' uses native date controls and keeps the date payload', () => {
@@ -126,7 +120,7 @@ test('date lists follow the shared date fixture under both ROC settings', () => 
 });
 
 // 前後端讀同一份金額固定答案 tests/JET.Tests/Fixtures/amount-parsing.json，
-// C# 的 MoneyScalingTests 與 TypedFieldRuleValidationTests 讀同一份；一邊改了規則另一邊就失敗。
+// C# 的 MoneyScalingTests 與 FieldValueOperandValidationTests 讀同一份；一邊改了規則另一邊就失敗。
 // 畫面照案件的金額存放倍率把值讀成放大後的整數：讀不成時寫出不是數字，兩端都讀得成才比上下限，負數提醒看放大後的值。
 test('amount conditions follow the shared amount fixture', () => {
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '../JET.Tests/Fixtures/amount-parsing.json'), 'utf8'));
@@ -231,18 +225,6 @@ test('date lists keep incomplete dates as typed for the backend to reject', () =
   assert.deepEqual(plain(f.window.JetUi.FilterValues.wire(rule, f.store.getState()).values),
     ['12/31', 'Dec 2025', '2025-12', 'June 11, 2025']);
   assert.equal(f.window.JetUi.FilterValues.problem(rule, f.store.getState()), '');
-});
-
-test('the legacy date range shares the same controls', () => {
-  const f = dateFixture({ type: 'dateRange', field: 'glDate', from: '2025-01-01', to: '2025-01-31' });
-  for (const key of ['from', 'to']) assert.ok(f.$('[data-rule-bind="' + key + '"]').classList.contains('date-input'));
-});
-
-test('legacy typed dates share the native control too', () => {
-  const f = dateFixture({ type: 'typed', fieldId: 'rde.date', operator: 'between', from: '2025-01-01', to: '2025-01-31' });
-  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: { rdeFields: [
-    { fieldId: 'rde.date', sourceColumn: 'Date', label: '合成日期', valueType: 'date' }] } });
-  for (const key of ['from', 'to']) assert.ok(f.$('[data-rule-bind="' + key + '"]').classList.contains('date-input'));
 });
 
 test('button and Enter add dates once, keep pasted dates, and allow chip removal', () => {

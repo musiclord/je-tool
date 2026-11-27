@@ -86,7 +86,7 @@ public sealed class AccountCategoryReadbackTests
         var text = FilterConditionRenderer.Render(scenario,
             new Dictionary<string, string> { [AccountCategorySideFixture.B] = "子現金" });
         Assert.Contains("相同分類用途", text, StringComparison.Ordinal);
-        // 沒帶階層與用途metadata時，不能假裝知道全部納入分類。
+        // 沒帶階層與用途 metadata 時，讀回不寫實際納入的分類。
         Assert.DoesNotContain("實際納入分類：子現金", text, StringComparison.Ordinal);
     }
 }

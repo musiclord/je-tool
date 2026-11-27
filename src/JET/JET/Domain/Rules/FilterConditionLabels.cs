@@ -1,16 +1,16 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 進階篩選「條件中文標籤」的單一事實來源（本表為正本；前端 <c>ui-core.js</c> 的標籤常數
-/// 鏡像本表，由 <c>FilterConditionLabelMirrorTests</c> 讀 JS 檔正則抽取比對守衛漂移）。
+/// 進階篩選「條件中文標籤」只定義在這裡。前端 <c>ui-core.js</c> 的標籤常數照這張表寫，
+/// <c>FilterConditionLabelMirrorTests</c> 用正規表示式讀 JS 檔，核對兩邊一致。
 ///
 /// 為什麼要有這張表：CriteriaSelection summary 的「條件內容」由
-/// <see cref="JET.Application.FilterConditionRenderer"/> 渲染成與前端藍色 read-back 同構的中文布林式；
-/// 兩邊各有一份標籤就會漂移，故把標籤收斂到 Domain 一份、前端以測試釘住。這裡只放
-/// 「鍵 → 中文標籤」與兩端共用的固定結構片語；括號、AND／OR 組合與各型別動態句型仍屬 renderer 邏輯。
+/// <see cref="JET.Application.FilterConditionRenderer"/> 寫成和前端藍色讀回文字結構相同的中文布林式；
+/// 兩邊各有一份標籤就會不一致，所以標籤只放在 Domain 這一份，前端由測試核對。這裡只放
+/// 每個鍵的中文標籤與兩端共用的固定片語；括號、AND 與 OR 的組合，以及各型別的動態句型由 renderer 處理。
 ///
-/// 覆蓋範圍＝條件型別顯示名，以及渲染器會用到的標籤表：預篩選鍵、文字比對模式、科目配對模式、
-/// 特殊科目配對模式、可篩選 GL 邏輯欄、非營業日原子，以及 textSet 的固定結構片語。
+/// 覆蓋範圍＝條件型別顯示名，以及渲染器會用到的標籤表：預篩選鍵、科目配對模式、
+/// 特殊科目配對模式、可篩選 GL 邏輯欄與非營業日原子。
 /// <see cref="PrescreenKeys"/> 與 <see cref="PrescreenRuleKeys.FilterableKeys"/> 都由
 /// <see cref="PrescreenRuleDefinitions"/> 衍生，鍵集合必然相同；新增逐筆規則時在登錄裡給中文標籤即可。
 /// </summary>
@@ -18,16 +18,12 @@ public static class FilterConditionLabels
 {
     /// <summary>
     /// 進階篩選 AST type wire key → 中文顯示名（前端 <c>FILTER_RULE_TYPES[].label</c> 鏡像）。
-    /// 前端的 quickLabel、分組與可用性 metadata 不屬本表。
+    /// 前端的分組與可用性 metadata 不屬本表。
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> RuleTypes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["prescreen"] = "預篩選",
-            ["text"] = "文字條件",
-            ["textSet"] = "文字值清單",
-            ["numRange"] = "金額區間",
-            ["dateRange"] = "日期區間",
             ["drCrOnly"] = "借貸限定",
             ["manualAuto"] = "人工/自動分錄",
             ["accountPair"] = "借貸科目組合（看對方科目）",
@@ -35,7 +31,6 @@ public static class FilterConditionLabels
             ["entityFrequency"] = "科目與人員統計",
             ["group"] = "子條件組",
             ["voucher"] = "整張傳票條件",
-            ["typed"] = "攸關資料元素條件",
             ["fieldValue"] = "欄位值比較",
             // 型別標籤和卡片名稱統一。
             ["accountSide"] = "科目分類",
@@ -48,16 +43,6 @@ public static class FilterConditionLabels
     /// <summary>預篩選 row-tag 鍵 → 中文標籤，由規則登錄衍生（前端 <c>PRESCREEN_RULES</c> 的 label 鏡像）。</summary>
     public static readonly IReadOnlyDictionary<string, string> PrescreenKeys =
         PrescreenRuleDefinitions.RowTags.ToDictionary(rule => rule.Key, rule => rule.ConditionLabel!, StringComparer.Ordinal);
-
-    /// <summary>文字比對模式 → 中文（前端 <c>TEXT_MODE_OPTIONS</c> 鏡像）。</summary>
-    public static readonly IReadOnlyDictionary<string, string> TextModes =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["contains"] = "包含",
-            ["exact"] = "完全符合",
-            ["notContains"] = "不包含（排除）",
-            ["notExact"] = "不等於（排除）",
-        };
 
     /// <summary>科目配對分析模式 → 中文（前端 <c>ACCOUNT_PAIR_MODE_OPTIONS</c> 鏡像）。</summary>
     public static readonly IReadOnlyDictionary<string, string> AccountPairModes =
@@ -78,7 +63,7 @@ public static class FilterConditionLabels
 
     /// <summary>
     /// 科目配對單側多選分類的讀回分隔字元（前端 <c>FILTER_CATEGORY_LIST_SEPARATOR</c> 鏡像）。
-    /// 後端 renderer 是唯一權威輸出，前端讀回只能鏡射同一分隔字元。
+    /// 讀回文字以後端 renderer 的輸出為準，前端讀回只能鏡射同一分隔字元。
     /// </summary>
     public const string CategoryListSeparator = "、";
 
@@ -113,47 +98,6 @@ public static class FilterConditionLabels
     /// <summary>已儲存情境裡，非營業日卡片加入的子條件組讀回這個名稱（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
     public const string NonBusinessDayAtom = "非營業日";
 
-    public const string TextSetContainsAny = "包含任一值";
-
-    public const string TextSetExactAny = "完全符合任一值";
-
-    // 「ASCII 空白」說成半形空白。
-    public const string TextSetPreserveAsciiSpaces = "保留半形空白";
-
-    public const string TextSetRemoveAsciiSpaces = "移除半形空白";
-
-    /// <summary>
-    /// typed 條件 operator → 中文標籤。後端 renderer 是唯一權威輸出；前端 <c>ui-core.js</c> 的三張比較方式選單
-    /// （<c>TYPED_TEXT_OPERATORS</c>、<c>TYPED_DATE_OPERATORS</c>、<c>TYPED_AMOUNT_OPERATORS</c>）每個鍵的標籤都和本表相同。
-    /// </summary>
-    public static readonly IReadOnlyDictionary<string, string> TypedOperators =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["equals"] = "等於",
-            ["notEquals"] = "不等於（排除）",
-            ["contains"] = "包含",
-            ["notContains"] = "不包含（排除）",
-            ["in"] = "屬於任一值",
-            ["notIn"] = "不屬於任何值（排除）",
-            ["isBlank"] = "為空白",
-            ["isNotBlank"] = "非空白",
-            ["on"] = "等於日期",
-            ["before"] = "早於",
-            ["onOrBefore"] = "不晚於",
-            ["after"] = "晚於",
-            ["onOrAfter"] = "不早於",
-            ["between"] = "介於",
-            ["greaterThan"] = "大於",
-            ["greaterThanOrEqual"] = "大於等於",
-            ["lessThan"] = "小於",
-            ["lessThanOrEqual"] = "小於等於",
-        };
-
-    /// <summary>typed amount 條件 amountBasis 的讀回標籤。</summary>
-    public const string TypedSignedAmountBasis = "帶正負號金額";
-
-    public const string TypedAbsoluteAmountBasis = "金額絕對值";
-
     /// <summary>
     /// 認不得的預篩選條件、比對方式、借貸組合方式或條件型別在讀回裡的寫法，不印程式代號
     /// （前端 <c>RETIRED_CONDITION_LABEL</c> 同一句）。
@@ -165,10 +109,6 @@ public static class FilterConditionLabels
 
     /// <summary>認不得的 GL 欄位在讀回裡的名稱。</summary>
     public const string MissingGlField = "已不存在的欄位";
-
-    /// <summary>typed operator → 標籤；未登錄時寫 <see cref="RetiredCondition"/>，空白時不寫（同前端 <c>typedOperatorLabel</c>）。</summary>
-    public static string TypedOperatorLabel(string? op) =>
-        string.IsNullOrEmpty(op) ? string.Empty : TypedOperators.TryGetValue(op, out var label) ? label : RetiredCondition;
 
     /// <summary>預篩選鍵 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>（與前端 <c>ruleSummaryLabel</c> 同構）。</summary>
     public static string PrescreenLabel(string? key) =>
@@ -182,10 +122,6 @@ public static class FilterConditionLabels
         key == PrescreenRuleKeys.TrailingZeros && zerosThreshold is { } zeros
             ? $"金額尾數連續 {zeros} 個 0"
             : PrescreenLabel(key);
-
-    /// <summary>文字模式 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>。</summary>
-    public static string TextModeLabel(string? mode) =>
-        mode is not null && TextModes.TryGetValue(mode, out var label) ? label : RetiredCondition;
 
     /// <summary>科目配對模式 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>。</summary>
     public static string AccountPairModeLabel(string? mode) =>

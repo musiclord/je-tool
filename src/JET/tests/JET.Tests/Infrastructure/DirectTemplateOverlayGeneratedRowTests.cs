@@ -79,7 +79,7 @@ public sealed class DirectTemplateOverlayGeneratedRowTests
     {
         // 正式的寫出程式會先把這種字元編碼掉；這裡直接放進格子，確認兩種交法失敗時是同一種例外：
         // 先轉成文字的做法在轉文字時就被擋下，直接寫出時在寫進工作表時被擋下。
-        static Row Invalid() => new(Text("A6", "badcharacter", 7)) { RowIndex = 6 };
+        static Row Invalid() => new(Text("A6", "bad\u000Bcharacter", 7)) { RowIndex = 6 };
 
         Assert.Throws<ArgumentException>(() => Write(
             "EveryCellFromSource",

@@ -133,7 +133,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
         if (!string.Equals(ReadMetadataCell("A1"), ReportWorkbookMetadataFormat.Marker, StringComparison.Ordinal))
         {
-            // 隱藏紀錄存在但標記不對，照舊整份不帶入。
+            // 隱藏紀錄存在但標記不對，同樣整份不帶入。
             throw Invalid(InvalidFormatMessage);
         }
 

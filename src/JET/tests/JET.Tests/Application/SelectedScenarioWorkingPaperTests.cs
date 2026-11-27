@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 public sealed class SelectedScenarioWorkingPaperTests
 {
-    // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目；第二個情境用第五步「依審計目的」的「編製分錄較少的人員」條件，
+    // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目；第二個情境用第五步欄位條件的常用查法「編製分錄較少的人員」，
     // 需要傳票建立人員。
     private const string Scenarios = """
         {"scenarios":[
@@ -62,7 +62,7 @@ public sealed class SelectedScenarioWorkingPaperTests
         using (var book = new XLWorkbook(Path.Combine(host.ProjectsRoot, setup.ProjectId,
             report.GetProperty("fileName").GetString()!)))
         {
-            Assert.True(book.Worksheet(WorkingPaperSheetCatalog.Step41).RowsUsed().Count() > 1);
+            Assert.True(book.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucherDetail).RowsUsed().Count() > 1);
         }
 
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = setup.ProjectId }));

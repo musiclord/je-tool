@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 本機案件資料庫的介面，每個案件一個資料庫檔。目前只有 SQLite 一種實作。
+/// 本機案件資料庫的介面，每個案件一個資料庫檔，實作是 SQLite。
 /// 名稱以 <c>Local</c> 開頭的 repository 只用這個介面與 <see cref="ISqlDialect"/>，不直接用特定資料庫的 ADO.NET 型別。
 /// <see cref="IProjectDatabaseInitializer"/> 建立案件資料庫，<see cref="IProjectDatabaseDeleter"/> 刪除案件資料庫；
 /// <see cref="IProjectDatabaseCheckpoint"/> 是作業結束與離開案件時的收尾。

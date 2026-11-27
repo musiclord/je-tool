@@ -53,7 +53,7 @@ public sealed record PrescreenReportContext(
 /// <summary>
 /// Prescreen report 內單一規則摘要的 provider-neutral、bounded 投影。
 /// <paramref name="ItemCount"/> 是預篩選結果記下的筆數或項目數。摘要頁照舊版原句不寫這個數字，
-/// 報告寫出程式不讀它，報告測試用它組出計畫的筆數；命中規則的 voucher／row counts 由既有 set-based report repository 查詢。
+/// 報告寫出程式不讀它，報告測試用它組出計畫的筆數；命中規則的傳票數與分錄數由 IPrescreenReportPlanningFactsPort 用集合式 SQL 查詢。
 /// </summary>
 internal sealed record PrescreenReportRuleProjection(
     string Status,

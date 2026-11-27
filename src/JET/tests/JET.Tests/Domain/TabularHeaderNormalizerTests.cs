@@ -6,7 +6,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// TabularHeaderNormalizer 測試。
-/// oracle：自 xlsx reader 抽出前的既有行為（golden，由 OpenXmlSaxTableReaderTests 鎖定整合面）。
+/// oracle：OpenXmlSaxTableReaderTests 鎖定的整合行為（golden）。
 /// 設計技術：等價分割——一般標頭 / 待 trim / 空白 / 重複 / 混合。
 /// </summary>
 public sealed class TabularHeaderNormalizerTests
@@ -101,7 +101,7 @@ public sealed class TabularHeaderNormalizerTests
     }
 
     // IsPlaceholder：佔位欄名 = Normalize 對空白標頭產生的 COL_{欄號}。
-    // 等價類：正準形（COL_+純數字）true；前綴缺數字 / 小寫 / 去重字尾 / 一般欄名 / 空字串 false。
+    // 等價類：固定格式（COL_ 接純數字）true；前綴缺數字 / 小寫 / 去重字尾 / 一般欄名 / 空字串 false。
     // COL_3_2 是「重複標頭去重」的產物（視為具名），不是佔位欄。
     [Theory]
     [InlineData("COL_1", true)]
@@ -168,8 +168,7 @@ public sealed class TabularHeaderNormalizerTests
     [Fact]
     public void FinalizeBatchColumns_UnknownObservedKeyIsKept()
     {
-        // 防衛性：觀察到既不在標頭、也非佔位形的 key（理論上不該發生）寧可納入，
-        // 不靜默丟棄——誠實優先於整潔
+        // 防衛性：遇到既不在標頭、也不是佔位欄形式的 key（理論上不會發生）時照樣納入，不默默丟掉。
         var result = TabularHeaderNormalizer.FinalizeBatchColumns(
             ["A"],
             new HashSet<string>(StringComparer.Ordinal) { "A", "幽靈欄" });

@@ -4,9 +4,9 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 欄位配對步驟的標準化政策鏡像守衛（前端工作流整合）。後端 <c>mapping.commit.gl</c> 仍是
-/// 權威驗證；本組只核對核准日模式的封閉選項鏡像。互斥引導、來源值分布的取得方式與送出形狀，
-/// 由前端測試在正式第三步畫面上核對。
+/// 欄位配對步驟標準化設定的前端鏡像檢查。驗證以後端 <c>mapping.commit.gl</c> 為準；
+/// 本組只核對核准日模式的固定選項和後端一致。互斥引導、來源值分布的取得方式與送出形狀，
+/// 由前端測試在第三步畫面上核對。
 /// </summary>
 public sealed class MappingProjectionPolicyFrontendTests
 {

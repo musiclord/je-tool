@@ -26,7 +26,6 @@ public sealed class PrescreenPositioningFrontendTests
             ["ExportDefaultGuidance"] =
                 "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             ["ExportPendingRunGuidance"] =
-                // 這句的用字已定案。
                 "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。"
         };
 

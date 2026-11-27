@@ -34,14 +34,14 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         return profile!;
     }
 
-    public async Task<IReadOnlyList<string>?> FindMissingValuesAsync(
+    public async Task<IReadOnlyList<string>> FindMissingValuesAsync(
         string projectId, string batchId, string sourceColumn, IReadOnlyList<string> comparisonValues,
         CancellationToken cancellationToken)
     {
         if (comparisonValues.Count == 0) return [];
         var (_, missing) = await QueryAsync(
             projectId, batchId, sourceColumn, limit: null, fillDown: false, comparisonValues, cancellationToken);
-        return missing;
+        return missing!;
     }
 
     public async Task<CheckedMappingValueProfile> GetWithSourceValueCheckAsync(
@@ -55,7 +55,7 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
     {
         var (profile, missing) = await QueryAsync(
             projectId, batchId, sourceColumn, limit, fillDown, comparisonValues, cancellationToken);
-        return new CheckedMappingValueProfile(profile!, missing);
+        return new CheckedMappingValueProfile(profile!, missing!);
     }
 
     /// <summary>

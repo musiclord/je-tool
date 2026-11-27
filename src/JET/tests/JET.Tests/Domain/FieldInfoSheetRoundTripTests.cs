@@ -819,8 +819,8 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// 正式流程把投影結果存進 field_info，底稿再經 LocalFieldInfoFactsPort.ReadAsync 讀回成 FieldInfo
-    /// （src/JET/JET/Infrastructure/Persistence/Local/LocalFieldInfoPersistence.cs）。存檔時文字長度只有文字型態才寫，
+    /// 正式流程把投影結果存進 field_info，底稿再經 LocalFieldInfoFactsPort.ReadAsync 讀回成 FieldInfo。
+    /// 存檔時文字長度只有文字型態才寫，
     /// 讀回時只有文字型態帶文字長度；序號、欄名、說明、型態、小數位數、來歷與對應的 JET 欄位照抄。這裡照同樣的對應轉換。
     /// </summary>
     private static FieldInfo ReadBackAsFieldInfo(FieldInfoState state) => new(

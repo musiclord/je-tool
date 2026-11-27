@@ -35,7 +35,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
         IValidationFactsPort factsPort = new LocalValidationRunRepository(
             DatabaseFor(provider, host));
 
-        // 走正式同交易port擷取facts；原固定verdict不變。
+        // 用正式的同交易 port 擷取 facts，再核對固定的 verdict。
         var facts = await JET.Tests.Infrastructure.ValidationExecutionTestData.ExecuteForFactsAsync(factsPort, plan, CancellationToken.None);
         var result = JetAuditProgram.Finalize(plan, facts);
 
@@ -102,7 +102,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
             ("holiday_posting", "V", 28L),
             ("holiday_approval", "V", 16L),
             ("blank_description", "V", 18L),
-            // 沒有 backdated_posting 程序。
+            // 回溯過帳（backdated_posting）是已停用的條件，沒有這個程序。
             // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目這兩條規則，沒有 rare_preparer 與 rare_account 兩個程序。
             ("non_authorized_preparer", "V", 32L));
     }
@@ -137,12 +137,12 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
     }
 }
 
-/// <summary>兩平台各建一份示範案件並循序匯入，同類別測試重用，避免每條 golden 重建整份資料。</summary>
+/// <summary>在 SQLite 建一份示範案件並循序匯入，同類別測試重用，避免每條 golden 重建整份資料。</summary>
 public sealed class DemoGoldenProviderFixture : IAsyncLifetime
 {
-    private readonly Dictionary<string, (HandlerTestHost Host, DemoProjectPipeline.Context Context)> cases = [];
+    private readonly Dictionary<string, (HandlerTestHost Host, DemoProjectPipeline.Context Context)> _cases = [];
 
-    internal (HandlerTestHost Host, DemoProjectPipeline.Context Context) For(string provider) => cases[provider];
+    internal (HandlerTestHost Host, DemoProjectPipeline.Context Context) For(string provider) => _cases[provider];
 
     public async ValueTask InitializeAsync()
     {
@@ -151,7 +151,7 @@ public sealed class DemoGoldenProviderFixture : IAsyncLifetime
             var host = new HandlerTestHost();
             try
             {
-                cases.Add(provider, (host, await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider)));
+                _cases.Add(provider, (host, await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider)));
             }
             catch
             {
@@ -164,8 +164,8 @@ public sealed class DemoGoldenProviderFixture : IAsyncLifetime
 
     public ValueTask DisposeAsync()
     {
-        foreach (var entry in cases.Values) entry.Host.Dispose();
-        cases.Clear();
+        foreach (var entry in _cases.Values) entry.Host.Dispose();
+        _cases.Clear();
         return ValueTask.CompletedTask;
     }
 }

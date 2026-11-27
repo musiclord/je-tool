@@ -69,7 +69,7 @@ internal enum ScaleJourneyShape
 /// 量時間與量工作量分開執行。
 /// 這個量測另外記：每一步期間每 50 毫秒取樣的工作集與受控堆積尖峰、GC 暫停的合計與取樣到的最長一次，
 /// 以及條件篩選報告匯出到一半時取消，從要求取消到真的停下花了幾秒。
-/// 目前只量 SQLite，JET_SCALE_JOURNEY_PROVIDER 設成其他名稱時這次不量；
+/// 只量 SQLite；JET_SCALE_JOURNEY_PROVIDER 設成其他名稱時不量；
 /// JET_SCALE_JOURNEY_OUTPUT 指定時另把結果寫成檔案。資料全部合成，放在系統暫存資料夾，結束時刪除。
 /// </summary>
 public sealed class ScaleJourneyTests(ITestOutputHelper output)
@@ -165,7 +165,7 @@ public sealed class ScaleJourneyTests(ITestOutputHelper output)
 
     /// <summary>
     /// 照審計員的順序走完建案到底稿，每一步記下耗時、記憶體與檔案大小，最後離開案件。
-    /// 一般驗證裡的長案件名稱測試也用這一段，只是資料量小，也不另外匯出其他報告。
+    /// 一般測試執行裡的長案件名稱測試（CaseLimitJourneyTests）也用這一段，只是資料量小，也不另外匯出其他報告。
     /// <paramref name="options"/> 的 AllExports 為 true 時，另外匯出資料驗證報告與預篩選報告，
     /// 最後再匯出一次條件篩選報告，在上一次耗時的一半時取消，記下停下來花的時間。
     /// </summary>
@@ -468,7 +468,7 @@ public sealed class ScaleJourneyTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// gl 的列數、內容摘要與索引摘要，用來比對同一份合成資料在改法前後寫出的 gl 是否相同。
+    /// gl 的列數、內容摘要與索引摘要；同一份合成資料在不同次量測寫出的 gl，可以用它比對是否相同。
     /// 內容摘要依分錄編號逐列逐欄計算，不含每次匯入都不同的批次編號；索引摘要依建立的先後計算索引名稱與定義文字。
     /// 兩個摘要都是 SHA-256 的前 16 個十六進位字。
     /// </summary>

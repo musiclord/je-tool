@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 常用情境範本（FILTER_SCENARIO_TEMPLATES）的守衛：每筆範本的規則型別都是後端認得的 wire 型別、模式在 Domain
-/// 標籤表內，範本與依審計目的條件不另寫前置條件。範本的套用入口與組合卡由前端的行為測試核對；
+/// 標籤表內，範本與常用查法不另寫前置條件。範本的套用入口與組合卡由前端的行為測試核對；
 /// 這裡只比對前後端型別與模式的原始碼。
 /// </summary>
 public sealed class FilterTemplatesFrontendTests

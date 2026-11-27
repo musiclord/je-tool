@@ -11,11 +11,11 @@ namespace JET.Application;
 /// </summary>
 internal static class RuleLogicVersions
 {
-    // 這一版在傳票核准日不可用時把「核准日不在期間」列為無法執行，不寫 0 筆；較舊的結果要重新驗證。
+    // 資料驗證的規則版本：傳票核准日不可用時，「核准日不在期間」列為無法執行，不寫 0 筆；版本不同的結果要重新驗證。
     public const string Validation = "validation-2026-10-23-v6";
-    // 這一版沒有傳票日期與回溯過帳：預篩選沒有這條規則，篩選不接受回溯過帳條件，兩者的版本都跟著推進。
+    // 預篩選的規則版本；版本不同的結果要重新執行預篩選。
     public const string Prescreen = "prescreen-2026-10-08-v10";
-    // 這一版每條條件只表達一件事；停用的寫法列為待修正，保留原文。
+    // 篩選的規則版本：每條條件只表達一件事；已停用的寫法列為待修正，保留原文。
     public const string Filter = "filter-2026-10-14-v20";
 
     public static string? ExpectedFor(ResultKind kind) => kind switch
@@ -83,7 +83,7 @@ internal static class RuleLogicVersions
     /// <summary>
     /// 儲存一個情境時用：條件先只保留各類型用得到的屬性（<see cref="FilterConditionWireFields"/>），再蓋版本。
     /// 呼叫前必須已通過解析與驗證，已停用或損毀的寫法才不會被默默改成合格。照原樣寫回的其他情境、
-    /// 移除、重新檢查與開案升級仍用 <see cref="StampFilterDefinition"/>，舊情境在下次儲存時才整理。
+    /// 移除、重新檢查與開案升級用 <see cref="StampFilterDefinition"/>，只蓋上版本與篩選範圍；這些情境的條件屬性在下一次儲存時才整理。
     /// </summary>
     public static string StampSavedFilterDefinition(JsonElement scenario)
     {

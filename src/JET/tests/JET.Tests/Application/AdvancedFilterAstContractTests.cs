@@ -11,29 +11,6 @@ public sealed class AdvancedFilterAstContractTests
     private static readonly FilterValidationContext Ready =
         new(HasPrepStartDate: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
 
-    // 這則只檢查文字值清單的形狀，條件組用同一分錄列。
-    [Fact]
-    public void ParseAndValidate_TextSet_PreservesClosedWireShape()
-    {
-        var scenario = Parse(
-            """
-            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","matchScope":"row","conditions":[
-              {"join":"AND","type":"textSet","field":"description","values":["anchor"],"mode":"exact","normalization":"preserve"},
-              {"join":"AND","type":"textSet","field":"accountName","values":["evi dence"],"mode":"contains","normalization":"removeAsciiSpaces"}
-            ]}]}
-            """);
-
-        var group = Assert.Single(scenario.Groups);
-        Assert.Null(group.UnknownMatchScope);
-        Assert.Equal(FilterConditionType.TextSet, group.Conditions[0].Type);
-        Assert.Equal(["anchor"], group.Conditions[0].Values);
-        Assert.Equal(TextSetNormalization.Preserve, group.Conditions[0].Normalization);
-        Assert.Equal(TextSetNormalization.RemoveAsciiSpaces, group.Conditions[1].Normalization);
-        Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
-    }
-
-    // 這類錯誤只會出自存檔損毀，審計員在畫面上無從修正，損毀的情境在畫面寫通用句；
-    // 第四個參數是程式寫死的原因代號。
     [Theory]
     [InlineData("mystery", 2, "AND", "group_match_scope_invalid")]
     // 已儲存情境沒有「同一傳票」比對範圍，讀到 sameVoucher 時當成無法讀取的內容，原因和其他未知值相同。
@@ -48,16 +25,16 @@ public sealed class AdvancedFilterAstContractTests
         {
             new
             {
-                join = "AND", type = "textSet", field = "description",
-                values = new[] { "anchor" }, mode = "contains", normalization = "preserve"
+                join = "AND", type = "fieldValue", field = "description",
+                @operator = "in", values = new[] { "anchor" }
             }
         };
         if (ruleCount > 1)
         {
             rules.Add(new
             {
-                join = secondJoin, type = "textSet", field = "accountName",
-                values = new[] { "evidence" }, mode = "exact", normalization = "preserve"
+                join = secondJoin, type = "fieldValue", field = "accountName",
+                @operator = "in", values = new[] { "evidence" }
             });
         }
 
@@ -73,45 +50,6 @@ public sealed class AdvancedFilterAstContractTests
         Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == expected);
     }
 
-    // 這三種錯誤只會出自存檔損毀，審計員在畫面上無從修正，損毀的情境在畫面寫通用句；
-    // 第四個參數是程式寫死的原因代號，仍逐項區分。
-    [Theory]
-    [InlineData("notContains", "preserve", "value", "text_set_mode_invalid")]
-    [InlineData("contains", "unknown", "value", "text_set_normalization_invalid")]
-    [InlineData("contains", "removeAsciiSpaces", "   ", "text_set_value_blank")]
-    public void Validate_InvalidTextSetContract_FailsLoudly(
-        string mode,
-        string normalization,
-        string value,
-        string expected)
-    {
-        var scenario = Parse(JsonSerializer.Serialize(new
-        {
-            name = "synthetic",
-            rationale = "invalid text set",
-            groups = new[]
-            {
-                new
-                {
-                    join = "AND",
-                    matchScope = "row",
-                    conditions = new[]
-                    {
-                        new
-                        {
-                            join = "AND", type = "textSet", field = "description",
-                            values = new[] { value }, mode, normalization
-                        }
-                    }
-                }
-            }
-        }));
-
-        var errors = FilterScenarioValidator.Validate(scenario, Ready);
-        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
-        Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == expected);
-    }
-
     [Theory]
     [InlineData("123")]
     [InlineData("null")]
@@ -120,7 +58,7 @@ public sealed class AdvancedFilterAstContractTests
     {
         var json = """
             {"name":"synthetic","rationale":"shape","groups":[{"conditions":[
-              {"type":"textSet","field":"description","mode":"contains","values":__VALUES__}
+              {"type":"fieldValue","field":"description","operator":"in","values":__VALUES__}
             ]}]}
             """.Replace("__VALUES__", valuesJson, StringComparison.Ordinal);
 
@@ -131,86 +69,18 @@ public sealed class AdvancedFilterAstContractTests
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
     }
 
-    [Fact]
-    public void Validate_TextSetValueLimit_IsBackendAuthoritative()
-    {
-        var scenario = Parse(
-            """
-            {"name":"synthetic","rationale":"bounded values","groups":[{"conditions":[
-              {"type":"textSet","field":"description","mode":"contains","normalization":"preserve","values":["seed"]}
-            ]}]}
-            """);
-        var group = Assert.Single(scenario.Groups);
-        var rule = Assert.Single(group.Conditions) with
-        {
-            Values = Enumerable.Range(0, FilterScenarioLimits.MaxTextSetValuesPerRule + 1)
-                .Select(index => $"synthetic_{index}")
-                .ToArray()
-        };
-        var oversized = scenario with
-        {
-            Groups = [group with { Conditions = [rule] }]
-        };
-
-        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
-        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
-        var errors = FilterScenarioValidator.Validate(oversized, Ready);
-        Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
-        Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == "text_set_values_too_many");
-    }
-
-    [Fact]
-    public void Parse_TextSetValueLimitPlusOne_ThrowsInvalidScenario()
-    {
-        var json = JsonSerializer.Serialize(new
-        {
-            name = "synthetic",
-            rationale = "bounded parser",
-            groups = new[]
-            {
-                new
-                {
-                    conditions = new[]
-                    {
-                        new
-                        {
-                            type = "textSet",
-                            field = "description",
-                            mode = "contains",
-                            normalization = "preserve",
-                            values = Enumerable.Range(0, FilterScenarioLimits.MaxTextSetValuesPerRule + 1)
-                                .Select(index => $"synthetic_{index}")
-                                .ToArray()
-                        }
-                    }
-                }
-            }
-        });
-
-        using var document = JsonDocument.Parse(json);
-        var exception = Assert.Throws<JetActionException>(
-            () => FilterScenarioPayloadParser.Parse(document.RootElement, moneyScale: 100));
-
-        Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
-        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
-        Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", exception.Message);
-        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "text_set_values_too_many"), FilterScenarioCorruption.ReasonsOf(exception));
-    }
-
     [Theory]
     [InlineData("matchScope")]
     [InlineData("type")]
-    [InlineData("mode")]
-    [InlineData("normalization")]
+    [InlineData("operator")]
     public void ParseAndValidate_PaddedClosedToken_FailsBeforePersistenceOrReadBack(string property)
     {
         // 合格的原文用 row，前後加空白的那一份要被擋下。
         const string canonical =
             """
             {"name":"synthetic","rationale":"closed tokens","groups":[{"matchScope":"row","conditions":[
-              {"join":"AND","type":"textSet","field":"description","values":["anchor"],"mode":"exact","normalization":"preserve"},
-              {"join":"AND","type":"textSet","field":"accountName","values":["evidence"],"mode":"contains","normalization":"preserve"}
+              {"join":"AND","type":"fieldValue","field":"description","operator":"in","values":["anchor"]},
+              {"join":"AND","type":"fieldValue","field":"accountName","operator":"contains","values":["evidence"]}
             ]}]}
             """;
         var padded = property switch
@@ -220,16 +90,12 @@ public sealed class AdvancedFilterAstContractTests
                 "\"matchScope\":\" row \"",
                 StringComparison.Ordinal),
             "type" => canonical.Replace(
-                "\"type\":\"textSet\"",
-                "\"type\":\" textSet \"",
+                "\"type\":\"fieldValue\"",
+                "\"type\":\" fieldValue \"",
                 StringComparison.Ordinal),
-            "mode" => canonical.Replace(
-                "\"mode\":\"exact\"",
-                "\"mode\":\" exact \"",
-                StringComparison.Ordinal),
-            "normalization" => canonical.Replace(
-                "\"normalization\":\"preserve\"",
-                "\"normalization\":\" preserve \"",
+            "operator" => canonical.Replace(
+                "\"operator\":\"in\"",
+                "\"operator\":\" in \"",
                 StringComparison.Ordinal),
             _ => throw new ArgumentOutOfRangeException(nameof(property), property, null)
         };
@@ -251,7 +117,7 @@ public sealed class AdvancedFilterAstContractTests
         var scenario = Parse(
             """
             {"name":"synthetic","rationale":"legacy row","groups":[{"join":"OR","conditions":[
-              {"join":"AND","type":"text","field":"description","keywords":"alpha","mode":"contains"},
+              {"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["alpha"]},
               {"join":"OR","type":"manualAuto","isManual":true}
             ]}]}
             """);
@@ -261,56 +127,6 @@ public sealed class AdvancedFilterAstContractTests
         Assert.Null(group.UnknownMatchScope);
         Assert.Equal(FilterJoin.Or, group.Conditions[1].Join);
         Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
-    }
-
-    // 讀回文字不寫「主要條件」與「同一傳票」的說明，這則只核對文字值清單的片語。
-    [Fact]
-    public void Renderer_TextSet_UsesBackendAuthorityPhrases()
-    {
-        using var document = JsonDocument.Parse(
-            """
-            {"groups":[{"matchScope":"row","conditions":[
-              {"type":"textSet","field":"description","values":["anchor"],"mode":"contains","normalization":"preserve"},
-              {"type":"textSet","field":"accountName","values":["evidence"],"mode":"exact","normalization":"removeAsciiSpaces"}
-            ]}]}
-            """);
-
-        var rendered = FilterConditionRenderer.Render(document.RootElement);
-
-        Assert.Contains("包含任一值", rendered, StringComparison.Ordinal);
-        Assert.Contains("完全符合任一值", rendered, StringComparison.Ordinal);
-        // 這句的用字已定案。
-        Assert.Contains("保留半形空白", rendered, StringComparison.Ordinal);
-        Assert.Contains("移除半形空白", rendered, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("filter-2026-08-14-v7")]
-    [InlineData("filter-2026-08-14-v8")]
-    [InlineData("filter-2026-08-14-v9")]
-    [InlineData("filter-2026-09-08-v13")]
-    [InlineData("filter-2026-09-17-v14")]
-    [InlineData("filter-2026-09-18-v15")]
-    [InlineData("filter-2026-09-18-v16")]
-    [InlineData("filter-2026-10-04-v17")]
-    [InlineData("filter-2026-10-06-v18")]
-    [InlineData("filter-2026-10-08-v19")]
-    public void FilterLogicVersion_IsV20AndV19OrEarlierDefinitionsAreStale(string savedVersion)
-    {
-        // 現行版本是 v20。較早版本保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
-        // 開案時若整批仍符合目前規則，會由 FilterScenarioRuleUpgrade 改成目前版本後再重算；
-        // 不符合時整批維持舊版本，查詢與匯出仍會擋下。
-        Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
-        var saved = new SavedFilterScenario(
-            1,
-            "synthetic",
-            "stale replay",
-            $$"""
-            {"populationScope":"auditPeriod","logicVersion":"{{savedVersion}}","groups":[]}
-            """,
-            DateTimeOffset.UtcNow);
-
-        Assert.False(RuleLogicVersions.IsCurrent(saved));
     }
 
     /* ---- 借貸組合雙側多選的 wire 形狀 ------------------------------------- */
@@ -372,7 +188,6 @@ public sealed class AdvancedFilterAstContractTests
                 HasAccountMapping = true,
                 HasAnyAccountCategory = true
             }),
-            // 這句的用字已定案，鎖整句。
             error => error == "第 1 組第 1 條：尚未選擇借方分類");
     }
 

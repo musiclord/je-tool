@@ -7,8 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 「預設審計員可信」的旅程驗收：審計員照設計流程操作，或在 JET 之外動了報告檔，案件都要能繼續。
-/// 起因是公司測試環境的 artifact_recovery_conflict；第一個測試就是那條事故路徑。
+/// 旅程測試：審計員照設計流程操作，或在 JET 之外動了報告檔，案件都要能繼續。
 /// </summary>
 public sealed class ReportTrustJourneyTests
 {
@@ -154,7 +153,7 @@ public sealed class ReportTrustJourneyTests
             "import.accountMapping.fromFile",
             JsonSerializer.Serialize(new { filePath = templatePath }));
 
-        // 再匯出報告。舊設計在這一步會因為範本檔和紀錄不符而中止並留下 journal，之後案件就打不開。
+        // 再匯出報告：範本檔和紀錄不符時，匯出照常完成，也不改動審計員存回的範本檔。
         await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
         Assert.Equal(filledTemplate, await File.ReadAllBytesAsync(templatePath));
 
@@ -172,7 +171,7 @@ public sealed class ReportTrustJourneyTests
         Assert.True(loaded.TryGetProperty("reports", out _));
         Assert.Equal(new[] { "infReport", "validationReport" }, loaded.GetProperty("reports").EnumerateArray()
             .Select(report => report.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
-        // 現行三種暫存檔的檢查用共用的寫法。
+        // 報告清單寫入時用的暫存報告、暫存清單與備份都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
     }
 

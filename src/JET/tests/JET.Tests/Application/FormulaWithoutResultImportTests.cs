@@ -5,8 +5,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 用其他工具產生的活頁簿，公式可能沒有存計算結果。JET 不重算公式，這些格子照舊匯入成空白，
-/// 每個用同一個讀取器的匯入入口都在既有的提醒裡寫出格數、第一格與下一步。活頁簿與值都是合成的。
+/// 用其他工具產生的活頁簿，公式可能沒有存計算結果。JET 不重算公式，這些格子匯入成空白；
+/// 每個用同一個讀取器的匯入入口都在匯入的提醒裡寫出格數、第一格與下一步。活頁簿與值都是合成的。
 /// </summary>
 public sealed class FormulaWithoutResultImportTests
 {

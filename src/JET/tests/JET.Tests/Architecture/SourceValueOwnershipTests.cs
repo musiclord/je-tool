@@ -51,11 +51,11 @@ public sealed class SourceValueOwnershipTests
     [
         new(MidpointRoundingRule, "AuditCore/JetAuditProgram.cs", 1,
             "金額分布的累計百分比取到顯示位數，算的是比例，不是金額。"),
-        new(MidpointRoundingRule, "AuditCore/PrescreenProgram.cs", 1,
+        new(MidpointRoundingRule, "AuditCore/JetAuditProgram.Prescreen.cs", 1,
             "預篩選的占比取到小數一位供畫面顯示，算的是比例，不是金額。"),
         new(DecimalTryParseRule, "Domain/Primitives/DateNormalizer.cs", 2,
             "判斷日期欄的內容是不是純數字；純數字不當成日期，沒有把它當金額使用。"),
-        new(DecimalTryParseRule, "Infrastructure/Export/WorkingPaperWriter.Step2To41.cs", 2,
+        new(DecimalTryParseRule, "Infrastructure/Export/WorkingPaperWriter.InfSamplingAndHighRisk.cs", 2,
             "寫底稿時把已經存進案件資料庫的數值文字寫成 Excel 的數值儲存格，要收科學記號，和來源金額的解析規則不同。")
     ];
 

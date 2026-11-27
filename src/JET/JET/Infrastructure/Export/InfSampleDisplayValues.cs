@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// INF 報告主表與底稿第二步共用的「借貸代號」與「分錄來源」；往下填補後改讀整理後的值。
-/// 分錄來源讀 GL 整理後的值，和同一列的傳票號碼及第 4-1 頁一致。借貸代號照 PBC-GL 原樣寫出；
+/// INF 報告主表與底稿 step2 可靠性測試共用的「借貸代號」與「分錄來源」；往下填補後改讀整理後的值。
+/// 分錄來源讀 GL 整理後的值，和同一列的傳票號碼及底稿 step4-1 符合高風險條件傳票明細一致。借貸代號照 PBC-GL 原樣寫出；
 /// 原始列空白而借貸別有往下填補時，依整理後的借貸方向寫已確認配對的借方或貸方代碼。
 /// 借貸別模式的金額正負號由代碼決定，所以整理後的方向就是填進去的代碼那一側；金額為 0 的列一律算借方，
 /// 看不出填的是哪一側，以及那一側沒有指定代碼時，都留白，不寫可能不對的代碼。
@@ -13,10 +13,10 @@ namespace JET.Infrastructure;
 /// </summary>
 internal sealed class InfSampleDisplayValues
 {
-    private readonly string? directionColumn;
-    private readonly string? debitCode;
-    private readonly string? creditCode;
-    private readonly bool directionFilledDown;
+    private readonly string? _directionColumn;
+    private readonly string? _debitCode;
+    private readonly string? _creditCode;
+    private readonly bool _directionFilledDown;
 
     public InfSampleDisplayValues(CommittedMapping? glMapping)
     {
@@ -25,10 +25,10 @@ internal sealed class InfSampleDisplayValues
             return;
         }
 
-        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCr, out directionColumn);
-        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCrDebitCode, out debitCode);
-        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCrCreditCode, out creditCode);
-        directionFilledDown = glMapping.GlOptions?.FillDownFields.Contains(GlMappingKeys.DrCr) == true;
+        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCr, out _directionColumn);
+        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCrDebitCode, out _debitCode);
+        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCrCreditCode, out _creditCode);
+        _directionFilledDown = glMapping.GlOptions?.FillDownFields.Contains(GlMappingKeys.DrCr) == true;
     }
 
     /// <summary>回傳這一列的借貸代號與分錄來源；raw 是同一列的 PBC-GL 原樣。</summary>
@@ -40,8 +40,8 @@ internal sealed class InfSampleDisplayValues
 
     private string? Direction(JsonElement raw, InfSampleRow sample)
     {
-        var original = ReadRawValue(raw, directionColumn);
-        if (!string.IsNullOrWhiteSpace(original) || !directionFilledDown
+        var original = ReadRawValue(raw, _directionColumn);
+        if (!string.IsNullOrWhiteSpace(original) || !_directionFilledDown
             || (sample.DebitScaled == 0 && sample.CreditScaled == 0))
         {
             return original;
@@ -49,8 +49,8 @@ internal sealed class InfSampleDisplayValues
 
         var code = sample.DrCr switch
         {
-            "DEBIT" => debitCode,
-            "CREDIT" => creditCode,
+            "DEBIT" => _debitCode,
+            "CREDIT" => _creditCode,
             _ => null
         };
         return string.IsNullOrWhiteSpace(code) ? original : code;

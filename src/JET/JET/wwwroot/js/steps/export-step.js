@@ -1,6 +1,6 @@
 /*
-  Step 5：匯出底稿。
-  使用者只選擇要納入的已存篩選情境；工作表組成、資料內容與專案內落點均由後端決定。
+  第六步：匯出底稿。
+  使用者只選擇要納入的已存篩選情境；工作表組成、資料內容與存放在案件資料夾的位置均由後端決定。
   wire 不傳工作表名稱、存檔路徑或實體檔案位置。
 */
 (function (global) {
@@ -179,11 +179,9 @@
     );
   }
 
-  /* 完成摘要。
-     「完成」不是獨立的步驟，只是這一步裡的完成狀態：
-     流程是六步（最後一步＝匯出底稿），STEPS、閘門、進度持久化與 action 語意都沒有「完成」這一步。
-     出現條件＝目前版本的工作底稿已產生（Ui.currentWorkingPaperReport），與左側進度、流程總覽同一個判斷。
-     條件篩選報告是獨立輸出，不是前置。 */
+  /* 完成摘要：目前版本的工作底稿已產生時（Ui.currentWorkingPaperReport），在這一步顯示完成狀態，
+     和左側進度、流程總覽用同一個判斷。流程只有六步，最後一步是匯出底稿；STEPS、閘門、進度持久化與 action
+     都沒有「完成」這一步。條件篩選報告是獨立輸出，不是前置。 */
   function completionSummaryHtml(criteriaReport, currentWorkingPaper) {
     if (!currentWorkingPaper) { return ''; }
     var tags = (criteriaReport ? ['條件篩選報告', '工作底稿'] : ['工作底稿']).map(function (kind) {
@@ -214,7 +212,7 @@
     var validationResultId = resultId(state.results.validate);
     var scenarioRevision = filterRevision(state);
     var needsScenarioResave = state.filter.savedScenarios.length > 0 && !scenarioRevision;
-    // 沒有已儲存的情境也能產生工作底稿，第三、四步留空，由審計員在底稿說明。
+    // 沒有已儲存的情境也能產生工作底稿，底稿的 step3 與 step4 留空，由審計員在底稿說明。
     var noScenario = state.filter.savedScenarios.length === 0;
     var criteriaReport = scenarioRevision
       ? Ui.findCurrentReport(state, 'criteriaSelectionReport', {
@@ -320,7 +318,7 @@
     });
   }
 
-  /* 匯出面的既有 action 序列編排。三個 action 的 payload、response 與判定語意都不變：
+  /* 匯出面依序呼叫三個 action：
      沒有現行 prescreen run 時先 prescreen.run，再 export.prescreenReport，最後 export.workingPaperStream。
      任一步失敗或取消就停止後續；已完成的 action 保留其產物，各 action 各自維持原子性。 */
   function exportPrescreenReportForRun(sourceResultId, project, payload) {

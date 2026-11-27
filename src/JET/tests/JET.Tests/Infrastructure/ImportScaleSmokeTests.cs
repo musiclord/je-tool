@@ -9,8 +9,7 @@ namespace JET.Tests.Infrastructure;
 /// <summary>
 /// 匯入規模煙霧測試（明確標註 smoke/scale，FIRST-Fast 豁免）。
 /// 斷言只鎖正確性（列數、欄位、首尾列身分）；耗時以 ITestOutputHelper 記錄，
-/// 不做時間斷言（wall-clock 斷言必然 flaky）。量測值供 140 萬列外插與
-/// development-log 的調校決策記錄。
+/// 不做時間斷言（執行時間不穩定）。量測值只寫進測試輸出，用來推估 140 萬列的匯入耗時。
 /// </summary>
 public sealed class ImportScaleSmokeTests(ITestOutputHelper output)
 {

@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 依賴方向鐵律的機器守衛：
+/// 檢查各層的依賴方向：
 /// <code>Bridge / Form1(Host) → Application → AuditCore → Domain ← Infrastructure</code>
 ///
 /// 正式程式全部型別同在單一組件 <c>JET.dll</c>，層級以「命名空間」界定
@@ -15,12 +15,12 @@ namespace JET.Tests.Architecture;
 /// <c>JET.Infrastructure</c> / <c>JET.Bridge</c>；
 /// 合成根 <c>JET</c>、Host 不在受測範圍，允許看見全部）。NetArchTest 以 Mono.Cecil 掃 IL 依賴，
 /// 因此連「在 handler 方法本體內 <c>new LocalXxxRepository()</c>」這種只在方法內部出現、
-/// 型別簽章看不到的違規也抓得到；各層之間的依賴方向由測試檢查，不只靠人工複核。
+/// 型別簽章看不到的違規也抓得到。
 ///
 /// 測試策略：以 <see cref="global::JET.Domain.JetActionException"/> 定位正式組件，避免誤載入測試組件本身。
-/// 每條 ShouldNot 都可能在「命名空間篩出空集合」時真空通過，故另立
-/// <see cref="NetArchTest_DetectsRealDependencies_PositiveControl"/> 作正向對照，
-/// 確認分析引擎真的讀到了 IL 依賴。
+/// 命名空間篩出的型別是空集合時，每條 ShouldNot 都會直接通過，所以另外用
+/// <see cref="NetArchTest_DetectsRealDependencies_PositiveControl"/> 做正向對照，
+/// 確認分析引擎真的讀到 IL 依賴。
 /// </summary>
 public class LayerDependencyTests
 {
@@ -128,7 +128,7 @@ public class LayerDependencyTests
 
     /// <summary>
     /// Bridge 只做 WebMessage 傳輸與 action 分派，依賴 Application/Domain，**不得**依賴 Infrastructure
-    /// （wire 契約與 provider 實作之間不可短路）。合成根 <c>JET</c> 與 Host 不在此命名空間內，不受此規束。
+    /// （wire 契約與 provider 實作之間不可短路）。合成根 <c>JET</c> 與 Host 不在此命名空間內，不受這條限制。
     /// </summary>
     [Fact]
     public void Bridge_ShouldNot_DependOn_Infrastructure()
@@ -169,7 +169,7 @@ public class LayerDependencyTests
     /// <summary>
     /// 正向對照，用來確認這組檢查本身有效：若分析引擎正常，Application 內「依賴 Domain」的型別必為非空
     /// （大量 handler 都注入並使用 Domain 契約）。這條若失敗，代表 NetArchTest 根本沒讀到 IL 依賴，
-    /// 上面三條 ShouldNot 便全數形同虛設（空集合真空通過）。
+    /// 上面各條 ShouldNot 都會因為篩出空集合而直接通過。
     /// </summary>
     [Fact]
     public void NetArchTest_DetectsRealDependencies_PositiveControl()

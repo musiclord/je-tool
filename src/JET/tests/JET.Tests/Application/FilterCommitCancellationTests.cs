@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// filter.commit 的整批 commit 邊界：caller token 必須原樣傳入原子 commit port；
-/// commit port 回報取消或錯誤時不得把案件步驟推進到 Step 5，也不得改寫原始例外。
+/// commit port 回報取消或錯誤時不得把案件步驟推進到第六步（CurrentStep 5），也不得改寫原始例外。
 /// 真實資料庫的 definitions + hits rollback 由 Infrastructure transaction tests 證明。
 /// </summary>
 public sealed class FilterCommitCancellationTests
@@ -247,7 +247,7 @@ public sealed class FilterCommitCancellationTests
 
     private sealed class FixedMappingStore(string projectId) : IMappingStateStore
     {
-        private readonly CommittedMapping mapping = new(
+        private readonly CommittedMapping _mapping = new(
             DatasetKind.Gl,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -275,7 +275,7 @@ public sealed class FilterCommitCancellationTests
             Task.FromResult<CommittedMapping?>(
                 string.Equals(requestedProjectId, projectId, StringComparison.Ordinal)
                     && kind == DatasetKind.Gl
-                        ? mapping
+                        ? _mapping
                         : null);
     }
 

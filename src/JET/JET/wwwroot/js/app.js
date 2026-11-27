@@ -1,8 +1,8 @@
 /*
   前端殼層與啟動入口（bootstrap boundary）。
-  持有：主渲染迴圈、專案選擇畫面、步驟導航、訊息區、啟動流程。
+  持有：主渲染迴圈、案件清單畫面、步驟導航、訊息區、啟動流程。
   共用核心在 js/ui-core.js（JetUi）；各步驟渲染器在 js/steps/*.js 自行註冊；
-  本檔不承載任何權威業務規則。
+  本檔不放任何業務規則，業務規則以後端為準。
 */
 (function (global) {
   'use strict';
@@ -146,7 +146,7 @@
 
   // 對話框堆疊讓一次 Escape 只關最上層，不會把同時開著的兩層一起關掉：刪除案件對話框、「尚未儲存」對話框與流程總覽
   // 開啟時登記元素與關閉函式，關閉時移除；整個頁面只有這一個捕獲階段的鍵盤監聽，Escape 與 Tab 只交給最上層。
-  // 原生 <dialog> 開著時不處理，這是防衛用：目前畫面沒有原生對話框，日後若加入用 showModal 開的對話框，鍵盤交給它。登記的元素已經不在畫面上（例如清單重繪把對話框一起換掉）時這筆不算；
+  // 原生 <dialog> 開著時不處理，鍵盤交給用 showModal 開的對話框；目前畫面沒有原生對話框，這段是防衛用。登記的元素已經不在畫面上（例如清單重繪把對話框一起換掉）時這筆不算；
   // entry.active 回 false 時也不處理，總覽用它在作業進行中把鍵盤留給作業遮罩的「取消作業」。
   var dialogStack = [];
   var dialogStackListening = false;
@@ -436,14 +436,14 @@
     return '身分：' + user.principal;
   }
 
-  /* ---- 專案選擇畫面 ----------------------------------------------------- */
+  /* ---- 案件清單畫面 ----------------------------------------------------- */
 
   // Phosphor 風 inline SVG（bold/fill，非 thin-line 圖庫、非 emoji）。
   var ICON_TRASH =
     '<svg viewBox="0 0 256 256" width="16" height="16" fill="currentColor" aria-hidden="true">' +
     '<path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16ZM96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Zm48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Z"></path></svg>';
 
-  // 目前只支援 SQLite 案件，清單也只列 SQLite 案件。
+  // 只支援 SQLite 案件，清單也只列 SQLite 案件。
   function providerText(provider) {
     if (!provider) { return '資料庫種類尚未確認'; }
     return 'SQLite';
@@ -466,7 +466,7 @@
     });
   }
 
-  // 單列專案卡片（provider 小徽章保留）。
+  // 單列案件卡片，帶資料庫種類的小徽章。
   function projectRowHtml(p) {
     var displayName = p.projectId;
     var clientName = p.clientName
@@ -487,7 +487,7 @@
               projectCode +
               '<span class="project-provider ' + providerClass(p.databaseProvider) + '">' +
                 Ui.esc(providerText(p.databaseProvider)) + '</span>' +
-              // 後端的原因已是完整句子，不再加前綴。
+              // 後端的原因已是完整句子，前面不另加前綴。
               (p.loadError ? '<span class="project-row__load-error" role="status">' +
                 Ui.esc(p.loadError.message || '案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。') + '</span>' : '') +
               '<span class="project-row__when">' + Ui.esc(pickerWhen(p)) + '</span>' +
@@ -517,7 +517,7 @@
 
   // 案件清單看不到訊息面板，所以另放一個「輸出支援日誌」。
   // 它只給開發人員用，和 DEV 面板一樣只在 Debug 組建出現（system.ping.devToolsEnabled），
-  // 放在卡片外的頁尾。開案後訊息面板的「輸出支援日誌」在 Release 照舊。
+  // 放在卡片外的頁尾。開案後訊息面板的「輸出支援日誌」在 Release 也有。
   // 不帶 projectId：後端匯出全部去識別紀錄到 logs 資料夾。剛發生開案或刪除失敗時，
   // 原始診斷日誌的出口也放在頁尾，並帶同一次 correlation。
   function pickerFooterHtml(state) {
@@ -550,7 +550,7 @@
     if (key === lastPickerKey) { return; }
     lastPickerKey = key;
 
-    // 後端只列 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件不列出。
+    // 後端只列 SQLite 案件；DuckDB 與 SQL Server 的案件不列出。
     var localRows = state.projects.map(function (p) { return projectRowHtml(p); });
     var localBody = localRows.length
       ? localRows.join('')
@@ -663,7 +663,7 @@
       if (restoreFocus && target) { restoreProjectDeleteFocus(target); }
     }
 
-    // 開案與新增皆是原生 button；鍵盤 Enter／Space 交給瀏覽器，不再手寫第二次觸發。
+    // 開案與新增都是原生 button；鍵盤的 Enter 與 Space 交給瀏覽器處理，不另外手寫觸發。
     container.querySelectorAll('[data-action="picker-open"], [data-action="picker-new"]').forEach(function (row) {
       var isNew = row.getAttribute('data-action') === 'picker-new';
       var activate = isNew
@@ -1015,7 +1015,7 @@
     if (pres.status === 'current') {
       // 標題旁的狀態字和流程總覽同一階段的狀態字相同，由 overviewStageStatus 判斷，不另寫一套。
       var statusWord = Ui.esc(OVERVIEW_STAGE_STATUS[overviewStageStatus(state, index)]);
-      // 手動收合：一行摘要；否則展開，body 交給既有步驟渲染器。
+      // 手動收合：一行摘要；否則展開，body 交給各步驟的渲染器。
       if (state.stepFlowCollapsed) {
         return (
           '<div class="stepflow-item stepflow-item--current stepflow-item--collapsed" ' +
@@ -1366,7 +1366,7 @@
     var stepScrollKey = state.view + '|' + current.id;
     var stepChanged = stepScrollKey !== lastStepScrollKey;
 
-    // 換步驟像同一排的展開區，展開與收合要一致（完成的步驟列和目前步驟一樣有展開箭頭）：
+    // 換步驟像同一排的展開區，展開與收合的樣子一致，完成的步驟列和目前步驟一樣有展開箭頭：
     // 原本那一步的內容收回它的那一列，新的一步從標題長出來。
     // 只在流程畫面裡換步驟時這樣做；從案件清單開啟案件時直接顯示。
     // 長到一半或收到一半又整段重繪時（例如換步驟後讀回的資料），從此刻的進度接著播。
@@ -1397,7 +1397,7 @@
         }
       }
 
-      // 展開的當前步驟：把 body 元素交給既有已註冊渲染器。
+      // 展開的當前步驟：把 body 元素交給已註冊的步驟渲染器。
       if (!state.stepFlowCollapsed) {
         var body = container.querySelector('.stepflow-item--current .stepflow-item__body');
         if (body) { Ui.renderStep(current.id, body, state); }
@@ -1614,7 +1614,7 @@
   }
 
   // 訊息分三級：錯誤與需要注意在時間前面加一個符號，另加只給讀屏軟體的等級文字；
-  // 一般說明沒有符號。.messages__text 的內容與位置不變（Gui 驅動從它找「支援日誌已輸出」）。
+  // 一般說明沒有符號。.messages__text 只放訊息本文，不含等級符號與時間。
   var MESSAGE_LEVEL_NAMES = { error: '錯誤：', warn: '需要注意：' };
 
   function messageLevel(level) {
@@ -1804,7 +1804,7 @@
   }
 
   // 抬頭只保留審計員當下辨識案件所需的案件名稱與期間；資料庫放在收合的「其他資訊」。
-  // 1) 抬頭：mono eyebrow ＋ serif 案件標題 ＋ 基準行 ＋ ✕；底部 2px 實線（CSS）。
+  // 1) 抬頭：小標、案件標題、基準行與 ✕；底部一條 1px 細線（CSS）。
   // 標題放審計員最先要認的名字：有客戶名稱用客戶名稱，沒有就用案件名稱；「分錄測試」放進小標，
   // 不用破折號接在名字後面。標題已是案件名稱時，基準行不再重複寫一次。
   function overviewHeadHtml(state) {
@@ -1837,7 +1837,7 @@
   /* GL 的組成：一欄一個明確事實，四欄皆直接鏡射 validate.run 的
      stats 欄位，前端不做任何聚合或換算。未執行驗證時整段以空狀態取代，
      以骨架標籤預示版位，不塞提示文字、不顯示 0 冒充「已核對為零」。
-     完整的母體完整性核對清單仍只在步驟「資料驗證與測試」呈現——那裡是唯一權威判定面；
+     完整的母體完整性核對清單仍只在步驟「資料驗證與測試」呈現——判定只以那一步為準；
      總覽只鏡射目前有效的母體基礎，不複製判定或流程操作。 */
   function overviewPopulationEmptyHtml(state) {
     return (
@@ -2048,8 +2048,8 @@
     );
   }
 
-  // 其他資訊只留資料庫：執行識別碼與規則版本是程式內部的代號，報告上也沒有，
-  // 不顯示；兩者仍存在案件資料裡。
+  // 其他資訊只顯示資料庫：執行識別碼與規則版本是程式內部的代號，報告上也沒有，
+  // 所以不顯示；兩者記在案件資料裡。
   function overviewTechnicalHtml(state) {
     var provider = state.project ? providerText(state.project.databaseProvider) : '—';
     return (
@@ -2323,7 +2323,7 @@
 
   /* ---- 訊息持久化（log.append） ------------------------------- */
 
-  // 以 id 水位增量持久化：無 active project 的訊息（專案選擇畫面）只推進觀察水位不落庫；
+  // 以 id 水位增量持久化：無 active project 的訊息（案件清單畫面）只推進觀察水位不落庫；
   // fromLog（log.recent 還原的歷史）不回寫，避免重複。append 以單一 promise queue 保序，
   // 只有後端確認後才推進持久化水位；暫時性失敗保留重試。格式拒收已由 dispatcher 寫入支援日誌，跳過該筆。
   // 自動寫入在作業進行中先暫停：長作業的寫入交易占著案件資料庫，這時寫訊息要等它結束，超過逾時就失敗，
@@ -2359,7 +2359,7 @@
           return drain();
         }, function (error) {
           if (!error || error.code !== 'invalid_payload') { throw error; }
-          // 後端已在回覆錯誤前記錄 action.error；不再用 addMessage 遞迴製造另一筆訊息。
+          // 後端已在回覆錯誤前記錄 action.error，這裡不用 addMessage 另外記一筆，也避免遞迴。
           // 只略過確定無法接受的格式，不把 I/O、忙碌或傳輸失敗當成已保存。
           pendingMessageWrites.shift();
           return drain();
@@ -2393,7 +2393,7 @@
     }
   }
 
-  // 案件名稱（projectId）是唯一必要識別；案件編號已是選填，留空時複製出的紀錄仍要能辨識案件。
+  // 案件名稱（projectId）是唯一必要識別；案件編號是選填，留空時複製出的紀錄仍要能辨識案件。
   function messageLogIdentity(project) {
     return {
       projectId: project && project.projectId != null ? project.projectId : '',
@@ -2503,7 +2503,7 @@
 
   // 匯出進度只鏡射後端 export.progress 事件回報的實際里程碑；phase 不代表成功，也沒有可推算的總量或比例。
   // Payload 不完整、帶有未知欄位，或 phase／工作表語意不合法時安靜忽略，避免 busy chrome
-  // 把不在公開契約內的資料呈現成權威狀態。
+  // 把不在公開契約內的資料當成確定的狀態呈現。
   function formatExportProgress(progress) {
     if (!progress || typeof progress !== 'object' || Array.isArray(progress)) { return null; }
 
@@ -2569,7 +2569,7 @@
   }
 
   /* ---- 按下的光（純呈現） -------------------------------------------------------
-     按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉。這是依 Apple Liquid Glass 的理念調整：
+     按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉。這依照 Apple Liquid Glass 的做法：
      材質在被按下時從裡面亮起來，告訴使用者按到了。這裡只記下按下的位置，亮光由 app.css 的 :active::after 畫出；
      用鍵盤按下時清掉位置，光從按鈕中央亮起。只寫 CSS 變數，不改 state、不送 action。 */
   function bindPressLight() {
@@ -2591,7 +2591,7 @@
   }
 
   /* ---- 玻璃標題列的高度（純呈現） -------------------------------------------------
-     整個 JE Tool 要帶有 Liquid Glass 的質感，所以標題列是一片玻璃，流程欄、中欄、資料預覽與案件清單
+     整個 JE Tool 用 Liquid Glass 的質感，所以標題列是一片玻璃，流程欄、中欄、資料預覽與案件清單
      都從視窗頂端開始，上緣藏在標題列下面。標題列一列或兩列的高度不同，這裡量出它的下緣，寫入 .app-shell 的 --chrome-h，
      app.css 依它讓出各欄的上內距與 scroll-padding-top。內容捲到標題列下面時，在 .app-shell 加 data-under-chrome，
      標題列的影子加深。只改呈現，不改 state、不送 action。 */
@@ -2642,7 +2642,7 @@
      選取底由 app.css 的 .has-glide::before 畫。很多選項組換選取時會整段重繪，所以每組記住上一次的位置：
      同一批重繪裡在原地換上的新組，從舊的一組此刻看到的位置滑過去；一組消失後再出現、出現在別的位置，或視窗大小與字型改變時，
      就直接放好，不滑動。Windows 高對比佈景不加 .has-glide，選中的樣式由 app.css 用系統色畫。
-     整個 JE Tool 要帶有 Liquid Glass 的質感，所以滑動照 Apple 控制項的做法：
+     整個 JE Tool 用 Liquid Glass 的質感，所以滑動照 Apple 控制項的做法：
      選取在滑動時浮起來變成玻璃（組的 ::after），朝目的地拉長，前緣先到、後緣跟上，到位後落回原本的一片（組的 ::before）。
      底線頁籤（line: true）只有底線滑過去，也是前緣先到。路徑在這裡算好交給瀏覽器播放，滑到一半又重繪時，從當下看到的形狀接著滑。
      流程欄（rigid: true）不浮起也不拉長：放大縮小過於醒目，要維持原本的樣子與相同的寬度，
@@ -2985,11 +2985,11 @@
      stiffness 是 (2π ÷ duration)²，阻尼比是 1 − bounce。被下一個操作打斷時，從此刻的位置與速度接著走向新的目標，
      不會頓一下再從零速重新起跑。人機介面指引 Motion 說 Liquid Glass 用觸控板操作時的反應比直接觸控收斂，用滑鼠操作的 JET 跟著收斂，所以時間比 Apple 預設的 0.5 秒短一點。
      app.css 的 --ease-spring 與 --motion-* 是同一組參數算出來的，兩邊要一起改。
-     長出來與收起來的時間短一點，字的淡入淡出較早開始、較快完成，免得淡入淡出顯得太慢。
+     長出來與收起來用下面 SPRINGS 的 open 與 close；字的淡入淡出不等版面動完就開始，很快完成，免得顯得太慢。
      移除或清除東西時，要收起的那一個先輕微快速地晃一下再收起來：shake 是一條會來回的彈簧，
      從原位帶著速度出發，左右晃兩下半就停（約 0.2 秒），見下面 JetMotion 的 removing。 */
   // 動態不能拖累進階條件篩選的操作，所以時間偏短。不回彈的彈簧形狀都一樣、只差時間長短，
-  // 所以各動態的時間同比例縮放，彼此之間的節奏不變。選取與帶過去的標籤約 0.3 秒，看得出從哪裡到哪裡，
+  // 所以各動態用同一個比例取短，彼此的快慢順序一致。選取與帶過去的標籤約 0.3 秒，看得出從哪裡到哪裡，
   // 不會一閃而過；收起的字先淡出，不需要看清去向，所以可以短到 0.22 秒。
   // Apple 的玻璃在互動時帶一點彈性，「減少動態效果」才把彈性關掉，所以動態分成兩種性格：
   // - 玻璃層被操作的東西用 bounce 0.15，接近 Apple 的 snappy：分段切換的玻璃選取、加入時帶過去的玻璃標籤，
@@ -3137,7 +3137,7 @@
 
   var Motion = (function () {
     // 舊複本只留下樣式用得到的 data- 屬性，其餘拿掉，程式與測試才找不到它。樣式要用的識別優先掛在 class 上；
-    // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗，免得複本露出原形。
+    // app.css 用到這裡沒留的屬性時，架構測試 AppearanceFrontendTests 會失敗，免得複本露出原形。
     var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|common-card$|step-index$|child-|period-end-days$)/;
     var DROP_ON_LEAVING = ['id', 'name', 'for', 'form', 'aria-controls', 'aria-describedby', 'aria-labelledby',
       'aria-owns', 'aria-activedescendant', 'aria-live', 'tabindex'];
@@ -4485,7 +4485,7 @@
   global.JetMotion = Motion;
 
   /* ---- 加入的東西從哪裡來、到了哪裡（純呈現） ---------------------------------------------------
-     動態要多參考 Apple 的設計思路，所以第五步按常用篩選條件的卡片、欄位選單裡的常用查法或「加入」時，
+     第五步按常用篩選條件的卡片、欄位選單裡的常用查法或「加入」時，
      看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。做法是拿起、帶過去、放下：
      - 按下時，一片小小的玻璃標籤在按下的名稱上浮起來，上面寫的就是新的一列的標題；
      - 標籤大小不變，沿直線移到新的一列的標題上，用上面的 SPRINGS.carry：玻璃的彈簧從靜止起步，起步俐落，約 0.24 秒到標題上
@@ -4834,7 +4834,7 @@
       });
     }
 
-    // 長作業進度只更新 busy chrome；最終權威仍是 action response。
+    // 長作業進度只更新 busy chrome；最終結果以 action 回應為準。
     if (global.JetApi && typeof global.JetApi.on === 'function') {
       global.JetApi.on('import.progress', function (progress) {
         if (!progress) { return; }

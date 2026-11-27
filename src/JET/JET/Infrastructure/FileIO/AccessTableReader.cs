@@ -9,9 +9,9 @@ namespace JET.Infrastructure;
 /// <summary>使用既有 Office ACE 讀取本機 Access 一般資料表，不開啟 Access 視窗或執行查詢及巨集。</summary>
 public sealed class AccessTableReader : ITabularFileReader
 {
-    private readonly Func<string, DbConnection> connect;
+    private readonly Func<string, DbConnection> _connect;
     public AccessTableReader() : this(CreateConnection) { }
-    internal AccessTableReader(Func<string, DbConnection> connect) => this.connect = connect;
+    internal AccessTableReader(Func<string, DbConnection> connect) => this._connect = connect;
     public bool Supports(string filePath) => Path.GetExtension(filePath).ToLowerInvariant() is ".mdb" or ".accdb";
 
     public async Task<TabularFileInspection> InspectAsync(string filePath, CancellationToken cancellationToken)
@@ -72,7 +72,7 @@ public sealed class AccessTableReader : ITabularFileReader
         DbConnection? connection = null;
         try
         {
-            connection = connect(path);
+            connection = _connect(path);
             connection.Open();
             ct.ThrowIfCancellationRequested();
             return connection;

@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// query.infSamplePage 走訪驗收。
+/// query.infSamplePage 走訪測試。
 /// 每測試自建 host(validate.run 改狀態,不可共用唯讀 fixture)。
 ///
 /// 設計技術:狀態轉換(validate.run 落地樣本 → 走訪)+ recount oracle。

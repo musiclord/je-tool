@@ -19,7 +19,7 @@ internal enum FormalWorkbookLayout
     /// </summary>
     SameAsExcel,
 
-    /// <summary>小活頁簿其餘的項目照 Open XML SDK 寫出的樣子複製，不整理；隱藏的中繼資料工作表照原來的寫法，不加 dimension。</summary>
+    /// <summary>小活頁簿其餘的項目照 Open XML SDK 寫出的樣子複製，不整理；隱藏的中繼資料工作表也不加 dimension。</summary>
     AsWritten
 }
 
@@ -100,7 +100,7 @@ internal sealed class FormalWorkbookArchive : IDisposable
 
     /// <summary>
     /// <paramref name="package"/> 寫進的正式輸出檔收集共用字串的地方；不屬於正式輸出，或正式輸出選了
-    /// <see cref="FormalWorkbookLayout.AsWritten"/> 時回傳 null，文字照舊寫成 inline string。
+    /// <see cref="FormalWorkbookLayout.AsWritten"/> 時回傳 null，文字寫成 inline string。
     /// </summary>
     internal static WorkbookSharedStrings? SharedStringsOf(OpenXmlPackage package)
     {
@@ -117,7 +117,7 @@ internal sealed class FormalWorkbookArchive : IDisposable
 
     /// <summary>
     /// 打開一張工作表的內容來寫，呼叫端寫完後要關閉回傳的串流。這張工作表屬於正式輸出時，內容直接壓縮進輸出檔；
-    /// 不屬於正式輸出的活頁簿，照舊寫回工作表自己的 part。
+    /// 不屬於正式輸出的活頁簿，寫回工作表自己的 part。
     /// 直接寫進這個串流的內容不經過 XML 寫出程式，參照共用字串表的格子不會算進共用字串表的 count，
     /// 所以只給寫成 inline string 的工作底稿用；其他輸出用 <see cref="OpenWorksheetWriter"/>。
     /// </summary>

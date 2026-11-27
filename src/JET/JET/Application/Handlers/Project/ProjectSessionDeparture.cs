@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// 離開開著的案件：放掉它的工作鎖、離開 session，再關閉它的資料庫連線，記錄檔併回資料庫檔。
+/// 離開開著的案件：放掉它的案件鎖、離開 session，再關閉它的資料庫連線，記錄檔併回資料庫檔。
 /// project.releaseLock 用 <see cref="LeaveAsync"/> 離開案件；開啟另一個案件與建立新案件時，新的案件開成之後、
-/// 進入 session 之前，用 <see cref="LeaveOtherProjectAsync"/> 離開還開著的案件，否則前一個案件的工作鎖與資料庫連線會一直留到 JET 關閉。
+/// 進入 session 之前，用 <see cref="LeaveOtherProjectAsync"/> 離開還開著的案件，否則前一個案件鎖與資料庫連線會一直留到 JET 關閉。
 /// 新的案件開不成時不離開，目前的案件照樣開著。
 /// </summary>
 internal sealed class ProjectSessionDeparture(
@@ -16,7 +16,7 @@ internal sealed class ProjectSessionDeparture(
     ILogger<ProjectSessionDeparture>? logger = null)
 {
     /// <summary>
-    /// 工作鎖放成功了才離開 session；<paramref name="leaveSession"/> 只在目前案件仍是 <paramref name="projectId"/> 時才清掉它。
+    /// 案件鎖放成功了才離開 session；<paramref name="leaveSession"/> 只在目前案件仍是 <paramref name="projectId"/> 時才清掉它。
     /// 放鎖失敗或被取消時往外丟，session 保留，審計員可以再試一次。
     /// </summary>
     internal static async Task LeaveAsync(

@@ -290,7 +290,6 @@ public sealed class OperationMonitorTests
 
     /// <summary>
     /// 支援日誌會交給開發者，不帶工作表名稱；進度靠階段、完成幾張表與寫了幾列判斷。
-    /// 底稿的說明頁名稱含有產品名稱，帶進支援日誌會和匯出檔的內容檢查衝突。
     /// </summary>
     [Theory]
     [InlineData("JE WorkingPaper說明")]

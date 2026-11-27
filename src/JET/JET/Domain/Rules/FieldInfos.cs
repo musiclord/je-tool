@@ -83,8 +83,7 @@ internal sealed class FieldInfoAccumulator
     {
         if (row.FieldObservations.Count == 0)
         {
-            // 測試、既有 caller 與 provider adapter 可能只提供 Values；這條相容縫固定視為文字，
-            // 不從字串內容猜數字或日期。
+            // 列裡沒有欄位型態的觀察、只有 Values 時，每個值一律當成文字，不從字串內容猜數字或日期。
             foreach (var value in row.Values)
             {
                 Observe(new TabularCellObservation(

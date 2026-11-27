@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 本地跨程序檔案鎖的 Infrastructure 驗收。兩個 service 各持有獨立 FileStream，可在同一測試程序內驗證
+/// 本地跨程序檔案鎖的 Infrastructure 測試。兩個 service 各持有獨立 FileStream，可在同一測試程序內驗證
 /// FileShare.None 的程序間等價行為。
 /// </summary>
 public sealed class LocalFileLockServiceTests

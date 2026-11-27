@@ -4,7 +4,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// GL 必填文字欄整欄空白的偵測，和 TB 的 <c>TbMappedColumnAudit</c> 一樣由欄位目錄產生欄位清單與查詢，
-/// GL 倉儲呼叫 <c>GlMappedColumnAudit.ReadAsync</c>，不自己手寫四個欄位。這裡只檢查本機倉儲。
+/// GL 倉儲呼叫 <c>GlMappedColumnAudit.ReadAsync</c>，不自己手寫四個欄位。
 /// </summary>
 public sealed class GlMappedColumnAuditOwnershipTests
 {

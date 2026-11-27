@@ -18,7 +18,7 @@ public sealed class JetAuditProgramTests
         Assert.False(verdict.IsApplicable);
         Assert.Equal("completeness_test", verdict.Definition.Slug);
         Assert.Equal(ValidationProcedures.MissingTbMappingReason, verdict.NaReason);
-        // 鎖定完整原因與單一 N/A 判定；兩種原因句的用字已定案。
+        // 核對完整原因與單一 N/A 判定。
         Assert.Equal("TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。", verdict.NaReason);
         Assert.Equal(
             "沒有匯入 TB，無法執行 GL 與 TB 逐科目比對。",

@@ -65,7 +65,7 @@ internal static class ExcelText
 
     /// <summary>
     /// 把 <paramref name="cell"/> 寫成 inline string，不論活頁簿有沒有共用字串表；超過每格上限時截斷，記在這張工作表的截斷格數。
-    /// 給工作底稿這類仍寫成 inline string 的輸出用。
+    /// 給工作底稿這類寫成 inline string 的輸出用。
     /// </summary>
     public static void SetInlineText(Cell cell, string value, WorksheetPart part)
     {

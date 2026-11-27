@@ -11,9 +11,9 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class DemoDataFactoryTests
 {
-    // 第五步「依審計目的」的「較少使用的科目」「編製分錄較少的人員」加入時預設 11 筆以下（前端 ui-core.js 的 PRESCREEN_DEFAULTS）。
+    // 第五步欄位條件的「較少使用的科目」「編製分錄較少的人員」加入時預設 11 筆以下（前端 ui-core.js 的 PRESCREEN_DEFAULTS）。
     // 第四步照舊版沒有同樣門檻的兩條規則，後端沒有這個常數；範例資料仍照這個預設安排較少使用的人員與科目。
-    private const int StepFiveDefaultMaxEntries = 11;
+    private const int FilterRareAccountAndPreparerDefaultMaxEntries = 11;
 
     [Fact]
     public void Create_ReturnsExactScale()
@@ -115,7 +115,7 @@ public sealed class DemoDataFactoryTests
 
         var lowFreq = data.GlRows
             .GroupBy(r => r.AccountNumber)
-            .Where(g => g.Count() <= StepFiveDefaultMaxEntries)
+            .Where(g => g.Count() <= FilterRareAccountAndPreparerDefaultMaxEntries)
             .ToList();
 
         Assert.Equal(DemoDataFactory.RareAccountCount, lowFreq.Count);
@@ -131,7 +131,7 @@ public sealed class DemoDataFactoryTests
 
         var lowFreq = data.GlRows
             .GroupBy(r => r.CreatedBy)
-            .Where(g => g.Count() <= StepFiveDefaultMaxEntries)
+            .Where(g => g.Count() <= FilterRareAccountAndPreparerDefaultMaxEntries)
             .ToList();
 
         Assert.Single(lowFreq);
@@ -147,7 +147,7 @@ public sealed class DemoDataFactoryTests
 
         Assert.DoesNotContain(DemoDataFactory.NonAuthorizedPreparer, data.AuthorizedPreparers);
         var entries = data.GlRows.Count(r => r.CreatedBy == DemoDataFactory.NonAuthorizedPreparer);
-        Assert.True(entries > StepFiveDefaultMaxEntries, $"非授權者列數應 > 11,實際 {entries}");
+        Assert.True(entries > FilterRareAccountAndPreparerDefaultMaxEntries, $"非授權者列數應 > 11,實際 {entries}");
         Assert.Equal(DemoDataFactory.NonAuthorizedVouchers * DemoDataFactory.LinesPerVoucher, entries);
     }
 

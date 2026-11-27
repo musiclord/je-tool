@@ -1,6 +1,6 @@
 {
   "title": "單元測試報告",
-  "date": "2026-11-25",
+  "date": "2026-11-27",
   "status": "passed",
   "runId": "",
   "receipt": "",
@@ -15,23 +15,23 @@
     "node": "26",
     "coverageTool": "Microsoft.Testing.Extensions.CodeCoverage"
   },
-  "exitCriteria": "上列命令執行的測試案例全數通過，無失敗與略過。",
+  "exitCriteria": "上列命令執行的測試案例全數通過。",
   "steps": [
     {
       "name": "public-tests",
       "status": "passed",
-      "total": 5765,
-      "executed": 5765,
-      "passed": 5765,
+      "total": 5609,
+      "executed": 5609,
+      "passed": 5609,
       "failed": 0,
       "skipped": 0
     },
     {
       "name": "frontend-tests",
       "status": "passed",
-      "total": 1129,
-      "executed": 1129,
-      "passed": 1129,
+      "total": 1110,
+      "executed": 1110,
+      "passed": 1110,
       "failed": 0,
       "skipped": 0
     }
@@ -95,8 +95,8 @@
         "EntityFrequencyWorkflowTests",
         "AuditLogicCaseTests"
       ],
-      "total": 222,
-      "passed": 222,
+      "total": 217,
+      "passed": 217,
       "failed": 0
     },
     {
@@ -107,14 +107,14 @@
         "DemoRuleOracleTests",
         "AuditLogicCaseTests"
       ],
-      "total": 48,
-      "passed": 48,
+      "total": 43,
+      "passed": 43,
       "failed": 0
     }
   ],
   "reviewCases": {
     "testClass": "AuditLogicCaseTests",
-    "date": "2026-11-25",
+    "date": "2026-11-27",
     "definitionSha256": "350f362690573d4835a8eff3021dbca9b18dd9febfc7f30b2da4dda12a1e3992",
     "results": {
       "POP-01": "passed",
@@ -314,20 +314,20 @@
     }
   },
   "coverage": {
-    "covered": 45717,
-    "total": 49070,
+    "covered": 45039,
+    "total": 48345,
     "modules": [
       {
         "module": "Application",
-        "covered": 10268,
-        "total": 10781,
-        "rate": 0.9524162879139226
+        "covered": 10113,
+        "total": 10625,
+        "rate": 0.9518117647058824
       },
       {
         "module": "AuditCore",
-        "covered": 3983,
-        "total": 4146,
-        "rate": 0.9606849975880367
+        "covered": 3825,
+        "total": 3979,
+        "rate": 0.9612968082432772
       },
       {
         "module": "Bridge",
@@ -337,28 +337,28 @@
       },
       {
         "module": "Domain",
-        "covered": 5782,
-        "total": 5989,
-        "rate": 0.9654366338286859
+        "covered": 5600,
+        "total": 5802,
+        "rate": 0.9651844191658049
       },
       {
         "module": "Infrastructure",
-        "covered": 24737,
-        "total": 26718,
-        "rate": 0.9258552286847818
+        "covered": 24555,
+        "total": 26504,
+        "rate": 0.9264639299728343
       },
       {
         "module": "Host",
-        "covered": 651,
-        "total": 1066,
-        "rate": 0.6106941838649156
+        "covered": 650,
+        "total": 1065,
+        "rate": 0.6103286384976526
       }
     ],
     "files": [
       {
         "path": "src/JET/JET/AppCompositionRoot.Repositories.cs",
-        "covered": 204,
-        "total": 204,
+        "covered": 203,
+        "total": 203,
         "rate": 1.0
       },
       {
@@ -765,9 +765,9 @@
       },
       {
         "path": "src/JET/JET/Application/Support/FilterConditionRenderer.cs",
-        "covered": 391,
-        "total": 406,
-        "rate": 0.9630541871921182
+        "covered": 329,
+        "total": 344,
+        "rate": 0.9563953488372093
       },
       {
         "path": "src/JET/JET/Application/Support/FilterConditionSqlRenderer.cs",
@@ -777,9 +777,9 @@
       },
       {
         "path": "src/JET/JET/Application/Support/FilterConditionWireFields.cs",
-        "covered": 92,
-        "total": 95,
-        "rate": 0.968421052631579
+        "covered": 87,
+        "total": 90,
+        "rate": 0.9666666666666667
       },
       {
         "path": "src/JET/JET/Application/Support/FilterHitMaterializeService.cs",
@@ -819,9 +819,9 @@
       },
       {
         "path": "src/JET/JET/Application/Support/FilterScenarioPayloadParser.cs",
-        "covered": 395,
-        "total": 409,
-        "rate": 0.9657701711491442
+        "covered": 310,
+        "total": 323,
+        "rate": 0.9597523219814241
       },
       {
         "path": "src/JET/JET/Application/Support/FilterScenarioRuleUpgrade.cs",
@@ -897,9 +897,9 @@
       },
       {
         "path": "src/JET/JET/Application/Support/ResultPageColumnRegistry.cs",
-        "covered": 129,
-        "total": 140,
-        "rate": 0.9214285714285714
+        "covered": 127,
+        "total": 138,
+        "rate": 0.9202898550724637
       },
       {
         "path": "src/JET/JET/Application/Support/RuleLogicVersions.cs",
@@ -909,9 +909,9 @@
       },
       {
         "path": "src/JET/JET/Application/Support/SupportActionDiagnostics.cs",
-        "covered": 312,
-        "total": 344,
-        "rate": 0.9069767441860465
+        "covered": 311,
+        "total": 343,
+        "rate": 0.9067055393586005
       },
       {
         "path": "src/JET/JET/Application/Support/SupportCaseHistoryExport.cs",
@@ -969,15 +969,9 @@
       },
       {
         "path": "src/JET/JET/AuditCore/FilterCompilation.cs",
-        "covered": 178,
-        "total": 183,
-        "rate": 0.9726775956284153
-      },
-      {
-        "path": "src/JET/JET/AuditCore/FilterProgram.cs",
-        "covered": 109,
-        "total": 130,
-        "rate": 0.8384615384615385
+        "covered": 167,
+        "total": 172,
+        "rate": 0.9709302325581395
       },
       {
         "path": "src/JET/JET/AuditCore/FilterSqlFragmentPlan.cs",
@@ -1005,9 +999,9 @@
       },
       {
         "path": "src/JET/JET/AuditCore/GlRulePredicates.cs",
-        "covered": 388,
-        "total": 401,
-        "rate": 0.9675810473815462
+        "covered": 245,
+        "total": 249,
+        "rate": 0.9839357429718876
       },
       {
         "path": "src/JET/JET/AuditCore/HitVoucherRows.cs",
@@ -1022,10 +1016,46 @@
         "rate": 1.0
       },
       {
-        "path": "src/JET/JET/AuditCore/IntakeMappingProgram.cs",
+        "path": "src/JET/JET/AuditCore/JetAuditProgram.Filter.cs",
+        "covered": 109,
+        "total": 130,
+        "rate": 0.8384615384615385
+      },
+      {
+        "path": "src/JET/JET/AuditCore/JetAuditProgram.IntakeMapping.cs",
         "covered": 724,
         "total": 751,
         "rate": 0.9640479360852197
+      },
+      {
+        "path": "src/JET/JET/AuditCore/JetAuditProgram.Prescreen.cs",
+        "covered": 217,
+        "total": 220,
+        "rate": 0.9863636363636363
+      },
+      {
+        "path": "src/JET/JET/AuditCore/JetAuditProgram.PrescreenReport.cs",
+        "covered": 133,
+        "total": 133,
+        "rate": 1.0
+      },
+      {
+        "path": "src/JET/JET/AuditCore/JetAuditProgram.ReportExport.cs",
+        "covered": 92,
+        "total": 97,
+        "rate": 0.9484536082474226
+      },
+      {
+        "path": "src/JET/JET/AuditCore/JetAuditProgram.ValidationReport.cs",
+        "covered": 93,
+        "total": 94,
+        "rate": 0.9893617021276596
+      },
+      {
+        "path": "src/JET/JET/AuditCore/JetAuditProgram.WorkingPaper.cs",
+        "covered": 394,
+        "total": 408,
+        "rate": 0.9656862745098039
       },
       {
         "path": "src/JET/JET/AuditCore/JetAuditProgram.cs",
@@ -1064,18 +1094,6 @@
         "rate": 1.0
       },
       {
-        "path": "src/JET/JET/AuditCore/PrescreenProgram.cs",
-        "covered": 217,
-        "total": 220,
-        "rate": 0.9863636363636363
-      },
-      {
-        "path": "src/JET/JET/AuditCore/PrescreenReportProgram.cs",
-        "covered": 133,
-        "total": 133,
-        "rate": 1.0
-      },
-      {
         "path": "src/JET/JET/AuditCore/PrescreenRulePredicates.cs",
         "covered": 22,
         "total": 23,
@@ -1086,12 +1104,6 @@
         "covered": 101,
         "total": 101,
         "rate": 1.0
-      },
-      {
-        "path": "src/JET/JET/AuditCore/ReportExportProgram.cs",
-        "covered": 92,
-        "total": 97,
-        "rate": 0.9484536082474226
       },
       {
         "path": "src/JET/JET/AuditCore/ResultPageSorting.cs",
@@ -1113,9 +1125,9 @@
       },
       {
         "path": "src/JET/JET/AuditCore/ValidationProcedures.cs",
-        "covered": 141,
-        "total": 145,
-        "rate": 0.9724137931034482
+        "covered": 140,
+        "total": 144,
+        "rate": 0.9722222222222222
       },
       {
         "path": "src/JET/JET/AuditCore/ValidationProgram.cs",
@@ -1124,28 +1136,16 @@
         "rate": 0.9596774193548387
       },
       {
-        "path": "src/JET/JET/AuditCore/ValidationReportProgram.cs",
-        "covered": 93,
-        "total": 94,
-        "rate": 0.9893617021276596
-      },
-      {
-        "path": "src/JET/JET/AuditCore/WorkingPaperProgram.cs",
-        "covered": 394,
-        "total": 408,
-        "rate": 0.9656862745098039
-      },
-      {
-        "path": "src/JET/JET/AuditCore/WorkingPaperStep4.cs",
+        "path": "src/JET/JET/AuditCore/WorkingPaperHighRiskVoucher.cs",
         "covered": 3,
         "total": 3,
         "rate": 1.0
       },
       {
-        "path": "src/JET/JET/AuditCore/WorkingPaperStep41.cs",
-        "covered": 46,
-        "total": 49,
-        "rate": 0.9387755102040817
+        "path": "src/JET/JET/AuditCore/WorkingPaperHighRiskVoucherDetail.cs",
+        "covered": 43,
+        "total": 46,
+        "rate": 0.9347826086956522
       },
       {
         "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
@@ -1287,8 +1287,8 @@
       },
       {
         "path": "src/JET/JET/Domain/Contracts/MappingValueProfileContracts.cs",
-        "covered": 14,
-        "total": 14,
+        "covered": 8,
+        "total": 8,
         "rate": 1.0
       },
       {
@@ -1563,21 +1563,21 @@
       },
       {
         "path": "src/JET/JET/Domain/Rules/FieldValueConditions.cs",
-        "covered": 174,
+        "covered": 175,
         "total": 178,
-        "rate": 0.9775280898876404
+        "rate": 0.9831460674157303
       },
       {
         "path": "src/JET/JET/Domain/Rules/FilterConditionLabels.cs",
-        "covered": 95,
-        "total": 96,
-        "rate": 0.9895833333333334
+        "covered": 58,
+        "total": 59,
+        "rate": 0.9830508474576272
       },
       {
         "path": "src/JET/JET/Domain/Rules/FilterScenario.cs",
-        "covered": 470,
-        "total": 486,
-        "rate": 0.9670781893004116
+        "covered": 347,
+        "total": 360,
+        "rate": 0.9638888888888889
       },
       {
         "path": "src/JET/JET/Domain/Rules/FilterScenarioCorruption.cs",
@@ -1635,9 +1635,9 @@
       },
       {
         "path": "src/JET/JET/Domain/Rules/JetRuleRequirements.cs",
-        "covered": 117,
-        "total": 119,
-        "rate": 0.9831932773109243
+        "covered": 116,
+        "total": 118,
+        "rate": 0.9830508474576272
       },
       {
         "path": "src/JET/JET/Domain/Rules/LineItemNumericSortKey.cs",
@@ -1647,8 +1647,8 @@
       },
       {
         "path": "src/JET/JET/Domain/Rules/ManualAutoListedCodeAudit.cs",
-        "covered": 42,
-        "total": 42,
+        "covered": 41,
+        "total": 41,
         "rate": 1.0
       },
       {
@@ -1713,9 +1713,9 @@
       },
       {
         "path": "src/JET/JET/Domain/Rules/TypedFieldConditions.cs",
-        "covered": 35,
-        "total": 37,
-        "rate": 0.9459459459459459
+        "covered": 20,
+        "total": 21,
+        "rate": 0.9523809523809523
       },
       {
         "path": "src/JET/JET/Domain/SupportBuildInfo.cs",
@@ -1809,9 +1809,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
-        "covered": 330,
+        "covered": 334,
         "total": 409,
-        "rate": 0.8068459657701712
+        "rate": 0.8166259168704156
       },
       {
         "path": "src/JET/JET/Infrastructure/Diagnostics/SupportExceptionFormatter.cs",
@@ -2048,6 +2048,12 @@
         "rate": 1.0
       },
       {
+        "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Completeness.cs",
+        "covered": 402,
+        "total": 402,
+        "rate": 1.0
+      },
+      {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.DisplaySpool.cs",
         "covered": 202,
         "total": 240,
@@ -2060,22 +2066,16 @@
         "rate": 0.963718820861678
       },
       {
+        "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.InfSamplingAndHighRisk.cs",
+        "covered": 1257,
+        "total": 1371,
+        "rate": 0.9168490153172867
+      },
+      {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Rde.cs",
         "covered": 23,
         "total": 26,
         "rate": 0.8846153846153846
-      },
-      {
-        "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Step1.cs",
-        "covered": 402,
-        "total": 402,
-        "rate": 1.0
-      },
-      {
-        "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Step2To41.cs",
-        "covered": 1257,
-        "total": 1371,
-        "rate": 0.9168490153172867
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Streaming.cs",
@@ -2085,15 +2085,15 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.Template.cs",
-        "covered": 662,
-        "total": 732,
-        "rate": 0.9043715846994536
+        "covered": 659,
+        "total": 720,
+        "rate": 0.9152777777777777
       },
       {
         "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.cs",
-        "covered": 804,
-        "total": 950,
-        "rate": 0.8463157894736842
+        "covered": 803,
+        "total": 949,
+        "rate": 0.8461538461538461
       },
       {
         "path": "src/JET/JET/Infrastructure/FileIO/AccessTableReader.cs",
@@ -2247,9 +2247,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/JsonFileProjectStore.cs",
-        "covered": 363,
-        "total": 378,
-        "rate": 0.9603174603174603
+        "covered": 362,
+        "total": 377,
+        "rate": 0.9602122015915119
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/BestEffortProjectOperationLog.cs",
@@ -2415,9 +2415,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalHighRiskSummaryRowPageRepository.cs",
-        "covered": 65,
-        "total": 71,
-        "rate": 0.9154929577464789
+        "covered": 52,
+        "total": 58,
+        "rate": 0.896551724137931
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalHighRiskSummaryScenariosRepository.cs",
@@ -2469,9 +2469,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenPageRepository.cs",
-        "covered": 114,
-        "total": 116,
-        "rate": 0.9827586206896551
+        "covered": 113,
+        "total": 115,
+        "rate": 0.9826086956521739
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
@@ -2540,9 +2540,9 @@
         "rate": 0.9514563106796117
       },
       {
-        "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalUnbalancedVoucherPageRepository.cs",
-        "covered": 52,
-        "total": 52,
+        "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalUnbalancedVoucherEntryStreamRepository.cs",
+        "covered": 20,
+        "total": 20,
         "rate": 1.0
       },
       {
@@ -2561,12 +2561,6 @@
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalVoucherBalancePageRepository.cs",
         "covered": 56,
         "total": 56,
-        "rate": 1.0
-      },
-      {
-        "path": "src/JET/JET/Infrastructure/Persistence/Local/ProjectSchemaVersions.cs",
-        "covered": 84,
-        "total": 84,
         "rate": 1.0
       },
       {
@@ -2630,6 +2624,12 @@
         "rate": 0.832579185520362
       },
       {
+        "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/ProjectSchema.cs",
+        "covered": 142,
+        "total": 147,
+        "rate": 0.9659863945578231
+      },
+      {
         "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteDeferredIndexes.cs",
         "covered": 47,
         "total": 47,
@@ -2637,9 +2637,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-        "covered": 189,
-        "total": 195,
-        "rate": 0.9692307692307692
+        "covered": 188,
+        "total": 194,
+        "rate": 0.9690721649484536
       },
       {
         "path": "src/JET/JET/Infrastructure/Persistence/WorkingPaperPlanningFactsPort.cs",
@@ -2715,9 +2715,9 @@
       },
       {
         "path": "src/JET/JET/Infrastructure/Sql/HighRiskSummaryRowPageReader.cs",
-        "covered": 298,
-        "total": 323,
-        "rate": 0.9226006191950464
+        "covered": 123,
+        "total": 128,
+        "rate": 0.9609375
       },
       {
         "path": "src/JET/JET/Infrastructure/Sql/HighRiskSummaryScenarioCounts.cs",
@@ -2786,13 +2786,13 @@
         "rate": 1.0
       },
       {
-        "path": "src/JET/JET/Infrastructure/Sql/WorkingPaperStep41PreparedSession.cs",
-        "covered": 420,
-        "total": 493,
-        "rate": 0.8519269776876268
+        "path": "src/JET/JET/Infrastructure/Sql/WorkingPaperHighRiskVoucherDetailPreparedSession.cs",
+        "covered": 403,
+        "total": 472,
+        "rate": 0.8538135593220338
       },
       {
-        "path": "src/JET/JET/Infrastructure/Sql/WorkingPaperStep4StreamReader.cs",
+        "path": "src/JET/JET/Infrastructure/Sql/WorkingPaperHighRiskVoucherStreamReader.cs",
         "covered": 61,
         "total": 62,
         "rate": 0.9838709677419355

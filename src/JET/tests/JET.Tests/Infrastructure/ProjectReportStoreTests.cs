@@ -454,8 +454,7 @@ public sealed class ProjectReportStoreTests
         Assert.Equal(3, listed.Count);
     }
 
-    // 報告清單舊設計的欄名 sourceRefs、createdUtc 不讀回。
-    // 這裡列出的那一筆用現行欄名，另加一筆只有舊欄名的紀錄，核對它不列出。
+    // 報告清單不讀 sourceRefs、createdUtc 這兩個欄名；這裡一筆用 JET 寫出的欄名，另一筆只有這兩個欄名，核對後者不列出。
     [Fact]
     public async Task ListAsync_Manifest_IgnoresSha256AccountMappingAndOldFieldNameEntries()
     {

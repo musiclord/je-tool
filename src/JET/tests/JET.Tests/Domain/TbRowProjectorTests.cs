@@ -170,7 +170,6 @@ public sealed class TbRowProjectorTests
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("credit", error.Field);
         Assert.Equal("oops", error.RawValue);
-        // 這句的用字已定案。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -386,7 +385,6 @@ public sealed class TbRowProjectorTests
         Assert.Equal(8, error!.SourceRowNumber);
         Assert.Equal("ccr", error.Field);
         Assert.Equal("oops", error.RawValue);
-        // 這句的用字已定案。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -414,7 +412,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(11, error!.SourceRowNumber);
         Assert.Equal("change", error.Field);
         Assert.Equal("79228162514264337593543950335", error.RawValue);
-        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
+        // 訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 

@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>專案內 append-only 稽核紀錄允許的最小操作種類。</summary>
+/// <summary>案件內 append-only 稽核紀錄允許的最小操作種類。</summary>
 public static class ProjectOperations
 {
     public const string DataReimport = "data.reimport";
@@ -17,7 +17,7 @@ public static class ProjectOperationTargetTypes
 }
 
 /// <summary>
-/// 專案 operation_log 的單筆 append-only 事件。只保存 UTC、操作、對象識別與計數摘要；
+/// 案件 operation_log 的單筆 append-only 事件。只保存 UTC、操作、對象識別與計數摘要；
 /// 不接受任意 detail JSON，避免把審計明細或個資帶入最小留痕。
 /// </summary>
 public sealed record ProjectOperationEvent(
@@ -74,7 +74,7 @@ public sealed record ProjectOperationEvent(
 }
 
 /// <summary>
-/// 專案資料庫 append-only 稽核寫入埠；刻意不提供查詢、更新或刪除 API，
+/// 案件資料庫 append-only 稽核寫入埠；刻意不提供查詢、更新或刪除 API，
 /// 會讀紀錄的只有判斷要不要記重新配對的內部檢查。
 /// </summary>
 public interface IProjectOperationLog

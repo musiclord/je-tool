@@ -53,7 +53,7 @@ internal sealed record JetFieldDefinition(
     IReadOnlyList<JetMappingSlot> MappingSlots)
 {
     /// <summary>
-    /// 報告與底稿上這個欄位的輸出名稱，照舊版範本加 _JE、_TB。欄位資訊、底稿第四步之一與
+    /// 報告與底稿上這個欄位的輸出名稱，照舊版範本加 _JE、_TB。欄位資訊、底稿 step4-1 符合高風險條件傳票明細與
     /// 資料可靠性抽樣清單都從這裡取名，不另寫字面字串；過帳狀態的輸出欄是照來源欄複製出來的「過帳碼_JE」。
     /// </summary>
     internal string? LegacyFieldName { get; init; }
@@ -76,7 +76,7 @@ internal static class JetFieldCatalog
     internal const string GlVoucherNumber = "voucherNumber";
     internal const string GlLineItem = "lineItem";
     internal const string GlDate = "glDate";
-    // 歷史 action 鍵 approvalDate 在本案表示「傳票核准日」，不是 Document Date；儲存欄為 approval_date。
+    // action 鍵 approvalDate 表示「傳票核准日」，不是 Document Date；儲存欄為 approval_date。
     internal const string GlApprovalDate = "approvalDate";
     internal const string GlAccountNumber = "accountNumber";
     internal const string GlAccountName = "accountName";
@@ -302,7 +302,7 @@ internal static class JetFieldCatalog
 
     /// <summary>
     /// 已確認的 GL 配對下，條件與規則能使用的語意欄位，依目錄順序：欄位有來源欄，或目錄標示的衍生來源成立。
-    /// 第四步、第五步與前端停用說明都讀這一份。沒有帶投影設定的舊配對，依配對本身推出傳票核准日的模式。
+    /// 第四步、第五步與前端停用說明都讀這一份。沒有帶投影設定時，依配對本身推出傳票核准日的模式。
     /// </summary>
     internal static IReadOnlyList<string> AvailableGlFields(
         IReadOnlyDictionary<string, string> mapping,

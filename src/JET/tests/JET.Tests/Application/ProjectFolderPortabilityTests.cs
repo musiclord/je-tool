@@ -181,10 +181,10 @@ public sealed class ProjectFolderPortabilityTests
                   "conditions": [
                     {
                       "join": "and",
-                      "type": "text",
+                      "type": "fieldValue",
                       "field": "description",
-                      "keywords": "可攜關鍵字",
-                      "mode": "contains"
+                      "operator": "contains",
+                      "values": ["可攜關鍵字"]
                     }
                   ]
                 }

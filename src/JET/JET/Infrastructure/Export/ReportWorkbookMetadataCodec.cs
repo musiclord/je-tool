@@ -175,7 +175,7 @@ internal static class ReportWorkbookMetadataWorksheet
                 Number($"A{rowIndex}", index + 1),
                 Inline($"B{rowIndex}", chunks[index])) { RowIndex = rowIndex, Hidden = true });
         }
-        // 寫法和 Excel 存檔時相同的輸出檔，這張工作表也要有 dimension；其他輸出檔的這張工作表照原來的寫法。
+        // 寫法和 Excel 存檔時相同的輸出檔，這張工作表也要有 dimension；其他輸出檔的這張工作表不寫 dimension。
         if (FormalWorkbookArchive.LayoutOf(document) == FormalWorkbookLayout.SameAsExcel)
         {
             SheetUsedRange.RefreshDimension(worksheet);

@@ -3,19 +3,19 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 只能看原始碼的前端規則。其他前端行為一律由前端測試執行正式腳本來測；
-/// 這裡只留行為測試替代不了的少數檢查，每個方法的註解寫明原因。
-/// 例如整個前端不得出現四位小數的金額格式，這類規則保留成很小的原始碼檢查。
+/// 只能看原始碼的前端規則。其他前端行為由前端測試執行正式腳本來測；
+/// 這裡只放行為測試替代不了的少數檢查，每個方法的註解寫明原因，
+/// 例如整個前端不得出現四位小數的金額格式。
 /// </summary>
 public sealed class FrontendSourceOnlyRulesTests
 {
     [Fact]
     public void MoneyDisplay_NeverFormatsNumbersToFourDecimalPlaces()
     {
-        // 畫面統一兩位小數加千分位；報表與底稿不變。
+        // 畫面的金額一律兩位小數加千分位；這條只管畫面，不管報表與底稿。
         // 為什麼行為測試替代不了：前端測試只檢查已知畫面上的金額，
         // 之後新加的格式化程式不會被涵蓋；整個前端都不得出現四位小數，只能掃描全部原始碼。
-        // 右側資料預覽的金額固定顯示四位，其他畫面不變。
+        // 右側資料預覽的金額固定顯示四位，不受這條限制。
         // data-preview.js 的 previewMoney 照後端給的十進位字串補零，不把金額轉成數字再格式化，所以不會碰到這個掃描；
         // 這裡擋住的是其他畫面用數字格式化出四位小數。
         foreach (var file in Directory.GetFiles(Path.Combine(FrontendRoot(), "js"), "*.js", SearchOption.AllDirectories))

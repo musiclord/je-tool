@@ -43,7 +43,7 @@ public enum DateProblemKind
 public readonly record struct DateProblem(DateProblemKind Kind, int MarkStart, int MarkLength);
 
 /// <summary>
-/// 日期字串正規化的權威實作。純函式、provider 無關；輸出一律 "yyyy-MM-dd"。
+/// 日期字串正規化的唯一實作。純函式、provider 無關；輸出一律 "yyyy-MM-dd"。
 /// 判定順序固定：補零成四位數的民國年（開關）→ ISO → 顯式西元（yyyy-M-d、yyyy/M/d、yyyy.M.d、yyyyMMdd，年份 0001 到 9999）→
 /// 民國年（開關，1xx-M-D、1xx/M/D、1xx.M.D、1xxMMdd）→ 純數字一律拒絕 → 短年份三段式與年份在後的寫法一律拒絕 →
 /// 寬鬆 fallback（帶時間、年月日、英文月份等寫法；年份 1900 到 2100 的 sanity guard，且原文要寫出四位數年份與日；

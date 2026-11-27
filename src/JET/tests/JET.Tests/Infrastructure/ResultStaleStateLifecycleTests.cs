@@ -66,7 +66,7 @@ public sealed class ResultStaleStateLifecycleTests
 
         await SeedAllResultKindsAsync(connectionFactory(projectId), schemaPrefix);
 
-        // Account category changes affect prescreen/filter only. Validation summary and INF rows remain current.
+        // 科目分類改變只影響預篩選與篩選，驗證摘要與 INF 抽樣不受影響。
         // 上游修改會清除下游：篩選情境與命中一起清掉，沒有可重跑的篩選，filter 回到從未執行。
         await ResetAsync(
             connectionFactory(projectId),
@@ -126,7 +126,7 @@ public sealed class ResultStaleStateLifecycleTests
             new AuditResultStaleState(false, false, false),
             await staleStore.ReadAsync(projectId, CancellationToken.None));
 
-        // Replacing authoring definitions is not successful result materialization.
+        // 寫入情境定義不算產生了結果。
         // 上游修改會清除下游：前面的分類修改已清掉情境與命中，這裡是從未執行的狀態，
         // 寫入定義不會憑空產生待重跑。
         await scenarioStore.ReplaceAllAsync(
@@ -157,8 +157,7 @@ public sealed class ResultStaleStateLifecycleTests
             CancellationToken.None);
         Assert.False((await staleStore.ReadAsync(projectId, CancellationToken.None)).Filter);
 
-        // 上游修改會清除下游：上游修改不把零命中的已存版本標成待重跑，而是連同定義一起清掉，
-        // filter 回到從未執行。
+        // 上游修改會清除下游：零命中的已存版本連同定義一起清掉，filter 回到從未執行，不會標成待重跑。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,

@@ -28,7 +28,7 @@ public sealed class SuspiciousKeywordDefaultsTests
 
     // 舊版 JET R2 的 24 個詞，順序也相同。
     [Fact]
-    public void Defaults_MatchLegacyR2KeywordsInOrder()
+    public void Defaults_MatchLegacySuspiciousKeywordsInOrder()
     {
         Assert.Equal(
             new[]

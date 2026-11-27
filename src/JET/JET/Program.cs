@@ -47,7 +47,7 @@ namespace JET
     }
 
     /// <summary>
-    /// Release 也啟用的最後一道例外後盾。它不依賴 dev-only logger，寫入失敗時自行吞納，
+    /// Release 也啟用的最後一道例外後盾。它不依賴只在 Debug 開啟的診斷日誌，寫入失敗時自己吞掉例外，
     /// 避免診斷動作在程序已不穩定時造成第二次崩潰。
     /// </summary>
     internal sealed class GlobalExceptionFallbackLog

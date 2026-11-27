@@ -157,7 +157,7 @@ internal sealed partial class GlRulePredicates
             positive = $"{column} {comparison} {Param(rule.TypedValue)}";
         }
         // 日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
-        // 文字欄位的否定比較在畫面上預設勾選，畫面一律送出勾選結果；沒有帶這個值時照舊當成不列入。
+        // 文字欄位的否定比較在畫面上預設勾選，畫面一律送出勾選結果；沒有帶這個值時當成不列入。
         var includeBlank = rule.IncludeBlank ?? false;
         return Complete($"(CASE WHEN ({blank}) THEN {(includeBlank ? 1 : 0)} WHEN ({positive}) THEN 1 ELSE 0 END = 1)", includeBlank);
     }
@@ -171,7 +171,7 @@ internal sealed partial class GlRulePredicates
     public string AccountSide(FilterSqlParameterPlanBuilder parameters, FilterConditionSpec rule,
         FilterConditionContext context, string schemaPrefix)
     {
-        // 借貸方向是已拿掉的舊寫法，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
+        // 這種條件不接受借貸方向，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
         if (rule.DrCr is not null) throw Invalid("drcr_invalid");
         string Selected(string alias) => $"EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m "
             + $"{CategoryJoin(schemaPrefix, "m", "t")} WHERE m.account_number = {alias}.account_number "

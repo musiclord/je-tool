@@ -12,14 +12,14 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 科目配對範本產生（export.accountMappingTemplate）驗收：
-/// (a) 母體＝GL∪TB——repo 讀回 GL-only／TB-only／共有科目皆列、升冪、GL-only 寫真實 GL 名；
-/// (b) 下拉存在——writer 讀回 C4 DataValidation 為 list 型五類別、inCellDropdown、A/B 已填 C 留空；
-/// (c) round-trip——產範本→填 C 欄→import.accountMapping.fromFile→account_mapping 落地正確；
-/// (d) handler 端到端——GL+TB 已 commit → 範本檔寫出、rowCount == 獨立 recount diff 基數。
+/// 科目配對範本產生（export.accountMappingTemplate）的測試：
+/// (a) 母體＝GL∪TB：repo 讀回 GL-only、TB-only 與共有科目都列出並依科目編號升冪；只在 GL 的科目不帶 GL 的名稱，B 欄寫「Not in TB」；
+/// (b) 下拉存在：writer 讀回 C4 的 DataValidation 是 list 型的五個類別、inCellDropdown，A、B 欄已填，C 欄留空；
+/// (c) round-trip：產生範本、填 C 欄，再經 import.accountMapping.fromFile 匯入，account_mapping 寫入正確；
+/// (d) handler 端到端：GL 與 TB 已 commit 時寫出範本檔，rowCount 等於獨立 recount 的 diff 基數。
 ///
-/// oracle 一律獨立參數化 SQL recount（DemoProjectPipeline.QueryScalarAsync）或 ClosedXML 讀回，
-/// 不做弱斷言。母體以 InlineWorkbookProject（自含小母體）或 DemoProjectPipeline（deterministic demo）建。
+/// oracle 一律是獨立的參數化 SQL recount（DemoProjectPipeline.QueryScalarAsync）或 ClosedXML 讀回。
+/// 母體以 InlineWorkbookProject（自含小母體）或 DemoProjectPipeline（deterministic demo）建。
 /// </summary>
 public sealed class AccountMappingTemplateExportTests
 {
@@ -50,7 +50,7 @@ public sealed class AccountMappingTemplateExportTests
                 .AddRow("1101", "現金", 300)      // 共有
                 .AddRow("2101", "應付帳款", 500)); // TB-only
 
-    // ================= (a) 母體＝GL∪TB（使用者關切點）=================
+    // ================= (a) 母體＝GL∪TB =================
 
     [Fact]
     public async Task FetchTemplateRowsAsync_ReturnsGlUnionTb_AscendingByCode_WithTbNamesOnly()
@@ -568,7 +568,7 @@ public sealed class AccountMappingTemplateExportTests
     }
 
     /// <summary>
-    /// 範本與差異清單、科目清單用同一份可配對科目母體：總帳的空白科目編號由第三步的空白明細揭露，
+    /// 範本與差異清單、科目清單用同一份可配對科目母體：總帳的空白科目編號由第四步資料缺漏輔助檢視的「空白科目編號」列出，
     /// 不能變成範本的一列；否則審計員填完再匯入，會因「科目編號空白」整份被拒收。
     /// </summary>
     [Theory]
@@ -664,7 +664,7 @@ public sealed class AccountMappingTemplateExportTests
 
         Assert.True(data.GetProperty("ok").GetBoolean());
         Assert.False(data.TryGetProperty("outputPath", out _));
-        Assert.True(File.Exists(outputPath), "handler 應把報告寫到目前專案目錄");
+        Assert.True(File.Exists(outputPath), "handler 應把報告寫到目前案件資料夾");
 
             // rowCount == 獨立 recount 的 GL∪TB diff 基數（demo 母體本期）。
             var diffCount = await DemoProjectPipeline.QueryScalarAsync(
@@ -687,7 +687,7 @@ public sealed class AccountMappingTemplateExportTests
     [Fact]
     public async Task ExportAccountMappingTemplate_WithoutGlMapping_RequiresMapping()
     {
-        // 9/23：配對工作檔不讀驗證結果，但仍需要已確認的 GL 欄位用途。
+        // 配對工作檔不讀驗證結果，但仍需要已確認的 GL 欄位用途。
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
@@ -701,7 +701,7 @@ public sealed class AccountMappingTemplateExportTests
         var ex = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { resultId = new string('a', 32) })));
         Assert.Equal(JetErrorCodes.StaleResult, ex.Code);
-        // 已確認配對的狀態說法統一後，仍要求缺 GL 配對時明確拒絕。
+        // 缺已確認的 GL 配對時明確拒絕，訊息不提驗證。
         Assert.Contains("正式報表需要目前已確認配對的 GL 欄位", ex.Message);
         Assert.DoesNotContain("驗證", ex.Message);
     }

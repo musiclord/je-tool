@@ -2,16 +2,16 @@
 require('./support/resource-guard.cjs');
 // 第五步預覽、儲存與已存情境的情境測試。
 //
-// 情境 12「第五步預覽與儲存新情境」：審計員點「空白摘要」卡，不填名稱與動機，預覽後儲存；拿掉這張卡改用欄位條件；
+// 「第五步預覽與儲存新情境」：審計員點「空白摘要」卡，不填名稱與動機，預覽後儲存；拿掉這張卡改用欄位條件；
 // 預覽回來前又改了條件；後端回帶 details 的錯誤。
-// 情境 13「第五步已存情境」：展開已存情境與高風險條件彙總（成功、失敗後重試、換案件後才回來）；其他作業進行中展開與儲存；
+// 「第五步已存情境」：展開已存情境與高風險條件彙總（成功、失敗後重試、換案件後才回來）；其他作業進行中展開與儲存；
 // 沒有可用版本時看彙總、報告與命中明細；編輯一個情境改名後儲存；移除一個情境（取消、換案件、再確認）；
 // 按「重新檢查並儲存情境」；產生條件篩選報告；後端只讓篩選命中失效、情境保留。
-// 情境 14「開案時有待修正的舊情境」：開案回應帶「規則升級已重算」或待修正清單，看第五、六步，一個一個修改。
-// 情境 15 的編輯部分「舊情境裡的舊式條件」：編輯 typed 條件與文字值清單，新增條件時找不到舊式型別。讀回部分在 frontend-journey-readback.test.cjs。
-// 情境 12、13 補充「錯誤與提示畫在現在的畫面上」：步驟上方還留著上一次的失敗提示時再按儲存、預覽或確認移除；後端退回某一條條件後
+// 「開案時有待修正的舊情境」：開案回應帶「規則升級已重算」或待修正清單，看第五、六步，一個一個修改。
+// 「新增條件不提供已停用的型別」：新增條件的每個入口都找不到已停用的型別。讀回部分在 frontend-journey-readback.test.cjs。
+// 補充「錯誤與提示畫在現在的畫面上」：步驟上方還留著上一次的失敗提示時再按儲存、預覽或確認移除；後端退回某一條條件後
 // 繼續加條件、改條件、打名稱；在「已儲存情境」分頁選「儲存並編輯」而目前的條件還不能儲存。夾具與做法寫在檔案最後那一段的開頭。
-// 情境 13 另外兩段：傳票清單換頁或展開分錄還沒讀回來，那份結果就被換掉（換案件、已存清單換了、條件改了、情境重讀）；
+// 已存情境另外兩段：傳票清單換頁或展開分錄還沒讀回來，那份結果就被換掉（換案件、已存清單換了、條件改了、情境重讀）；
 // 在「尚未儲存」對話框選了不儲存，換情境的那一步中途出錯後再按一次「編輯」。
 //
 // 每個測試都執行正式的 state.js、ui-core.js 與第一到第六步的步驟腳本（共用夾具 usageJourneyFixture），
@@ -19,9 +19,9 @@ require('./support/resource-guard.cjs');
 // 儲存、另存、移除與重新檢查只送 filter.scenario.save、filter.scenario.remove、filter.scenario.recheck，
 // 一次只帶正在處理的那一個情境。
 //
-// 斷言規則：已定案的文字逐字比對，其他文字只比對意思。
+// 斷言依案例逐字核對或比對意思。
 // 預期值寫死，不由被測程式算出；送出的 payload 精確比對，而且不得帶 `__` 開頭的鍵。
-// 第五步的就地檢查、讀回與已存情境畫面的句子，都是已定案的文字，逐字比對。
+// 第五步的就地檢查、讀回與已存情境畫面的句子逐字比對。
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('./support/frontend-fixtures.cjs');
@@ -43,14 +43,14 @@ const noCardScenario = name => ({ name, rationale: '合成舊版動機', source:
   editorOrigins: { version: 2, nameIsAutomatic: false, rationaleIsAutomatic: false, groups: [{ cards: [null] }] } });
 
 // 本檔的夾具：共用的 usageJourneyFixture 載入第一到第六步的正式腳本、訂閱重繪，JetApi 記下每個請求。
-// 這裡另外把 JetFocus 改成立即聚焦（情境 13 的移除流程要看焦點），補上 getComputedStyle，
+// 這裡另外把 JetFocus 改成立即聚焦（已存情境的移除流程要看焦點），補上 getComputedStyle，
 // 並依選項換掉夾具預設的已存情境、版本、驗證結果與待修正清單。只服務這個檔，所以留在這裡。
 function savedFixture(options = {}) {
   const { saved = [], resultRef = saved.length ? REF : null, check = null, stale = null, reports = [], rdeFields = null,
     validated = true, step = 'filter', pane = null, features = {} } = options;
   const f = F.usageJourneyFixture(step, { redraw: true });
   const { window, store, dom } = f;
-  // features 是這個版本隱藏的功能開關（Ui.FEATURES）；下面設定案件狀態時第五步會重畫，開關跟著生效。
+  // features 是預設關閉的功能開關（Ui.FEATURES）；下面設定案件狀態時第五步會重畫，開關跟著生效。
   Object.assign(window.JetUi.FEATURES, features);
   window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
   window.JetFocus = {
@@ -135,7 +135,7 @@ for (const operation of ['new', 'edit', 'copy']) test('successful ' + operation 
 });
 
 // 「從情境範例開始」托盤在同一次開案內記住開合；條件列的「查找說明」跟著草稿收起。
-// 情境範例在這個版本隱藏，這個測試先把開關打開，托盤才會畫出來。
+// 情境範例預設隱藏，這個測試先把開關打開，托盤才會畫出來。
 // 儲存、取消編輯與移除編輯中的情境時，托盤維持開著，查找說明收起。
 // 查找說明的鍵以 rule-help- 開頭，這裡直接放一個合成的鍵代表。
 test('the example tray stays open for the whole case opening while condition help folds with each draft', async () => {
@@ -234,7 +234,7 @@ test('editing places save a new scenario, cancel and save changes at the bottom'
 });
 
 // ================================================================================================
-// 第一部分　情境 12：預覽與儲存新情境
+// 第一部分　預覽與儲存新情境
 // ================================================================================================
 
 // 草稿有常用篩選條件的卡片才帶 source。
@@ -287,8 +287,8 @@ test('name and rationale may be left blank with or without a common card; only a
   // 欄位條件還沒填值：按儲存不送出，提示說出是哪一條、缺什麼。
   f.click('[data-action="save-scenario"]'); await settle();
   assert.equal(f.scenarioWrites().length, 2, 'nothing is sent while a condition still lacks its value');
-  // 位置字首與「尚需補齊：」是已定案的句子，逐字比對。
-  // 「包含」是一行一個值的清單，沒填值的原因是已定案的「請填 1 到 100 個值」；名稱與動機沒有列出。
+  // 位置字首與「尚需補齊：」逐字比對。
+  // 「包含」是一行一個值的清單，沒填值時顯示「請填 1 到 100 個值」。名稱與動機沒有列出。
   assert.equal(f.notice(), '尚需補齊：第 1 組第 1 條「傳票摘要」請填 1 到 100 個值');
   // 填好值之後，名稱與動機手寫成空白：照樣送出空字串，由後端依條件補上；兩欄都不標錯，也沒有欄位旁的提示。
   f.type('[data-value-key="values"]', '合成');
@@ -318,7 +318,7 @@ test('name and rationale may be left blank with or without a common card; only a
 });
 
 // 每個預覽與儲存請求都帶查核期間、和草稿脫鉤的條件副本，沒有畫面專用的鍵。
-// 「同一傳票」的比對併在整張傳票條件裡，這裡加一條獨立的整張傳票條件，確認它照樣送出。
+// 同一張傳票的比對用整張傳票條件表達，這裡加一條獨立的整張傳票條件，確認它照樣送出。
 // 含卡片的草稿帶 source，值是 'common'。
 test('preview and save send the audit period and detached explicit voucher conditions', async () => {
   const f = savedFixture();
@@ -356,12 +356,12 @@ test('preview and save send the audit period and detached explicit voucher condi
   assert.deepEqual(Object.keys(preview.payload).sort(), ['populationScope', 'scenario']);
   assert.deepEqual(Object.keys(save.payload).sort(), ['populationScope', 'position', 'scenario']);
   assert.equal(save.payload.position, null, 'a new scenario has no position');
-  // 送出的投影沒有改動草稿：標記仍在草稿上。
+  // 整理送出的內容不會改到草稿：標記仍在草稿上。
   assert.equal(f.draft().groups[0].conditions[0].__commonCard, 'blankDescription');
 });
 
 // 預覽走 Ui.run，同一時間只會有一個草稿預覽在途；draftResponseGuard.issue 傳入的判斷式比對草稿版本、案件與資料版本。
-// 拿掉判斷式裡的草稿版本比對時，這則測試會失敗。
+// 這則測試確認判斷式有比對草稿版本。
 test('a late preview never replaces "conditions changed", and a preview for another population or case is ignored', async () => {
   const f = savedFixture();
   f.click('[data-common-card="blankDescription"]');
@@ -412,7 +412,7 @@ test('a rejected save marks only the current draft and names another scenario th
   f.click('[data-action="save-scenario"]'); await settle();
   f.request('filterScenarioSave').reject(invalid('合成原因', 2, '情境乙')); await settle(); await settle();
   assert.equal(f.$$('.rule-row--invalid').length, 0);
-  // 用字照已定案的句式「儲存失敗：情境 〈N〉「〈名稱〉」：〈原因〉」；原因是後端的訊息。
+  // 儲存失敗時顯示情境位置、名稱與後端傳回的原因。
   assert.equal(f.notice(), '儲存失敗：情境 2「情境乙」：第 1 組第 1 條：合成原因');
   // 錯誤屬於正在儲存的這一個：標在條件列，說明寫在那一列下面，儲存鈕上方不另寫。
   f.click('[data-action="save-scenario"]'); await settle();
@@ -450,7 +450,7 @@ test('saving is the primary action and looking at matching vouchers stays availa
 });
 
 // ================================================================================================
-// 第二部分　情境 13：已存情境的展開、高風險條件彙總、編輯、移除、重新檢查、報告與上游失效
+// 第二部分　已存情境的展開、高風險條件彙總、編輯、移除、重新檢查、報告與上游失效
 // ================================================================================================
 
 // 每次回應都是新物件：正式程式會把傳票清單與畫面狀態掛在回應物件上。
@@ -463,7 +463,7 @@ const savedFirstPage = (voucherNumber, counts = { voucherCount: 2, summaryRowCou
   ...counts, countsWholeVoucherRows: false });
 const HIGH_RISK_SUMMARY = { scenarios: [{ position: 1, name: '甲', voucherHitCount: 2, rowHitCount: 3, summaryRowCount: 3 }, { position: 2, name: '乙', voucherHitCount: 0, rowHitCount: 0, summaryRowCount: 0 }] };
 
-// 「載入失敗」「請收合後再展開以重試」不是已定案的文字，只比對意思。
+// 載入失敗的訊息需說明收合後再展開可重試。
 test('a saved scenario and the high-risk summary fail in place and can be retried; the failure also reaches the message panel once', async () => {
   const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
   const body = () => f.$('[data-bind="scenario-preview-0"]');
@@ -560,7 +560,7 @@ test('the database condition is shown collapsed under a saved scenario and in th
   assert.equal(panel().hidden, true);
   assert.equal(toggle().getAttribute('aria-expanded'), 'false');
 
-  // 後端沒有帶條件式（例如舊的回應）時不畫這一塊。
+  // 後端沒有帶條件式時不畫這一塊。
   const g = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
   g.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
   g.request('queryFilterVoucherPage').resolve(savedFirstPage('JV-1')); await settle(); await settle();
@@ -753,12 +753,12 @@ test('while another operation runs, saved results still load and pressing save e
   assert.equal(f.scenarioWrites().length, 0, 'nothing is saved while another operation runs');
   const added = f.messages().slice(0, f.messages().length - before);
   assert.equal(added.length, 1, 'pressing save is answered instead of doing nothing');
-  // 用字照已定案的句式「「〈作業名稱〉」還在進行，請等它完成後再試。」
+  // 作業尚未結束時，訊息包含作業名稱與稍後重試的提示。
   assert.equal(added[0].text, '「執行資料驗證」還在進行，請等它完成後再試。');
   assert.equal(f.store.getState().busyLabel, '執行資料驗證');
 });
 
-// 「重新檢查並儲存情境」是已定案的按鈕名稱，逐字比對。
+// 核對「重新檢查並儲存情境」按鈕。
 test('without a usable version the high-risk summary and the criteria report stay locked and say why', async () => {
   const f = savedFixture({ saved: [savedBlankNamed('甲')], resultRef: null, pane: 'saved',
     check: { status: 'needsEdit', recalculatedCount: 0, problems: [{ position: 1, name: '甲', messages: ['合成原因'] }] } });
@@ -766,8 +766,8 @@ test('without a usable version the high-risk summary and the criteria report sta
   assert.ok(resave !== null);
   assert.equal(resave.textContent, '重新檢查並儲存情境');
   assert.ok(f.$('[data-action="toggle-high-risk-summary"]') === null, 'the high-risk summary cannot be opened');
-  // 「尚無可用版本」的說法用已定案的句子：GL 區塊、報告區、高風險條件彙總與第六步各一句，逐字比對。
-  // 清單下方的說明也是已定案的句子，逐字比對。
+  // GL 區塊、報告區、高風險條件彙總與第六步各自說明尚無可用版本。
+  // 逐字核對清單下方的說明。
   const highRiskSummaryCard = f.$$('.rule-card').find(card => { const title = card.querySelector('.rule-card__title'); return title && title.textContent === '高風險條件彙總'; });
   assert.equal(highRiskSummaryCard.querySelector('.empty-state').textContent, '已儲存的篩選情境尚未套用目前規則，彙總暫不顯示。');
   const report = f.$('[data-action="export-criteria-report"]');
@@ -798,7 +798,7 @@ test('without a usable version the high-risk summary and the criteria report sta
   assert.match(body.textContent, /JV-P/);
   assert.ok(body.querySelector('.filter-voucher-host table') !== null, 'the voucher list is shown');
 
-  // 整個第五、六步都沒有範圍選擇器，也沒有舊按鈕名稱與內部用語。
+  // 整個第五、六步都沒有範圍選擇器，也不出現下面這些審計員不需要看到的用語。
   const retired = ['以查核期間重新保存', '較早的版本', '版本參照', '測試母體區', '有界預覽', '尚無 CriteriaSelectionReport', '凍結為 CriteriaSelectionReport', '匯出時會依目前資料重新計算'];
   for (const step of ['filter', 'export']) {
     f.draw(step);
@@ -854,7 +854,7 @@ test('previewing or editing one saved scenario keeps its common source, an old-v
   assertNoScreenKeys(f.request('filterScenarioSave').payload, 'the old-version scenario saved again');
   const renamed = { name: '舊版情境（改名）', rationale: '合成舊版動機', source: null, groups: prescreenBlank, editorOrigins: authoredOrigins };
   f.request('filterScenarioSave').resolve(saveResponse([authored('自擬'), savedBlankNamed('空白摘要情境'), renamed], 3)); await settle(); await settle();
-  // 句子是已定案的「已儲存篩選情境（〈N〉 / 10）。」；Ui.run 在句尾接上耗時。
+  // 儲存完成後顯示情境數，Ui.run 在句尾接上耗時。
   // 耗時的寫法：不到 0.1 秒時寫「耗時不到 0.1 秒」，本檔各完成句都照這兩種寫法比對。
   assert.match(f.messages()[0].text, /^已儲存篩選情境（3 \/ 10），耗時(?: \d+(?:\.\d)? 秒|不到 0\.1 秒)。$/);
   // 編輯自擬情境：送出時沒有 source。
@@ -869,7 +869,6 @@ test('previewing or editing one saved scenario keeps its common source, an old-v
   assertNoScreenKeys(f.request('filterScenarioSave').payload, 'the self-authored edit');
 
   // 改成和另一個已存情境同名：不送出並說明；「另存為新情境」不受同名限制，名稱加上「（副本）」。
-  // 重名不得影響唯一性，儲存時才檢查重名，「另存為新情境」略過。
   f.request('filterScenarioSave').reject(new Error('合成儲存失敗。')); await settle(); await settle();
   f.type('[data-bind="scenario-name"]', '空白摘要情境');
   f.click('[data-action="save-scenario"]'); await settle();
@@ -971,7 +970,7 @@ test('removing a saved scenario asks in its own row, cancel returns focus, a new
   const warning = area.querySelector('.form-notice');
   assert.ok(warning.classList.contains('form-notice--warning'), 'the impact is an amber reminder');
   assert.match(warning.textContent, /移除/);
-  // 黃色提示不過度解釋，用已定案的短句，不提已匯出的底稿；這裡核對整句。
+  // 黃色提示只顯示情境需要重新檢查。
   assert.equal(warning.textContent, '移除這個情境；若正在編輯它，目前的條件也會清空。');
   assert.match(warning.textContent, /編輯/, 'it says what happens to the conditions being edited');
   assert.equal(f.$('[data-action="remove-scenario"][data-index="1"]').hidden, true);
@@ -1004,7 +1003,6 @@ test('removing a saved scenario asks in its own row, cancel returns focus, a new
     staleState: { validation: false, prescreen: false, filter: false } });
   await settle(); await settle();
   assert.deepEqual(f.store.getState().filter.savedScenarios.map(scenario => scenario.name), ['甲', '丙']);
-  // 句子是已定案的「已移除情境（剩餘 〈N〉 / 10）。」
   assert.deepEqual(f.messages()[0], { text: '已移除情境（剩餘 2 / 10）。', level: 'info' });
   assert.ok(active() === f.$('[data-action="toggle-scenario"][data-index="1"]'), 'focus moves to the row that took its place');
   assert.equal(f.$('[data-action="toggle-scenario"][data-index="1"]').closest('.saved-scenario').querySelector('.saved-scenario__name').textContent, '2. 丙');
@@ -1032,7 +1030,7 @@ test('rechecking updates what it can, lists what still needs editing and never f
   f.request('filterScenarioRecheck').resolve({ ok: true, position: null, savedCount: 3, scenarios: saved, resultRef: null,
     filterScenarioCheck: { status: 'needsEdit', recalculatedCount: 2, problems: [problems[1]] }, staleState: { validation: false, prescreen: false, filter: true } });
   await settle(); await settle();
-  // 句子是已定案的「已依目前規則重新檢查情境：〈N〉 個已更新，〈M〉 個仍需修改，請見上方清單。」；Ui.run 在句尾接上耗時。
+  // 重新檢查後顯示已更新與仍需修改的數量，Ui.run 在句尾接上耗時。
   // 等級是一般。
   assert.equal(f.messages()[0].level, 'info');
   assert.match(f.messages()[0].text, /^已依目前規則重新檢查情境：2 個已更新，1 個仍需修改，請見上方清單，耗時(?: \d+(?:\.\d)? 秒|不到 0\.1 秒)。$/);
@@ -1045,7 +1043,6 @@ test('rechecking updates what it can, lists what still needs editing and never f
   f.request('filterScenarioRecheck').resolve({ ok: true, position: null, savedCount: 3, scenarios: saved, resultRef: { revision: 'r3', populationScope: 'auditPeriod' },
     filterScenarioCheck: { status: 'current', recalculatedCount: 3, problems: [] }, staleState: { validation: false, prescreen: false, filter: false } });
   await settle(); await settle();
-  // 句子是已定案的「已依目前規則重新檢查 〈N〉 個情境，全部已更新。」
   assert.match(f.messages()[0].text, /^已依目前規則重新檢查 3 個情境，全部已更新，耗時(?: \d+(?:\.\d)? 秒|不到 0\.1 秒)。$/);
   assert.ok(list() === null);
   assert.ok(f.$('[data-action="resave-scenarios"]') === null);
@@ -1056,7 +1053,7 @@ const criteriaReport = (revision, stale = false) => ({ reportId: 'criteria-' + r
   fileState: 'asPublished', stale, generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationResultId: 'v1', scenarioRevision: revision, scenarioPositions: [1] } });
 
 // 產生條件篩選報告時送出的資料綁定目前的驗證結果與情境版本。
-// 產生報告的按鈕名稱用字沒有定案，只比對意思：有歷史報告或上游已變更時，表示是重新產生。
+// 產生報告的按鈕名稱只比對意思：有歷史報告或上游已變更時，表示是重新產生。
 test('the criteria report is bound to the current validation and scenario version, and says regenerate when one exists or upstream changed', async () => {
   const f = savedFixture({ saved: [savedBlankNamed('甲')], pane: 'saved' });
   const button = () => f.$('[data-action="export-criteria-report"]');
@@ -1064,7 +1061,6 @@ test('the criteria report is bound to the current validation and scenario versio
   f.click('[data-action="export-criteria-report"]'); await settle();
   assert.deepEqual(plain(f.request('exportCriteriaSelectionReport').payload), { validationResultId: 'v1', revision: 'r1' });
   f.request('exportCriteriaSelectionReport').resolve({ publishedReport: criteriaReport('r1') }); await settle(); await settle();
-  // 句子是已定案的「已在案件資料夾產生條件篩選報告。」
   assert.match(f.messages()[0].text, /^已在案件資料夾產生條件篩選報告，耗時(?: \d+(?:\.\d)? 秒|不到 0\.1 秒)。$/);
   assert.match(button().textContent, /重新/, 'after a report exists the button regenerates it');
 
@@ -1137,7 +1133,7 @@ test('hit details show the backend RDE amount column with values from customValu
 });
 
 // ================================================================================================
-// 第三部分　情境 14：開案時有待修正的舊情境
+// 第三部分　開案時有待修正的舊情境
 // ================================================================================================
 
 // 開案：用正式的 JetUi.openProject 送 projectLoad，回應後讀訊息紀錄（logRecent），兩個都由測試回應。
@@ -1150,14 +1146,12 @@ async function openCase(f, load) {
   await opening; await settle();
 }
 
-// 「篩選規則已更新…」是已定案的句子。
 // 等級是需要注意（warn）：訊息分三級，這句列為 warn。
 test('opening a case after a rule upgrade logs the confirmed sentence once, and only then', async () => {
   const recalculated = savedFixture();
   await openCase(recalculated, { filterScenarios: [savedBlankNamed('甲'), savedBlankNamed('乙')], filterResultRef: { revision: 'r9', populationScope: 'auditPeriod' },
     filterScenarioCheck: { status: 'recalculated', recalculatedCount: 2, problems: [] } });
   const upgrade = recalculated.messages().filter(message => /篩選規則已更新/.test(message.text));
-  // 黃色提示不過度解釋，用已定案的短句。
   assert.deepEqual(upgrade, [{ text: '篩選規則已更新，已重算 2 個情境；之前的條件篩選報告與底稿需要重新產生。', level: 'warn' }]);
   // 已是目前規則：不記這一句。
   const current = savedFixture();
@@ -1166,10 +1160,10 @@ test('opening a case after a rule upgrade logs the confirmed sentence once, and 
   assert.equal(current.messages().filter(message => /篩選規則已更新/.test(message.text)).length, 0);
 });
 
-// 逐字比對的句子：N1、「條件內容無法讀取」與「尚未選擇比較方式」。黃色提示不過度解釋，N1 用已定案的短句。
+// 逐字比對過期提示、「條件內容無法讀取」與「尚未選擇比較方式」。
 // 原因句由後端產生，這裡確認畫面照樣逐筆列出、不改字；清單最後的下一步只寫一次。
 // 提示避免專業術語、不得過長，下一步不逐筆重複。
-// 甲用到已移除的 GL 欄位 voucherDate：條件標題與讀回不印程式代號，寫法和其他認不得的欄位相同。
+// 甲用到 JET 認不得的 GL 欄位 voucherDate：條件標題與讀回不印程式代號，寫法和其他認不得的欄位相同。
 const N1 = '請到「進階條件篩選」修改後儲存，或移除不需要的情境。';
 const DESCRIPTION_RULE = { type: 'fieldValue', join: 'AND', field: 'description', operator: 'contains', values: ['合成'] };
 const retiredFieldScenario = name => ({ name, rationale: '合成舊情境動機', groups: [{ join: 'AND', matchScope: 'row', conditions: [
@@ -1196,7 +1190,7 @@ test('scenarios to fix are listed one by one on steps five and six, and fixing t
   assert.equal(f.$('[data-action="export-working-paper"]').disabled, true);
   assert.match(f.window.JetUi.stepGate(f.store.getState(), 5).missing.join(''), /無法套用目前規則/);
 
-  // 第五步清單下方的說明是已定案的句子，逐字比對，只寫一次。
+  // 第五步清單下方的說明只顯示一次。
   f.draw('filter');
   const R3_23 = '上列情境全部修改並儲存或移除後，才會顯示高風險條件彙總與全部符合條件的分錄，也才能產生條件篩選報告與工作底稿。';
   assert.equal(count(f.text(), R3_23), 1);
@@ -1208,14 +1202,14 @@ test('scenarios to fix are listed one by one on steps five and six, and fixing t
   f.click('[data-action="edit-scenario"][data-index="0"]');
   const retiredRow = f.$('.rule-row[data-gi="0"][data-ri="0"]');
   assert.equal(retiredRow.querySelector('.filter-rule-heading strong').textContent, '欄位已不存在');
-  // 條件卡片用已定案的句子說明此欄位目前未配對。
+  // 條件卡片說明此欄位目前未配對。
   assert.ok(retiredRow.textContent.includes('此欄位目前未配對，請回第三步確認，或移除後重新加入。'));
-  // 讀回的已移除欄位部分照確認的最終文字逐字比對；後面傳票摘要那一條不是這則測試的重點，只看有接上。
+  // 讀回裡認不得的欄位那一段逐字比對；後面傳票摘要那一條只確認有接上。
   const readback = f.$('.filter-readback .scenario-readback').textContent;
   assert.ok(readback.startsWith('篩選條件：已不存在的欄位 在非營業日；空白不列入 且 '), readback);
   assert.match(readback, /傳票摘要/);
   assert.ok(!f.text().includes('voucherDate'), 'no program code is shown for the removed field');
-  // 照原樣按儲存：畫面先擋下，說明那一條要重新選擇欄位（位置字首、提示框原因與「尚需補齊：」都照確認的句子）。
+  // 照原樣按儲存：畫面先擋下，說明那一條要重新選擇欄位（位置字首、提示框原因與「尚需補齊：」逐字比對）。
   
   f.click('[data-action="save-scenario"]'); await settle();
   assert.equal(f.scenarioWrites().length, 0, 'a scenario that still uses the removed field is not sent');
@@ -1263,13 +1257,11 @@ test('scenarios to fix are listed one by one on steps five and six, and fixing t
   assert.equal(f.$('[data-action="export-working-paper"]').disabled, false, 'step six can export once every scenario is fixed');
 });
 
-// 沒有逐筆清單時（資料不一致，或後端只知道要重新檢查）：第五、六步都寫 N2 一句，請審計員按「重新檢查並儲存情境」。
-// N2 是已定案的句子。
+// 沒有逐筆清單時（資料不一致，或後端只知道要重新檢查）：第五、六步各寫一次同一句，請審計員按「重新檢查並儲存情境」。
 test('without a per-scenario list both steps say once that rechecking will list what to edit', async () => {
   const f = savedFixture();
   await openCase(f, { filterScenarios: [savedBlankNamed('甲')], filterResultRef: null,
     filterScenarioCheck: { status: 'inconsistent', recalculatedCount: 0, problems: [] } });
-  // 黃色提示不過度解釋，用已定案的短句。
   const N2 = '已儲存的篩選情境無法套用目前規則，請到「進階條件篩選」按「重新檢查並儲存情境」。';
   for (const step of ['filter', 'export']) {
     f.draw(step);
@@ -1281,7 +1273,7 @@ test('without a per-scenario list both steps say once that rechecking will list 
 });
 
 // ================================================================================================
-// 第四部分　情境 15 的編輯部分：舊情境裡的舊式條件
+// 第四部分　新增條件不提供已停用的型別
 // ================================================================================================
 
 // 合成的攸關資料元素欄位：日期、金額、文字三種型別，加上一個後端不認得型別的欄位。
@@ -1290,155 +1282,9 @@ const RDE_FIELDS = [
   { fieldId: 'rde.amt', label: '合成金額欄', valueType: 'amount', sourceColumn: 'SynAmount' },
   { fieldId: 'rde.txt', label: '合成文字欄', valueType: 'text', sourceColumn: 'SynText' },
   { fieldId: 'rde.flag', label: '合成未知型別欄', valueType: 'boolean', sourceColumn: 'SynFlag' }];
-// 舊情境裡的 typed 條件：有幾條多帶了比較方式用不到的值（舊資料常見），重存時只能送用得到的那一種。
-const typedScenario = () => ({ name: '舊式欄位條件', rationale: '合成舊式動機', groups: [{ join: 'AND', matchScope: 'row', conditions: [
-  { type: 'typed', join: 'AND', fieldId: 'rde.date', operator: 'between', from: '2025-01-01', to: '2025-03-31', value: '2025-02-01' },
-  { type: 'typed', join: 'AND', fieldId: 'rde.amt', operator: 'greaterThan', value: '1000', amountBasis: 'absolute' },
-  { type: 'typed', join: 'AND', fieldId: 'rde.txt', operator: 'isBlank', value: 'x', amountBasis: 'signed' },
-  { type: 'typed', join: 'AND', fieldId: 'rde.txt', operator: 'in', values: ['A,B', 'C'] },
-  { type: 'typed', join: 'AND', fieldId: 'rde.flag', operator: 'equals', value: '1' },
-  { type: 'group', join: 'AND', conditions: [{ type: 'typed', join: 'AND', fieldId: 'rde.amt', operator: 'between', from: '1', to: '2', value: '9', amountBasis: 'signed' }] }] }] });
-const typedRow = (f, ri) => f.$('.rule-row[data-gi="0"][data-ri="' + ri + '"]');
-const ownControls = (row, selector) => row.querySelectorAll(selector).filter(node => node.closest('.rule-row') === row);
-
-// 比較方式的選項與名稱鏡像後端，由 C# 的 OperatorMenus_… 核對。
-test('an old field condition reopens with inputs shaped by the field type and its comparison', () => {
-  const f = savedFixture({ saved: [typedScenario()], rdeFields: RDE_FIELDS, pane: 'saved' });
-  f.click('[data-action="edit-scenario"][data-index="0"]');
-  const inputs = (ri, bind) => ownControls(typedRow(f, ri), '[data-rule-bind="' + bind + '"]');
-  // 日期欄的「介於」：兩個日期輸入框，沒有單一值，也沒有比較基準。
-  assert.deepEqual(['from', 'to'].map(bind => inputs(0, bind).map(node => node.getAttribute('type'))), [['date'], ['date']]);
-  assert.deepEqual(['from', 'to'].map(bind => inputs(0, bind)[0].value), ['2025-01-01', '2025-03-31']);
-  assert.equal(inputs(0, 'value').length, 0);
-  assert.equal(inputs(0, 'amountBasis').length, 0, 'only money fields compare on an amount basis');
-  // 金額欄的「大於」：一個數字輸入框，另有比較基準兩個選項。
-  assert.deepEqual(inputs(1, 'value').map(node => node.getAttribute('type')), ['number']);
-  assert.equal(inputs(1, 'value')[0].value, '1000');
-  assert.deepEqual(inputs(1, 'amountBasis')[0].querySelectorAll('option').map(option => option.getAttribute('value')), ['signed', 'absolute']);
-  assert.equal(inputs(1, 'amountBasis')[0].value, 'absolute');
-  // 「為空白」：沒有任何值的輸入框。
-  for (const bind of ['value', 'from', 'to', 'values', 'amountBasis']) assert.equal(inputs(2, bind).length, 0, 'isBlank has no ' + bind);
-  // 「屬於任一值」：一行一個值的文字框，說明經 aria-describedby 連到，說明寫出一行一個與上限。
-  const set = inputs(3, 'values');
-  assert.equal(set.length, 1);
-  assert.equal(set[0].tagName, 'TEXTAREA');
-  assert.equal(set[0].value, 'A,B\nC');
-  const help = f.$('#' + set[0].getAttribute('aria-describedby'));
-  assert.ok(help !== null, 'the value list is described');
-  assert.match(help.textContent, /每行一個值/);
-  assert.match(help.textContent, /100/);
-  // 不認得型別的欄位：比較方式選單只有「請選擇」，沒有任何比較方式。
-  const unknown = inputs(4, 'operator');
-  assert.equal(unknown.length, 1);
-  assert.deepEqual(unknown[0].querySelectorAll('option').map(option => option.getAttribute('value')), ['']);
-  // 欄位清單只來自已確認的攸關資料元素欄位。
-  assert.deepEqual(inputs(0, 'fieldId')[0].querySelectorAll('option').map(option => option.getAttribute('value')), ['', 'rde.date', 'rde.amt', 'rde.txt', 'rde.flag']);
-  // 欄位已不在配對裡：不提供比較方式，請先選欄位。
-  f.store.setMappingCommitted('gl', { mapping: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Code', description: 'Memo', amount: 'Amount' }, mode: 'signed',
-    options: { rdeFields: RDE_FIELDS.filter(field => field.fieldId !== 'rde.date') } });
-  assert.equal(inputs(0, 'operator').length, 0);
-  assert.equal(inputs(0, 'from').length, 0);
-});
-
-// 「攸關資料元素欄位」是統一的用語。
-test('clearing a comparison or listing too many values blocks saving; the completed condition sends only what its comparison uses', async () => {
-  const f = savedFixture({ saved: [typedScenario()], rdeFields: RDE_FIELDS, pane: 'saved' });
-  f.click('[data-action="edit-scenario"][data-index="0"]');
-  
-  const setOperator = value => { const select = ownControls(typedRow(f, 0), '[data-rule-bind="operator"]')[0]; select.value = value; select.fire('input'); };
-  // 清掉比較方式：按儲存不送出並說明。
-  setOperator('');
-  f.click('[data-action="save-scenario"]'); await settle();
-  assert.equal(f.scenarioWrites().length, 0);
-  // 「攸關資料元素欄位條件需選定欄位與比較方式」是已定案的句子，逐字比對。
-  assert.equal(f.notice(), '尚需補齊：攸關資料元素欄位條件需選定欄位與比較方式');
-  // 值清單超過上限：同樣不送出。
-  setOperator('between');
-  const list = () => ownControls(typedRow(f, 3), '[data-rule-bind="values"]')[0];
-  list().value = Array.from({ length: 101 }, (_, i) => 'V' + i).join('\n'); list().fire('input');
-  f.click('[data-action="save-scenario"]'); await settle();
-  assert.equal(f.scenarioWrites().length, 0, 'a list over the limit is not sent');
-  // 用字照已定案的句子：逐條寫出是哪一條條件，「請填 1 到 100 個值」。
-  assert.equal(f.notice(), '尚需補齊：第 1 組第 4 條「合成文字欄」請填 1 到 100 個值');
-  // 清單仍超過上限時改了動機：提示留著，不會先收起。
-  f.type('[data-bind="scenario-rationale"]', '合成舊式動機（補充）');
-  assert.equal(f.notice(), '尚需補齊：第 1 組第 4 條「合成文字欄」請填 1 到 100 個值', 'the notice stays while the list is still over the limit');
-  list().value = 'A,B\nC'; list().fire('input');
-  // 補好之後儲存：只送這一個情境，每條 typed 條件只帶比較方式用得到的值；比較基準只有金額欄才帶，條件組內的也一樣。
-  f.click('[data-action="save-scenario"]'); await settle();
-  assert.equal(f.scenarioWrites().length, 1);
-  const payload = plain(f.request('filterScenarioSave').payload);
-  assert.deepEqual({ position: payload.position, expectedName: payload.expectedName, populationScope: payload.populationScope },
-    { position: 1, expectedName: '舊式欄位條件', populationScope: 'auditPeriod' });
-  assert.deepEqual(payload.scenario.groups, [{ join: 'AND', matchScope: 'row', conditions: [
-    { join: 'AND', type: 'typed', fieldId: 'rde.date', operator: 'between', from: '2025-01-01', to: '2025-03-31' },
-    { join: 'AND', type: 'typed', fieldId: 'rde.amt', operator: 'greaterThan', value: '1000', amountBasis: 'absolute' },
-    { join: 'AND', type: 'typed', fieldId: 'rde.txt', operator: 'isBlank' },
-    { join: 'AND', type: 'typed', fieldId: 'rde.txt', operator: 'in', values: ['A,B', 'C'] },
-    { join: 'AND', type: 'typed', fieldId: 'rde.flag', operator: 'equals', value: '1' },
-    { type: 'group', join: 'AND', conditions: [{ join: 'AND', type: 'typed', fieldId: 'rde.amt', operator: 'between', from: '1', to: '2', amountBasis: 'signed' }] }] }]);
-  assertNoScreenKeys(payload, 'the old typed scenario');
-});
-
-// 選項的值是送給後端的封閉值，精確比對；比對方式的名稱只比對意思；空白處理的名稱是已定案的文字，逐字比對。
-// TEXT_SET_MAX_VALUES 與後端 FilterScenarioLimits.MaxTextSetValuesPerRule 的鏡像只能看原始碼，由 FilterBackendRuleMirrorFrontendTests 核對。
-const textSetScenario = () => ({ name: '舊式文字清單', rationale: '合成文字清單動機', groups: [{ join: 'AND', matchScope: 'row', conditions: [
-  { type: 'textSet', join: 'AND', field: 'description', values: ['Alpha,Beta', 'Gamma'], mode: 'exact', normalization: 'removeAsciiSpaces' }] }] });
-test('an old text value list edits one value per line, keeps commas, blocks 101 values for preview and save, and sends the lines as typed', async () => {
-  const f = savedFixture({ saved: [textSetScenario()], pane: 'saved' });
-  f.click('[data-action="edit-scenario"][data-index="0"]');
-  const row = typedRow(f, 0);
-  const textarea = ownControls(row, '[data-rule-bind="values"]')[0];
-  assert.equal(textarea.tagName, 'TEXTAREA');
-  assert.equal(textarea.value, 'Alpha,Beta\nGamma', 'one value per line, the comma stays inside its value');
-  const help = f.$('#' + textarea.getAttribute('aria-describedby'));
-  assert.ok(help !== null);
-  assert.match(help.textContent, /每行一個值/);
-  assert.match(help.textContent, /100/, 'the hint states the limit');
-  const mode = ownControls(row, '[data-rule-bind="mode"]')[0], normalization = ownControls(row, '[data-rule-bind="normalization"]')[0];
-  assert.deepEqual(mode.querySelectorAll('option').map(option => option.getAttribute('value')), ['contains', 'exact']);
-  assert.equal(mode.value, 'exact');
-  assert.match(mode.querySelectorAll('option')[0].textContent, /包含/);
-  assert.match(mode.querySelectorAll('option')[1].textContent, /完全符合/);
-  assert.deepEqual(normalization.querySelectorAll('option').map(option => option.getAttribute('value')), ['preserve', 'removeAsciiSpaces']);
-  assert.equal(normalization.value, 'removeAsciiSpaces');
-  // 「保留半形空白」「移除半形空白」是已定案的文字，逐字比對。
-  assert.deepEqual(normalization.querySelectorAll('option').map(option => option.textContent), ['保留半形空白', '移除半形空白']);
-
-  // 101 個值：預覽與儲存都不送出，畫面寫出上限。
-  const values = () => ownControls(typedRow(f, 0), '[data-rule-bind="values"]')[0];
-  values().value = Array.from({ length: 101 }, (_, i) => 'T' + i).join('\n'); values().fire('input');
-  f.click('[data-action="preview-scenario"]'); await settle();
-  assert.equal(f.sent('filterPreview').length, 0);
-  // 提示框用已定案的句子逐條寫出是哪一條條件，逐字比對。
-  assert.equal(f.notice(), '尚需補齊：第 1 組第 1 條「文字值清單」請填 1 到 100 個值');
-  
-  f.click('[data-action="save-scenario"]'); await settle();
-  assert.equal(f.scenarioWrites().length, 0);
-  // 清單仍超過上限時改了動機：提示留著，不會先收起。
-  f.type('[data-bind="scenario-rationale"]', '合成文字清單動機（補充）');
-  assert.equal(f.notice(), '尚需補齊：第 1 組第 1 條「文字值清單」請填 1 到 100 個值', 'the notice stays while the list is still over the limit');
-  f.type('[data-bind="scenario-rationale"]', '合成文字清單動機');
-  // 改成兩行：提示收起，預覽送出的就是這兩行，逗號不拆開。
-  values().value = 'A,B\nC'; values().fire('input');
-  assert.equal(f.notice(), '');
-  
-  f.click('[data-action="preview-scenario"]'); await settle();
-  const rule = { type: 'textSet', join: 'AND', field: 'description', values: ['A,B', 'C'], mode: 'exact', normalization: 'removeAsciiSpaces' };
-  // 草稿送出的編輯來源是第 2 版，逐條記卡片代號。
-  const scenario = { name: '舊式文字清單', rationale: '合成文字清單動機', groups: [{ join: 'AND', matchScope: 'row', conditions: [rule] }],
-    editorOrigins: { version: 2, nameIsAutomatic: false, rationaleIsAutomatic: false, groups: [{ cards: [null] }] } };
-  assert.deepEqual(plain(f.request('filterPreview').payload), { populationScope: 'auditPeriod', scenario });
-  f.request('filterPreview').reject(new Error('合成預覽失敗。')); await settle(); await settle();
-  
-  f.click('[data-action="save-scenario"]'); await settle();
-  assert.deepEqual(plain(f.request('filterScenarioSave').payload), { populationScope: 'auditPeriod', position: 1, expectedName: '舊式文字清單', scenario });
-});
-
-// 新增條件的入口不提供舊式型別；舊情境裡的文字清單、日期區間等歷史型別能顯示與編輯，標成「舊式」，但不能新建。
+// 新增條件的入口不提供已停用的型別；舊情境裡的這些型別讀回成已停用的條件，只能刪除。
 // 案件已確認攸關資料元素欄位、科目配對完整、有授權清單，舊的可用條件都成立，仍不得出現這些型別。
-// 特定人員、特定摘要、空白摘要與特定尾數四張卡用欄位條件；舊式型別只用來讀取舊情境。
-// 兩種舊式筆數條件也停用，歸在舊式清單。
+// 特定人員、特定摘要、空白摘要與特定尾數四張卡用欄位條件。兩種舊式筆數條件也停用，列在同一份清單。
 const LEGACY_TYPES = ['text', 'textSet', 'dateRange', 'numRange', 'typed', 'customKeywords', 'customTrailingZeros', 'trailingDigits',
   'customPreparerEntryCount', 'customAccountEntryCount'];
 const CURRENT_TYPES = ['fieldValue', 'drCrOnly', 'manualAuto', 'accountSide', 'specialAccountCategoryPair', 'accountPair', 'group', 'voucher',
@@ -1454,7 +1300,7 @@ const assertCurrentTypes = (types, label) => {
   for (const type of types) assert.ok(CURRENT_TYPES.includes(type) && !LEGACY_TYPES.includes(type), label + ' adds the current type ' + type);
 };
 test('no entry for adding a condition offers an old-style condition type', () => {
-  // 情境範例在這個版本隱藏；這個測試也要逐一套用範例，所以先把開關打開。
+  // 情境範例預設隱藏；這個測試也要逐一套用範例，所以先把開關打開。
   const f = savedFixture({ rdeFields: RDE_FIELDS, features: { scenarioTemplates: true } });
   f.store.setAuthorizedPreparerState({ rowCount: 2 });
   // 每一段從空白草稿開始；空白草稿換掉時不會詢問是否儲存。
@@ -1590,7 +1436,7 @@ test('each saved scenario\'s actions menu opens from its button or the keyboard,
 });
 
 // 靠近捲動區底邊的那一列，「操作」選單往下長，最後一項會被底邊切掉，所以下方放不下時改往上展開。
-// 假 DOM 沒有版面，這裡照預覽主機量到的位置給固定值：捲動區從 0 到 778，上方 111 被標題列蓋住，最後一列的按鈕在 676 到 704，選單高 100。
+// 假 DOM 沒有版面，這裡用實際畫面量到的位置給固定值：捲動區從 0 到 778，上方 111 被標題列蓋住，最後一列的按鈕在 676 到 704，選單高 100。
 test('an actions menu without room below opens upward, and a row with room below still opens downward', () => {
   const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
   const toggle = index => f.$$('.saved-scenario .jet-menu__toggle')[index];
@@ -1839,7 +1685,7 @@ test('with cards the step-six options show only the evaluation notes, and a rewr
 });
 
 // ================================================================================================
-// 第五部分　情境 12、13 補充：後端回報的錯誤與儲存鈕上方的提示，畫在審計員現在看得到的畫面上
+// 第五部分　補充：後端回報的錯誤與儲存鈕上方的提示，畫在審計員現在看得到的畫面上
 // ================================================================================================
 //
 // 審計員的操作：上一次作業失敗、步驟上方還留著失敗提示時，再按儲存、預覽或確認移除；之後繼續加條件、改條件、打名稱；

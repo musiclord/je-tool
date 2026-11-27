@@ -42,7 +42,7 @@
       </div>
       <div class="app-header__status">
         <!-- 流程總覽開啟鈕：僅 workflow 視圖顯示（比照 back-picker 的 hidden 切換）。
-             6 點點陣圖示（第 5 點訊號紅），純 CSS/HTML，不引入圖檔或 icon 字型。 -->
+             6 點點陣圖示（第 5 點用重點色），純 CSS 與 HTML，不引入圖檔或圖示字型。 -->
         <button type="button" class="btn btn--ghost overview-btn" data-action="overview-open"
           title="開啟流程總覽：查看六步進度、目前焦點與 GL 摘要" hidden>
           <span class="overview-btn__dots" aria-hidden="true">
@@ -80,8 +80,8 @@
 
     <!-- 主要工作區：picker 有獨立 inline 回饋；workflow 的狀態與訊息面板位於 app-body 左欄。 -->
     <div class="app-main" data-bind="app-main">
-      <!-- 專案選擇畫面（啟動入口；選定或建立專案後切換到工作流程） -->
-      <section class="project-picker" aria-label="案件選擇" data-bind="project-picker" hidden></section>
+      <!-- 案件清單畫面（啟動入口；開啟或建立案件後切換到工作流程） -->
+      <section class="project-picker" aria-label="案件清單" data-bind="project-picker" hidden></section>
 
       <div class="app-body" data-bind="app-body">
         <!-- 左欄：目錄（TOC）＋進度＋底部可收合訊息 -->
@@ -92,7 +92,7 @@
           <nav class="step-nav" aria-label="流程步驟" data-bind="step-nav"></nav>
 
           <!-- 狀態 / 訊息區：位於左欄底部；picker 視圖時 app-body 隱藏，picker 操作錯誤由獨立 inline 回饋顯示。
-               已開啟案件的歷史持久化於專案資料庫（log.append / log.recent）。
+               已開啟案件的訊息紀錄存在案件資料庫（log.append、log.recent）。
                「訊息」那一列是唯一的開關，固定在欄底；訊息清單與兩個操作從它上方長出來，收合時收回它後面，
                所以展開後要收合，仍按同一個位置。 -->
           <aside class="messages messages--collapsed" aria-label="狀態與訊息" data-bind="messages-panel">
@@ -142,7 +142,7 @@
       </div>
     </div>
 
-    <!-- 流程總覽：標題列「流程總覽」開啟的補充視窗（modal overlay）。
+    <!-- 流程總覽：標題列「總覽」按鈕開啟的補充視窗（modal overlay）。
          純檢視、不改變流程狀態（導航除外）；資料全讀既有 state（見 app.js renderOverview）。
          背景遮罩不是控制項，不掛 data-action；點擊關閉由 app.js 的 bindOverviewDialog 依 class 綁定。卡片內的 ✕ 與內容由 app.js 於開啟時填入。
          顯示與否由純 UI 狀態 state.overviewOpen 驅動（app.js 切 [hidden]）。 -->
@@ -153,8 +153,7 @@
 
     <!-- 開發工具：資料庫檢視（僅 Debug 組建顯示與註冊，非審計 workflow） -->
     <details class="dev-panel" data-bind="dev-panel">
-      <!-- 標題不寫資料庫種類；實際的資料庫資訊看面板內 dev-info 那一行，由後端的檢視程式回報。
-           目前只有 SQLite。 -->
+      <!-- 標題不寫資料庫種類；實際的資料庫資訊看面板內 dev-info 那一行，由後端的檢視程式回報。 -->
       <summary class="dev-panel__summary">DEV — 資料庫檢視</summary>
       <div class="dev-panel__body" data-bind="dev-panel-body"></div>
     </details>

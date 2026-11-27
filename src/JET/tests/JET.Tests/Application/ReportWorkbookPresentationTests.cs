@@ -16,8 +16,8 @@ public sealed class ReportWorkbookPresentationTests(ReportExportFixture fixture)
 {
     private const string CanonicalFontName = "微軟正黑體";
     private const string FieldInfoSheet = "自動化工具-檔案欄位資訊";
-    private const string Step12Sheet = "step1-2 分錄編製人員說明";
-    private const string Step41Sheet = "step4-1 符合高風險條件傳票明細";
+    private const string PreparerSummarySheet = "step1-2 分錄編製人員說明";
+    private const string HighRiskVoucherDetailSheet = "step4-1 符合高風險條件傳票明細";
 
     [Fact]
     public async Task EveryFormalWorkbook_UsesOneCanonicalSpreadsheetFontFamily()
@@ -53,7 +53,7 @@ public sealed class ReportWorkbookPresentationTests(ReportExportFixture fixture)
     }
 
     [Fact]
-    public async Task WorkingPaper_Step12ManualFields_AreUnlockedWithoutHighlightFill()
+    public async Task WorkingPaper_PreparerSummaryManualFields_AreUnlockedWithoutHighlightFill()
     {
         await fixture.ExportCriteriaSelectionReportAsync();
         var response = await fixture.ExportWorkingPaperAsync();
@@ -62,7 +62,7 @@ public sealed class ReportWorkbookPresentationTests(ReportExportFixture fixture)
 
         foreach (var reference in new[] { "C12", "F12", "G12", "H12" })
         {
-            var format = CellFormatFor(document, Step12Sheet, reference);
+            var format = CellFormatFor(document, PreparerSummarySheet, reference);
             var fill = FillFor(document, format);
 
             Assert.True(format.Protection?.Locked?.Value == false, reference);
@@ -71,13 +71,13 @@ public sealed class ReportWorkbookPresentationTests(ReportExportFixture fixture)
     }
 
     [Fact]
-    public async Task WorkingPaper_Step41_UsesNoCellRowOrColumnBorders()
+    public async Task WorkingPaper_HighRiskVoucherDetail_UsesNoCellRowOrColumnBorders()
     {
         await fixture.ExportCriteriaSelectionReportAsync();
         var response = await fixture.ExportWorkingPaperAsync();
         var path = fixture.ReportPath(response.GetProperty("publishedReport"));
         using var document = SpreadsheetDocument.Open(path, false);
-        var worksheet = WorksheetFor(document, Step41Sheet);
+        var worksheet = WorksheetFor(document, HighRiskVoucherDetailSheet);
 
         var cells = worksheet.Descendants<Cell>().ToArray();
         Assert.NotEmpty(cells);

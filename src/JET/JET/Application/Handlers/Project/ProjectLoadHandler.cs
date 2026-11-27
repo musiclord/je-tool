@@ -7,14 +7,14 @@ namespace JET.Application;
 
 public sealed class ProjectLoadHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectRepositoryCatalog repositoryCatalog;
-    private readonly CurrentPrincipal principal;
-    private readonly ProjectSession session;
-    private readonly IProjectDatabaseCheckpoint? databaseCheckpoint;
-    private readonly ILogger? logger;
-    private readonly ISupportCaseHistory? supportHistory;
-    private readonly ProjectSessionDeparture? sessionDeparture;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectRepositoryCatalog _repositoryCatalog;
+    private readonly CurrentPrincipal _principal;
+    private readonly ProjectSession _session;
+    private readonly IProjectDatabaseCheckpoint? _databaseCheckpoint;
+    private readonly ILogger? _logger;
+    private readonly ISupportCaseHistory? _supportHistory;
+    private readonly ProjectSessionDeparture? _sessionDeparture;
 
     internal ProjectLoadHandler(
         IProjectStore projectStore,
@@ -26,14 +26,14 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         IProjectDatabaseCheckpoint? databaseCheckpoint = null,
         ProjectSessionDeparture? sessionDeparture = null)
     {
-        this.logger = logger;
-        this.supportHistory = supportHistory;
-        this.projectStore = projectStore;
-        this.repositoryCatalog = repositoryCatalog;
-        this.principal = principal;
-        this.session = session;
-        this.databaseCheckpoint = databaseCheckpoint;
-        this.sessionDeparture = sessionDeparture;
+        this._logger = logger;
+        this._supportHistory = supportHistory;
+        this._projectStore = projectStore;
+        this._repositoryCatalog = repositoryCatalog;
+        this._principal = principal;
+        this._session = session;
+        this._databaseCheckpoint = databaseCheckpoint;
+        this._sessionDeparture = sessionDeparture;
     }
 
     public string Action => "project.load";
@@ -42,7 +42,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     {
         var projectId = PayloadReader.GetRequiredString(payload, "projectId");
         SupportOperationStage.Enter("metadata_read");
-        var document = await projectStore.FindAsync(projectId, cancellationToken);
+        var document = await _projectStore.FindAsync(projectId, cancellationToken);
 
         if (document is null)
         {
@@ -53,15 +53,15 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
 
         // 依 project.json 的資料庫種類選定這個案件的資料庫組。不支援的種類在取鎖之前回 unsupported_provider，
         // 不留下鎖，也不動案件資料夾；之後的讀取、取鎖與 session 都只用這一組。
-        var repositories = repositoryCatalog.For(document.DatabaseProvider);
+        var repositories = _repositoryCatalog.For(document.DatabaseProvider);
 
         var lockService = repositories.LockService;
         var reportStore = repositories.ReportStore;
 
-        // 進入 session 之前先取案件的工作鎖，它是跨程序的檔案鎖。
+        // 進入 session 之前先取案件鎖，它是跨程序的檔案鎖。
         // 鎖被別人持有時回 project_locked：不進入 session，不往下載入，也不更新上次開啟時間。
         SupportOperationStage.Enter("lock_acquire");
-        var lockOutcome = await lockService.AcquireAsync(document.ProjectId, principal.Name, cancellationToken);
+        var lockOutcome = await lockService.AcquireAsync(document.ProjectId, _principal.Name, cancellationToken);
         if (lockOutcome is LockOutcome.Held held)
         {
             throw new JetActionException(
@@ -94,7 +94,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         RocDateEnabled: true,
                         ProjectCreateHandler.NewSampleSeed(),
                         JetAuditProgram.CurrentInfSamplingAlgorithmVersion,
-                        await principal.ResolveCreatorNameAsync(token),
+                        await _principal.ResolveCreatorNameAsync(token),
                         openingDocument.LastAccountingPeriodDate,
                         NonWorkingDays: null);
                 },
@@ -142,7 +142,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var scenarioUpgrade = await EvaluateScenarioUpgradeAsync(
                 document, repositories, savedScenarios, glMapping, accountMappingState, categorySnapshot, cancellationToken);
             // 損毀的條件在清單上只寫「條件內容無法讀取」，哪一條、哪一種記進支援日誌。
-            FilterScenarioDiagnostics.LogProblems(logger, Action, scenarioUpgrade.Problems);
+            FilterScenarioDiagnostics.LogProblems(_logger, Action, scenarioUpgrade.Problems);
             if (scenarioUpgrade.Status == FilterScenarioUpgradeStatus.Upgraded)
             {
                 await repositories.FilterScenarios.ReplaceAllAsync(
@@ -338,19 +338,19 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // 以免時間已經記下，卻因為後面那些失敗也不影響結果的工作被取消，而回報載入失敗。
             var openedDocument = document with { LastOpenedUtc = DateTimeOffset.UtcNow };
             SupportOperationStage.Enter("metadata_save");
-            await projectStore.SaveAsync(openedDocument, cancellationToken);
+            await _projectStore.SaveAsync(openedDocument, cancellationToken);
 
-            // 新的案件確定開成之後、進入 session 之前，才離開目前還開著的另一個案件，放掉它的工作鎖並關閉它的資料庫；
+            // 新的案件確定開成之後、進入 session 之前，才離開目前還開著的另一個案件，放掉它的案件鎖並關閉它的資料庫；
             // 重開同一個案件時不動。前面任何一步失敗時，目前的案件照樣開著。
-            if (sessionDeparture is not null)
+            if (_sessionDeparture is not null)
             {
-                await sessionDeparture.LeaveOtherProjectAsync(document.ProjectId);
+                await _sessionDeparture.LeaveOtherProjectAsync(document.ProjectId);
             }
 
-            session.Enter(document.ProjectId, repositories);
-            // 持有工作鎖時才建立案件的支援紀錄資料夾，並記下這次開啟。
+            _session.Enter(document.ProjectId, repositories);
+            // 持有案件鎖時才建立案件的支援紀錄資料夾，並記下這次開啟。
             SupportCaseDiagnostics.CaseOpened(
-                supportHistory, logger, document.ProjectId, document.DatabaseProvider, createdNow: false);
+                _supportHistory, _logger, document.ProjectId, document.DatabaseProvider, createdNow: false);
             return response;
         }
         catch
@@ -359,20 +359,20 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             {
                 if (acquiredThisCall)
                 {
-                    await lockService.ReleaseAsync(document.ProjectId, principal.Name, CancellationToken.None);
+                    await lockService.ReleaseAsync(document.ProjectId, _principal.Name, CancellationToken.None);
                 }
             }
             catch (Exception releaseError)
             {
-                // 放鎖失敗時不往外丟，保留原本載入案件或存上次開啟時間時的例外。工作鎖沒放掉時，下次開案可能顯示已被開啟，
+                // 放鎖失敗時不往外丟，保留原本載入案件或存上次開啟時間時的例外。案件鎖沒放掉時，下次開案可能顯示已被開啟，
                 // 支援日誌另記一筆。
-                if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "lock_release", releaseError);
+                if (_logger is not null) SupportStepDiagnostics.StepFailed(_logger, "lock_release", releaseError);
             }
 
-            if (acquiredThisCall && databaseCheckpoint is not null)
+            if (acquiredThisCall && _databaseCheckpoint is not null)
             {
                 // 沒有進入這個案件：開案途中開過的資料庫連線一併關閉，JET 不再開著它的資料庫檔（見 IProjectDatabaseCheckpoint）。
-                await ProjectDatabaseCheckpointSteps.TryCloseAsync(databaseCheckpoint, document.ProjectId, logger);
+                await ProjectDatabaseCheckpointSteps.TryCloseAsync(_databaseCheckpoint, document.ProjectId, _logger);
             }
 
             throw;
@@ -430,7 +430,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         }
         catch (JsonException error)
         {
-            if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "gl_date_notices_read", error);
+            if (_logger is not null) SupportStepDiagnostics.StepFailed(_logger, "gl_date_notices_read", error);
             return [];
         }
     }

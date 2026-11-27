@@ -59,7 +59,7 @@ public sealed class CompletenessDiffPageTests(DemoProjectFixture fixture)
         var page = await fixture.Host.DispatchAsync(
             "query.completenessDiffPage", JsonSerializer.Serialize(new { pageSize = 200 }));
 
-        // >= 0 對陣列長度永遠成立。Demo TB 逐科目取本期 GL 同額彙總，
+        // 示範 TB 逐科目取本期 GL 同額彙總，
         // 兩張期外傳票不計入任一側，因此首頁固定沒有差異，也沒有下一頁。
         Assert.Equal(0, page.GetProperty("rows").GetArrayLength());
         Assert.Equal(JsonValueKind.Null, page.GetProperty("nextCursor").ValueKind);

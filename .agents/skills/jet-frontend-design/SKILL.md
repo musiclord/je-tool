@@ -85,7 +85,7 @@ JET 是離線的 Windows 審計工具。審計員長時間閱讀分錄、科目�
   電腦上有程式使用 UI Automation 時，WebView2 一直維護無障礙樹；掛著虛擬元素的元素一改樣式，例如滑鼠移入、切換屬性或轉場，
   就把底下整棵子樹重送一遍，捲動跟著頓一下。這類容器上的裝飾改用 `aria-hidden` 的空元素，例如標題列玻璃 `.app-shell__glass`
   與流程軸線 `.stepflow-item__rail`；按鍵、箭頭與標籤這類子樹很小的元素照常可用虛擬元素。
-  容器名單與檢查在 `DesignIntegrationFrontendTests` 的 `Frontend_LargeLayoutContainers_CarryNoPseudoElements`。
+  容器名單與檢查在 `AppearanceFrontendTests` 的 `Frontend_LargeLayoutContainers_CarryNoPseudoElements`。
 
 實作細節讀 `app.js` 的 `JetMotion`、`SPRINGS`、`bindGlide`、`bindArrival` 與 `bindWindowFocus`，以及 `app.css` 的對應規則。
 參數與曲線要同步，不把歷史測量或舊參數當成現行規格。

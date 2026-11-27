@@ -125,8 +125,7 @@ public sealed class CommonFilterPredicateTests
 
     private static FilterConditionSpec Rule(
         FilterConditionType type, IReadOnlyList<string>? keywords = null, int? windowDays = null) =>
-        new(FilterJoin.And, type, null, null, keywords ?? [], TextMatchMode.Contains,
-            null, null, null, null, null, null, WindowDays: windowDays);
+        new(FilterJoin.And, type, null, null, keywords ?? [], null, null, WindowDays: windowDays);
 
     // 「特定尾數」卡片加入的條件：「金額」的「整數尾數符合」，走正式的解析。
     private static FilterConditionSpec Tail(params string[] patterns) => FilterScenarioPayloadParser.Parse(JsonDocument.Parse(

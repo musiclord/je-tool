@@ -62,7 +62,7 @@ public sealed class FilterWorkflowPreviewTests
         Assert.Equal(scenario.GetProperty("editorOrigins").GetRawText(), saved.GetProperty("scenarios")[0].GetProperty("editorOrigins").GetRawText());
         // 空白名稱不會讓儲存失敗；這裡要的是一次失敗的儲存，所以用不存在的欄位，
         // 核對失敗的儲存不覆蓋已存情境。
-        var invalid = JsonDocument.Parse("""{"name":"","groups":[{"conditions":[{"type":"text","field":"no_such_field","keywords":"x","mode":"contains"}]}]}""").RootElement;
+        var invalid = JsonDocument.Parse("""{"name":"","groups":[{"conditions":[{"type":"fieldValue","field":"no_such_field","operator":"contains","values":["x"]}]}]}""").RootElement;
         var failedSave = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.commit",
             JsonSerializer.Serialize(new { scenarios = new[] { invalid } })));
         Assert.Equal(JetErrorCodes.InvalidScenario, failedSave.Code);

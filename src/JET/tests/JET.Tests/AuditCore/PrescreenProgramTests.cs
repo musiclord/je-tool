@@ -260,8 +260,7 @@ public sealed class PrescreenProgramTests
             ResultId: "run",
             GeneratedUtc: new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero),
             PrepStartDate: prepStartDate,
-            // 核准日與建立人員兩個旗標換成可用欄位清單。
-            // （編譯失敗）。
+            // 沒有核准日或建立人員時，可用欄位清單不含這兩欄。
             AvailableGlFields: JetFieldCatalog.GlFields
                 .Select(static field => field.SemanticIdentity)
                 .Where(field => (hasApprovalDate || field != JetFieldCatalog.GlApprovalDate)

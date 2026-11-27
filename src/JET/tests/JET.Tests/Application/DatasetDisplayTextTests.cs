@@ -46,7 +46,7 @@ public sealed class DatasetDisplayTextTests
     [Fact]
     public void ConfirmedTbPreview_UsesUnifiedTbNameAndKey()
     {
-        // 資料名稱全系統統一，已確認配對的試算表叫 TB，資料集的鍵是 tb。
+        // 已確認配對的試算表在全系統都叫 TB，資料集的鍵是 tb。
         Assert.Equal("TB", DataPreviewDatasetLabels.MainTabs.Single(tab => tab.Dataset == "tb").Label);
     }
 
@@ -61,7 +61,7 @@ public sealed class DatasetDisplayTextTests
             .AddRow("OUT", "2024-12-31", "4101", "合成", "期外非零", "1.0000", 0), databaseProvider: provider));
         Assert.Equal(JetErrorCodes.GlAmountsAllZero, error.Code);
         Assert.DoesNotContain("母體", error.Message, StringComparison.Ordinal);
-        // 資料名稱全系統統一，納入測試的分錄叫 GL。
+        // 納入測試的分錄在全系統都叫 GL。
         Assert.Contains("GL 借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("納入測試的分錄", error.Message, StringComparison.Ordinal);
         Assert.Contains("借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);

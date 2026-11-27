@@ -105,7 +105,7 @@ public sealed class WorkbookSharedStringsTests
         });
     }
 
-    /// <summary>不屬於正式輸出的活頁簿沒有共用字串的收集器，文字照舊寫成 inline string。</summary>
+    /// <summary>不屬於正式輸出的活頁簿沒有共用字串的收集器，文字寫成 inline string。</summary>
     [Fact]
     public void TextOutsideAFormalWorkbook_IsWrittenAsInlineString()
     {

@@ -164,7 +164,6 @@ public sealed class MappingReimportDraftTests
             })));
 
         Assert.Equal(JET.Domain.JetErrorCodes.ProjectionFailed, error.Code);
-        // 這句的用字已定案。
         Assert.StartsWith("有 3 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
         Assert.Collection(

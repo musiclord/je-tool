@@ -144,8 +144,7 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
             new FilterGroupSpec(
                 FilterJoin.And,
                 [new FilterConditionSpec(
-                    FilterJoin.And, FilterConditionType.Prescreen, ruleKey, null, [], TextMatchMode.Contains,
-                    null, null, null, null, null, null)])
+                    FilterJoin.And, FilterConditionType.Prescreen, ruleKey, null, [], null, null)])
         ]);
 
     internal static async Task<PageResult<PrescreenHitRow>> ReadPageAsync(

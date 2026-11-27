@@ -11,7 +11,7 @@ namespace JET.Tests.Infrastructure;
 /// 差別只在對方集合：R3 含 Cash、C 不含。故 R3 條件較嚴 → 命中集 ⊆ C。
 ///
 /// 兩者的對方認定另有一項差異：R3 的正常對方借方採
-/// `amount_scaled > 0`（0 元不算已收到對價），C 維持 `>= 0`。因此包含關係只在
+/// `amount_scaled > 0`（0 元不算已收到對價），C 採 `>= 0`。因此包含關係只在
 /// 「沒有零元正常對方借方」時成立，ZERO 傳票是唯一且刻意保留的分歧點。
 ///
 /// R3 照舊版 IDEA，另要求同傳票至少有一筆金額大於 0 的分錄。這只會讓 R3 變小，
@@ -89,7 +89,7 @@ public sealed class RevenueCounterpartRelationshipTests : IDisposable
     private async Task<IReadOnlyList<string>> HitDocumentsAsync(FilterConditionType type, string? prescreenKey)
     {
         var rule = new FilterConditionSpec(FilterJoin.And, type, prescreenKey, null, [],
-            TextMatchMode.Contains, null, null, null, null, null, null);
+            null, null);
         var scenario = new FilterScenarioSpec("關係測試", "R3⊆C",
             [new FilterGroupSpec(FilterJoin.And, [rule])]);
         var result = await _repository.PreviewAsync(_projectId, scenario, Context, CancellationToken.None);
@@ -101,41 +101,41 @@ public sealed class RevenueCounterpartRelationshipTests : IDisposable
     }
 
     [Fact]
-    public async Task R3_IsSubsetOfC_ExceptZeroAmountCounterpart_AndCashSaleDiscriminates()
+    public async Task UnexpectedAccountPair_IsSubsetOfRevenueWithoutNormalCounterpart_ExceptZeroAmountCounterpart_AndCashSaleDiscriminates()
     {
-        var r3 = await HitDocumentsAsync(FilterConditionType.Prescreen, PrescreenRuleKeys.UnexpectedAccountPair);
-        var c = await HitDocumentsAsync(FilterConditionType.RevenueWithoutNormalCounterpart, null);
+        var unexpectedPair = await HitDocumentsAsync(FilterConditionType.Prescreen, PrescreenRuleKeys.UnexpectedAccountPair);
+        var revenueWithoutCounterpart = await HitDocumentsAsync(FilterConditionType.RevenueWithoutNormalCounterpart, null);
 
-        // R3 挑無任何「正常對方且金額 > 0」的傳票 → {NONE, ZERO}。
-        Assert.Equal(["NONE", "ZERO"], r3);
-        // C 不含 Cash、且 0 元借方仍算對方 → {CASH, NONE}。
-        Assert.Equal(["CASH", "NONE"], c);
+        // 未預期借貸組合挑出沒有任何「正常對方且金額大於 0」的傳票：NONE、ZERO。
+        Assert.Equal(["NONE", "ZERO"], unexpectedPair);
+        // 收入無一般對方科目的對方不含現金，0 元借方仍算對方：CASH、NONE。
+        Assert.Equal(["CASH", "NONE"], revenueWithoutCounterpart);
 
-        // 包含關係：排除零元對方的傳票後仍是 R3 ⊆ C。
+        // 包含關係：排除零元對方的傳票後，未預期借貸組合命中的傳票都在收入無一般對方科目裡。
         Assert.Subset(
-            c.ToHashSet(StringComparer.Ordinal),
-            r3.Where(static document => document != "ZERO").ToHashSet(StringComparer.Ordinal));
-        // 現銷是刻意的判別點：C 命中、R3 不命中（Cash 只在 R3 對方集合內）。
-        Assert.Contains("CASH", c);
-        Assert.DoesNotContain("CASH", r3);
+            revenueWithoutCounterpart.ToHashSet(StringComparer.Ordinal),
+            unexpectedPair.Where(static document => document != "ZERO").ToHashSet(StringComparer.Ordinal));
+        // 現銷是刻意的判別點：收入無一般對方科目命中、未預期借貸組合不命中，因為現金只在未預期借貸組合的對方科目裡。
+        Assert.Contains("CASH", revenueWithoutCounterpart);
+        Assert.DoesNotContain("CASH", unexpectedPair);
         // 賒銷（有 Receivables 對方）兩者皆不命中。
-        Assert.DoesNotContain("CS", c);
-        Assert.DoesNotContain("CS", r3);
+        Assert.DoesNotContain("CS", revenueWithoutCounterpart);
+        Assert.DoesNotContain("CS", unexpectedPair);
     }
 
     [Fact]
-    public async Task ZeroAmountNormalCounterpart_OnlyBreaksR3_NotRevenueCounterpartRule()
+    public async Task ZeroAmountNormalCounterpart_OnlyBreaksUnexpectedAccountPair_NotRevenueCounterpartRule()
     {
-        var r3 = await HitDocumentsAsync(FilterConditionType.Prescreen, PrescreenRuleKeys.UnexpectedAccountPair);
-        var c = await HitDocumentsAsync(FilterConditionType.RevenueWithoutNormalCounterpart, null);
+        var unexpectedPair = await HitDocumentsAsync(FilterConditionType.Prescreen, PrescreenRuleKeys.UnexpectedAccountPair);
+        var revenueWithoutCounterpart = await HitDocumentsAsync(FilterConditionType.RevenueWithoutNormalCounterpart, null);
 
         // 零元邊界只屬於 unexpected_account_pair：0 元應收借方不足以消解「收入貸記缺正常對方」，
-        // 但「收入無一般對方科目」維持 `>= 0` 的既有借方判定，因此同一張傳票不命中它。
-        Assert.Contains("ZERO", r3);
-        Assert.DoesNotContain("ZERO", c);
-        // 同樣只有 0 元應收借方、但整張傳票沒有金額大於 0 的分錄時，照舊版 R3 不命中。
-        Assert.DoesNotContain("ZNP", r3);
-        Assert.DoesNotContain("ZNP", c);
+        // 但「收入無一般對方科目」的借方判定是 `>= 0`，因此同一張傳票不命中它。
+        Assert.Contains("ZERO", unexpectedPair);
+        Assert.DoesNotContain("ZERO", revenueWithoutCounterpart);
+        // 同樣只有 0 元應收借方、但整張傳票沒有金額大於 0 的分錄時，照舊版未預期借貸組合不命中。
+        Assert.DoesNotContain("ZNP", unexpectedPair);
+        Assert.DoesNotContain("ZNP", revenueWithoutCounterpart);
     }
 
     public void Dispose() => _root.Dispose();

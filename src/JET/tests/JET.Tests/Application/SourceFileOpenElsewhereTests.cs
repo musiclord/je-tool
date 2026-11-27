@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 審計員常在 Excel 開著來源檔時選它匯入。Excel 開檔時自己能寫入、只准別人讀，
 /// 這裡用同樣的開檔方式佔住檔案：JET 照樣讀到最後一次存檔的內容，匯入回應多一則提醒，說尚未存檔的修改沒有匯入。
-/// 其他程式獨占檔案、連讀都不准時照舊擋下，那一組在 TbImportBranchTests。
+/// 其他程式獨占檔案、連讀都不准時擋下匯入，那一組在 TbImportBranchTests。
 /// </summary>
 public sealed class SourceFileOpenElsewhereTests
 {
@@ -85,7 +85,7 @@ public sealed class SourceFileOpenElsewhereTests
     }
 
     /// <summary>
-    /// 畫面把開著檔案的提醒放在匯入結果旁，其他提醒照舊只進訊息面板，所以回應要分得出是哪一種：
+    /// 畫面把開著檔案的提醒放在匯入結果旁，其他提醒只進訊息面板，所以回應要分得出是哪一種：
     /// 追加同一個檔案時，重複來源的提醒在 warnings 裡，不在 openElsewhereWarnings 裡。
     /// </summary>
     [Fact]

@@ -28,9 +28,9 @@ public sealed class ResultPageColumnRegistryTests
     {
         var plan = ResultPageColumnRegistry.ForFilter(
             Scenario(
-                new { type = "typed", fieldId = DateField, @operator = "isNotBlank" },
-                new { type = "typed", fieldId = TextField, @operator = "contains", value = "x" },
-                new { type = "typed", fieldId = TextField, @operator = "isBlank" }),
+                new { type = "fieldValue", fieldId = DateField, @operator = "isNotBlank" },
+                new { type = "fieldValue", fieldId = TextField, @operator = "contains", value = "x" },
+                new { type = "fieldValue", fieldId = TextField, @operator = "isBlank" }),
             Mapping(),
             100);
 
@@ -46,11 +46,11 @@ public sealed class ResultPageColumnRegistryTests
     public void ForFilter_RemovedOrTypeMismatchedTypedField_FailsClosed()
     {
         var removed = Assert.Throws<JetActionException>(() => ResultPageColumnRegistry.ForFilter(
-            Scenario(new { type = "typed", fieldId = "rde.ffffffffffffffffffffffffffffffff", @operator = "isBlank" }),
+            Scenario(new { type = "fieldValue", fieldId = "rde.ffffffffffffffffffffffffffffffff", @operator = "isBlank" }),
             Mapping(),
             100));
         var mismatched = Assert.Throws<JetActionException>(() => ResultPageColumnRegistry.ForFilter(
-            Scenario(new { type = "typed", fieldId = MoneyField, @operator = "contains", value = "1" }),
+            Scenario(new { type = "fieldValue", fieldId = MoneyField, @operator = "contains", value = "1" }),
             Mapping(),
             100));
 

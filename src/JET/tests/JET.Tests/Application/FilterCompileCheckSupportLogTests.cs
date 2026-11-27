@@ -38,7 +38,7 @@ public sealed class FilterCompileCheckSupportLogTests
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
         Assert.Equal(UnexpectedErrorSentence, exception.Message);
-        Assert.Equal("typed_field_not_mapped", FilterCompileCheck.CheckOf(exception));
+        Assert.Equal("field_value_field_missing", FilterCompileCheck.CheckOf(exception));
         Assert.Equal(((int?)2, (int?)2), FilterCompileCheck.PositionOf(exception));
     }
 
@@ -57,10 +57,10 @@ public sealed class FilterCompileCheckSupportLogTests
         FilterScenarioDiagnostics.LogException(factory.CreateLogger("JET.Bridge.ActionDispatcher"), "filter.preview", exception);
 
         var entry = Assert.Single(support.Snapshot(), item => item.EventName == "filter.compile_check_failed");
-        Assert.Equal("typed_field_not_mapped", entry.Fields["compile_check"]?.ToString());
+        Assert.Equal("field_value_field_missing", entry.Fields["compile_check"]?.ToString());
         Assert.Equal("1", entry.Fields["group_no"]?.ToString());
         Assert.Equal("1", entry.Fields["condition_no"]?.ToString());
-        Assert.Equal("action filter.preview filter group 1 condition 1 compile check failed: typed_field_not_mapped", entry.Message);
+        Assert.Equal("action filter.preview filter group 1 condition 1 compile check failed: field_value_field_missing", entry.Message);
         Assert.DoesNotContain(support.Snapshot(), item => item.EventName == "action.payload_rejected");
         foreach (var value in entry.Fields.Values.Select(item => item?.ToString() ?? string.Empty).Append(entry.Message))
         {
@@ -86,15 +86,10 @@ public sealed class FilterCompileCheckSupportLogTests
     private static FilterConditionSpec Rule(string fieldId, string value) =>
         new(
             FilterJoin.And,
-            FilterConditionType.TypedField,
+            FilterConditionType.FieldValue,
             PrescreenKey: null,
             Field: null,
             Keywords: [],
-            Mode: TextMatchMode.Contains,
-            FromDate: null,
-            ToDate: null,
-            FromAmountScaled: null,
-            ToAmountScaled: null,
             DrCr: null,
             IsManual: null)
         {

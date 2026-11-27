@@ -9,8 +9,8 @@ namespace JET.Infrastructure;
 /// </summary>
 internal sealed class HighRiskSummaryScenarioSqlScope
 {
-    private readonly int[] positions;
-    private readonly string parameterNamePrefix;
+    private readonly int[] _positions;
+    private readonly string _parameterNamePrefix;
 
     private HighRiskSummaryScenarioSqlScope(
         bool isRestricted,
@@ -18,18 +18,18 @@ internal sealed class HighRiskSummaryScenarioSqlScope
         string parameterNamePrefix)
     {
         IsRestricted = isRestricted;
-        this.positions = positions;
-        this.parameterNamePrefix = parameterNamePrefix;
+        this._positions = positions;
+        this._parameterNamePrefix = parameterNamePrefix;
     }
 
     public bool IsRestricted { get; }
 
-    public bool IsEmpty => IsRestricted && positions.Length == 0;
+    public bool IsEmpty => IsRestricted && _positions.Length == 0;
 
     public string Predicate(string columnExpression = "fs.position") => !IsRestricted
         ? string.Empty
         : $"AND {columnExpression} IN (" +
-          string.Join(", ", Enumerable.Range(0, positions.Length).Select(index => $"@{parameterNamePrefix}{index}")) +
+          string.Join(", ", Enumerable.Range(0, _positions.Length).Select(index => $"@{_parameterNamePrefix}{index}")) +
           ") ";
 
     public static HighRiskSummaryScenarioSqlScope Create(
@@ -64,11 +64,11 @@ internal sealed class HighRiskSummaryScenarioSqlScope
 
     public void AddParameters(DbCommand command)
     {
-        for (var index = 0; index < positions.Length; index++)
+        for (var index = 0; index < _positions.Length; index++)
         {
             var parameter = command.CreateParameter();
-            parameter.ParameterName = $"@{parameterNamePrefix}{index}";
-            parameter.Value = positions[index];
+            parameter.ParameterName = $"@{_parameterNamePrefix}{index}";
+            parameter.Value = _positions[index];
             command.Parameters.Add(parameter);
         }
     }

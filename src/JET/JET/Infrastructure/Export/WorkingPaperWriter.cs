@@ -13,31 +13,29 @@ namespace JET.Infrastructure;
 /// 對外只 <see cref="IWorkingPaperPlanWriter.WriteAsync"/>,內部隱藏全部 OpenXML 細節。
 /// 每一份明細都透過一個查詢讀完的讀取介面取得，不呼叫畫面的分頁查詢。
 ///
-/// 為什麼 SAX(OpenXmlPartWriter)、不用 ClosedXML:
-///   真實母體達百萬列(實務見過 ~140 萬列)。ClosedXML(及 OpenXML DOM)要把整個 worksheet
-///   建成記憶體物件樹才落地,會 OutOfMemory;SAX 是 forward-only、逐元素串流寫,記憶體有界。
-///   因此 ClosedXML 僅限 dev fixture(DemoWorkbookWriter),底稿寫出一律走 SAX。
+/// 為什麼用 SAX（OpenXmlPartWriter），不用 ClosedXML：
+///   母體可能達百萬列以上。ClosedXML 與 OpenXML DOM 要先把整張工作表建成記憶體裡的物件樹才寫出，會記憶體不足；
+///   SAX 逐個元素往前寫，記憶體用量有上限。所以 ClosedXML 只用在開發用的示範檔 DemoWorkbookWriter，底稿一律用 SAX 寫出。
 ///
-/// 為什麼 inline string、不用 sharedStrings:
-///   sharedStrings 需要一張全域字串表(理想上要先看完所有字串才能去重),與 forward-only 串流相斥;
-///   inline string 讓每個 cell 自帶文字、一次寫完不回頭,正是串流情境該用的形式。
+/// 為什麼用 inline string：
+///   底稿的文字寫成 inline string，每格自帶文字，一次寫完不回頭，不必另外收集共用字串表。
 ///
-/// 元素順序的硬約束(ISO/IEC 29500 CT_Worksheet)由 <see cref="SheetWriter"/> 原語封裝:
-///   worksheet 子序列為 …→ sheetData → … → mergeCells,即 mergeCells 必須在 sheetData 之後。
-///   emitter 可任意順序呼叫 WriteRow / AddMerge;原語保證先串完整個 sheetData、關閉後才寫 mergeCells。
+/// 元素順序的硬性規定（ISO/IEC 29500 CT_Worksheet）由 <see cref="SheetWriter"/> 處理：
+///   worksheet 的子元素裡，mergeCells 必須在 sheetData 之後。
+///   寫出程式可以用任意順序呼叫 WriteRow 與 AddMerge，SheetWriter 會先寫完整個 sheetData，關閉後才寫 mergeCells。
 ///
-/// step1 家族資料表的共用部分:
-///   <see cref="WriteCommonHeader"/> 出 A1-A4(公司/期間/財報準備日/斜體說明,四張表都有);
-///   step1-1(條件例外表)與 step1-3(完整性差異條件表)結構不同,各自處理——
-///   完整性差異科目數為零時,step1-3 不註冊工作表;條件由各 emitter 自己的前置判斷決定,不集中成一個大分支。
+/// step1 系列資料表的共用部分：
+///   <see cref="WriteCommonHeader"/> 寫 A1-A4，依序是公司、期間、財報準備日與斜體說明，四張表都有。
+///   step1-1（條件例外表）與 step1-3（完整性差異條件表）結構不同，各自寫出。
+///   完整性差異科目數為零時，底稿計畫不寫 step1-3，這張工作表也不註冊；每張表寫不寫都看底稿計畫。
 ///
-/// step2/3/4/4-1 高風險條件彙總這一族:
-///   step2 可靠性的樣本一個查詢讀完，依 legacy 範本以借貸代號＋帶號金額落欄；
-///   production 另以 bounded raw-row port 回填原始借貸代號與來源模組。
-///   step3/4/4-1 的 C 欄集由本次所選情境決定——step4 用全部所選 position，
-///   step4-1 只用所選集合中「行層命中(rowHitCount>0)」的 position。
-///   這是業務分支:先以 scenarios 算出欄集 list(<see cref="TagColumnSet"/>),再逐列依該列
-///   matchedPositions 是否含某 position 對映 Y——用 data structure 消特例,不寫「第幾欄特判」。
+/// step2、step3、step4 與 step4-1：可靠性測試與高風險條件彙總的工作表。
+///   step2 可靠性測試的樣本用一個查詢讀完，照舊版範本以借貸代號與帶號金額寫入各欄；
+///   原始 GL 列每批讀回，用來取原始的借貸代號；E 欄借貸代號與 J 欄分錄來源的寫法見 InfSampleDisplayValues。
+///   step3、step4 與 step4-1 的情境欄由本次所選情境決定：step4 用全部所選 position，
+///   step4-1 只用所選情境中有分錄直接命中（rowHitCount>0）的 position。
+///   先用所選情境算出欄的清單（<see cref="TagColumnSet"/>），再逐列看那一列的 matchedPositions 有沒有某個 position，
+///   有就寫 Y；不依欄號另外寫判斷。
 ///   step4 用一次只往前讀的查詢取回全部符合的傳票與各傳票符合的情境位置；
 ///   step4-1 走 prepared session，只往前讀一次。
 /// </summary>
@@ -47,8 +45,8 @@ internal sealed partial class WorkingPaperWriter(
     IUnbalancedVoucherDateRowStreamRepository voucherBalances,
     IPreparerSummaryExportRepository preparerSummaries,
     IInfSampleStreamRepository infSamples,
-    IWorkingPaperStep4StreamRepository step4Vouchers,
-    IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
+    IWorkingPaperHighRiskVoucherStreamRepository highRiskVouchers,
+    IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskVoucherDetailPreparedSessions,
     IMappingStateStore mappingStates,
     ICalendarExportRepository calendarDays,
     IAccountMappingExportRepository accountMapping,
@@ -74,8 +72,8 @@ internal sealed partial class WorkingPaperWriter(
         IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
         IInfSampleStreamRepository infSamples,
-        IWorkingPaperStep4StreamRepository step4Vouchers,
-        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
+        IWorkingPaperHighRiskVoucherStreamRepository highRiskVouchers,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskVoucherDetailPreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -86,8 +84,8 @@ internal sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            step4Vouchers,
-            step41PreparedSessions,
+            highRiskVouchers,
+            highRiskVoucherDetailPreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping)
@@ -101,8 +99,8 @@ internal sealed partial class WorkingPaperWriter(
         IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
         IInfSampleStreamRepository infSamples,
-        IWorkingPaperStep4StreamRepository step4Vouchers,
-        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
+        IWorkingPaperHighRiskVoucherStreamRepository highRiskVouchers,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskVoucherDetailPreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -113,8 +111,8 @@ internal sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            step4Vouchers,
-            step41PreparedSessions,
+            highRiskVouchers,
+            highRiskVoucherDetailPreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping)
@@ -129,8 +127,8 @@ internal sealed partial class WorkingPaperWriter(
         IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
         IInfSampleStreamRepository infSamples,
-        IWorkingPaperStep4StreamRepository step4Vouchers,
-        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
+        IWorkingPaperHighRiskVoucherStreamRepository highRiskVouchers,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskVoucherDetailPreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -143,8 +141,8 @@ internal sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            step4Vouchers,
-            step41PreparedSessions,
+            highRiskVouchers,
+            highRiskVoucherDetailPreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping,
@@ -161,8 +159,8 @@ internal sealed partial class WorkingPaperWriter(
         IUnbalancedVoucherDateRowStreamRepository voucherBalances,
         IPreparerSummaryExportRepository preparerSummaries,
         IInfSampleStreamRepository infSamples,
-        IWorkingPaperStep4StreamRepository step4Vouchers,
-        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
+        IWorkingPaperHighRiskVoucherStreamRepository highRiskVouchers,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskVoucherDetailPreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarDays,
         IAccountMappingExportRepository accountMapping,
@@ -178,8 +176,8 @@ internal sealed partial class WorkingPaperWriter(
             voucherBalances,
             preparerSummaries,
             infSamples,
-            step4Vouchers,
-            step41PreparedSessions,
+            highRiskVouchers,
+            highRiskVoucherDetailPreparedSessions,
             mappingStates,
             calendarDays,
             accountMapping,
@@ -241,7 +239,6 @@ internal sealed partial class WorkingPaperWriter(
             editor,
             styles,
             editor.StylePatcher,
-            useFinalStep41Schema: true,
             cancellationToken);
         try
         {
@@ -293,43 +290,43 @@ internal sealed partial class WorkingPaperWriter(
             EmitIntroSheet(session, sheetStats, introPlan, cancellationToken, progress);
         }
 
-        // step1 家族(封面後、step2 前)。step1-3 是否 emit 取決於有無 diff≠0 科目(emitter 內條件 guard)。
-        var step1Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step1);
-        var step13Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step13);
-        if (ShouldEmit(step1Plan))
+        // step1 系列（封面後、step2 前）。step1-3 只在底稿計畫要寫時寫出，也就是有差異金額不為 0 的科目時。
+        var completenessPlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Completeness);
+        var completenessDifferencePlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.CompletenessDifference);
+        if (ShouldEmit(completenessPlan))
         {
-            await EmitStep1Async(
+            await EmitCompletenessAsync(
                 session,
                 sheetStats,
                 context,
-                step1Plan,
-                hasCompletenessDifferences: step13Plan.Emit,
+                completenessPlan,
+                hasCompletenessDifferences: completenessDifferencePlan.Emit,
                 cancellationToken,
                 progress);
         }
 
-        var step11Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step11);
-        if (ShouldEmit(step11Plan))
+        var voucherBalancePlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.VoucherBalance);
+        if (ShouldEmit(voucherBalancePlan))
         {
-            await EmitStep11Async(session, sheetStats, context, step11Plan, cancellationToken, progress);
+            await EmitVoucherBalanceAsync(session, sheetStats, context, voucherBalancePlan, cancellationToken, progress);
         }
 
-        var step12Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step12);
-        if (ShouldEmit(step12Plan))
+        var preparerSummaryPlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.PreparerSummary);
+        if (ShouldEmit(preparerSummaryPlan))
         {
-            await EmitStep12Async(session, sheetStats, context, step12Plan, cancellationToken, progress);
+            await EmitPreparerSummaryAsync(session, sheetStats, context, preparerSummaryPlan, cancellationToken, progress);
         }
 
-        if (ShouldEmit(step13Plan))
+        if (ShouldEmit(completenessDifferencePlan))
         {
-            await EmitStep13Async(session, sheetStats, context, step13Plan, cancellationToken, progress);
+            await EmitCompletenessDifferenceAsync(session, sheetStats, context, completenessDifferencePlan, cancellationToken, progress);
         }
 
         // step2(可靠性)+ step3/4/4-1(高風險條件彙總);step3/4/4-1 共用一次 scenarios 欄集計算。
-        var step2Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step2);
-        if (ShouldEmit(step2Plan))
+        var infSamplingPlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.InfSampling);
+        if (ShouldEmit(infSamplingPlan))
         {
-            await EmitStep2Async(
+            await EmitInfSamplingAsync(
                 session,
                 sheetStats,
                 context,
@@ -339,31 +336,31 @@ internal sealed partial class WorkingPaperWriter(
                 progress);
         }
 
-        var step3Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step3);
-        var step4Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step4);
-        var step41Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step41);
-        var needsTagColumns = ShouldEmit(step3Plan) || ShouldEmit(step4Plan) || ShouldEmit(step41Plan);
+        var highRiskSummaryPlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.HighRiskSummary);
+        var highRiskVoucherPlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.HighRiskVoucher);
+        var highRiskVoucherDetailPlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.HighRiskVoucherDetail);
+        var needsTagColumns = ShouldEmit(highRiskSummaryPlan) || ShouldEmit(highRiskVoucherPlan) || ShouldEmit(highRiskVoucherDetailPlan);
         if (needsTagColumns)
         {
-            var tagColumns = TagColumnSet.FromPlan(plan, step3Plan, step4Plan, step41Plan);
+            var tagColumns = TagColumnSet.FromPlan(plan, highRiskSummaryPlan, highRiskVoucherPlan, highRiskVoucherDetailPlan);
 
-            if (ShouldEmit(step3Plan))
+            if (ShouldEmit(highRiskSummaryPlan))
             {
-                EmitStep3(
-                    session, sheetStats, context, tagColumns, step3Plan, cancellationToken, progress);
+                EmitHighRiskSummary(
+                    session, sheetStats, context, tagColumns, highRiskSummaryPlan, cancellationToken, progress);
             }
-            if (ShouldEmit(step4Plan))
+            if (ShouldEmit(highRiskVoucherPlan))
             {
-                await EmitStep4Async(
-                    session, sheetStats, context, tagColumns, step4Plan, cancellationToken, progress);
+                await EmitHighRiskVoucherAsync(
+                    session, sheetStats, context, tagColumns, highRiskVoucherPlan, cancellationToken, progress);
             }
-            if (ShouldEmit(step41Plan))
+            if (ShouldEmit(highRiskVoucherDetailPlan))
             {
-                await EmitStep41Async(
+                await EmitHighRiskVoucherDetailAsync(
                     session,
                     sheetStats,
                     context,
-                    plan.Step41Columns,
+                    plan.HighRiskVoucherDetailColumns,
                     plan.Request.WorkbookMetadata,
                     plan.Request.CustomFields ?? [],
                     tagColumns,
@@ -372,13 +369,13 @@ internal sealed partial class WorkingPaperWriter(
             }
         }
 
-        var step5Plan = GetSheetPlan(plan, WorkingPaperSheetCatalog.Step5);
-        if (ShouldEmit(step5Plan))
+        var postClosingEntriesPlan = GetSheetPlan(plan, WorkingPaperSheetCatalog.PostClosingEntries);
+        if (ShouldEmit(postClosingEntriesPlan))
         {
-            EmitStep5Sheet(session, sheetStats, step5Plan, cancellationToken, progress);
+            EmitPostClosingEntriesSheet(session, sheetStats, postClosingEntriesPlan, cancellationToken, progress);
         }
 
-        // 三張「自動化工具」參考資料表(照範本的工作表順序,接在 step5 後)。三表結構各異 = 各自 emitter,不抽 god 模板。
+        // 三張「自動化工具」參考資料表（照範本的工作表順序，接在 step5 後）。三張表的結構各不相同，各自寫出，不合成一個共用的寫法。
         if (ShouldEmit(GetSheetPlan(plan, WorkingPaperSheetCatalog.FieldInfo)))
         {
             await EmitFieldInfoSheetAsync(
@@ -475,7 +472,7 @@ internal sealed partial class WorkingPaperWriter(
         }
     }
 
-    /// <summary>多欄欄標列工廠(欄自 B 起,對齊 step1 家族表頭都從 B 欄開始;BoldWrap 因欄標含換行)。</summary>
+    /// <summary>多欄欄標列：欄從 B 起，和 step1 系列的表頭一樣從 B 欄開始；欄標含換行，所以用 BoldWrap。</summary>
     private static IReadOnlyList<Cell> HeaderCells(SheetWriter sheet, uint row, IReadOnlyList<string> labels)
     {
         var cells = new List<Cell>(labels.Count);
@@ -499,11 +496,9 @@ internal sealed partial class WorkingPaperWriter(
         moneyScale <= 0 ? scaled : MoneyScaling.FromScaled(scaled, moneyScale);
 
     /// <summary>
-    /// 高風險情境的欄集 data structure。把「step4 用全部所選 position」
-    /// 「step4-1 只用所選集合中 rowHitCount&gt;0 的 position」
-    /// 這個業務分支收斂成預先算好的有序 position list,emitter 只需:
-    /// (1) 依 list 順序加欄標 cell;(2) 逐列依該列 matchedPositions 是否含某 position 標 Y——
-    /// 完全由 data structure 對映,不寫「第幾欄特判」，新增情境欄時不必改 emitter。
+    /// 高風險情境的欄清單。把「step4 用全部所選 position」與「step4-1 只用所選情境中 rowHitCount&gt;0 的 position」
+    /// 先算成依序排好的 position 清單；寫出程式依清單順序加欄標，再逐列看那一列的 matchedPositions
+    /// 有沒有某個 position，有就寫 Y。新增情境欄時不必改寫出程式。
     ///
     /// <see cref="Scenarios"/> 供 step3 列(name/rationale/voucherHitCount,position 升冪);
     /// <see cref="AllPositions"/> = 全部所選 position 升冪(step4 欄集);
@@ -513,7 +508,7 @@ internal sealed partial class WorkingPaperWriter(
     /// </summary>
     private sealed class TagColumnSet
     {
-        private const uint Step4FixedColumns = 5;   // A-E
+        private const uint HighRiskVoucherFixedColumns = 5;   // A-E
 
         private readonly IReadOnlyList<int> _allPositions;
         private readonly IReadOnlyList<int> _rowHitPositions;
@@ -558,13 +553,13 @@ internal sealed partial class WorkingPaperWriter(
 
         public static TagColumnSet FromPlan(
             WorkingPaperPlan plan,
-            WorkingPaperSheetPlan step3,
-            WorkingPaperSheetPlan step4,
-            WorkingPaperSheetPlan step41)
+            WorkingPaperSheetPlan highRiskSummary,
+            WorkingPaperSheetPlan highRiskVoucher,
+            WorkingPaperSheetPlan highRiskVoucherDetail)
         {
-            RequireSamePositions(step3, plan.AllScenarioPositions);
-            RequireSamePositions(step4, plan.AllScenarioPositions);
-            RequireSamePositions(step41, plan.RowHitScenarioPositions);
+            RequireSamePositions(highRiskSummary, plan.AllScenarioPositions);
+            RequireSamePositions(highRiskVoucher, plan.AllScenarioPositions);
+            RequireSamePositions(highRiskVoucherDetail, plan.RowHitScenarioPositions);
 
             var byPosition = plan.Scenarios.ToDictionary(scenario => scenario.Position);
             var scenarios = plan.AllScenarioPositions
@@ -605,11 +600,11 @@ internal sealed partial class WorkingPaperWriter(
 
         /// <summary>step4 欄標:全 position 升冪,標頭 C{position}{suffix}(suffix 空)。接在固定欄之後。</summary>
         public void AppendAllPositionHeaders(SheetWriter sheet, List<Cell> cells, uint row, string suffix) =>
-            AppendHeaders(sheet, cells, row, _allPositions, Step4FixedColumns, suffix);
+            AppendHeaders(sheet, cells, row, _allPositions, HighRiskVoucherFixedColumns, suffix);
 
         /// <summary>step4 列:逐 position 依 matched 是否含之標 Y/空。</summary>
         public void AppendAllPositionMarks(SheetWriter sheet, List<Cell> cells, uint row, IReadOnlyList<int> matched) =>
-            AppendMarks(sheet, cells, row, _allPositions, Step4FixedColumns, matched);
+            AppendMarks(sheet, cells, row, _allPositions, HighRiskVoucherFixedColumns, matched);
 
         private static void AppendHeaders(
             SheetWriter sheet, List<Cell> cells, uint row, IReadOnlyList<int> positions, uint fixedColumns, string suffix)
@@ -634,7 +629,7 @@ internal sealed partial class WorkingPaperWriter(
         }
     }
 
-    // ================= SAX 原語=================
+    // ================= SAX 寫出工具 =================
 
     private static string DigitsOnly(string value)
     {
@@ -654,12 +649,12 @@ internal sealed partial class WorkingPaperWriter(
     }
 
     /// <summary>
-    /// 單張 worksheet 的串流寫出器(SAX 低階原語)。封裝 OpenXmlPartWriter + 元素順序約束:
-    /// 構造時開 worksheet → sheetData(forward-only);WriteRow/WriteFixedRow 即時串流寫列;
-    /// AddMerge 累積合併範圍(數量有界、屬版面);<see cref="CloseAndSummarize"/> 關 sheetData →
-    /// 寫 mergeCells（schema 要求在 sheetData 之後）→ 關 worksheet。沒有呼叫它就釋放時，只放掉資源、不補結尾。
-    /// 資料列計入 RowsWritten;固定文字/表頭列不計(對齊 SheetStat 語意)。
-    /// 供資料表 emitter 以 keyset 迴圈逐列呼叫 WriteRow（串流、不全載入）。
+    /// 單張工作表的串流寫出程式，用 SAX 寫出，包住 OpenXmlPartWriter 並處理元素順序：
+    /// 建立時開 worksheet 與 sheetData，只往前寫；WriteRow 與 WriteFixedRow 立刻寫出一列；
+    /// AddMerge 累積合併範圍，數量有上限，屬於版面；<see cref="CloseAndSummarize"/> 先關 sheetData，
+    /// 再寫 mergeCells（schema 要求在 sheetData 之後），最後關 worksheet。沒有呼叫它就釋放時，只放掉資源、不補結尾。
+    /// 資料列計入 RowsWritten，固定文字與表頭列不計，和 SheetStat 的算法相同。
+    /// 資料表的寫出程式一邊讀一邊逐列呼叫 WriteRow，不整批載入。
     /// </summary>
     // 測試直接建立它，核對寫入失敗時的附註；正式程式只在這個類別裡使用。
     internal sealed class SheetWriter : IDisposable
@@ -926,7 +921,7 @@ internal sealed partial class WorkingPaperWriter(
             _pageSetup = (orientation, paperSize, fitToWidth, fitToHeight);
         }
 
-        /// <summary>寫一列「資料列」(計入 RowsWritten)。供資料表 keyset 逐列呼叫。</summary>
+        /// <summary>寫一列資料列（計入 RowsWritten），給資料表一邊讀一邊逐列呼叫。</summary>
         public void WriteRow(uint rowIndex, IReadOnlyList<Cell> cells)
         {
             WriteRowCore(rowIndex, FillLockedArea(rowIndex, cells));
@@ -1016,8 +1011,8 @@ internal sealed partial class WorkingPaperWriter(
         }
 
         /// <summary>
-        /// 已驗證的 invariant finite numeric literal。只供需保留超出 Decimal 範圍之
-        /// XLSX native Number 的串流投影；一般金額仍應使用 decimal overload。
+        /// 寫入已經驗證過、用不變文化寫成的有限數值文字。只給超出 Decimal 範圍、但仍要寫成 Excel 數值儲存格的值使用；
+        /// 一般金額用 decimal 的多載。
         /// </summary>
         public Cell NumberLiteralCell(
             uint rowIndex,
@@ -1190,7 +1185,7 @@ internal sealed partial class WorkingPaperWriter(
                     return;
                 }
 
-                // 整列一次寫出:記憶體只持有當前列(串流不變),且型別安全勝於手拆 start/string/end
+                // 整列一次寫出：記憶體只放目前這一列；用型別寫出整列，比手動拆成開始標記、文字與結束標記安全。
                 _writer!.WriteElement(row);
             }
             catch (Exception error) when (Fault(error, cells))

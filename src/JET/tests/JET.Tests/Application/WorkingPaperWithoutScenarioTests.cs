@@ -5,18 +5,18 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 沒有已儲存的情境也能產生工作底稿，第三、四步留空，由審計員在底稿說明；
+// 沒有已儲存的情境也能產生工作底稿，底稿的 step3 與 step4 留空，由審計員在底稿說明；
 // 已有情境、但一個都沒勾選時也照樣產生。
 
 /// <summary>
-/// 第六步沒有情境，或有情境但一個都沒勾選時，照樣產生工作底稿。第三、四步的工作表照樣存在，
+/// 第六步沒有情境，或有情境但一個都沒勾選時，照樣產生工作底稿。step3 與 step4 工作表照樣存在，
 /// 只是沒有情境列與傳票列；其他步驟照常。全部用程式生成的合成資料。
 /// </summary>
 public sealed class WorkingPaperWithoutScenarioTests
 {
     [Theory]
     [InlineData("sqlite")]
-    public async Task NoSavedScenario_ProducesWorkingPaperWithEmptyStep3AndStep4(string databaseProvider)
+    public async Task NoSavedScenario_ProducesWorkingPaperWithEmptyHighRiskSummaryAndHighRiskVoucher(string databaseProvider)
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -47,7 +47,7 @@ public sealed class WorkingPaperWithoutScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task SavedScenariosNoneSelected_ProducesWorkingPaperWithEmptyStep3AndStep4(string databaseProvider)
+    public async Task SavedScenariosNoneSelected_ProducesWorkingPaperWithEmptyHighRiskSummaryAndHighRiskVoucher(string databaseProvider)
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -74,18 +74,18 @@ public sealed class WorkingPaperWithoutScenarioTests
     {
         using var book = new XLWorkbook(Path.Combine(host.ProjectsRoot, projectId, report.GetProperty("fileName").GetString()!));
         // 第三步：表頭照舊，第 19 列起沒有情境。
-        var step3 = book.Worksheet(WorkingPaperSheetCatalog.Step3);
-        Assert.Equal("高風險範圍條件", step3.Cell(18, 3).GetString());
-        Assert.True(step3.Row(19).IsEmpty());
+        var highRiskSummary = book.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary);
+        Assert.Equal("高風險範圍條件", highRiskSummary.Cell(18, 3).GetString());
+        Assert.True(highRiskSummary.Row(19).IsEmpty());
         // 第四步：表頭照舊，第 13 列起沒有傳票。
-        var step4 = book.Worksheet(WorkingPaperSheetCatalog.Step4);
-        Assert.False(step4.Row(11).IsEmpty());
-        Assert.True(step4.Row(13).IsEmpty());
-        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.Step41));
+        var highRiskVoucher = book.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucher);
+        Assert.False(highRiskVoucher.Row(11).IsEmpty());
+        Assert.True(highRiskVoucher.Row(13).IsEmpty());
+        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.HighRiskVoucherDetail));
         // 其他步驟照常。
-        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.Step1));
-        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.Step2));
-        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.Step5));
+        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.Completeness));
+        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.InfSampling));
+        Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.PostClosingEntries));
     }
 
     private static async Task<string> CurrentValidationResultIdAsync(HandlerTestHost host, string projectId)

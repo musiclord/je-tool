@@ -8,7 +8,7 @@ namespace JET;
 
 /// <summary>
 /// SQLite 案件的 <see cref="ProjectRepositories"/> 組裝。資料庫組共用本機檔案鎖、案件外的報告 base store、
-/// 作業互斥鎖與 <see cref="ProjectSession"/>。目前只有 SQLite 一組；
+/// 作業互斥鎖與 <see cref="ProjectSession"/>。
 /// 組裝必須留在 composition root（namespace JET），Infrastructure 不得依賴 Application。
 /// </summary>
 public static partial class AppCompositionRoot
@@ -55,7 +55,7 @@ public static partial class AppCompositionRoot
         var completenessDiffPages = new LocalCompletenessDiffPageRepository(database);
         var completenessAccountPages = new LocalCompletenessAccountPageRepository(database);
         var voucherBalancePages = new LocalVoucherBalancePageRepository(database);
-        var unbalancedGlEntryPages = new LocalUnbalancedVoucherPageRepository(database);
+        var unbalancedGlEntryPages = new LocalUnbalancedVoucherEntryStreamRepository(database);
         var blankRecordsPages = new LocalBlankRecordsPageRepository(database);
         var sourceQualityPages = new LocalSourceQualityPageRepository(database);
         var prescreenPages = new LocalPrescreenPageRepository(database);
@@ -139,7 +139,6 @@ public static partial class AppCompositionRoot
             AccountMappingBlankPages = new LocalAccountMappingBlankPageRepository(database),
             AccountMappingDifferences = new LocalAccountMappingDifferenceRepository(database),
             VoucherBalancePages = voucherBalancePages,
-            UnbalancedVoucherPages = unbalancedGlEntryPages,
             BlankRecordsPages = blankRecordsPages,
             SourceQualityPages = sourceQualityPages,
             FilterHitsPages = new LocalFilterHitsPageRepository(database),
@@ -235,8 +234,8 @@ public static partial class AppCompositionRoot
         IUnbalancedVoucherDateRowStreamRepository unbalancedVoucherDateRows,
         IPreparerSummaryExportRepository preparerSummaryExport,
         IInfSampleStreamRepository infSamples,
-        IWorkingPaperStep4StreamRepository step4Vouchers,
-        IWorkingPaperStep41PreparedSessionFactory step41PreparedSessions,
+        IWorkingPaperHighRiskVoucherStreamRepository highRiskVouchers,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskVoucherDetailPreparedSessions,
         IMappingStateStore mappingStates,
         ICalendarExportRepository calendarExport,
         IAccountMappingExportRepository accountMappingExport,
@@ -249,8 +248,8 @@ public static partial class AppCompositionRoot
             unbalancedVoucherDateRows,
             preparerSummaryExport,
             infSamples,
-            step4Vouchers,
-            step41PreparedSessions,
+            highRiskVouchers,
+            highRiskVoucherDetailPreparedSessions,
             mappingStates,
             calendarExport,
             accountMappingExport,

@@ -22,7 +22,7 @@ public sealed class ExportAccountMappingTemplateHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        // 前端照舊附上目前驗證結果的 resultId；這份工作檔讀的是已配對的科目，不讀驗證結果，所以讀了不用。
+        // 前端會附上目前驗證結果的 resultId；這份工作檔讀的是已配對的科目，不讀驗證結果，所以讀取後不使用。
         _ = PayloadReader.GetOptionalString(payload, "resultId");
         var onlyIfMissing = false;
         if (payload.TryGetProperty("onlyIfMissing", out var mode))

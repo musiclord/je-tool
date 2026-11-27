@@ -8,24 +8,6 @@ public sealed class PrescreenOwnershipTests
         typeof(global::JET.Domain.JetActionException).Assembly;
 
     [Fact]
-    public void PrescreenGenericExecutionSeams_AreRemovedAfterTypedCutover()
-    {
-        Assert.Null(ProductionAssembly.GetType("JET.AuditCore.IAuditRuntime"));
-        Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.PrescreenAuditRuntime"));
-    }
-
-    /// <remarks>
-    /// handler 直接拿到資料庫組裡的實作，沒有分流層。這裡確認
-    /// ProviderRoutingPrescreenFactsPort 與 ProviderRoutingPrescreenRunRepository 不存在。
-    /// </remarks>
-    [Theory]
-    [InlineData("JET.Infrastructure.ProviderRoutingPrescreenFactsPort")]
-    public void ProviderRoutingPrescreenTypes_AreRemovedWithRoutingLayer(string name)
-    {
-        Assert.Null(ProductionAssembly.GetType(name));
-    }
-
-    [Fact]
     public void TypedPrescreenSurface_IsInternal()
     {
         var expected = new[]
@@ -53,7 +35,7 @@ public sealed class PrescreenOwnershipTests
     [Theory]
     [InlineData("JET.Application.PrescreenRunHandler")]
     [InlineData("JET.Infrastructure.LocalPrescreenRunRepository")]
-    public void ExistingProductionTypes_RemainPublicDuringTypedCutover(string name)
+    public void RunHandlerAndRepository_ArePublic(string name)
     {
         var type = ProductionAssembly.GetType(name);
 
@@ -61,8 +43,7 @@ public sealed class PrescreenOwnershipTests
         Assert.True(type!.IsPublic);
     }
 
-    // IPrescreenRunRepository 與 PrescreenRunInput 不存在（由 CompatibilityPathOwnershipTests 確認），
-    // 這裡只核對 AuditCore 仍在用的 PrescreenRunResult。
+    // 這裡核對 AuditCore 用到的 PrescreenRunResult 是 public 型別。
     [Theory]
     [InlineData("JET.Domain.PrescreenRunResult")]
     public void PublicCompatibilityContracts_RemainAvailable(string name)

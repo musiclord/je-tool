@@ -1,5 +1,5 @@
 'use strict';
-// 情境 16：第六步匯出工作底稿。
+// 第六步匯出工作底稿的情境測試。
 //
 // 審計員的操作：到第六步依預篩選的狀態匯出：有目前的預篩選結果、還沒有、結果已過期、資料驗證判定不能繼續；
 // 取消勾選「預篩選報告」；匯出途中換了案件、重新驗證或改了情境；看匯出途中忙碌畫面的進度。
@@ -12,10 +12,10 @@
 // 匯出進度事件經 jet-api.js 正式的事件通道送進 app.js 的訂閱。usageJourneyFixture 與 remapAppFixture
 // 都沒有 app.js 的進度訂閱，所以這裡用整個畫面。
 //
-// 逐字比對的只有已定案的用字，其他文字只比對意思。預期值一律寫死；action payload 用 deepEqual 精確比對，
-// 並確認沒有 `__` 鍵；斷言的失敗值不是假 DOM 節點。第六步的按鈕名稱與作業名稱的用字沒有定案，放在已定案的句型裡時只比對意思；
+// 預期值使用固定文字，action payload 用 deepEqual 精確比對，
+// 並確認沒有 `__` 鍵。第六步按鈕與作業名稱只比對意思，
 // 作業名稱和按下的那顆按鈕同字，這點逐字比對。
-// 每個測試都有 30 秒上限：改壞檢查時若有請求永遠等不到回應，測試直接失敗，不會拖到改壞工具的時間上限。
+// 每個測試都有 30 秒上限：有請求永遠等不到回應時，測試直接失敗，不會一直等下去。
 const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
 const assert = require('node:assert/strict');
@@ -128,7 +128,6 @@ test('with a current prescreen result the report for that run is made first and 
   f.reply(sent, { publishedReport: paper, reports: [prescreenReport, paper], sheetStats: [{ sheetName: '合成情境表', rowsWritten: 2 }] }); await flush();
   assert.deepEqual(plain(f.state().reports.map(a => a.reportId)), ['prescreen-1', 'paper-1']);
   assert.match(step(f).textContent, /paper-1\.xlsx/);
-  // 這兩句的用字已定案。
   assert.deepEqual(f.messages().slice(0, 2).map(m => m.text), ['已在案件資料夾產生工作底稿（1 張工作表），耗時不到 0.1 秒。', '已在案件資料夾產生預篩選報告。']);
 });
 
@@ -300,7 +299,7 @@ test('export progress shows each reported phase on the busy screen without perce
 test('the scenario choice says it uses the saved conditions, exporting needs no criteria report, and the step uses no internal wording', async () => {
   const f = await openExport({ prescreen: 'p1' });
   const text = step(f).textContent;
-  // 第六步沒有常駐的「使用目前資料及已儲存條件；草稿不會自動納入。」與底稿標示方式的說明；
+  // 第六步不常駐說明草稿不納入底稿，也不常駐說明底稿的標示方式；
   // 只有「進階條件篩選」真的有尚未儲存的修改時，才提醒要先儲存成情境。
   assert.doesNotMatch(text, /草稿不會自動納入|同傳票/);
   assert.equal(step(f).querySelector('[data-bind="export-unsaved-draft"]'), null, 'no reminder without unsaved changes');

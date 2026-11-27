@@ -83,7 +83,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         SupportEventNames.ActionError,
         // 取消不是失敗，另記一筆，不佔失敗摘要的保留名額。
         SupportEventNames.ActionCancelled,
-        // 主要工作已完成或已失敗後，附帶步驟（更新案件步驟、刪資料夾、放工作鎖）也失敗。
+        // 主要工作已完成或已失敗後，附帶步驟（更新案件步驟、刪資料夾、放案件鎖）也失敗。
         SupportEventNames.ActionStepFailed,
         SupportEventNames.ActionPayloadRejected,
         "import.milestone",

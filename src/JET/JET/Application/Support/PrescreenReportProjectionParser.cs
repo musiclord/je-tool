@@ -36,7 +36,7 @@ internal static class PrescreenReportProjectionParser
                 root,
                 "trailingZeros",
                 itemCount: RuleCount(root, "trailingZeros", "count")),
-            // 完整人數。摘要頁照舊版原句不寫人數；新的預篩選結果一定帶這個數字，不適用時是 null，這裡讀成 0。
+            // 完整人數。摘要頁照舊版原句不寫人數；預篩選結果一定帶這個數字，不適用時是 null，這裡讀成 0。
             PreparerSummary: Rule(
                 root,
                 "preparerSummary",

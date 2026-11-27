@@ -1,20 +1,20 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 專案 metadata，持久化為 projects/{projectId}/project.json。
+/// 案件的 metadata，存成案件位置底下的 {projectId}/project.json。
 /// ProjectCode 和 ClientName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
-/// SchemaVersion 是案件設定檔的格式版本。比 <see cref="CurrentSchemaVersion"/> 舊的案件是發布前的 JET 建立的，讀取時明確拒絕，
+/// SchemaVersion 是案件設定檔的格式版本。比 <see cref="CurrentSchemaVersion"/> 舊的案件讀取時明確拒絕，
 /// 請審計員刪除後重建；比它新的案件由較新版本的 JET 寫過，請使用者改用較新版本開啟。
-/// DatabaseProvider 標示會計資料所在的資料庫；目前版本只支援 "sqlite"，設定檔一定寫明，缺欄位是設定檔損壞。
+/// DatabaseProvider 標示會計資料所在的資料庫，只接受 "sqlite"；設定檔一定寫明，缺欄位是設定檔損壞。
 /// 標示為 "duckdb" 或 "sqlServer" 的案件，案件清單不列出、JET 也不動它們的資料夾。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；
 /// SampleSeedVersion 是 INF 抽樣演算法版本。兩者由建案寫入，缺任一欄位或版本不對都是設定檔損壞，
-/// 讀取 project.json 時明確拒絕，不回退固定種子或舊排序法。
+/// 讀取 project.json 時明確拒絕，不改用固定種子或其他排序方式。
 /// CalendarImported 是日期檔成功 replace 的持久 marker；新案件一律明寫 false，讓合法零筆匯入與
 /// 從未匯入可區分。缺欄位時一律視為尚未匯入。
-/// 首次發布時寫的設定檔另有進位方式 roundingMode 欄位。金額的進位方式固定寫在 MoneyScaling，不是案件設定，
-/// 所以讀取時不理會這一欄，存檔時也不再寫出；設定檔版本仍是第 2 版。
+/// 第 2 版設定檔可能帶有進位方式 roundingMode 欄位。金額的進位方式固定寫在 MoneyScaling，不是案件設定，
+/// 所以讀取時忽略這一欄，存檔時不寫出。
 /// </summary>
 public sealed record ProjectDocument(
     string ProjectId,
@@ -38,7 +38,7 @@ public sealed record ProjectDocument(
 {
     public const int DefaultMoneyScale = 10_000;
     /// <summary>
-    /// 案件設定檔的格式版本。比它舊的設定檔是發布前的 JET 寫的，不再讀取；
+    /// 案件設定檔的格式版本。比它舊的設定檔拒絕讀取；
     /// 之後改了設定檔的格式，仍要讀得出第 2 版的設定檔。
     /// </summary>
     public const int CurrentSchemaVersion = 2;
@@ -52,7 +52,7 @@ public sealed record ProjectDocument(
     public DateParseOptions DateParseOptions => new(RocDateEnabled);
 
     /// <summary>
-    /// 設定檔版本比目前版本舊，是發布前的 JET 建立的案件：拒絕開啟，訊息寫明刪除後重建。
+    /// 設定檔版本比目前版本舊：拒絕開啟，訊息寫明刪除後重建。
     /// 比目前版本新，是較新版本的 JET 寫過的案件：拒絕開啟，訊息請使用者改用較新版本。
     /// </summary>
     internal void RequireCurrentSchemaVersion(string projectName)
@@ -70,8 +70,7 @@ public sealed record ProjectDocument(
 
     /// <summary>
     /// 建立新案件的設定內容，只做 Domain 這一層的事。時間、亂數種子、資料庫種類、名稱與路徑由呼叫端傳入，
-    /// 資料庫結構、鎖與 session 也由外層處理；這裡只套用既有的期間、金額、日期與抽樣預設值，
-    /// 不新增「期間的先後順序」這類新規則。
+    /// 資料庫結構、鎖與 session 也由外層處理；這裡只套用期間、金額、日期與抽樣的預設值，不檢查期間的先後順序。
     /// </summary>
     internal static ProjectDocument CreateNew(
         string projectId,
@@ -119,7 +118,7 @@ public sealed record ProjectStoreEntry(
 public interface IProjectStore
 {
     /// <summary>
-    /// 原子發布新專案；若相同 projectId 已存在，拋出 <see cref="ProjectStoreCollisionException"/>。
+    /// 原子發布新案件；若相同 projectId 已存在，拋出 <see cref="ProjectStoreCollisionException"/>。
     /// 呼叫端再依建立請求是否由使用者命名，決定可否歸屬到 payload 欄位。
     /// </summary>
     Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken);
@@ -132,7 +131,7 @@ public interface IProjectStore
 
     Task SaveAsync(ProjectDocument document, CancellationToken cancellationToken);
 
-    /// <summary>永久刪除專案資料夾（project.json + jet.db）。硬刪不可復原；資料庫由 deleter 另行清除（見 project.delete）。</summary>
+    /// <summary>永久刪除案件資料夾（project.json + jet.db）。硬刪不可復原；資料庫由 deleter 另行清除（見 project.delete）。</summary>
     Task DeleteAsync(string projectId, CancellationToken cancellationToken);
 
     /// <summary>
@@ -143,8 +142,8 @@ public interface IProjectStore
         => Task.FromResult<string?>(null);
 
     /// <summary>
-    /// 這個名稱的資料夾是不是以前建立的 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
-    /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。這類案件不列在案件清單，JET 也不動它的資料夾；
+    /// 這個名稱的資料夾是不是 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
+    /// 或沒有記錄種類、資料夾裡只有 DuckDB 資料庫檔。這類案件不列在案件清單，JET 也不動它的資料夾；
     /// 案件清單與建案撞到同名時都用這一個判斷。判斷不出來時回 false。
     /// </summary>
     Task<bool> IsRetiredProviderCaseAsync(string projectId, CancellationToken cancellationToken)

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using JET.Domain;
 using JET.Infrastructure;
@@ -9,22 +8,22 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 兩個邊界：比現行版本新的案件資料庫，以及最長的中文案件名稱。
+/// 兩個邊界：缺少資料表的案件資料庫，以及最長的中文案件名稱。
 /// </summary>
 public sealed class CaseLimitJourneyTests
 {
     /// <summary>
-    /// 較新的 JET 建立的案件，用這一版開啟時要被拒絕：寫出無法開啟，並請使用者改用較新版本的 JET，
+    /// 案件資料庫缺少一張不能補上的資料表時，開啟要被拒絕：寫出無法開啟，並請使用者刪除後重建，
     /// 資料庫檔保持原狀，案件照樣可以從清單刪除。
     /// </summary>
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    public async Task NewerDatabaseVersion_IsRejected_TheFileStaysUnchanged_AndTheCaseCanBeDeleted(string provider)
+    public async Task IncompleteDatabase_IsRejected_TheFileStaysUnchanged_AndTheCaseCanBeDeleted(string provider)
     {
         using var workspace = new TempProjectRoot();
         var projects = Path.Combine(workspace.Path, "projects");
         Directory.CreateDirectory(projects);
-        var name = $"newer-version-{provider}";
+        var name = $"incomplete-database-{provider}";
         using var host = new HandlerTestHost(projectsRootPath: projects);
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
@@ -33,20 +32,19 @@ public sealed class CaseLimitJourneyTests
         await host.DispatchAsync("project.releaseLock");
 
         var databasePath = DatabasePath(projects, name, provider);
-        var newer = (LocalSchemaReadiness.CurrentSchemaVersion + 1).ToString(CultureInfo.InvariantCulture);
         await using (var connection = DirectConnection(databasePath, provider))
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = $"UPDATE schema_info SET value = '{newer}' WHERE key = 'schema_version';";
-            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+            command.CommandText = "DROP TABLE calendar_day;";
+            await command.ExecuteNonQueryAsync();
         }
 
         var before = await File.ReadAllBytesAsync(databasePath);
         var rejected = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = name })));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, rejected.Code);
-        Assert.Equal(ProjectFolderMessages.NewerVersionProject(), rejected.Message);
+        Assert.Equal(ProjectFolderMessages.OldVersionProject(), rejected.Message);
         var after = await File.ReadAllBytesAsync(databasePath);
         Assert.True(before.SequenceEqual(after), "被拒絕的資料庫檔不應被改動");
 

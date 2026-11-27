@@ -72,8 +72,7 @@ public sealed class NeverBlankGlFieldsTests
     }
 
     private static FilterConditionSpec FieldValue(string field, string op, bool includeBlank = false) =>
-        new(FilterJoin.And, FilterConditionType.FieldValue, null, field, [], TextMatchMode.Contains,
-            null, null, null, null, null, null)
+        new(FilterJoin.And, FilterConditionType.FieldValue, null, field, [], null, null)
         {
             TypedOperator = op,
             IncludeBlank = includeBlank,
@@ -150,7 +149,7 @@ public sealed class NeverBlankGlFieldsTests
         Assert.Empty(FilterScenarioValidator.Validate(Scenario(rule), context));
     }
 
-    // 沒有帶案件配對的獨立檢查不知道哪些欄位一定有值，照舊不檢查。
+    // 沒有帶案件配對的獨立檢查不知道哪些欄位一定有值，所以不檢查。
     [Fact]
     public void Validate_WithoutCaseFacts_DoesNotCheckBlankOptions()
     {

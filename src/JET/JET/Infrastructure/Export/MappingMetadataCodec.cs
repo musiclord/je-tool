@@ -147,7 +147,7 @@ internal static class MappingMetadataCodec
                 "manualAutoPolicy",
                 "rdeFields"
             ],
-            // 較早版本寫出的報告沒有往下填補的欄位與填了幾格這兩項。
+            // 往下填補的欄位與填了幾格這兩項可以沒有，沒有時當成沒有往下填補的欄位、填了 0 格。
             ["fillDownFields", "fillDownCount", .. extraProperties ?? []]);
         var mapping = JsonContractReader.ReadMapping(
             value.GetProperty("mapping"),
@@ -173,7 +173,7 @@ internal static class MappingMetadataCodec
         if (!GlAmountModeNames.TryParse(mode, out var parsed)
             || !string.Equals(mode, GlAmountModeNames.ToWireName(parsed), StringComparison.Ordinal))
         {
-            throw new MappingMetadataFormatException("gl.amountMode 不是正準值。");
+            throw new MappingMetadataFormatException("欄位配對紀錄的 gl.amountMode 不在 JET 支援的選項裡，大小寫也要相同。");
         }
 
         return mode;
@@ -186,7 +186,7 @@ internal static class MappingMetadataCodec
         if (!TbChangeModeNames.TryParse(mode, out var parsed)
             || !string.Equals(mode, TbChangeModeNames.ToWireName(parsed), StringComparison.Ordinal))
         {
-            throw new MappingMetadataFormatException("tb.changeMode 不是正準值。");
+            throw new MappingMetadataFormatException("欄位配對紀錄的 tb.changeMode 不在 JET 支援的選項裡，大小寫也要相同。");
         }
 
         return new TbMappingDraftMetadata(
@@ -225,7 +225,7 @@ internal static class MappingMetadataCodec
         if (!tryParse(mapping.ModeName, out var parsed)
             || !string.Equals(mapping.ModeName, toWireName(parsed), StringComparison.Ordinal))
         {
-            throw new InvalidOperationException($"{expectedKind} mapping mode 不是正準值。");
+            throw new InvalidOperationException($"欄位配對紀錄裡 {expectedKind} 的配對方式（mapping mode）不在 JET 支援的選項裡，大小寫也要相同。");
         }
 
         var known = new HashSet<string>(knownKeys, StringComparer.Ordinal);
@@ -290,7 +290,7 @@ internal static class GlMappingOptionsJsonCodec
                 document.RootElement,
                 "options",
                 ["approvalDateMode", "postingStatusPolicy", "manualAutoPolicy", "rdeFields"],
-                // 較早版本確認的配對沒有往下填補的欄位與填了幾格這兩項。
+                // 往下填補的欄位與填了幾格這兩項可以沒有，沒有時當成沒有往下填補的欄位、填了 0 格。
                 ["fillDownFields", "fillDownCount"]);
             return ReadProperties(root, mapping, "options.");
         }
@@ -314,7 +314,7 @@ internal static class GlMappingOptionsJsonCodec
             pathPrefix + "approvalDateMode");
         if (!ApprovalDateModeNames.IsCanonical(approvalDateMode))
         {
-            throw new MappingMetadataFormatException($"{pathPrefix}approvalDateMode 不是正準值。");
+            throw new MappingMetadataFormatException($"欄位配對紀錄的 {pathPrefix}approvalDateMode 不在 JET 支援的選項裡。");
         }
 
         GlPostingStatusPolicy? postingStatusPolicy = null;
@@ -419,7 +419,7 @@ internal static class GlMappingOptionsJsonCodec
         ArgumentNullException.ThrowIfNull(mapping);
         if (!ApprovalDateModeNames.IsCanonical(options.ApprovalDateMode))
         {
-            throw new MappingMetadataFormatException("gl.approvalDateMode 不是正準值。");
+            throw new MappingMetadataFormatException("欄位配對紀錄的 gl.approvalDateMode 不在 JET 支援的選項裡。");
         }
         var approvalDateMapped = mapping.TryGetValue(GlMappingKeys.ApprovalDate, out var approvalDateColumn)
                                  && !string.IsNullOrWhiteSpace(approvalDateColumn);
@@ -472,7 +472,7 @@ internal static class GlMappingOptionsJsonCodec
         {
             if (!GlMappingOptionsRules.IsCanonicalFieldId(field.FieldId))
             {
-                throw new MappingMetadataFormatException("gl.rdeFields.fieldId 不是正準 stable ID。");
+                throw new MappingMetadataFormatException("欄位配對紀錄的 gl.rdeFields.fieldId 不是 JET 產生的欄位識別碼，配對紀錄可能被手動改過。");
             }
             if (!fieldIds.Add(field.FieldId))
             {
@@ -492,7 +492,7 @@ internal static class GlMappingOptionsJsonCodec
             }
             if (!RdeFieldValueTypeNames.IsCanonical(field.ValueType))
             {
-                throw new MappingMetadataFormatException("gl.rdeFields.valueType 不是正準值。");
+                throw new MappingMetadataFormatException("欄位配對紀錄的 gl.rdeFields.valueType 不在 JET 支援的選項裡。");
             }
         }
 

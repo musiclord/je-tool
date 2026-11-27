@@ -85,7 +85,7 @@ public static class DemoDataFactory
     public const int HolidayPostingVouchers = 14;
     public const int HolidayApprovalVouchers = 8;
     public const int BlankDescriptionVouchers = 18;
-    // 不觸發任何規則的一般傳票。保留這個位置與張數，讓其他示範群組的日期、金額與抽樣結果維持不變。
+    // 不觸發任何規則的一般傳票。這一組在產生順序中占固定的位置與張數，其他示範群組的日期、金額與抽樣結果依這個順序產生。
     public const int FormerBackdatedPlainVouchers = 22;
     public const int NonAuthorizedVouchers = 16;
     public const int RarePreparerVouchers = 5;
@@ -269,7 +269,7 @@ public static class DemoDataFactory
                 join = "AND",
                 conditions = new object[]
                 {
-                    new { join = "AND", type = "numRange", field = "amount", from = "10000", to = "" }
+                    new { join = "AND", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "10000", amountBasis = "absolute" }
                 }
             }
         }

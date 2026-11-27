@@ -228,7 +228,7 @@ public sealed class ExportValidationReportsTypedSeamTests
             BlankDescriptionCount: 7L,
             ApprovalDateNotInPeriodCount: 8L,
             SourceQualityFindingCount: 9L);
-        // 投影只留總帳日期空白的計數，不帶樣本列；摘要 JSON 的 sampleRows 照舊留給前端，
+        // 投影只留總帳日期空白的計數，不帶樣本列；摘要 JSON 的 sampleRows 留給前端用，
         // 上面仍把樣本列寫進摘要，確認解析器會略過它。
         var actualProjection = Assert.IsType<ValidationReportProjection>(validationWriter.Projection);
         Assert.Equal(expectedProjection, actualProjection);
@@ -494,7 +494,7 @@ public sealed class ExportValidationReportsTypedSeamTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身的 ListEntriesAsync 由 ListAsync 的結果換算，產品介面不提供這種換算。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 

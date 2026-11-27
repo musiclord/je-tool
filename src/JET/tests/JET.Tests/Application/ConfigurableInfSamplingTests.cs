@@ -56,8 +56,8 @@ public sealed class ConfigurableInfSamplingTests
             host.ProjectsRoot,
             projectId,
             paper.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
-        var step2 = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step2);
-        Assert.Equal(count, step2.Range($"B53:B{52 + count}").Cells().Count(cell => !cell.IsEmpty()));
+        var infSampling = workingPaper.Worksheet(WorkingPaperSheetCatalog.InfSampling);
+        Assert.Equal(count, infSampling.Range($"B53:B{52 + count}").Cells().Count(cell => !cell.IsEmpty()));
     }
 
     [Theory]
@@ -96,10 +96,10 @@ public sealed class ConfigurableInfSamplingTests
             paper.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using (var workingPaper = new XLWorkbook(workingPaperPath))
         {
-            var step2 = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step2);
-            Assert.Equal(count, step2.Range($"B53:B{52 + count}").Cells().Count(cell => !cell.IsEmpty()));
-            Assert.False(step2.Cell(52 + count, 2).IsEmpty());
-            Assert.Contains(step2.DataValidations.SelectMany(v => v.Ranges), range => range.Contains(step2.Cell(52 + count, 13)));
+            var infSampling = workingPaper.Worksheet(WorkingPaperSheetCatalog.InfSampling);
+            Assert.Equal(count, infSampling.Range($"B53:B{52 + count}").Cells().Count(cell => !cell.IsEmpty()));
+            Assert.False(infSampling.Cell(52 + count, 2).IsEmpty());
+            Assert.Contains(infSampling.DataValidations.SelectMany(v => v.Ranges), range => range.Contains(infSampling.Cell(52 + count, 13)));
         }
 
         // step2 的下拉選單照範本的兩組選項。樣本超過範本第 111 列時，
@@ -107,7 +107,7 @@ public sealed class ConfigurableInfSamplingTests
         using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(workingPaperPath, false);
         var workbookPart = document.WorkbookPart!;
         var sheet = workbookPart.Workbook!.Sheets!.Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>()
-            .Single(item => item.Name?.Value == WorkingPaperSheetCatalog.Step2);
+            .Single(item => item.Name?.Value == WorkingPaperSheetCatalog.InfSampling);
         var worksheet = ((DocumentFormat.OpenXml.Packaging.WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!)).Worksheet!;
         Assert.Empty(worksheet.Elements<DocumentFormat.OpenXml.Spreadsheet.SheetProtection>());
         Assert.Equal(
@@ -193,7 +193,7 @@ public sealed class ConfigurableInfSamplingTests
     public async Task RequestedCountAbovePopulation_SelectsEveryEligibleEntry()
     {
         using var host = new HandlerTestHost();
-        // 固定兩列期間內、一列期間外，直接核對全部可抽樣分錄，避免只驗證筆數小於要求值。
+        // 固定兩列在期間內、一列在期間外，直接核對全部可抽樣分錄。
         await InlineWorkbookProject.SetupAsync(host, gl => gl
             .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "建立人員", "金額", "借方旗標")
             .AddRow("S1", "2025-03-01", "1101", "合成科目一", "合成分錄", "甲", 100, 1)

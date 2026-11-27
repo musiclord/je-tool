@@ -55,7 +55,7 @@ public sealed class WholeVoucherRowCountTests
         await ExecuteAsync(database, projectId, FixtureSql);
         var scenario = new FilterScenarioSpec("未預期借貸組合", "整張傳票計數",
             [new FilterGroupSpec(FilterJoin.And, [new FilterConditionSpec(FilterJoin.And, FilterConditionType.Prescreen,
-                PrescreenRuleKeys.UnexpectedAccountPair, null, [], TextMatchMode.Contains, null, null, null, null, null, null)])]);
+                PrescreenRuleKeys.UnexpectedAccountPair, null, [], null, null)])]);
         Assert.True(JetAuditProgram.UsesLegacyWholeVoucherRows(scenario));
 
         // 預覽：直接符合 3 列、2 張傳票；整張傳票的有效分錄是 5 + 2 = 7 列，無效分錄不算。

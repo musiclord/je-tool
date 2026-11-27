@@ -30,9 +30,8 @@ public static partial class SupportPayloadShape
         ["type"] = Codes(FilterConditionWireFields.UsedByType.Keys),
         ["join"] = Codes("AND", "OR"),
         ["matchScope"] = Codes("row"),
-        ["normalization"] = Codes("preserve", "removeAsciiSpaces"),
         ["field"] = Codes(JetFieldCatalog.GlFilterFields.Keys.Concat(EntityFrequencyConditions.Fields)),
-        ["operator"] = Codes(FieldValueConditions.Labels.Keys.Concat(TypedFieldOperatorSets.All)),
+        ["operator"] = Codes(FieldValueConditions.Labels.Keys),
         ["amountBasis"] = Codes(TypedAmountBasisNames.Signed, TypedAmountBasisNames.Absolute),
         ["drCr"] = Codes("debit", "credit"),
         ["pairMode"] = Codes(
@@ -45,8 +44,8 @@ public static partial class SupportPayloadShape
         ["prescreenKey"] = Codes(PrescreenRuleKeys.FilterableKeys),
         ["source"] = Codes(FilterScenarioSources.Common),
         ["populationScope"] = Codes(GlPopulationScopeValues.AuditPeriod),
-        // 條件的文字比對方式，以及匯入的取代或附加。
-        ["mode"] = Codes("contains", "exact", "notContains", "notExact", "replace", "append"),
+        // 匯入的取代或附加。
+        ["mode"] = Codes("replace", "append"),
         // 欄位配對與科目分類。
         ["amountMode"] = Codes(
             GlAmountModeNames.Signed, GlAmountModeNames.Side, GlAmountModeNames.Flag, GlAmountModeNames.Dual),
@@ -445,7 +444,7 @@ public static partial class SupportResultRefs
 }
 
 /// <summary>
-/// 操作中不影響結果的附帶步驟失敗：資料已保存後更新不了案件步驟、刪案後清不掉資料夾、開案失敗後放不掉工作鎖。
+/// 操作中不影響結果的附帶步驟失敗：資料已保存後更新不了案件步驟、刪案後清不掉資料夾、開案失敗後放不掉案件鎖。
 /// 畫面照原本規則回應；支援日誌記下步驟代號與例外的型別、位置。
 /// </summary>
 internal static partial class SupportStepDiagnostics
@@ -509,7 +508,7 @@ internal static partial class SupportCaseDiagnostics
         string build_configuration);
 
     /// <summary>
-    /// 開啟或建立另一個案件時，後端已經放掉前一個案件的工作鎖並離開它：在前一個案件的紀錄記一筆離開事件。
+    /// 開啟或建立另一個案件時，後端已經放掉前一個案件鎖並離開它：在前一個案件的紀錄記一筆離開事件。
     /// 這種離開沒有 project.releaseLock，匯出時靠這一筆認出這個程式正常離開了案件。不丟例外，不擋開案。
     /// </summary>
     public static void CaseLeft(ILogger? logger, string projectId)

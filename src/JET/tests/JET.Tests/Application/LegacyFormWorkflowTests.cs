@@ -83,15 +83,15 @@ public sealed class LegacyFormWorkflowTests
     // 摘要含特定字詞（預設字詞）等於 B；金額尾數連續多個 0 帶入這個案件算出的 5 個 0 時等於 D。
     // D 的 0 的個數照 IDEA 版由 GL 算出：查核期間內 21 列，借方合計 400,001 + 100 + 300,000 + 99,999.55 + 1,000,000 + 10
     // + 600,000 + 5 + 20 = 2,400,135.55，平均 114,292 是 6 位數，所以是 5 個 0；V01、V03、V05、V07 各 2 列與 V08 的 700,000 符合。
-    // 子條件組寫法（D_customTrailingZeros）寫 000000，答案是 V05 的 2 列。
+    // 子條件組寫法（D_fieldValueEndsWithDigits）寫 000000，答案是 V05 的 2 列。
     // 總帳日期在非營業日等於「(G 或 H) 且不是補班日」：I 是「不是補班日且不在每月 1 到 5 日」，R 是 10 月 1 到 5 日；
     // 這份合成資料在每月 1 到 5 日的週末或假日只有 10 月 2 日，且不是補班日，所以 I 與 R 的聯集在 G 或 H 之內就等於「不是補班日」。
     // 傳票核准日在非營業日等於「(J 或 K) 且不是補班日」：L 是「不是補班日且不在每月 1 到 5 日」；
     // 落在 J 或 K 的核准日沒有一天在每月 1 到 5 日，所以 J 或 K 與 L 的交集就等於「不是補班日」。
     private static readonly Dictionary<string, string[]> Derived = new()
     {
-        ["B_customKeywords"] = Keys(Expected["B"]),
-        ["D_customTrailingZeros"] = Keys("V05:1,2"),
+        ["B_fieldValueContains"] = Keys(Expected["B"]),
+        ["D_fieldValueEndsWithDigits"] = Keys("V05:1,2"),
         ["D_zeroRun"] = Keys(Expected["D"]),
         ["F_fieldBlank"] = Keys(Expected["F"]),
         ["P_explicitSides"] = Keys(Expected["P"]),
@@ -201,15 +201,15 @@ public sealed class LegacyFormWorkflowTests
         Add("U_approver", JsonNode.Parse("""[{"type":"fieldValue","field":"approvedBy","operator":"in","values":["User99"]}]""")!.AsArray());
         // 自訂篩選條件的選單用別種規則的四項，以 Derived 的集合運算答案驗證等價。
         // 這幾項用欄位條件，對照同一份 B、D、F 固定答案。
-        Add("B_customKeywords", new JsonArray(new JsonObject { ["type"] = "fieldValue", ["field"] = "description", ["operator"] = "contains",
+        Add("B_fieldValueContains", new JsonArray(new JsonObject { ["type"] = "fieldValue", ["field"] = "description", ["operator"] = "contains",
             ["values"] = JsonSerializer.SerializeToNode(DefaultKeywords.Split(',')) }));
-        Add("D_customTrailingZeros", JsonNode.Parse("""
+        Add("D_fieldValueEndsWithDigits", JsonNode.Parse("""
             [{"type":"group","conditions":[
             {"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"000000","amountBasis":"absolute"},
             {"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}]
             """)!.AsArray());
         // 「金額尾數連續多個 0」是一條條件，比較方式是尾數連續幾個 0；選單加入的是這一條，同樣對照 D 的固定答案。
-        // 上面的 D_customTrailingZeros 是較早的子條件組寫法，已儲存的情境照樣能讀，所以保留。
+        // 上面的 D_fieldValueEndsWithDigits 是子條件組寫法，已儲存的情境可能用這種寫法，這裡一併核對。
         // 加入時預設這個案件算出的個數，這裡寫 5。
         Add("D_zeroRun", JsonNode.Parse("""[{"type":"fieldValue","field":"amount","operator":"endsWithZeros","value":"5","amountBasis":"absolute"}]""")!.AsArray());
         Add("F_fieldBlank", JsonNode.Parse("""[{"type":"fieldValue","field":"description","operator":"isBlank"}]""")!.AsArray());
@@ -277,7 +277,7 @@ public sealed class LegacyFormWorkflowTests
                     var voucherCount = ExpectedKeys(batch[i].Key).Select(key => key.Split('|')[0]).Distinct().Count();
                     if (Path.GetFileName(file).Contains("WorkingPaper", StringComparison.Ordinal))
                     {
-                        var row = book.Worksheet(WorkingPaperSheetCatalog.Step3).RowsUsed().Single(row => row.Cell(2).GetString() == "C" + (i + 1));
+                        var row = book.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary).RowsUsed().Single(row => row.Cell(2).GetString() == "C" + (i + 1));
                         Assert.Equal(voucherCount, row.Cell(5).GetValue<int>());
                     }
                     else Assert.Equal(voucherCount, book.Worksheet("Summary Inforamtion").Cell(i + 5, 3).GetValue<int>());

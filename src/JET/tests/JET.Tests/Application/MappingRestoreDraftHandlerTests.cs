@@ -58,7 +58,7 @@ public sealed class MappingRestoreDraftHandlerTests
     }
 
     [Fact]
-    public async Task RestoreDraft_V2RdeAfterGlReimport_AuthorizesExactStableIdForCommit()
+    public async Task RestoreDraft_RdeAfterGlReimport_AuthorizesExactStableIdForCommit()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -563,7 +563,7 @@ public sealed class MappingRestoreDraftHandlerTests
     }
 
     // 新版 JET 的底稿沒有隱藏紀錄時，兩個名稱相同、來源欄不同的攸關資料元素都帶入，也能確認配對。
-    // 較早版本把欄名加【】，目前的寫法照來源欄名原樣寫，兩種都要認得。
+    // 底稿的欄名可能照來源欄名原樣寫，也可能加上【】，兩種都要認得。
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

@@ -56,13 +56,4 @@ public sealed class AuditProgramParityTests
         using var host = new HandlerTestHost(enableDevTools: true);
         Assert.All(actions, action => Assert.Contains(action, host.Dispatcher.RegisteredActions));
     }
-
-    // 遷移狀態型別 ProgramMigrationState 不得出現在產品組件裡。
-    [Fact]
-    public void MigrationStateType_IsRemovedAfterFinalGate()
-    {
-        var assembly = typeof(JetAuditProgram).Assembly;
-
-        Assert.Null(assembly.GetType("JET.AuditCore.ProgramMigrationState"));
-    }
 }

@@ -74,14 +74,14 @@ public sealed partial class ReportTemplateExternalRelationshipTests
             // 空白傳票號碼的說明寫在範本 step4 A12，改的是 A12 引用的共用字串。
             // 這裡只允許那一則字串不同，而且它只被 step4 A12 引用。
             expected = expected.Append("changed:xl/sharedStrings.xml");
-            AssertOnlyStep4SelectionNoteStringChanged(sourceArchive, runtimeArchive);
+            AssertOnlyHighRiskVoucherSelectionNoteStringChanged(sourceArchive, runtimeArchive);
         }
         Assert.Equal(expected.Order(StringComparer.Ordinal), actualDiffs);
     }
 
-    private static void AssertOnlyStep4SelectionNoteStringChanged(ZipArchive sourceArchive, ZipArchive runtimeArchive)
+    private static void AssertOnlyHighRiskVoucherSelectionNoteStringChanged(ZipArchive sourceArchive, ZipArchive runtimeArchive)
     {
-        const string Step4SheetEntry = "xl/worksheets/sheet9.xml";
+        const string HighRiskVoucherSheetEntry = "xl/worksheets/sheet9.xml";
         var sourceStrings = Load(sourceArchive.GetEntry("xl/sharedStrings.xml")!).Root!
             .Elements(Spreadsheet + "si").ToArray();
         var runtimeStrings = Load(runtimeArchive.GetEntry("xl/sharedStrings.xml")!).Root!
@@ -92,8 +92,8 @@ public sealed partial class ReportTemplateExternalRelationshipTests
             .ToArray();
         var index = Assert.Single(changed);
 
-        var step4 = Load(runtimeArchive.GetEntry(Step4SheetEntry)!);
-        var a12 = step4.Descendants(Spreadsheet + "c").Single(c => (string?)c.Attribute("r") == "A12");
+        var highRiskVoucher = Load(runtimeArchive.GetEntry(HighRiskVoucherSheetEntry)!);
+        var a12 = highRiskVoucher.Descendants(Spreadsheet + "c").Single(c => (string?)c.Attribute("r") == "A12");
         Assert.Equal("s", (string?)a12.Attribute("t"));
         Assert.Equal(index.ToString(System.Globalization.CultureInfo.InvariantCulture), a12.Element(Spreadsheet + "v")?.Value);
         var references = runtimeArchive.Entries
@@ -103,7 +103,7 @@ public sealed partial class ReportTemplateExternalRelationshipTests
                     && c.Element(Spreadsheet + "v")?.Value == a12.Element(Spreadsheet + "v")!.Value)
                 .Select(c => $"{entry.FullName}!{(string?)c.Attribute("r")}"))
             .ToArray();
-        Assert.Equal([$"{Step4SheetEntry}!A12"], references);
+        Assert.Equal([$"{HighRiskVoucherSheetEntry}!A12"], references);
 
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",

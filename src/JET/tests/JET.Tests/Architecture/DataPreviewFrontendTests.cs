@@ -40,7 +40,7 @@ public sealed class DataPreviewFrontendTests
     [Fact]
     public void Datasets_MirrorDomainLabelsIncludingGlExcluded()
     {
-        // 全系統的資料名稱已統一；「其他資料」選單與載入狀態也逐字鏡射 Domain 權威。
+        // 全系統用同一組資料名稱；「其他資料」選單與載入狀態也逐字照 Domain 的定義。
         var preview = ReadFrontend("js", "data-preview.js");
         var datasets = Regex.Match(
             preview,

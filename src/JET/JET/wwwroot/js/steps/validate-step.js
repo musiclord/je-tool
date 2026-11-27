@@ -1,7 +1,7 @@
 /*
   第四步：資料驗證與測試，四項資料驗證與預篩選在同一步。
   規則名稱對齊後端 RuleCatalog，畫面不顯示 V、R 開頭的舊代號；
-  標題與說明只是 presentation，權威規則一律在後端 SQL。
+  標題與說明只負責呈現，規則以後端 SQL 為準。
   規則無法執行時只顯示後端寫的一句原因，句子已寫出缺什麼、到哪裡補，畫面不另接補救文字。
 */
 (function (global) {
@@ -327,8 +327,8 @@
   function num(v) { return Ui.money(v); }
 
   // 明細查詢規格：id 對應 fetchPage 與 columns，供共用分頁取得每一頁。
-  // fetchPage 只發對應 query.*Page action、回 { rows, nextCursor };columns 為每欄的 row→cell 取值函式。
-  // 純呼叫膠水:不算差異、不判命中、不組 SQL;顯示形狀(金額換算、借貸文字)由後端 row 決定,前端僅格式化呈現。
+  // fetchPage 只發對應 query.*Page action、回 { rows, nextCursor }；columns 為每欄的 row→cell 取值函式。
+  // 這裡只負責呼叫 action：不算差異、不判斷命中、不組 SQL；金額換算與借貸文字由後端的資料列決定，前端只負責格式化。
   var DETAIL_PAGE_SPECS = {
     completeness: {
       fetchPage: function (cursor, sort, search) {
@@ -460,7 +460,7 @@
         if (v && naReason(v)) { return { kind: 'reason', text: naReason(v) }; }
         if (!v || countOf(v.blankRecordsTest) <= 0) { return null; }
         var withApprovalDate = showsApprovalDate(categories[0]);
-        // 欄名與排序鍵各寫一份完整清單，不是「核准日不在期間」時拿掉傳票核准日那一欄。排序鍵寫成完整清單，
+        // 欄名與排序鍵各寫一份完整清單，類別不是「核准日不在期間」時，再從兩份清單拿掉傳票核准日。排序鍵寫成完整清單，
         // PagedTableFrontendTests 才核對得到每個鍵都在後端的白名單裡。
         var keepApprovalDate = function (item) { return withApprovalDate || (item !== '傳票核准日' && item !== 'approvalDate'); };
         var rows = (v.blankRecordsTest.blankRows || []).filter(function (r) {
@@ -627,11 +627,10 @@
     }
   ];
 
-  // 資料缺漏輔助檢視的「空白傳票號碼」「空白科目編號」兩個子項列在「風險預篩選」卡的資料缺漏輔助檢視
-  // （呈現位置移動，資料來源不變）。兩者仍是後端單一 blank_records_test 規則的子計數，
-  // 由 validate.run 產生，因此它們的 runData 一律吃 state.results.validate（不是 prescreen）。
-  // 空白摘要只留預篩選訊號那一處，驗證報告照舊由後端寫出；
-  // 「核准日不在期間」留在資料驗證卡，因為它是資料品質面（期間界定）而非風險候選面。
+  // 「空白傳票號碼」「空白科目編號」兩個子項畫在「風險預篩選」卡的資料缺漏輔助檢視。兩者是後端 blank_records_test 規則的子計數，
+  // 由 validate.run 產生，因此它們的 runData 一律讀 state.results.validate，不讀 prescreen。
+  // 空白摘要只在預篩選訊號呈現，驗證報告由後端寫出；
+  // 「核准日不在期間」放在資料驗證卡，因為它屬於期間界定的資料品質檢查，不是風險候選。
   var BLANK_PRESCREEN_ITEMS = [
     blankSubItem('空白傳票號碼', '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。', ['voucherNumber'],
       function (brt) { return Number(brt.blankVoucherNumberCount); }, ['blankVoucherNumber']),
@@ -790,8 +789,8 @@
     }
   ];
 
-  // RuleCatalog 的兩條 Aggregate 規則在步驟四是主要呈現；其餘 RowTag 規則降為可展開的
-  // 逐筆輔助訊號。只重排既有 response，沒有新增計算或改變命中集合。
+  // RuleCatalog 的兩條 Aggregate 規則是步驟四的主要呈現；其餘 RowTag 規則畫成可展開的
+  // 逐筆輔助訊號。這裡只決定呈現順序，不另外計算，也不改變命中集合。
   var PRESCREEN_AGGREGATE_ITEMS = PRESCREEN_ITEMS.slice(4, 6);
   var PRESCREEN_SIGNAL_ITEMS = PRESCREEN_ITEMS.slice(0, 4).concat(PRESCREEN_ITEMS.slice(6));
 
@@ -1176,7 +1175,6 @@
           '</div>' +
         '</span>' +
       '</div>';
-    // 「也可匯入」這句的用字已定案。
     var hint = '<p class="excel-mapping__hint">在「Standardized Account Name*」欄填入分類後存檔，再' + (info ? '重新匯入' : '匯入') +
       '；也可匯入前一個案件的配對檔。' + (info ? '重新匯入會覆蓋目前全部配對。' : '') + '</p>';
     // 已匯入時一律可從右側資料預覽看已儲存的配對。「資料預覽」緊接在名稱後面，科目數和下面幾列一樣靠右對齊。
@@ -1380,9 +1378,9 @@
       return '<span class="category-row__tree" aria-hidden="true">' + cells +
         '<i class="' + (continues(depth) ? 'is-branch' : 'is-last') + '"></i></span>';
     }
-    // 科目分類的上下層級與分類用途在這個版本隱藏：Ui.FEATURES.categoryHierarchy 關著時不畫「進階設定」、分類用途與上層分類，
-    // 分類設定只填名稱，和舊版 JET 的科目配對一樣；新增的分類沒有上層，用途是 others。開關是 true 時照樣畫出這些欄位。
-    // 已有上下層的分類照樣畫出縮排與連接線，移除有下層的分類照樣先確認。
+    // 科目分類的上下層級與分類用途由 Ui.FEATURES.categoryHierarchy 控制：關著時不畫「進階設定」、分類用途與上層分類，
+    // 分類設定只填名稱，和舊版 JET 的科目配對一樣；新增的分類沒有上層，用途是 others。開關是 true 時畫出這些欄位。
+    // 開關關著時，已有上下層的分類也畫出縮排與連接線，移除有下層的分類也先確認。
     var advancedAvailable = !!Ui.FEATURES.categoryHierarchy;
     var advanced = advancedAvailable && categoryAdvanced;
     var items = tree.map(function (row, index) {
@@ -1738,7 +1736,7 @@
     });
   }
 
-  // 科目配對區塊的綁定:沿用既有 action / store / 資料預覽契約。
+  // 科目配對區塊的綁定使用共用的 action、store 與資料預覽契約。
   // 已匯入即可預覽；匯入鈕只在 GL 欄位配對已確認時才會渲染出來，
   // 此處用存在性檢查綁定，所以 bind 不必重複判斷條件。
   function bindAccountMappingCard(container) {
@@ -1920,7 +1918,7 @@
     function importAccountMappingSource(source) {
       return global.JetApi.importAccountMappingFromFile(source).then(function (data) {
         // 檔案正被 Excel 開著時照樣匯入最後一次存檔的內容；提醒先記下，下面寫入狀態的那次重繪就畫在結果上方。
-        //訊息面板照舊另記一則。
+        // 訊息面板也另記一則。
         var opened = Array.isArray(data.openElsewhereWarnings) ? data.openElsewhereWarnings : [];
         var current = Store.getState().project;
         accountMappingOpenElsewhere = opened.length && current
@@ -1948,8 +1946,6 @@
     }
   }
 
-  // p = prescreen.run 結果（驅動 PRESCREEN_ITEMS）；v = validate.run 結果（驅動移入的空值兩子項）。
-  // 空值兩子項雖列在此卡，資料仍來自 validate.run，故獨立用 scope 'pn' 渲染、傳入 v（不與 'p' 混用）。
   function prescreenReportHtml(state, p, positioning) {
     if (!p || !p.resultRef || !p.resultRef.resultId) { return ''; }
     var reports = Ui.currentReports(
@@ -1967,6 +1963,8 @@
     );
   }
 
+  // p 是 prescreen.run 的結果，畫 PRESCREEN_ITEMS；v 是 validate.run 的結果，畫這張卡裡的兩個空值子項。
+  // 兩個空值子項雖然列在這張卡，資料來自 validate.run，所以另用 scope 'pn' 渲染並傳入 v，不和 'p' 混用。
   function prescreenCardHtml(p, v, ready, state, eligibility) {
     var canRun = ready && eligibility.isEligible;
     var positioning = Ui.prescreenPositioningCopy(p);
@@ -2104,7 +2102,7 @@
       detail._loadPage = controller.ensureLoaded;
     });
 
-    // 「檢視 / 收合」切換。
+    // 展開與收起規則明細。
     // 對 prescreenPreview 類型：首次展開時觸發惰性抓取；之後只切 hidden。
     // 一般明細表首次展開也會透過 _loadPage 讀取第一頁；reason 只顯示文字。
     container.querySelectorAll('[data-action="toggle-detail"]').forEach(function (btn) {
@@ -2183,7 +2181,7 @@
         });
       }, { completionMessage: function (data) {
         // 驗證結果的完成句由 Ui.run 接上整個操作的耗時後記一則，成功時只留一則；
-        // 報告與範本是這個操作的一部分，各自的紀錄照舊。
+        // 報告與範本是這個操作的一部分，各自記自己的紀錄。
         // 各項筆數已寫在下方各項結果，完成句只留一句。
         return data ? '資料驗證完成' : '';
       } });
@@ -2192,7 +2190,6 @@
     container.querySelector('[data-action="run-prescreen"]').addEventListener('click', function () {
       var eligibility = Ui.completenessEligibility(Store.getState().results.validate);
       if (!eligibility.isEligible) {
-        // 這句的用字已定案。
         Store.addMessage('預篩選尚無法執行：' + eligibility.reason, 'warn');
         return;
       }

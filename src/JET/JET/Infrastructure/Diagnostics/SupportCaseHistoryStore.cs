@@ -12,9 +12,9 @@ namespace JET.Infrastructure;
 /// <list type="bullet">
 /// <item>事件由背景寫入器依序附加，審計操作不等磁碟。每次附加都以只允許別人讀取的方式開檔，
 /// 兩個 JET 程式碰到同一案件時輪流寫入；檔案被占用時稍候重試。</item>
-/// <item>紀錄資料夾只在持有案件工作鎖時由 <see cref="Prepare"/> 建立，寫入器本身不建立任何資料夾，
+/// <item>紀錄資料夾只在持有案件鎖時由 <see cref="Prepare"/> 建立，寫入器本身不建立任何資料夾，
 /// 別的程式刪除案件時不會把案件資料夾建回來。還沒在這個程序開啟的案件只附加到已經存在的紀錄檔；
-/// 沒有紀錄檔時事件先保留，例如舊案件第一次載入的開始事件，開啟案件之後依原順序補寫。</item>
+/// 沒有紀錄檔時事件先保留，例如還沒有紀錄檔的案件第一次載入時的開始事件，開啟案件之後依原順序補寫。</item>
 /// <item>寫不進去時不影響審計操作。事件先保留，下次寫入、匯出前或程式結束時依原順序補寫；
 /// 超過保留上限才放棄最舊的，補寫時先寫一筆缺口紀錄寫明放棄幾筆與原因。刪除案件時保留的事件一起放棄。</item>
 /// <item>檔尾若有沒寫完的行，下一次附加先補換行，那一行在匯出時算成無法讀取。</item>
@@ -72,7 +72,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
         Exception? failure = null;
         try
         {
-            // 呼叫端持有工作鎖，別的程式這時不能刪除案件，建立子資料夾不會把已刪除的案件資料夾建回來。
+            // 呼叫端持有案件鎖，別的程式這時不能刪除案件，建立子資料夾不會把已刪除的案件資料夾建回來。
             var caseDirectory = _folder.GetProjectDirectory(projectId);
             if (Directory.Exists(caseDirectory) && !IsLinked(caseDirectory))
             {
@@ -373,7 +373,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
                 state.Dropped += overflow;
             }
 
-            // 還沒在這個程序開啟的案件沒有紀錄檔不算寫入失敗，例如舊案件載入前或載入失敗：事件保留到開啟案件。
+            // 還沒在這個程序開啟的案件沒有紀錄檔不算寫入失敗，例如沒有紀錄檔的案件載入前或載入失敗：事件保留到開啟案件。
             if (state.Prepared || exception is not (DirectoryNotFoundException or FileNotFoundException))
             {
                 state.LastFailure = state.PrepareFailure ?? exception;

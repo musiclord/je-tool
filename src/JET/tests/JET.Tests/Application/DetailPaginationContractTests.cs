@@ -19,7 +19,7 @@ public sealed class DetailPaginationContractTests
                     i <= 201 ? "GroupOne" : "GroupTwo", "Synthetic", i, 1);
         }, databaseProvider: provider);
 
-        // The independent fixture order is also the expected order for offset previews.
+        // 獨立建立的 fixture 順序，也是 offset 預覽的預期順序。
         foreach (var dataset in new[] { "pbcGl", "gl" })
         {
             for (var offset = 0; offset < count; offset += 200)

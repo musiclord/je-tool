@@ -119,7 +119,7 @@ public sealed class ImportAndMappingHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // 已支援 .xls；.xlsb 不支援，仍須拒絕並保留多檔錯誤定位。
+        // 支援 .xls；.xlsb 不支援，要拒絕並保留多檔錯誤定位。
         var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xlsb");
         await File.WriteAllTextAsync(xlsPath, "not a real xls");
         try
@@ -452,7 +452,6 @@ public sealed class ImportAndMappingHandlersTests
                     }
                     """));
             Assert.Equal(JetErrorCodes.MissingRequiredMapping, missing.Code);
-            // 這句的用字已定案。
             Assert.Contains("傳票摘要", missing.Message);
 
             // commit GL（dual）

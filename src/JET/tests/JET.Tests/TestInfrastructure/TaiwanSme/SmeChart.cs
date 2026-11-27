@@ -1,10 +1,10 @@
-namespace Jet.Harness.TaiwanSme;
+namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
 /// <summary>科目表的一個科目。Category 是科目配對檔寫入的分類名稱，空字串代表留白；Opening 借正貸負。</summary>
 internal sealed record SmeAccount(string Code, string Name, string Category, decimal Opening);
 
 /// <summary>
-/// 案件自訂分類：名稱、上層分類名稱（null 為最上層）與分類用途。這個版本的畫面隱藏上下層與分類用途，
+/// 案件自訂分類：名稱、上層分類名稱（null 為最上層）與分類用途。畫面不顯示上下層與分類用途，
 /// 合成案件的分類也是平的一層、用途都是 others；兩個欄位照樣送進分類設定，也用來算預期結果。
 /// </summary>
 internal sealed record SmeCategory(string Label, string? Parent, string Role);
@@ -31,7 +31,7 @@ internal static class SmeChart
     public const string OperatingExpenses = "營業費用";
 
     /// <summary>
-    /// 第四步分類設定新增的分類，和這個版本的畫面一樣是平的一層、用途都是 others。
+    /// 第四步分類設定新增的分類，和畫面一樣是平的一層、用途都是 others。
     /// 銀行存款與約當現金的科目直接配到內建的 Cash，推銷、管理、研究發展三種費用的科目直接配到營業費用，製造費用是最上層。
     /// </summary>
     public static readonly IReadOnlyList<SmeCategory> CustomCategories =

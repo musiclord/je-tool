@@ -256,9 +256,9 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     /// <summary>
-    /// per-project 種子：validate.run 回應的 seed == 該專案 project.json 落地的 sampleSeed
-    /// （非全域常數）；且同專案兩次 run 的 seed 相等（種子終身固定 → 可重現）。
-    /// oracle：規格（種子來源＝專案種子）＋ project.json 物證。
+    /// per-project 種子：validate.run 回應的 seed == 該案件 project.json 落地的 sampleSeed
+    /// （非全域常數）；且同一案件兩次 run 的 seed 相等（種子終身固定 → 可重現）。
+    /// oracle：種子來源是案件種子，並直接讀 project.json 核對。
     /// </summary>
     [Fact]
     public async Task ValidateRun_SeedMatchesPersistedProjectSeed_AndIsStableAcrossRuns()
@@ -273,8 +273,8 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     /// <summary>
-    /// sampleSeed 欄位問世前建立的舊專案 → validate.run 明確拒絕，不回退固定種子。
-    /// fixture：建正常 inline 專案後移除 project.json 的 sampleSeed 欄位，並把設定檔版本改回第 1 版。
+    /// sampleSeed 欄位問世前建立的舊案件 → validate.run 明確拒絕，不回退固定種子。
+    /// fixture：建正常 inline 案件後移除 project.json 的 sampleSeed 欄位，並把設定檔版本改回第 1 版。
     /// </summary>
     [Fact]
     public async Task ValidateRun_LegacyProjectWithoutSampleSeed_RejectsAsOldProject()
@@ -328,7 +328,6 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 這句的用字已定案。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -353,7 +352,6 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 這句的用字已定案。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -428,7 +426,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
 
     /// <summary>
     /// 回應的 voucherBalanceTest.unbalancedVouchers 與 blankRecordsTest.blankRows 要出現在 wire JSON，
-    /// 且內容與母體一致；既有純量欄位（counts）數值不能改變。
+    /// 且內容與母體一致；計數欄位（counts）也與母體一致。
     /// </summary>
     [Fact]
     public async Task ValidateRun_WithUnbalancedAndBlankRows_ResponseContainsDetailLists()
@@ -451,14 +449,14 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
 
         // --- voucherBalanceTest ---
         var voucherBalance = data.GetProperty("voucherBalanceTest");
-        // 純量欄位不變
+        // 純量欄位：不平傳票 1 張
         Assert.Equal(1, voucherBalance.GetProperty("unbalancedVoucherCount").GetInt64());
-        // 新明細清單：JV-001 出現在第 0 筆
+        // 明細清單：JV-001 出現在第 0 筆
         var unbalancedDocs = voucherBalance.GetProperty("unbalancedVouchers");
         Assert.True(unbalancedDocs.GetArrayLength() >= 1, "unbalancedVouchers 應至少有 1 筆");
         var firstDoc = unbalancedDocs[0];
         Assert.Equal("JV-001", firstDoc.GetProperty("voucherNumber").GetString());
-        // debit=300.00, credit=100.00 → scaled: 3_000_000 / 100_000 (DefaultMoneyScale=10_000)
+        // debit=300.00, credit=100.00 → scaled: 3_000_000 / 1_000_000 (DefaultMoneyScale=10_000)
         // ToDisplay: 3_000_000/10_000=300.00, 1_000_000/10_000=100.00, diff=2_000_000/10_000=200.00
         Assert.Equal(300.00m, firstDoc.GetProperty("debit").GetDecimal());
         Assert.Equal(100.00m, firstDoc.GetProperty("credit").GetDecimal());
@@ -468,7 +466,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var blankRecords = data.GetProperty("blankRecordsTest");
         // 純量欄位：空科目 ≥ 1（JV-003 那列）
         Assert.True(blankRecords.GetProperty("blankAccountNumberCount").GetInt64() >= 1);
-        // 新明細清單：至少 1 筆
+        // 明細清單：至少 1 筆
         var blankRows = blankRecords.GetProperty("blankRows");
         Assert.True(blankRows.GetArrayLength() >= 1, "blankRows 應至少有 1 筆");
         var firstRow = blankRows[0];

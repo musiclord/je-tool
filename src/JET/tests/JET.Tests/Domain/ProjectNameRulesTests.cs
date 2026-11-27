@@ -5,7 +5,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// 案件名稱 / projectId 字元規則(ProjectNameRules)。同時是 path-traversal 守衛;
-/// 白名單須為舊 32-hex GUID 的超集(既有專案零遷移)。
+/// 白名單須為舊 32-hex GUID 的超集(既有案件零遷移)。
 /// </summary>
 public sealed class ProjectNameRulesTests
 {

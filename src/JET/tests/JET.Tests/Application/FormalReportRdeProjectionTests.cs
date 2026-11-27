@@ -101,32 +101,32 @@ public sealed class FormalReportRdeProjectionTests
             setup.ProjectId,
             workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using var workingPaper = new XLWorkbook(workingPaperPath);
-        var step2 = workingPaper.Worksheet("step2 可靠性測試");
-        var step2Headers = ReadHeader(
-                step2,
+        var infSampling = workingPaper.Worksheet("step2 可靠性測試");
+        var infSamplingHeaders = ReadHeader(
+                infSampling,
                 51)
             .Skip(20)
             .ToArray();
-        Assert.Equal(new[] { TextHeader, DateHeader }, step2Headers);
-        Assert.DoesNotContain(MoneyHeader, step2Headers);
+        Assert.Equal(new[] { TextHeader, DateHeader }, infSamplingHeaders);
+        Assert.DoesNotContain(MoneyHeader, infSamplingHeaders);
         // 攸關資料元素欄從 U 欄起，第 49 列的標題由 JET 寫。
-        Assert.Equal("所選高風險條件引用RDE", step2.Cell(49, 21).GetString());
-        var step2DocumentColumn = FindHeaderColumn(step2, 51, "傳票號碼\n(分錄編號)");
-        var step2TextColumn = FindHeaderColumn(step2, 51, TextHeader);
-        var step2DateColumn = FindHeaderColumn(step2, 51, DateHeader);
-        var step2ValuedRow = FindRow(step2, step2DocumentColumn, "RDE-001", 53);
-        Assert.Equal("alpha", step2.Cell(step2ValuedRow, step2TextColumn).GetString());
+        Assert.Equal("所選高風險條件引用RDE", infSampling.Cell(49, 21).GetString());
+        var infSamplingDocumentColumn = FindHeaderColumn(infSampling, 51, "傳票號碼\n(分錄編號)");
+        var infSamplingTextColumn = FindHeaderColumn(infSampling, 51, TextHeader);
+        var infSamplingDateColumn = FindHeaderColumn(infSampling, 51, DateHeader);
+        var infSamplingValuedRow = FindRow(infSampling, infSamplingDocumentColumn, "RDE-001", 53);
+        Assert.Equal("alpha", infSampling.Cell(infSamplingValuedRow, infSamplingTextColumn).GetString());
         Assert.Equal(
             new DateTime(2025, 4, 2),
-            step2.Cell(step2ValuedRow, step2DateColumn).GetDateTime());
-        var step2BlankRow = FindRow(step2, step2DocumentColumn, "RDE-002", 53);
-        Assert.True(step2.Cell(step2BlankRow, step2TextColumn).IsEmpty());
-        Assert.True(step2.Cell(step2BlankRow, step2DateColumn).IsEmpty());
+            infSampling.Cell(infSamplingValuedRow, infSamplingDateColumn).GetDateTime());
+        var infSamplingBlankRow = FindRow(infSampling, infSamplingDocumentColumn, "RDE-002", 53);
+        Assert.True(infSampling.Cell(infSamplingBlankRow, infSamplingTextColumn).IsEmpty());
+        Assert.True(infSampling.Cell(infSamplingBlankRow, infSamplingDateColumn).IsEmpty());
 
-        var step41Headers = ReadHeader(
+        var highRiskVoucherDetailHeaders = ReadHeader(
             workingPaper.Worksheet("step4-1 符合高風險條件傳票明細"),
             5);
-        var valueHeaders = step41Headers
+        var valueHeaders = highRiskVoucherDetailHeaders
             .TakeWhile(header => !header.EndsWith("_TAG", StringComparison.Ordinal))
             .ToArray();
         Assert.Equal(new[] { TextHeader, DateHeader }, valueHeaders.TakeLast(2));
@@ -170,21 +170,21 @@ public sealed class FormalReportRdeProjectionTests
             workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using var workingPaper = new XLWorkbook(workingPaperPath);
 
-        var step2 = workingPaper.Worksheet("step2 可靠性測試");
-        var step2Row = FindRow(step2, FindHeaderColumn(step2, 51, "傳票號碼\n(分錄編號)"), "RDE-001", 53);
-        var step2Cell = step2.Cell(step2Row, FindHeaderColumn(step2, 51, DateHeader));
-        Assert.Equal(XLDataType.Text, step2Cell.DataType);
-        Assert.Equal(rdeDate, step2Cell.GetString());
+        var infSampling = workingPaper.Worksheet("step2 可靠性測試");
+        var infSamplingRow = FindRow(infSampling, FindHeaderColumn(infSampling, 51, "傳票號碼\n(分錄編號)"), "RDE-001", 53);
+        var infSamplingCell = infSampling.Cell(infSamplingRow, FindHeaderColumn(infSampling, 51, DateHeader));
+        Assert.Equal(XLDataType.Text, infSamplingCell.DataType);
+        Assert.Equal(rdeDate, infSamplingCell.GetString());
 
-        var step41 = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
-        var step41DateColumn = FindHeaderColumn(step41, 5, DateHeader);
-        var step41Cells = Enumerable.Range(6, (step41.LastRowUsed()?.RowNumber() ?? 5) - 5)
-            .Select(row => step41.Cell(row, step41DateColumn))
+        var highRiskVoucherDetail = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
+        var highRiskVoucherDetailDateColumn = FindHeaderColumn(highRiskVoucherDetail, 5, DateHeader);
+        var highRiskVoucherDetailCells = Enumerable.Range(6, (highRiskVoucherDetail.LastRowUsed()?.RowNumber() ?? 5) - 5)
+            .Select(row => highRiskVoucherDetail.Cell(row, highRiskVoucherDetailDateColumn))
             .Where(cell => !cell.IsEmpty())
             .ToArray();
-        var step41Cell = Assert.Single(step41Cells);
-        Assert.Equal(XLDataType.Text, step41Cell.DataType);
-        Assert.Equal(rdeDate, step41Cell.GetString());
+        var highRiskVoucherDetailCell = Assert.Single(highRiskVoucherDetailCells);
+        Assert.Equal(XLDataType.Text, highRiskVoucherDetailCell.DataType);
+        Assert.Equal(rdeDate, highRiskVoucherDetailCell.GetString());
     }
 
     // 1900-03-01 是換出的序列值和 Excel 一致的第一天，序列值 61。底稿寫成日期儲存格，Excel 顯示的就是 1900-03-01。
@@ -214,19 +214,19 @@ public sealed class FormalReportRdeProjectionTests
             workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using var workingPaper = new XLWorkbook(workingPaperPath);
 
-        var step2 = workingPaper.Worksheet("step2 可靠性測試");
-        var step2Row = FindRow(step2, FindHeaderColumn(step2, 51, "傳票號碼\n(分錄編號)"), "RDE-001", 53);
-        var step2Cell = step2.Cell(step2Row, FindHeaderColumn(step2, 51, DateHeader));
-        Assert.Equal(XLDataType.DateTime, step2Cell.DataType);
-        Assert.Equal(new DateTime(1900, 3, 1), step2Cell.GetDateTime());
+        var infSampling = workingPaper.Worksheet("step2 可靠性測試");
+        var infSamplingRow = FindRow(infSampling, FindHeaderColumn(infSampling, 51, "傳票號碼\n(分錄編號)"), "RDE-001", 53);
+        var infSamplingCell = infSampling.Cell(infSamplingRow, FindHeaderColumn(infSampling, 51, DateHeader));
+        Assert.Equal(XLDataType.DateTime, infSamplingCell.DataType);
+        Assert.Equal(new DateTime(1900, 3, 1), infSamplingCell.GetDateTime());
 
-        var step41 = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
-        var step41DateColumn = FindHeaderColumn(step41, 5, DateHeader);
-        var step41Cell = Assert.Single(Enumerable.Range(6, (step41.LastRowUsed()?.RowNumber() ?? 5) - 5)
-            .Select(row => step41.Cell(row, step41DateColumn))
+        var highRiskVoucherDetail = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
+        var highRiskVoucherDetailDateColumn = FindHeaderColumn(highRiskVoucherDetail, 5, DateHeader);
+        var highRiskVoucherDetailCell = Assert.Single(Enumerable.Range(6, (highRiskVoucherDetail.LastRowUsed()?.RowNumber() ?? 5) - 5)
+            .Select(row => highRiskVoucherDetail.Cell(row, highRiskVoucherDetailDateColumn))
             .Where(cell => !cell.IsEmpty()));
-        Assert.Equal(XLDataType.DateTime, step41Cell.DataType);
-        Assert.Equal(new DateTime(1900, 3, 1), step41Cell.GetDateTime());
+        Assert.Equal(XLDataType.DateTime, highRiskVoucherDetailCell.DataType);
+        Assert.Equal(new DateTime(1900, 3, 1), highRiskVoucherDetailCell.GetDateTime());
     }
 
     [Fact]
@@ -418,12 +418,12 @@ public sealed class FormalReportRdeProjectionTests
                         {
                             new
                             {
-                                join = "AND", type = "typed", fieldId = setup.DateFieldId,
+                                join = "AND", type = "fieldValue", fieldId = setup.DateFieldId,
                                 @operator = "isNotBlank"
                             },
                             new
                             {
-                                join = "OR", type = "typed", fieldId = setup.TextFieldId,
+                                join = "OR", type = "fieldValue", fieldId = setup.TextFieldId,
                                 @operator = "isBlank"
                             }
                         }
@@ -443,7 +443,7 @@ public sealed class FormalReportRdeProjectionTests
                         {
                             new
                             {
-                                join = "AND", type = "typed", fieldId = setup.MoneyFieldId,
+                                join = "AND", type = "fieldValue", fieldId = setup.MoneyFieldId,
                                 @operator = "isNotBlank", amountBasis = "signed"
                             }
                         }

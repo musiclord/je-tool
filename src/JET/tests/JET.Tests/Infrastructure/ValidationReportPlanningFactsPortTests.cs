@@ -7,7 +7,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// Validation workbook 的 unbalanced count 必須是回接本期 GL 後的 raw row count，
-/// 且和 writer 實際使用的 page repository 保持同一母體。
+/// 且和 writer 實際使用的一次讀完查詢保持同一母體。
 /// </summary>
 public sealed class ValidationReportPlanningFactsPortTests
 {
@@ -40,7 +40,7 @@ public sealed class ValidationReportPlanningFactsPortTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task LocalProviders_CountExactlyTheRowsReturnedByUnbalancedDetailPages(
+    public async Task LocalProviders_CountExactlyTheRowsReturnedByUnbalancedDetailStream(
         string provider)
     {
         using var root = new TempProjectRoot();
@@ -58,13 +58,13 @@ public sealed class ValidationReportPlanningFactsPortTests
         IValidationReportPlanningFactsPort port =
             new LocalValidationReportPlanningFactsPort(database);
         var facts = await port.ExecuteAsync(Plan(projectId), CancellationToken.None);
-        var pageRows = await DrainAsync(
-            new LocalUnbalancedVoucherPageRepository(database),
+        var detailRows = await DrainAsync(
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             projectId);
 
         Assert.Equal(3, facts.UnbalancedDetailRowCount);
-        Assert.Equal(facts.UnbalancedDetailRowCount, (long)pageRows.Count);
-        Assert.Equal(pageRows.Count, pageRows.Distinct().Count());
+        Assert.Equal(facts.UnbalancedDetailRowCount, (long)detailRows.Count);
+        Assert.Equal(detailRows.Count, detailRows.Distinct().Count());
     }
 
     private static ValidationReportPlan Plan(string projectId) =>
@@ -90,23 +90,14 @@ public sealed class ValidationReportPlanningFactsPortTests
     }
 
     private static async Task<List<long>> DrainAsync(
-        IUnbalancedVoucherPageRepository repository,
+        IUnbalancedVoucherEntryStreamRepository repository,
         string projectId)
     {
         var rows = new List<long>();
-        string? cursor = null;
-        do
+        await foreach (var entryId in repository.StreamEntryIdsAsync(projectId, CancellationToken.None))
         {
-            var page = await repository.GetEntryIdsPageAsync(
-                projectId,
-                "2025-01-01",
-                "2025-12-31",
-                new PageRequest(cursor, PageSize: 2),
-                CancellationToken.None);
-            rows.AddRange(page.Rows);
-            cursor = page.NextCursor;
+            rows.Add(entryId);
         }
-        while (cursor is not null);
 
         return rows;
     }

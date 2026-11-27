@@ -9,13 +9,13 @@ namespace JET.Domain;
 /// </summary>
 public sealed class GlStagingFillDown
 {
-    private readonly string[] columns;
-    private readonly Dictionary<string, string> lastValues = new(StringComparer.Ordinal);
-    private int? currentSourceNo;
+    private readonly string[] _columns;
+    private readonly Dictionary<string, string> _lastValues = new(StringComparer.Ordinal);
+    private int? _currentSourceNo;
 
     private GlStagingFillDown(string[] columns)
     {
-        this.columns = columns;
+        this._columns = columns;
     }
 
     /// <summary>勾選欄位對應的來源欄，去重、照勾選欄位的順序；兩個欄位配同一個來源欄時只填一次。</summary>
@@ -53,22 +53,22 @@ public sealed class GlStagingFillDown
     public IReadOnlyDictionary<string, string> Apply(int sourceNo, IReadOnlyDictionary<string, string> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        if (currentSourceNo != sourceNo)
+        if (_currentSourceNo != sourceNo)
         {
-            lastValues.Clear();
-            currentSourceNo = sourceNo;
+            _lastValues.Clear();
+            _currentSourceNo = sourceNo;
         }
 
         Dictionary<string, string>? filled = null;
-        foreach (var column in columns)
+        foreach (var column in _columns)
         {
             if (values.TryGetValue(column, out var value) && !string.IsNullOrWhiteSpace(value))
             {
-                lastValues[column] = value;
+                _lastValues[column] = value;
                 continue;
             }
 
-            if (!lastValues.TryGetValue(column, out var previous))
+            if (!_lastValues.TryGetValue(column, out var previous))
             {
                 continue;
             }

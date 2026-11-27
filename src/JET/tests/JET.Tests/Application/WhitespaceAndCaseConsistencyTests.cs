@@ -30,7 +30,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
         // .xls 的最小 BIFF2 寫法只放得下 ASCII，所以它的空白變化用半形空白與 Tab；其他格式再加全形空白與不換行空格。
         string[] variants = format == "xls"
             ? ["U1", " U1 ", "u1", "\tU1"]
-            : ["U1", " U1　", "u1", " U1"];
+            : ["U1", " U1　", "u1", "\u00A0U1"];
         string[] blanks = format == "xls" ? ["   ", "\t"] : ["   ", "　"];
         var rows = new List<string?[]>();
         var n = 0;
@@ -75,7 +75,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task RowsStoredBeforeThisChange_AreNormalizedTheSameWayInBothDatabases(string provider)
+    public async Task StoredRowsWithEdgeWhitespace_AreTrimmedTheSameWayInSqlAndDotNet(string provider)
     {
         // 以前匯入的案件，資料庫裡的文字可能還帶著頭尾空白；SQL 端去掉的空白字元要和 .NET 相同。
         using var host = new HandlerTestHost();
@@ -89,7 +89,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
             new string?[] { "JV-6", "2025-03-01", "1000", "Synthetic A", "legacy-blank", "10", "U4" },
         };
         var id = await SetupAsync(host, provider, "csv", rows, tbTotal: 60m);
-        await UpdateCreatedByAsync(host, provider, id, "legacy-a", " u1　");
+        await UpdateCreatedByAsync(host, provider, id, "legacy-a", "\u00A0u1　");
         await UpdateCreatedByAsync(host, provider, id, "legacy-b", "\tU1 ");
         await UpdateCreatedByAsync(host, provider, id, "legacy-blank", "　\t");
 

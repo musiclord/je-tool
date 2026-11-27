@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using JET.Bridge;
+using JET.Tests.TestInfrastructure.TaiwanSme;
 
 namespace Jet.Harness.TaiwanSme;
 

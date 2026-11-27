@@ -1,7 +1,7 @@
 /*
   流程總覽的母體事實區塊（BI）渲染器（JetOverviewBi namespace）。
-  目前持有：預篩選規則全期命中分布、分錄金額級距與累積分布、
-  集中度分析（編製人員分錄分布／較少使用之科目）。
+  本檔畫出預篩選規則全期命中分布、分錄金額級距與累積分布，
+  以及集中度分析（傳票建立人員分錄分布、較少使用之科目）。
 
   硬性邊界：本檔只鏡射後端 validate.run 的 amountDistribution，以及 prescreen.run
   的 rulePeriod／concentration 區塊並格式化。ECDF、符合比例、累積占比、「其他」彙總
@@ -25,14 +25,14 @@
   var LABEL_FILL = '#5e5b52';
   var VALUE_FILL = '#3f3d36';
   var PLACEHOLDER_FILL = '#716e64';
-  // 圖表的提示框浮在圖表上，是和選單同一種玻璃，因為整個 JE Tool 要帶有 Liquid Glass 的質感；
+  // 圖表的提示框浮在圖表上，和選單用同一種玻璃，因為整個 JE Tool 用 Liquid Glass 的質感；
   // 值引用 app.css 的變數，關閉透明效果或高對比時跟著改成不透明。
   var TOOLTIP_GLASS = 'background-color: var(--glass-fill) !important; border-color: transparent !important; ' +
     '-webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: var(--radius-group) !important; ' +
     'box-shadow: var(--glass-rim), 0 0 0 0.5px var(--glass-line), var(--shadow-overlay) !important;';
 
-  // validate.run 的 canonical key presentation mirror。順序、數量與 keys 由
-  // AmountDistributionWireKeys guard 對齊後端；軸只顯示上界，完整區間進 tooltip。
+  // validate.run 金額級距各個鍵在畫面上的標示。順序、數量與鍵名和後端相同，由測試的
+  // AmountDistributionWireKeys 核對；軸只顯示上界，完整區間放在提示框。
   var AMOUNT_BIN_META = [
     { key: 'zero', tick: '零元', range: '零元' },
     { key: 'lt1k', tick: '1k', range: '<1k' },
@@ -56,7 +56,7 @@
     ? new global.ResizeObserver(function () { resizeCharts(); })
     : null;
 
-  // 圖軸標須有界；完整 count 仍保留在 ECharts tooltip。
+  // 座標軸上的筆數縮寫成 k、M、B，標籤才不會太長；完整筆數仍寫在 ECharts 的提示框。
   function fmtAxisCount(n) {
     var value = Number(n);
     if (isNaN(value)) { return '—'; }
@@ -709,7 +709,7 @@
   /**
    * 集中度分析區塊。prescreen＝state.results.prescreen（可為 null）。
    * 兩種降級一律以文字說明取代圖表，不以 0 冒充統計：
-   *   1) 尚未執行風險預篩選；2) 後端判定不適用。
+   *   1) 尚未執行預篩選；2) 後端判定不適用。
    */
   function concentrationHtml(prescreen, activeTab) {
     if (!prescreen) {

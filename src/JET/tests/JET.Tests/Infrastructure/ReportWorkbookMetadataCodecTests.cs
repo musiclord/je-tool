@@ -83,7 +83,7 @@ public sealed class ReportWorkbookMetadataCodecTests
     }
 
     [Fact]
-    public void Append_MultiChunkMappingV2MetadataKeepsCanonicalPayloadAndHiddenStructure()
+    public void Append_MultiChunkMappingMetadataKeepsCanonicalPayloadAndHiddenStructure()
     {
         const int rdeFieldCount = 96;
         var metadata = MultiChunkMetadata(rdeFieldCount);

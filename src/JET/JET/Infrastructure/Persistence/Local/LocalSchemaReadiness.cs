@@ -4,18 +4,18 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 記住本程序內哪些本機資料庫檔已完成建表與版本檢查。repository 每次讀寫前呼叫
+/// 記住本程序內哪些本機資料庫檔已完成建表與結構核對。repository 每次讀寫前呼叫
 /// <see cref="ILocalProjectDatabase.EnsureReadyAsync"/>，只有第一次會真的開連線檢查，之後只確認檔案仍在。
 /// 建案時呼叫的 <see cref="IProjectDatabaseInitializer.EnsureCreatedAsync(string, ProtectedProjectSettings, CancellationToken)"/> 與開案時呼叫的
 /// <see cref="IProjectDatabaseInitializer.EnsureExistingAsync(string, Func{CancellationToken, Task{ProtectedProjectSettings}}, CancellationToken)"/> 一律重新檢查，
-/// 刪除案件時清掉紀錄，所以程式開著時用舊的備份檔覆蓋已關閉的案件，下次載入會重新檢查版本，可以升版的就升版，無法升版的就拒絕。
+/// 刪除案件時清掉紀錄，所以程式開著時用舊的備份檔覆蓋已關閉的案件，下次載入會重新核對結構，能補齊的就補齊，不能補齊的就拒絕。
 /// 只有建案會建立新的資料庫；開案與讀寫遇到資料庫不見或沒有內容時回報，不默默建出空的資料庫。
 /// 同一個檔案的檢查一次只跑一個，避免兩個作業同時建表。
 /// </summary>
 internal sealed class LocalSchemaReadiness
 {
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> gates = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, byte> ready = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _ready = new(StringComparer.OrdinalIgnoreCase);
 
     internal Task EnsureReadyAsync(
         string databasePath,
@@ -60,7 +60,7 @@ internal sealed class LocalSchemaReadiness
         }
     }
 
-    internal void Forget(string databasePath) => ready.TryRemove(databasePath, out _);
+    internal void Forget(string databasePath) => _ready.TryRemove(databasePath, out _);
 
     /// <summary>
     /// 開案與讀寫前確認資料庫檔還在而且不是 0 位元組，在開連線之前檢查，讓連線不會替缺檔的案件建出新檔。
@@ -89,13 +89,8 @@ internal sealed class LocalSchemaReadiness
         return file.Exists && file.Length == 0;
     }
 
-    /// <summary>
-    /// SQLite 案件資料庫的現行結構版本；建表程式直接寫這一版。支援的版本範圍與升版步驟見 <see cref="ProjectSchemaVersions"/>。
-    /// </summary>
-    internal const int CurrentSchemaVersion = 21;
-
     private bool IsReady(string databasePath) =>
-        ready.ContainsKey(databasePath) && File.Exists(databasePath);
+        _ready.ContainsKey(databasePath) && File.Exists(databasePath);
 
     private async Task RunAsync(
         string databasePath,
@@ -103,7 +98,7 @@ internal sealed class LocalSchemaReadiness
         bool force,
         CancellationToken cancellationToken)
     {
-        var gate = gates.GetOrAdd(databasePath, static _ => new SemaphoreSlim(1, 1));
+        var gate = _gates.GetOrAdd(databasePath, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -112,9 +107,9 @@ internal sealed class LocalSchemaReadiness
                 return;
             }
 
-            ready.TryRemove(databasePath, out _);
+            _ready.TryRemove(databasePath, out _);
             await ensureCreated(cancellationToken).ConfigureAwait(false);
-            ready[databasePath] = 0;
+            _ready[databasePath] = 0;
         }
         finally
         {

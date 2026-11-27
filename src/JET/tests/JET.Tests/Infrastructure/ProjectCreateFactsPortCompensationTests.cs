@@ -310,7 +310,7 @@ public sealed class ProjectCreateFactsPortCompensationTests
             return Task.CompletedTask;
         }
 
-        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身用 ListAsync 的結果組出案件清單；產品介面不提供這個預設實作。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
@@ -337,12 +337,12 @@ public sealed class ProjectCreateFactsPortCompensationTests
         Exception? prepareFailure = null,
         Exception? rollbackFailure = null) : IProjectCreateBackendPort
     {
-        private readonly RecordingAttempt attempt =
+        private readonly RecordingAttempt _attempt =
             new(calls, prepareFailure, rollbackFailure);
 
-        internal bool Exists => attempt.Exists;
-        internal bool PrepareCalled => attempt.PrepareCalled;
-        internal bool RollbackTokenCanBeCanceled => attempt.RollbackTokenCanBeCanceled;
+        internal bool Exists => _attempt.Exists;
+        internal bool PrepareCalled => _attempt.PrepareCalled;
+        internal bool RollbackTokenCanBeCanceled => _attempt.RollbackTokenCanBeCanceled;
 
         public Task PrepareAsync(ProjectDocument document, CancellationToken cancellationToken)
         {
@@ -356,7 +356,7 @@ public sealed class ProjectCreateFactsPortCompensationTests
             CancellationToken cancellationToken)
         {
             calls.Add("backend.begin");
-            return Task.FromResult<IProjectCreateBackendAttempt>(attempt);
+            return Task.FromResult<IProjectCreateBackendAttempt>(_attempt);
         }
 
         private sealed class RecordingAttempt(

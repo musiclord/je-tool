@@ -9,8 +9,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 支援日誌可以不指定案件匯出全部紀錄；畫面送錯資料的檢查只進支援日誌，畫面只看到確認過的句子。
-/// 預期值都是寫死的確認句子，不由被測程式算出。
+/// 支援日誌可以不指定案件匯出全部紀錄；畫面送錯資料的檢查只進支援日誌，畫面只看到固定的說明句。
+/// 預期值都是寫死的句子，不由被測程式算出。
 /// </summary>
 public sealed class SupportLogAndUnexpectedErrorTextTests
 {

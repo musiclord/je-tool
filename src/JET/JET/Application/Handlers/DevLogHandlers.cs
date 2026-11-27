@@ -97,7 +97,7 @@ public sealed class SupportLogExportHandler(
             message = "JET support log snapshot",
             fields = new
             {
-                // 第 3 版起每筆事件帶 processInstance 與 sequence，例外列出整條例外鏈與 JET 方法位置；
+                // 格式版本 3：每筆事件帶 processInstance 與 sequence，例外列出整條例外鏈與 JET 方法位置；
                 // 指定案件時讀入跨次開啟的案件紀錄，history 寫出紀錄的起點與缺口。
                 schemaVersion = 3,
                 processInstance = supportLog.ProcessInstance,

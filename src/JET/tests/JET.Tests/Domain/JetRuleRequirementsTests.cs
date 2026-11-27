@@ -7,7 +7,6 @@ namespace JET.Tests.Domain;
 /// <summary>
 /// 欄位可用性與「規則需要什麼」表的固定答案。第四步、第五步與前端停用說明都讀這一張表，
 /// 所以表的內容、判斷順序與原因句在這裡逐字鎖住。
-/// （46 則失敗，例如只配必填欄時，可用欄位清單沒有自動編號的傳票文件項次）。
 /// </summary>
 public sealed class JetRuleRequirementsTests
 {
@@ -34,8 +33,7 @@ public sealed class JetRuleRequirementsTests
     private static JetRulePrerequisite Kind(JetRulePrerequisiteKind kind) => new(kind);
 
     private static FilterConditionSpec Rule(FilterConditionType type, string? field = null, string? prescreenKey = null) =>
-        new(FilterJoin.And, type, prescreenKey, field, [], TextMatchMode.Contains,
-            null, null, null, null, null, null);
+        new(FilterJoin.And, type, prescreenKey, field, [], null, null);
 
     private static JetRuleFacts Facts(
         IReadOnlyCollection<string>? availableGlFields = null,
@@ -146,10 +144,6 @@ public sealed class JetRuleRequirementsTests
         { "欄位值比較：傳票文件項次", Rule(FilterConditionType.FieldValue, JetFieldCatalog.GlLineItem), [Field(JetFieldCatalog.GlLineItem)] },
         { "欄位值比較：已移除的傳票日期", Rule(FilterConditionType.FieldValue, "voucherDate"), [] },
         { "欄位值比較：攸關資料元素欄位", Rule(FilterConditionType.FieldValue) with { FieldId = "rde.0123456789abcdef0123456789abcdef" }, [] },
-        { "文字條件", Rule(FilterConditionType.Text, JetFieldCatalog.GlCreatedBy), [Field(JetFieldCatalog.GlCreatedBy)] },
-        { "文字值清單", Rule(FilterConditionType.TextSet, JetFieldCatalog.GlApprovedBy), [Field(JetFieldCatalog.GlApprovedBy)] },
-        { "日期區間", Rule(FilterConditionType.DateRange, JetFieldCatalog.GlApprovalDate), [Field(JetFieldCatalog.GlApprovalDate)] },
-        { "金額區間", Rule(FilterConditionType.NumRange, JetFieldCatalog.GlAmount), [Field(JetFieldCatalog.GlAmount)] },
         { "科目與人員統計", Rule(FilterConditionType.EntityFrequency, JetFieldCatalog.GlApprovedBy), [Field(JetFieldCatalog.GlApprovedBy)] },
         { "借貸限定", Rule(FilterConditionType.DrCrOnly), [Field(JetFieldCatalog.GlAmount)] },
         { "人工或自動", Rule(FilterConditionType.ManualAuto), [Field(JetFieldCatalog.GlManual)] },
@@ -175,8 +169,7 @@ public sealed class JetRuleRequirementsTests
         },
         { "預篩選：已停用的回溯過帳", Rule(FilterConditionType.Prescreen, prescreenKey: "backdatedPosting"), [] },
         { "子條件組", Rule(FilterConditionType.Group), [] },
-        { "整張傳票條件", Rule(FilterConditionType.Voucher), [] },
-        { "攸關資料元素條件", Rule(FilterConditionType.TypedField) with { FieldId = "rde.0123456789abcdef0123456789abcdef" }, [] }
+        { "整張傳票條件", Rule(FilterConditionType.Voucher), [] }
     };
 
     [Theory]
@@ -268,7 +261,6 @@ public sealed class JetRuleRequirementsTests
         },
         {
             Kind(JetRulePrerequisiteKind.HolidayCalendar),
-            // 這句的用字已定案。
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳",
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。"
         }

@@ -18,7 +18,7 @@ public sealed class ImportApiSurfaceTests
             method => method.Name == name);
         Assert.Equal(new[] { typeof(string), typeof(DatasetKind), typeof(IReadOnlyList<ImportSourceInput>), typeof(CancellationToken) },
             method.GetParameters().Select(parameter => parameter.ParameterType));
-        if (type.IsInterface) Assert.True(method.IsAbstract); // 不留下只支援一個來源的預設介面實作。
+        if (type.IsInterface) Assert.True(method.IsAbstract); // 介面方法沒有預設實作，每個實作都直接接受多個來源。
     }
 
     [Fact]

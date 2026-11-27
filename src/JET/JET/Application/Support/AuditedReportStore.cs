@@ -26,7 +26,7 @@ internal interface IAuditedReportPublishingStore
 
 /// <summary>
 /// 包住報告清單的 store。每次成功發布正式報告後，由這裡在案件的操作紀錄加一筆，記下發布了幾份、取代了幾份同種類的舊報告；
-/// 只有這裡記這種紀錄。寫不進操作紀錄時報告檔已經發布，兩種案件都不讓這次發布失敗；失敗記進支援日誌，
+/// 只有這裡記這種紀錄。寫不進操作紀錄時報告檔已經發布，不讓這次發布失敗；失敗記進支援日誌，
 /// 經 <see cref="IAuditedReportPublishingStore"/> 發布時另回提醒。
 /// 被包住的檔案 store 只負責把暫存檔改名成正式檔，以及讀寫報告清單檔，沒有清理功能。
 /// </summary>

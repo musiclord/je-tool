@@ -353,14 +353,19 @@ try {
         Assert-Contract -Condition (@($registry.testSettings.guiFixtureMethodPatterns) -ccontains $requiredPattern) `
             -Message "Gui must run the AgentGuiTest-only test class $requiredPattern before its scenarios."
     }
-    $workbookJourneyMethod = 'AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate'
+    # 六份工作簿由開發專用資料夾裡的測試匯出；它重用測試專案的完整旅程，測試專案本身不讀佐證資料夾的環境變數。
+    $workbookJourneyMethod = 'AccountMappingHandoff_ExportsSixWorkbooksWithManifest'
     Assert-Contract -Condition ([string]$registry.excelSettings.fixtureMethodPattern -ceq `
         "*SixReportWorkflowJourneyTests.$workbookJourneyMethod*") `
-        -Message 'Excel must select the current five-report and editable-template journey.'
+        -Message 'Excel must select the six-workbook export that reuses the five-report and editable-template journey.'
     $workbookJourneySource = Get-Content -LiteralPath (Join-Path $repositoryRoot `
-        'src/JET/tests/JET.Tests/Application/SixReportWorkflowJourneyTests.cs') -Raw -Encoding utf8
+        'tools/harness/development-repository-tests/Application/SixReportWorkflowJourneyTests.DevelopmentRepository.cs') -Raw -Encoding utf8
     Assert-Contract -Condition ($workbookJourneySource.Contains("Task $workbookJourneyMethod()", [StringComparison]::Ordinal)) `
         -Message 'The Excel fixture filter must resolve to the current test method.'
+    $productJourneySource = Get-Content -LiteralPath (Join-Path $repositoryRoot `
+        'src/JET/tests/JET.Tests/Application/SixReportWorkflowJourneyTests.cs') -Raw -Encoding utf8
+    Assert-Contract -Condition (-not $productJourneySource.Contains([string]$registry.excelSettings.fixtureEnvironmentVariable, [StringComparison]::Ordinal)) `
+        -Message 'The product test project must not read the Excel evidence variable.'
     $publicSkipPolicy = Get-Content -LiteralPath (Join-Path $repositoryRoot `
         'tools/harness/public-skip-policy.json') -Raw -Encoding utf8 | ConvertFrom-Json
     Assert-Contract -Condition (@($publicSkipPolicy.capabilityGroups).Count -eq 0) `

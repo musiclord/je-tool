@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 第三步配對版面、單一資料夾入口、不顯示多餘的成功提示，以及總覽把流程位置和階段狀態分開的呈現層守衛。
-/// 審計事實仍只由既有 backend DTO 提供；本組只鎖 DOM、互動與可讀性。
+/// 審計事實只由後端 DTO 提供；本組只鎖 DOM、互動與可讀性。
 /// 資料預覽的半屏收合與「其他資料」選單、摘要優先的總覽與階段檢視、總覽的完成判斷，由前端的行為測試核對；
 /// 收合斷點和 app.css 一致這一條在 <see cref="FrontendSourceOnlyRulesTests"/>。
 /// </summary>

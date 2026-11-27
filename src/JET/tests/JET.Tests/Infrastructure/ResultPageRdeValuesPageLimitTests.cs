@@ -44,19 +44,19 @@ public sealed class ResultPageRdeValuesPageLimitTests
     /// <summary>任何成員被呼叫都記下名稱並丟例外，用來證明實作沒有碰資料庫。</summary>
     public class UntouchableLocalDatabase : DispatchProxy
     {
-        private List<string> calls = [];
+        private List<string> _calls = [];
 
         public static ILocalProjectDatabase Create(out List<string> calls)
         {
             var proxy = Create<ILocalProjectDatabase, UntouchableLocalDatabase>();
             var recorder = (UntouchableLocalDatabase)(object)proxy;
-            calls = recorder.calls;
+            calls = recorder._calls;
             return proxy;
         }
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
-            calls.Add(targetMethod?.Name ?? "?");
+            _calls.Add(targetMethod?.Name ?? "?");
             throw new InvalidOperationException($"不應呼叫資料庫成員 {targetMethod?.Name}。");
         }
     }

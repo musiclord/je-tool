@@ -27,7 +27,7 @@ COMMANDS=[
 ]
 # 涵蓋率表裡直接放在 JET 資料夾、不屬於任何子資料夾的那一組原始檔；技術文件第 6 節把這一層稱為 Host。
 ROOT_MODULE='Host'
-EXIT_CRITERIA = '上列命令執行的測試案例全數通過，無失敗與略過。'
+EXIT_CRITERIA = '上列命令執行的測試案例全數通過。'
 def tool_version(*command):
  # 轉換當下實際查到的版本，只取主要版本；查不到就停止，不填推測的值。
  text=subprocess.run(command,cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()

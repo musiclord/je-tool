@@ -101,7 +101,6 @@ public sealed class ProjectSaveProgressHandlerTests
             () => host.DispatchAsync("project.saveProgress", "{}"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 這句的用字已定案。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("current_step_missing", JetPayloadRejection.CheckOf(ex));
     }

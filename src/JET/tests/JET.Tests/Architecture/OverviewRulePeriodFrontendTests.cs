@@ -39,9 +39,9 @@ public sealed class OverviewRulePeriodFrontendTests
                 $"overview-bi.js 未鏡射 rulePeriod wire key '{key}'。");
         }
 
-        // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。
-        // 尾數規則知道 0 的個數時寫成「金額尾數連續 N 個 0」，總覽改呼叫和第五步同一個 Ui.prescreenConditionLabel，
-        // 它從 PRESCREEN_RULES 取名稱；這裡改核對總覽呼叫這個共用函式，而且不自己讀或另列一份規則。
+        // 一條規則只有一個定義，前端只有一份 PRESCREEN_RULES。
+        // 尾數規則知道 0 的個數時寫成「金額尾數連續 N 個 0」，總覽和第五步呼叫同一個 Ui.prescreenConditionLabel，
+        // 它從 PRESCREEN_RULES 取名稱；這裡核對總覽呼叫這個共用函式，而且不自己讀或另列一份規則。
         Assert.Contains("Ui.prescreenConditionLabel", source, StringComparison.Ordinal);
         Assert.DoesNotContain("PRESCREEN_RULES", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetApi", source, StringComparison.Ordinal);

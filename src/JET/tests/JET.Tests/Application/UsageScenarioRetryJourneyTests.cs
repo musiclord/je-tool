@@ -89,7 +89,7 @@ public sealed class UsageScenarioRetryJourneyTests
         Assert.Equal(oldManifest, await File.ReadAllBytesAsync(manifest));
         Assert.Single(WorkingPaperExportTestSupport.FindWorkingPapers(folder));
         Assert.Empty(Directory.GetFiles(folder, "*.tmp", SearchOption.AllDirectories));
-        // 確認現行的暫存檔都沒有留下。
+        // 報告清單寫入時用的暫存報告、暫存清單與備份也都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(folder);
 
         var retry = await host.DispatchAsync("export.workingPaperStream", payload);

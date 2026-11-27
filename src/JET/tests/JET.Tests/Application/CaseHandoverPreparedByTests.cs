@@ -7,8 +7,7 @@ namespace JET.Tests.Application;
 
 public sealed class CaseHandoverPreparedByTests
 {
-    // An existing Prepared by field uses the saved creator,
-    // not the current Windows account. This does not add a field to the working paper template.
+    // 報告的「Prepared by」欄位寫案件存下的建案者，不寫目前的 Windows 帳號。
     [Theory]
     [InlineData("sqlite")]
     public async Task AnotherAccountExports_ReportsKeepCreatorAndCaseIdentityIsUnchanged(string provider)

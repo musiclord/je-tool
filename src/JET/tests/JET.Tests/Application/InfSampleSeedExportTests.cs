@@ -19,7 +19,7 @@ public sealed class InfSampleSeedExportTests
         "此Report將提供測試JE母體攸關資料元素可靠性之樣本，本次抽樣所使用之隨機種子序號為:";
 
     [Fact]
-    public async Task InfReportAndStep2_WriteTheSeedUsedForTheSamples_EvenAfterProjectJsonIsEdited()
+    public async Task InfReportAndInfSampling_WriteTheSeedUsedForTheSamples_EvenAfterProjectJsonIsEdited()
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -69,7 +69,7 @@ public sealed class InfSampleSeedExportTests
                    projectId,
                    workingPaper.GetProperty("publishedReport").GetProperty("fileName").GetString()!)))
         {
-            AssertSeedSentence(book.Worksheet(WorkingPaperSheetCatalog.Step2).Cell("A4"), expected);
+            AssertSeedSentence(book.Worksheet(WorkingPaperSheetCatalog.InfSampling).Cell("A4"), expected);
         }
     }
 

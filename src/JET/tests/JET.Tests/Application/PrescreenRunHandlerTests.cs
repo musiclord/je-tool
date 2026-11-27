@@ -306,7 +306,6 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var holidayActivity = data.GetProperty("holidayActivity");
         Assert.Equal("na", holidayActivity.GetProperty("status").GetString());
         Assert.Equal(
-            // 這句的用字已定案。
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。",
             holidayActivity.GetProperty("naReason").GetString());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("approvalNaReason").ValueKind);
@@ -318,7 +317,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     public async Task PrescreenRun_UnexpectedAccountPairIsNaWithoutAccountMapping()
     {
         // 前置不足:未匯入科目配對 → unexpectedAccountPair 為 na。
-        // 自建 host 並關閉科目配對匯入以維持原意(共用 fixture 預設已匯入)。
+        // 自建 host 並關閉科目配對匯入，製造前置不足的情形(共用 fixture 預設已匯入)。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
 
@@ -383,7 +382,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     public async Task PrescreenRun_NonAuthorizedPreparerIsNaWithoutList()
     {
         // 非授權編製人員閘控（鏡射 unexpectedAccountPair）：授權編製人員清單未匯入 → status na、count 0。
-        // 自建 host 並關閉授權清單匯入以維持原意(共用 fixture 預設已匯入)。
+        // 自建 host 並關閉授權清單匯入，製造清單未匯入的情形(共用 fixture 預設已匯入)。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, importAuthorizedPreparer: false);
 
@@ -472,7 +471,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     [Fact]
     public async Task FilterPreview_CustomAccountEntryCount_MatchesRecount()
     {
-        // 科目分錄筆數 11 以下：filter.preview 的命中數須等於同述詞的獨立 recount（和第五步依審計目的「較少使用的科目」的預設條件相同）。
+        // 科目分錄筆數 11 以下：filter.preview 的命中數須等於同述詞的獨立 recount（和第五步欄位條件的常用查法「較少使用的科目」預設條件相同）。
         // 舊式 customAccountEntryCount 是停用寫法，情境用等價的「科目與人員統計」。
         const int maxEntries = 11;
         var payload = JsonSerializer.Serialize(new
@@ -522,8 +521,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var factsPort = new RecordingPrescreenFactsPort(
             new LocalPrescreenRunRepository(database));
         // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQLite 資料庫組後再進入 session。
-        // 預篩選現在多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
-        // （處理器讀分類設定時遇到空參考）。
+        // 預篩選要讀科目分類設定，取原因裡的分類名稱，所以資料庫組一併放進分類設定；沒放時處理器讀分類設定會遇到空參考。
         var session = new ProjectSession();
         session.Enter(
             fixture.ProjectId,

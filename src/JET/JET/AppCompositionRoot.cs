@@ -56,11 +56,11 @@ public static partial class AppCompositionRoot
         var folder = new JetProjectFolder(projectsRootPath);
         var projectStore = new JsonFileProjectStore(folder);
 
-        // 專案工作鎖是跨程序檔案鎖。鎖的 handle 由 runtime 擁有，關閉視窗或測試的 host dispose 時一定釋放。
+        // 案件鎖是跨程序的檔案鎖。鎖的 handle 由 runtime 擁有，關閉視窗或測試的 host dispose 時一定釋放。
         var localFileLockService = new LocalFileLockService(folder);
 
         // 操作人員使用執行主機的 Windows 帳號，不接受前端 operatorId 覆寫。
-        // 保留網域或機器名稱，避免不同主機的同名本機帳號被合併；目前不另設企業認證前置。
+        // 保留網域或機器名稱，避免不同主機的同名本機帳號被合併；不另外接企業的登入認證。
         // 建案者記的使用者全名在背景開始查，不拖慢視窗出現。
         // 測試以 principalName 覆寫成隔離身分時不查這台電腦的帳號，使用者全名只用 userFullName 傳入的合成值，
         // 開發者的真實姓名才不會寫進測試案件與報告。
@@ -122,7 +122,7 @@ public static partial class AppCompositionRoot
                     ? handler.HandleAsync(payload, cancellationToken)
                     : throw new InvalidOperationException($"處理紀錄只能執行唯讀查詢，沒有 {action}。"),
             loggerFactory.CreateLogger<ProcessingLogRecorder>());
-        // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
+        // 只支援 SQLite 案件，每個案件資料夾一個 jet.db。
         var sqliteDatabase = new SqliteProjectDatabase(
             folder,
             additionalSqlStatementObserver is null
@@ -137,7 +137,7 @@ public static partial class AppCompositionRoot
         IProjectStore protectedProjectStore = new ProtectedSettingsProjectStore(
             projectStore, new LocalProjectSettingStore(sqliteDatabase));
         // LoggerFactory.Create 不會釋放以執行個體加入的 provider；支援日誌最後才釋放，先寫完排隊中的案件紀錄，
-        // 包括放開工作鎖的那一筆。結束 JET 時先關閉目前案件的資料庫連線，再放開案件鎖。
+        // 包括放開案件鎖的那一筆。結束 JET 時先關閉目前案件的資料庫連線，再放開案件鎖。
         // 監看模組最先釋放：它另開的唯讀連線要在關閉案件資料庫之前結束，最後寫的紀錄也要在 logger 釋放前寫完。
         var runtimeResources = new RuntimeOwnedResources(
             supportDiagnostic,
@@ -188,7 +188,7 @@ public static partial class AppCompositionRoot
                 // 正式契約 handlers
                 new SystemPingHandler(enableDevTools),
             new OperationCancelHandler(cancellationRegistry),
-            // 使用者身分徽章：回報合格化 Windows 帳號與短名，不連線，也不會失敗。
+            // 使用者身分徽章：回報完整的 Windows 帳號（網域\帳號）與短名，不連線，也不會失敗。
             new SystemWhoAmIHandler(currentPrincipal),
             new ProjectListLocalHandler(projectStore),
             new ProjectCreateHandler(
@@ -307,7 +307,8 @@ public static partial class AppCompositionRoot
                 .Where(static handler => handler.Action.StartsWith("query.", StringComparison.Ordinal))
                 .ToDictionary(static handler => handler.Action, StringComparer.Ordinal);
 
-            // 引擎錯誤映射：辨識 SQLite 強型樣；Bridge 只收 delegate，不依賴 Infrastructure，未知例外維持 bridge_error。
+            // SQLite 的錯誤由 LocalEngineErrors 轉成 JET 的錯誤碼；Bridge 只收這個 delegate，不依賴 Infrastructure，
+            // 認不得的例外仍回 bridge_error。
             var dispatcher = new ActionDispatcher(
                 handlers, loggerFactory.CreateLogger<ActionDispatcher>(), session,
                 exception => LocalEngineErrors.TryTranslate(exception),
@@ -354,8 +355,8 @@ public static partial class AppCompositionRoot
 
     private static string QualifiedWindowsName()
     {
-        // 合格化 Windows 帳號(網域\帳號)：避免不同機器的同名本機帳號被誤併，案件鎖記錄的持有人也用這個形狀。
-        // 受限環境取不到 token 時退回 UserDomainName\UserName——仍是合格化形狀,不退回裸名。
+        // 完整的 Windows 帳號（網域\帳號）：避免不同機器的同名本機帳號被誤併，案件鎖記錄的持有人也用這個寫法。
+        // 受限環境取不到 token 時改用 UserDomainName\UserName，仍然是網域\帳號的完整寫法，不只寫帳號。
         try
         {
             return System.Security.Principal.WindowsIdentity.GetCurrent().Name;
@@ -432,7 +433,7 @@ public static partial class AppCompositionRoot
                 return;
             }
 
-            // 後列出的本地鎖先釋放，再關 logger；即使未來資源清單擴充也維持 stack-like ownership。
+            // 照建立的相反順序釋放：後列出的先釋放，所以本機檔案鎖會在 logger 之前釋放。
             for (var index = resources.Length - 1; index >= 0; index--)
             {
                 resources[index].Dispose();

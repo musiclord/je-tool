@@ -4,7 +4,7 @@
   var Ui = global.JetUi;
   // 值清單上限一律用 Ui.TYPED_SET_MAX_VALUES：fieldValue 的清單與文字包含比對，
   // 後端都以 FilterScenarioLimits.MaxTypedInValuesPerRule 驗證（架構測試守住本檔不寫死上限）。
-  // 標籤鏡像 Domain FieldValueConditions.Labels（FilterAstFrontendContractTests 逐鍵守衛）。
+  // 標籤和 Domain 的 FieldValueConditions.Labels 相同，由 FilterAstFrontendContractTests 逐一核對每個鍵。
   var labels = { equals: '等於', notEquals: '不等於', contains: '包含任一文字', notContains: '不包含任何文字',
     startsWith: '開頭符合', notStartsWith: '開頭不符合', endsWith: '結尾符合', notEndsWith: '結尾不符合', in: '符合清單任一值', notIn: '不在清單中',
     on: '指定日期', before: '早於', onOrBefore: '當日或以前', after: '晚於', onOrAfter: '當日或以後',
@@ -38,7 +38,7 @@
     return 'value';
   }
   // 開頭符合與結尾符合和包含一樣收多個值；後端 FieldValueConditions.IsAffix 同一組。
-  // 較早儲存的情境只帶 value；values 還不是清單時把 value 當成一個值，和後端 AffixValues 相同。
+  // 只帶 value、沒有 values 清單的情境，把 value 當成一個值，和後端 AffixValues 相同。
   function isAffix(op) { return /^(notS|s)tartsWith$|^(notE|e)ndsWith$/.test(op); }
   function isCalendar(op) { return /^is(Not)?(Weekend|Holiday|MakeupDay|NonBusinessDay)$/.test(op); }
   // 日曆選項下方只寫選到的那一項，並寫出本案的實際資料。
@@ -87,10 +87,11 @@
   function field(rule, state) { return fields(state).find(function (item) { return item.id === (rule.fieldId || rule.field); }); }
   function fieldType(rule, state) { var selected = field(rule, state); return selected ? selected.type : (rule.__valueType || 'date'); }
   // GL 中每一筆都有值的核心欄位（金額、總帳日期、沿用總帳日期的核准日、自動編號的項次）沒有空白可篩：
-  // 不列「空白」的篩選方式、不放「空白也列入」，讀回也不寫空白怎麼處理。清單由後端算好（Ui.neverBlankGlField），
+  // 不列「空白」的篩選方式、不放空白分錄也列入結果的勾選框，讀回也不寫空白怎麼處理。清單由後端算好（Ui.neverBlankGlField），
   // 攸關資料元素欄位空白時不存值，不在清單裡。
   function neverBlank(rule, state) { return !rule.fieldId && Ui.neverBlankGlField(state, rule.field); }
-  // 欄位空白的分錄預設不列入，勾選「空白也符合」才列入；與後端 GlRulePredicates.FieldValue 一致。
+  // 欄位空白的分錄預設不列入，勾選「此欄位空白的分錄也列入結果」（日期欄位是「沒有日期的分錄也列入結果」）才列入，
+  // 讀回寫「空白也符合」；與後端 GlRulePredicates.FieldValue 一致。
   // 文字欄位的否定比較預設勾選（見 blankIncludedByDefault），勾選結果照樣明確送出。一定有值的欄位一律送不列入。
   function blankMatches(rule, state) { return rule.includeBlank === true && !neverBlank(rule, state); }
   function day(year, month, date) { var value = new Date(0); value.setUTCHours(0, 0, 0, 0); value.setUTCFullYear(year, month - 1, date); return value; }
@@ -219,7 +220,7 @@
   }
   function accountTreeHtml(rule, state, focusKey) {
     var tree = accountTreeView(rule, state), selected = new Set(values(rule, state));
-    // 選分類時後端一律連下層分類的科目一起列出；案件沒有分類設上層時（新案件都沒有），不寫「包含下層分類」。
+    // 選分類時後端一律連下層分類的科目一起列出；案件的分類都沒有設上層時，不寫「包含下層分類」。
     var hierarchy = Ui.categoryHierarchyInUse(state);
     tree.focusKey = focusKey + '-category';
     var categoryRows = Ui.categoryTreeHtml(state, tree, function (category) {
@@ -239,7 +240,7 @@
     });
     var accounts = groups.map(function (group) {
       var label = group.categoryId ? Ui.accountCategoryLabel(state, group.categoryId) : '尚未分類';
-      // 展開與收合要一致：每個分類的科目區跟著分類標識別，換分類或載入完成時舊的收起、新的長出來。
+      // 展開與收合的動態一致：每個分類的科目區跟著分類標識別，換分類或載入完成時舊的收起、新的長出來。
       return '<section class="account-tree__accounts" data-motion-key="' + Ui.esc('acct-' + motionId(rule) + '-' + (group.categoryId || 'none')) +
         '" aria-label="' + Ui.esc(label) + '的科目"><strong>' + Ui.esc(label) + '</strong>' +
         group.rows.map(function (row) {
@@ -423,7 +424,7 @@
       { key: 'blank', label: '空白金額', yes: 'isBlank', no: 'isNotBlank' }
     ]
   };
-  // 篩選方式選單依類別分組並加小標，選項名稱不變。
+  // 篩選方式選單依類別分組並加小標。
   // 每一種篩選方式都要列在其中一組；「查核期末最後幾天」只在案件有查核截止日時出現。
   // 只比一邊的比較接在指定值與區間後面，含門檻的排在不含門檻的前面。
   var MODE_GROUPS = {
@@ -438,7 +439,7 @@
     });
   }
   function excluded(rule, mode) { return !!mode && (rule.operator === mode.no || rule.operator === 'notEquals'); }
-  // 文字欄位的否定比較預設把欄位空白的分錄也列入，審計員可以取消；日期與金額照舊預設不列入。
+  // 文字欄位的否定比較預設把欄位空白的分錄也列入，審計員可以取消；日期與金額預設不列入。
   function blankIncludedByDefault(type, operator) {
     return type === 'text' && ['notEquals', 'notContains', 'notStartsWith', 'notEndsWith', 'notIn'].indexOf(operator) >= 0;
   }
@@ -457,7 +458,7 @@
     var type = fieldType(rule, state);
     if (valueContent(operator, type) !== valueContent(rule.operator, type)) { rule.value = ''; }
     if (carrier(operator, type) !== carrier(rule.operator, type) || isDayOfMonth(operator) !== isDayOfMonth(rule.operator)) { rule.values = []; }
-    // 換到預設不同的比較方式時，「空白也列入」回到新比較方式的預設；畫面一律把勾選結果送給後端。
+    // 換到預設不同的比較方式時，空白分錄也列入結果的勾選框回到新比較方式的預設；畫面一律把勾選結果送給後端。
     if (blankIncludedByDefault(type, operator) !== blankIncludedByDefault(type, rule.operator)) { rule.includeBlank = blankIncludedByDefault(type, operator); }
     rule.operator = operator;
   }
@@ -616,7 +617,7 @@
     }
     if (type === 'text' && mode === 'value') { main += '<p class="rule-field__hint">此比較方式只收一個值；不會將逗號或多行內容拆成多個條件。</p>'; }
     if (mode === 'set' || isDigitList(rule.operator)) { main += '<p class="rule-field__hint" data-value-count role="status">已輸入 ' + listCount(rule, state) + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES + '</p>'; }
-    // 展開與收合要一致：提醒原地收放，標 data-collapsible；收起時保留原來的字（見 bind）。
+    // 展開與收合的動態一致：提醒原地收放，標 data-collapsible；收起時保留原來的字（見 bind）。
     main += '<p class="form-notice form-notice--warning" data-value-warning data-collapsible role="status"' + (warning(rule, state) ? '' : ' hidden') + '>' + Ui.esc(warning(rule, state)) + '</p>';
     if (canIncludeBlank) {
       extra.push('<label class="value-blank"><input type="checkbox" data-value-key="includeBlank"' + (blankMatches(rule, state) ? ' checked' : '') + '>' +
@@ -778,7 +779,7 @@
       return rule.field === 'amount' ? 'GL 中的金額不會空白，來源空白的金額已當成 0；要找 0 元的分錄，請改用「指定金額」填 0'
         : 'GL 中的' + selected.label + '不會空白，請移除這條條件';
     }
-    // 分錄方向無效只會出現在存檔內容損毀時，沿用損毀條件的儲存句。
+    // 分錄方向無效只會出現在存檔內容損毀時，提示和其他內容損毀的條件用同一句。
     if (rule.drCr && ['debit', 'credit'].indexOf(rule.drCr) < 0) { return '此條件內容有誤，無法儲存。請刪除此條件後重新設定。'; }
     if (isMonthWindow(rule.operator)) {
       return /^\d{1,2}$/.test(value.value.trim()) && Number(value.value) >= 1 && Number(value.value) <= 31 ? '' : '每月月初或月底天數須為 1 到 31 的整數';

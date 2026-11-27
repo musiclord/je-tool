@@ -8,4 +8,9 @@
     <PublishDocumentationFile>false</PublishDocumentationFile>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
+  <!-- 命令列建置預設不檢查程式風格。打開之後，.editorconfig 設成 warning 或 error 的程式風格規則在建置時也會檢查，
+       例如私有欄位的命名。 -->
+  <PropertyGroup>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
 </Project>

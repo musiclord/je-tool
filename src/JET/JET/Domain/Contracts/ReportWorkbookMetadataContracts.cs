@@ -31,11 +31,11 @@ internal static class ReportWorkbookMetadataInvariant
             || !DateOnly.TryParseExact(metadata.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end)
             || start > end)
         {
-            throw new ArgumentException("Report workbook metadata 的期間不是正準 ISO date range。", nameof(metadata));
+            throw new ArgumentException("報告活頁簿的中繼資料裡，查核期間的起訖日無效：起訖日要寫成 yyyy-MM-dd，起日不能晚於訖日。", nameof(metadata));
         }
         if (metadata.CategoryRevision < 1)
         {
-            throw new ArgumentOutOfRangeException(nameof(metadata), "Report workbook metadata 缺少科目分類 revision。");
+            throw new ArgumentOutOfRangeException(nameof(metadata), "報告活頁簿的中繼資料缺少科目分類的修訂版本。");
         }
 
         ValidateMapping(metadata.GlMapping, DatasetKind.Gl);
@@ -48,7 +48,7 @@ internal static class ReportWorkbookMetadataInvariant
             ?? GlMappingOptions.NormalizeLegacy(metadata.GlMapping.Mapping);
         if (!ApprovalDateModeNames.IsCanonical(options.ApprovalDateMode))
         {
-            throw new ArgumentException("Report workbook metadata 的 approval provenance 不是正準值。", nameof(metadata));
+            throw new ArgumentException("報告活頁簿的中繼資料裡，傳票核准日的配對方式不在 JET 支援的選項裡。", nameof(metadata));
         }
 
         var postingMapped = metadata.GlMapping.Mapping.TryGetValue(

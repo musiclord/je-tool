@@ -5,7 +5,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// host.exitApp 契約測試：handler 只委派 IHostShell.RequestExit 並回 ok（純 host capability）。
-/// IHostShell 為 host boundary，依測試規範以手寫 recording stub 驗證。
+/// IHostShell 是 host 邊界，用手寫的 recording stub 驗證，不用 mock 框架。
 /// </summary>
 public sealed class HostExitAppHandlerTests
 {

@@ -5,8 +5,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// UX 項目的前端來源守衛。這些斷言只鎖交互與呈現，
-/// 不新增 wire、schema 或審計語意。
+/// 互動與呈現的前端原始碼檢查。這些斷言只檢查互動與呈現，
+/// 不涉及 wire、schema 或審計語意。
 /// </summary>
 public sealed partial class InteractionAndPresentationFrontendTests
 {
@@ -61,8 +61,7 @@ public sealed partial class InteractionAndPresentationFrontendTests
     {
         var css = ReadFrontend("css", "app.css");
 
-        // 「深藍框架」版面：圓角依角色分開，
-        // 控制項 6px、工作面與對話框 12px，狀態標籤是膠囊、按鈕不是；工作面只有極淡的落影，浮動層才有明顯陰影。
+        // 圓角依角色分開：控制項 6px、工作面與對話框 12px，狀態標籤是膠囊、按鈕不是；工作面只有極淡的落影，浮動層才有明顯陰影。
         AssertCssDeclaration(css, ":root", "--radius-control", "6px");
         AssertCssDeclaration(css, ":root", "--radius-surface", "12px");
         AssertCssDeclaration(css, ":root", "--radius-pill", "999px");

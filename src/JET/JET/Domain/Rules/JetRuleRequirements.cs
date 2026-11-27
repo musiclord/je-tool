@@ -93,7 +93,7 @@ internal static class JetRuleRequirements
 
     /// <summary>
     /// 第五步一條條件需要的前置條件；括號與整張傳票條件由子條件各自檢查。凡條件引用核心 GL 欄位，不論比較方式都要求欄位可用；
-    /// 欄位已不在欄位目錄（例如傳票日期）或是攸關資料元素欄位時，由各型別自己的檢查說明。
+    /// 欄位不在欄位目錄（例如傳票日期）或是攸關資料元素欄位時，由各型別自己的檢查說明。
     /// </summary>
     internal static IReadOnlyList<JetRulePrerequisite> ForFilterCondition(FilterConditionSpec rule)
     {
@@ -109,8 +109,7 @@ internal static class JetRuleRequirements
                 .. FieldValueConditions.IsHoliday(rule.TypedOperator) ? [HolidayCalendar] : Array.Empty<JetRulePrerequisite>(),
                 .. FieldValueConditions.IsMakeupDay(rule.TypedOperator) ? [MakeupCalendar] : Array.Empty<JetRulePrerequisite>()
             ],
-            FilterConditionType.Text or FilterConditionType.TextSet or FilterConditionType.DateRange or FilterConditionType.NumRange
-                or FilterConditionType.EntityFrequency => CatalogField(rule.Field),
+            FilterConditionType.EntityFrequency => CatalogField(rule.Field),
             FilterConditionType.DrCrOnly => [Field(JetFieldCatalog.GlAmount)],
             FilterConditionType.ManualAuto => [Field(JetFieldCatalog.GlManual)],
             FilterConditionType.AccountSide or FilterConditionType.AccountPair or FilterConditionType.SpecialAccountCategoryPair =>

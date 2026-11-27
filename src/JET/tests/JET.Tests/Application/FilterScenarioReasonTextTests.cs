@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第五步情境的原因句，用字已定案。
+/// 第五步情境無法執行時的原因句。
 /// 損毀的條件開案時只寫一次「條件內容無法讀取」、儲存時標在那一條條件、原句與英文代碼只進支援日誌；
 /// 條件用到的欄位已不存在時寫「此條件使用的欄位已不存在」；科目分類寫第四步分類設定裡目前的名稱。
 /// 預期句子一律寫死，不由被測程式算出。所有資料都是合成值。
@@ -70,10 +70,10 @@ public sealed class FilterScenarioReasonTextTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await LoadAsync(host, context.ProjectId);
-        // validator：借貸限定的值不在允許值內；parser：文字值集合的 values 不是陣列。兩者都只有程式送錯或存檔損毀才會出現。
+        // validator：借貸限定的值不在允許值內；parser：欄位值條件的 values 不是陣列。兩者都只有程式送錯或存檔損毀才會出現。
         var corrupt = where == "validator"
             ? """{"join":"AND","type":"drCrOnly","drCr":"synthsideways"}"""
-            : """{"join":"AND","type":"textSet","field":"description","mode":"exact","values":"synth-not-an-array"}""";
+            : """{"join":"AND","type":"fieldValue","field":"description","operator":"in","values":"synth-not-an-array"}""";
 
         var error = await Assert.ThrowsAsync<JetActionException>(() => SaveNewAsync(host, corrupt));
 
@@ -88,7 +88,7 @@ public sealed class FilterScenarioReasonTextTests
         var lines = await ExportSupportLogAsync(host);
         Assert.Contains(lines, line => line.Contains("filter.scenario_unreadable", StringComparison.Ordinal)
             && line.Contains("filter.scenario.save", StringComparison.Ordinal)
-            && line.Contains(where == "validator" ? "drcr_only_invalid" : "text_set_values_not_array", StringComparison.Ordinal));
+            && line.Contains(where == "validator" ? "drcr_only_invalid" : "typed_values_not_array", StringComparison.Ordinal));
         Assert.DoesNotContain(lines, line => line.Contains("synthsideways", StringComparison.Ordinal)
             || line.Contains("synth-not-an-array", StringComparison.Ordinal));
     }
@@ -118,9 +118,8 @@ public sealed class FilterScenarioReasonTextTests
 
     [Theory]
     // 傳票日期和其他認不得的欄位一樣寫「此條件使用的欄位已不存在」。
-    [InlineData("sqlite", """{"join":"AND","type":"dateRange","field":"voucherDate","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
     [InlineData("sqlite", """{"join":"AND","type":"fieldValue","field":"voucherDate","operator":"isBlank"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
-    [InlineData("sqlite", """{"join":"AND","type":"dateRange","field":"synthRetiredField","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
+    [InlineData("sqlite", """{"join":"AND","type":"fieldValue","field":"synthRetiredField","operator":"isBlank"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
     public async Task OnLoad_OldScenarioWithRemovedField_NamesTheFieldOrSaysItNoLongerExists(
         string provider, string rule, string expected)
     {

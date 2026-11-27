@@ -3,7 +3,7 @@ using System.Globalization;
 namespace JET.Domain;
 
 /// <summary>
-/// 條件 A「季底或查核期末前 X 天借記收入」(filter type revenueDebitNearQuarterEnd) 的視窗計算（純函式）。
+/// 常用篩選條件「季底或查核期末前 X 天借記收入」（filter type revenueDebitNearQuarterEnd）的視窗計算（純函式）。
 /// 給定查核期間與天數 X，列出各曆年季底（3/31、6/30、9/30、12/31）前 X 天
 /// （含季底當日，即季底回推 X−1 天）的日期視窗，另納入查核期末前 X 天。
 /// 只保留與查核期間有交集的視窗，重疊或相連者合併。

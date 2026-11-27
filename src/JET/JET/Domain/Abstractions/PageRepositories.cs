@@ -43,12 +43,12 @@ public enum BlankRecordCategory
 /// 完整性全科目的 keyset 分頁，包含差異為 0 的科目；資料驗證報告與底稿 step1 讀完整份清單時改用一個查詢讀完。
 /// 與 <see cref="ICompletenessDiffPageRepository"/> 共用逐科目比對的 SQL 定義、排序與游標，
 /// 但不過濾差異。科目名稱的取法和差異頁相同：先取 TB 的名稱，TB 沒有名稱或 GL 有、TB 無時取 GL 的名稱。
-/// 每頁筆數有上限；母體大小由目前案件查詢結果決定，不預設案件識別或固定筆數。
+/// 每頁筆數有上限。
 /// 回傳型別共用 <see cref="CompletenessDiffAccount"/>，欄位包含科目編號、名稱、TB 與 GL 金額、差異及是否 GL 有而 TB 無。
 /// </summary>
 public interface ICompletenessAccountPageRepository
 {
-    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（與 CTE 8 消費端一致）。</summary>
+    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體，和完整性差異查詢用的期間相同。</summary>
     Task<PageResult<CompletenessDiffAccount>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken);
 }
@@ -69,7 +69,7 @@ public interface IAccountMappingBlankPageRepository
 /// </summary>
 public interface ICompletenessDiffPageRepository
 {
-    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（與 CTE 8 消費端一致）。</summary>
+    /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體，和完整性差異查詢用的期間相同。</summary>
     Task<PageResult<CompletenessDiffAccount>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken);
 }
@@ -83,21 +83,6 @@ public interface IVoucherBalancePageRepository
     /// <summary>periodStart/periodEnd 界定借貸不平母體的本期口徑（與 validate.run 計數端同口徑）。</summary>
     Task<PageResult<UnbalancedVoucher>> GetPageAsync(
         string projectId, int moneyScale, string periodStart, string periodEnd, PageRequest request, CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// 借貸不平傳票所屬的完整 GL 分錄 keyset 分頁。與 <see cref="IVoucherBalancePageRepository"/>
-/// 的傳票彙總不同，本介面逐頁回傳所有不平傳票的原始分錄 entry id；資料驗證報告的 V_Report 6
-/// 改用一個查詢讀完，這個分頁讀法留作對照。排序鍵固定 entry_id ASC；不可把彙總列冒充明細。
-/// </summary>
-public interface IUnbalancedVoucherPageRepository
-{
-    Task<PageResult<long>> GetEntryIdsPageAsync(
-        string projectId,
-        string periodStart,
-        string periodEnd,
-        PageRequest request,
-        CancellationToken cancellationToken);
 }
 
 /// <summary>

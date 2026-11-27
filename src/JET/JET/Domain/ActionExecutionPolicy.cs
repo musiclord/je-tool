@@ -7,7 +7,7 @@ namespace JET.Domain;
 /// <remarks>
 /// 分類原則：
 /// <list type="bullet">
-///   <item><b>變更型（exclusive）</b>：會改專案資料庫或專案中繼資料的動作，以及耗時的匯出。
+///   <item><b>變更型（exclusive）</b>：會改案件資料庫或案件中繼資料的動作，以及耗時的匯出。
 ///   同一時間最多執行一項；第二項回 <see cref="JetErrorCodes.OperationInProgress"/>。</item>
 ///   <item><b>由 handler 自己取閘（conditional gate）</b>：handler 自己試著取共用的閘，取不到不等待。
 ///   這樣不做事或只讀取的分支不必取閘，真正改資料的部分則整段包在閘裡。</item>
@@ -25,7 +25,7 @@ public static class ActionExecutionPolicy
 {
     /// <summary>
     /// 資料庫的 async API 可能同步執行。除原生主機介面及取消控制外，dispatcher 一律在背景執行，
-    /// 包含唯讀查詢內的惰性補算；是否互斥仍由原有分類判定。
+    /// 包含唯讀查詢內的惰性補算；是否互斥由這個類別的分類判定。
     /// </summary>
     public static bool RunsInBackground(string action) => action is not
         ("host.selectFile" or "host.selectFiles" or "host.openFolder" or "host.exitApp" or "operation.cancel");

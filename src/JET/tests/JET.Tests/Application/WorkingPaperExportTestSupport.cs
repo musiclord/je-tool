@@ -220,9 +220,9 @@ internal static class WorkingPaperExportTestSupport
         Assert.Equal(prepared.Positions, report.GetProperty("sourceRef").GetProperty("scenarioPositions").EnumerateArray().Select(p => p.GetInt32()));
         using var book = new XLWorkbook(Path.Combine(host.ProjectsRoot, prepared.ProjectId, report.GetProperty("fileName").GetString()!));
         // This fixed demo has no completeness differences: Step 1-3 is omitted, metadata is last.
-        Assert.Equal(WorkingPaperSheetCatalog.All.Where(name => name != WorkingPaperSheetCatalog.Step13)
+        Assert.Equal(WorkingPaperSheetCatalog.All.Where(name => name != WorkingPaperSheetCatalog.CompletenessDifference)
             .Append(ReportWorkbookMetadataFormat.WorksheetName), book.Worksheets.Select(sheet => sheet.Name));
         Assert.Equal(XLWorksheetVisibility.VeryHidden, book.Worksheet(ReportWorkbookMetadataFormat.WorksheetName).Visibility);
-        Assert.True(book.Worksheet(WorkingPaperSheetCatalog.Step41).RowsUsed().Count() > 1);
+        Assert.True(book.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucherDetail).RowsUsed().Count() > 1);
     }
 }

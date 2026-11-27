@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Tests;
 
-/// <summary>只供測試替身沿用既有正常文件清單；產品 store 必須自行提供完整讀取結果。</summary>
+/// <summary>測試替身把自己的文件清單轉成 store 的讀取結果，每份文件都當成正常讀到；產品的 store 要自己提供完整的讀取結果。</summary>
 internal static class ProjectStoreTestEntries
 {
     internal static async Task<IReadOnlyList<ProjectStoreEntry>> FromAsync(

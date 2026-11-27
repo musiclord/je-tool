@@ -20,10 +20,10 @@ public sealed class DemoWorkbookWriter : IDemoFileWriter
     private static readonly Lazy<DemoExportedFile> AuthorizedPreparerFile =
         new(() => WriteAuthorizedPreparerCore(DemoDataFactory.Create(), outputDirectory: null));
 
-    private readonly Lazy<DemoExportedFile>? runOwnedGlFile;
-    private readonly Lazy<DemoExportedFile>? runOwnedTbFile;
-    private readonly Lazy<DemoExportedFile>? runOwnedAccountMappingFile;
-    private readonly Lazy<DemoExportedFile>? runOwnedAuthorizedPreparerFile;
+    private readonly Lazy<DemoExportedFile>? _runOwnedGlFile;
+    private readonly Lazy<DemoExportedFile>? _runOwnedTbFile;
+    private readonly Lazy<DemoExportedFile>? _runOwnedAccountMappingFile;
+    private readonly Lazy<DemoExportedFile>? _runOwnedAuthorizedPreparerFile;
 
     public DemoWorkbookWriter()
     {
@@ -32,25 +32,25 @@ public sealed class DemoWorkbookWriter : IDemoFileWriter
     internal DemoWorkbookWriter(string outputRoot, DemoProjectData? fixtureData = null)
     {
         var outputDirectory = Path.GetFullPath(outputRoot);
-        runOwnedGlFile = new(() => WriteGlCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
-        runOwnedTbFile = new(() => WriteTbCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
-        runOwnedAccountMappingFile =
+        _runOwnedGlFile = new(() => WriteGlCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
+        _runOwnedTbFile = new(() => WriteTbCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
+        _runOwnedAccountMappingFile =
             new(() => WriteAccountMappingCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
-        runOwnedAuthorizedPreparerFile =
+        _runOwnedAuthorizedPreparerFile =
             new(() => WriteAuthorizedPreparerCore(fixtureData ?? DemoDataFactory.Create(), outputDirectory));
     }
 
     public Task<DemoExportedFile> WriteGlAsync(DemoProjectData data, CancellationToken cancellationToken)
-        => Task.FromResult(runOwnedGlFile?.Value ?? GlFile.Value);
+        => Task.FromResult(_runOwnedGlFile?.Value ?? GlFile.Value);
 
     public Task<DemoExportedFile> WriteTbAsync(DemoProjectData data, CancellationToken cancellationToken)
-        => Task.FromResult(runOwnedTbFile?.Value ?? TbFile.Value);
+        => Task.FromResult(_runOwnedTbFile?.Value ?? TbFile.Value);
 
     public Task<DemoExportedFile> WriteAccountMappingAsync(DemoProjectData data, CancellationToken cancellationToken)
-        => Task.FromResult(runOwnedAccountMappingFile?.Value ?? AccountMappingFile.Value);
+        => Task.FromResult(_runOwnedAccountMappingFile?.Value ?? AccountMappingFile.Value);
 
     public Task<DemoExportedFile> WriteAuthorizedPreparerAsync(DemoProjectData data, CancellationToken cancellationToken)
-        => Task.FromResult(runOwnedAuthorizedPreparerFile?.Value ?? AuthorizedPreparerFile.Value);
+        => Task.FromResult(_runOwnedAuthorizedPreparerFile?.Value ?? AuthorizedPreparerFile.Value);
 
     private static DemoExportedFile WriteGlCore(DemoProjectData data, string? outputDirectory)
     {

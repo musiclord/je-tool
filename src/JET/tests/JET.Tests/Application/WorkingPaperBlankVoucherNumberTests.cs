@@ -11,7 +11,7 @@ public sealed class WorkingPaperBlankVoucherNumberTests
 {
     [Theory]
     [InlineData("sqlite")]
-    public async Task Unbalanced_CountSummaryPageAndStep11_ExcludeBlankNumbers(string provider)
+    public async Task Unbalanced_CountSummaryPageAndVoucherBalanceSheet_ExcludeBlankNumbers(string provider)
     {
         using var host = new HandlerTestHost();
         var id = await PrepareAsync(host, provider);
@@ -30,7 +30,7 @@ public sealed class WorkingPaperBlankVoucherNumberTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task Step4And41_IncludeOnlyMatchedBlankEntries_WithoutMakingOneBlankVoucher(string provider)
+    public async Task HighRiskVoucherAndDetail_IncludeOnlyMatchedBlankEntries_WithoutMakingOneBlankVoucher(string provider)
     {
         using var host = new HandlerTestHost();
         var id = await PrepareAsync(host, provider);
@@ -38,8 +38,8 @@ public sealed class WorkingPaperBlankVoucherNumberTests
         var saved = await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
         var context = new GlPopulationContext(GlPopulationScope.AuditPeriod, "2025-01-01", "2025-12-31");
         var database = Database(host, provider);
-        var voucherRows = new List<WorkingPaperStep4VoucherRow>();
-        await foreach (var row in ((IWorkingPaperStep4StreamRepository)new LocalHighRiskSummaryVoucherPageRepository(database)).StreamAsync(id, context, [1], CancellationToken.None)) voucherRows.Add(row);
+        var voucherRows = new List<WorkingPaperHighRiskVoucherRow>();
+        await foreach (var row in ((IWorkingPaperHighRiskVoucherStreamRepository)new LocalHighRiskSummaryVoucherPageRepository(database)).StreamAsync(id, context, [1], CancellationToken.None)) voucherRows.Add(row);
         // Two real vouchers and two independent blank-number debit hits; blank credit is not a hit.
         Assert.Equal(4, voucherRows.Count);
         var blankRows = voucherRows.Where(row => string.IsNullOrEmpty(row.Voucher.VoucherNumber)).ToArray();
@@ -47,19 +47,10 @@ public sealed class WorkingPaperBlankVoucherNumberTests
         Assert.All(blankRows, row => Assert.Equal([1], row.MatchedPositions));
 
         var repository = new LocalHighRiskSummaryRowPageRepository(database);
-        var paged = new List<WorkingPaperStep41SourceRow>();
-        string? cursor = null;
-        do
-        {
-            var page = await ((IWorkingPaperStep41PageRepository)repository).GetPageAsync(id, context, new PageRequest(cursor, 1), [1], LegacyFieldKind.Text, CancellationToken.None);
-            paged.AddRange(page.Rows); cursor = page.NextCursor;
-            Assert.InRange(paged.Count, 1, 5);
-        } while (cursor is not null);
-        Assert.Equal(new long[] { 70000, 90000, 100000, -100000, 50000 }, paged.Select(row => row.AmountScaled));
-        var streamed = new List<WorkingPaperStep41SourceRow>();
-        await using (var session = await ((IWorkingPaperStep41PreparedSessionFactory)repository).PrepareAsync(id, context, [1], LegacyFieldKind.Text, CancellationToken.None))
+        var streamed = new List<WorkingPaperHighRiskVoucherDetailSourceRow>();
+        await using (var session = await ((IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)repository).PrepareAsync(id, context, [1], LegacyFieldKind.Text, CancellationToken.None))
             await foreach (var row in session.ReadRowsAsync(CancellationToken.None)) streamed.Add(row);
-        Assert.Equal(paged.Select(row => row.EntryId), streamed.Select(row => row.EntryId));
+        Assert.Equal(new long[] { 70000, 90000, 100000, -100000, 50000 }, streamed.Select(row => row.AmountScaled));
         Assert.All(streamed.Where(row => row.VoucherNumber is null), row => Assert.Equal([1], row.MatchedPositions));
 
         var exported = await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
@@ -68,10 +59,10 @@ public sealed class WorkingPaperBlankVoucherNumberTests
             scenarioRevision = saved.GetProperty("resultRef").GetProperty("revision").GetString(), scenarioPositions = new[] { 1 }
         }));
         var stats = exported.GetProperty("sheetStats").EnumerateArray().ToArray();
-        Assert.Equal(4, stats.Single(item => item.GetProperty("sheetName").GetString() == WorkingPaperSheetCatalog.Step4).GetProperty("rowsWritten").GetInt64());
-        Assert.Equal(5, stats.Single(item => item.GetProperty("sheetName").GetString() == WorkingPaperSheetCatalog.Step41).GetProperty("rowsWritten").GetInt64());
+        Assert.Equal(4, stats.Single(item => item.GetProperty("sheetName").GetString() == WorkingPaperSheetCatalog.HighRiskVoucher).GetProperty("rowsWritten").GetInt64());
+        Assert.Equal(5, stats.Single(item => item.GetProperty("sheetName").GetString() == WorkingPaperSheetCatalog.HighRiskVoucherDetail).GetProperty("rowsWritten").GetInt64());
         using var workbook = new XLWorkbook(exported.GetProperty("publishedReport").GetProperty("fullPath").GetString()!);
-        var sheet = workbook.Worksheet(WorkingPaperSheetCatalog.Step4);
+        var sheet = workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucher);
         Assert.Contains("空白傳票號碼", sheet.Cell("A12").GetString());
         Assert.Equal(new[] { "", "", "V1", "V2" }, Enumerable.Range(13, 4).Select(row => sheet.Cell(row, 2).GetString()));
         Assert.Equal(7, sheet.Cell("E13").GetDouble());
@@ -81,13 +72,13 @@ public sealed class WorkingPaperBlankVoucherNumberTests
         await ReportRevisionStateTests.ExecuteAsync(host, id, provider,
             "DELETE FROM filter_hit; INSERT INTO filter_hit (scenario_id, entry_id) " +
             "SELECT 1, entry_id FROM gl WHERE voucher_number IS NULL AND is_excluded=0;");
-        var blankOnly = new List<WorkingPaperStep41SourceRow>();
-        await using (var session = await ((IWorkingPaperStep41PreparedSessionFactory)repository).PrepareAsync(id, context, [1], LegacyFieldKind.Text, CancellationToken.None))
+        var blankOnly = new List<WorkingPaperHighRiskVoucherDetailSourceRow>();
+        await using (var session = await ((IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)repository).PrepareAsync(id, context, [1], LegacyFieldKind.Text, CancellationToken.None))
             await foreach (var row in session.ReadRowsAsync(CancellationToken.None)) blankOnly.Add(row);
         Assert.Equal(new long[] { 70000, -30000, 90000 }, blankOnly.Select(row => row.AmountScaled));
         Assert.All(blankOnly, row => Assert.Null(row.VoucherNumber));
         voucherRows.Clear();
-        await foreach (var row in ((IWorkingPaperStep4StreamRepository)new LocalHighRiskSummaryVoucherPageRepository(database)).StreamAsync(id, context, [1], CancellationToken.None)) voucherRows.Add(row);
+        await foreach (var row in ((IWorkingPaperHighRiskVoucherStreamRepository)new LocalHighRiskSummaryVoucherPageRepository(database)).StreamAsync(id, context, [1], CancellationToken.None)) voucherRows.Add(row);
         Assert.Equal(new long[] { 70000, 0, 90000 }, voucherRows.Select(row => row.Voucher.VoucherTotalScaled));
     }
 

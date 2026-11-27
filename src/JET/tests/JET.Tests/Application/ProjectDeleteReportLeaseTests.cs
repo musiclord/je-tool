@@ -38,7 +38,7 @@ public sealed class ProjectDeleteReportLeaseTests
     [Fact]
     public async Task DeletePreview_RetiredProviderProjectDoesNotReadCatalog()
     {
-        // 驗證舊種類的案件不讀報告索引。
+        // 資料庫種類已停用的案件（這裡用 sqlserver）不讀報告索引。
         var events = new List<string>();
         var reports = new LeaseReportStore(events) { PreviewReports = [] };
         var handler = PreviewHandler(new FakeProjectStore(Document("project-1") with
@@ -76,7 +76,6 @@ public sealed class ProjectDeleteReportLeaseTests
         var message = response.GetProperty("message").GetString()!;
         Assert.Contains("案件資料夾", message);
         Assert.DoesNotContain("快取", message);
-        // 這句的用字已定案。
         Assert.Contains("刪除剩餘的檔案", message);
         Assert.True(response.GetProperty("ok").GetBoolean());
         Assert.Null(session.CurrentProjectId);
@@ -84,7 +83,7 @@ public sealed class ProjectDeleteReportLeaseTests
 
     private static IApplicationActionHandler PreviewHandler(IProjectStore projects, IReportStore reports)
     {
-        // Reflection keeps the first-failure tests compilable before the new read-only handler exists.
+        // 用反射建立 ProjectDeletePreviewHandler，同時確認這個型別存在。
         var type = typeof(ProjectDeleteHandler).Assembly.GetType("JET.Application.ProjectDeletePreviewHandler");
         Assert.NotNull(type);
         var repositories = TestProjectRepositories.CatalogWithSameObjects(
@@ -193,7 +192,6 @@ public sealed class ProjectDeleteReportLeaseTests
 
         // 刪除會移除整個案件資料夾，報告與底稿不是快取。
         Assert.Equal(
-                        // 這句的用字已定案。
                         "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。",
             responseJson.GetProperty("message").GetString());
         Assert.DoesNotContain("reconcile", responseJson.GetRawText(), StringComparison.OrdinalIgnoreCase);

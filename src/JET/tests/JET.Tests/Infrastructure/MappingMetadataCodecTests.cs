@@ -124,7 +124,7 @@ public sealed class MappingMetadataCodecTests
     [InlineData("{\"gl\":{\"mapping\":{},\"amountMode\":\"signed\",\"approvalDateMode\":\"mapped\",\"postingStatusPolicy\":null,\"manualAutoPolicy\":{\"manualValues\":[\"1\"],\"automaticValues\":[\"0\"]},\"rdeFields\":[{\"fieldId\":\"rde.0123456789abcdef0123456789abcdef\",\"sourceColumn\":\"Risk\",\"label\":\"Risk\",\"valueType\":\"number\"}]},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
     [InlineData("{\"gl\":{\"mapping\":{},\"amountMode\":\"signed\",\"approvalDateMode\":\"unmapped\",\"postingStatusPolicy\":{\"acceptedValues\":[\"posted\"],\"includeBlank\":false},\"manualAutoPolicy\":{\"manualValues\":[\"1\"],\"automaticValues\":[\"0\"]},\"rdeFields\":[]},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
     [InlineData("{\"gl\":{\"mapping\":{\"postingStatus\":\"Status\"},\"amountMode\":\"signed\",\"approvalDateMode\":\"unmapped\",\"postingStatusPolicy\":{\"acceptedValues\":[\"POSTED\",\"posted\"],\"includeBlank\":false},\"manualAutoPolicy\":{\"manualValues\":[\"1\"],\"automaticValues\":[\"0\"]},\"rdeFields\":[]},\"tb\":{\"mapping\":{},\"changeMode\":\"direct\"}}")]
-    public void Decode_RejectsMalformedOrAmbiguousV2Payload(string json)
+    public void Decode_RejectsMalformedOrAmbiguousPayload(string json)
     {
         Assert.Throws<MappingMetadataFormatException>(() =>
             MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, json));
@@ -158,7 +158,7 @@ public sealed class MappingMetadataCodecTests
     [InlineData(ApprovalDateModeNames.Mapped, false)]
     [InlineData(ApprovalDateModeNames.SameAsGlDate, true)]
     [InlineData(ApprovalDateModeNames.Unmapped, true)]
-    public void DecodeV2_RejectsApprovalDateModeMappingMismatch(
+    public void Decode_RejectsApprovalDateModeMappingMismatch(
         string approvalDateMode,
         bool includeApprovalDate)
     {
@@ -372,7 +372,7 @@ public sealed class OpenXmlMappingMetadataReaderTests
     }
 
     [Theory]
-    [InlineData("3", "{\"gl\":{},\"tb\":{}}")] // 未知版本先擋，不嘗試猜 payload
+    [InlineData("3", "{\"gl\":{},\"tb\":{}}")] // 未知版本先擋，不嘗試猜 payload
     [InlineData("2", "not-json")]
     [InlineData("1", "{\"gl\":{},\"tb\":{}}")]
     public async Task ReadAsync_InvalidVersionOrPayload_RejectsWholeDocument(string version, string payload)

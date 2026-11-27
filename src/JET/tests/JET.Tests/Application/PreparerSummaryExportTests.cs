@@ -6,9 +6,9 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 不截斷的全編製人員彙總查詢(<see cref="IPreparerSummaryExportRepository.FetchAllAsync"/>,底稿 step1-2 用)。
-/// 鏡射既有 prescreen preparer 彙總 SQL,但**去掉 LIMIT 50**:step1-2 需「全名單」。
+/// 和預篩選的編製人員彙總 SQL 相同,但不加 LIMIT 50:step1-2 需要全名單。
 /// oracle:獨立參數化 SQL recount(<see cref="DemoProjectPipeline.QueryScalarAsync"/>);
-/// 斷言鎖「數值＋身分」(每位編製者的筆數、總名單基數),而非弱斷言非空。
+/// 斷言鎖住數值與身分:每位編製者的筆數與總名單基數。
 /// 測試直接建立 SQLite 的 repository 呼叫這個查詢，不經過 action handler。
 /// </summary>
 public sealed class PreparerSummaryExportTests
@@ -17,8 +17,8 @@ public sealed class PreparerSummaryExportTests
         new LocalPreparerSummaryExportRepository(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
 
     /// <summary>
-    /// 反截斷的決定性證據:刻意造 60 位不同編製者(>舊 LIMIT 50),每位 1 筆。
-    /// 全名單必回 60 筆;若仍帶 LIMIT 50 只會回 50 → 紅。這是「不分頁/不截斷」性質的 oracle。
+    /// 刻意造 60 位不同編製者,超過預篩選彙總的 50 列上限,每位 1 筆。
+    /// 全名單必回 60 筆;加了 LIMIT 50 只會回 50,測試失敗。這是不分頁、不截斷的 oracle。
     /// </summary>
     [Fact]
     public async Task FetchAllAsync_DistinctPreparersBeyondLegacyLimit_ReturnsEveryPreparer()
@@ -44,7 +44,7 @@ public sealed class PreparerSummaryExportTests
             host, projectId, "SELECT COUNT(DISTINCT created_by) FROM gl;");
 
         Assert.Equal(preparerCount, distinct); // 母體前置確認(造了 60 位)
-        Assert.Equal(preparerCount, rows.Count); // 全名單不截斷:60 筆全回(LIMIT 50 會只回 50 → 紅)
+        Assert.Equal(preparerCount, rows.Count); // 全名單不截斷:60 筆全回(加了 LIMIT 50 只會回 50,測試失敗)
         // 身分完整:P00..P59 全在,無遺漏無重複。
         Assert.Equal(
             Enumerable.Range(0, preparerCount).Select(i => $"P{i:00}").OrderBy(s => s, StringComparer.Ordinal),
@@ -53,7 +53,7 @@ public sealed class PreparerSummaryExportTests
 
     /// <summary>
     /// 每列數值正確且鎖身分:demo 五位編製者,逐位以獨立 recount 比對筆數/借方/貸方彙總。
-    /// 這鎖住「SUM 不被 COUNT 取代、借貸欄不對調」(mutation 思維:換聚合函式或欄就會失敗)。
+    /// 這鎖住 SUM 不被 COUNT 取代、借貸欄不對調:換了聚合函式或欄位就會失敗。
     /// </summary>
     [Fact]
     public async Task FetchAllAsync_DemoPopulation_EachRowMatchesIndependentRecount()

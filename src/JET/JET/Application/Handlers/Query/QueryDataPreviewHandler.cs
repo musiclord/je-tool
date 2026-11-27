@@ -115,7 +115,7 @@ public sealed class QueryDataPreviewHandler(
         JetFieldCatalog.TbChangeAmount => Detail(column, TbSlotLabel(column), RdeFieldValueTypeNames.Amount),
         JetFieldCatalog.TbAccountNumber or JetFieldCatalog.TbAccountName =>
             Detail(column, TbSlotLabel(column), RdeFieldValueTypeNames.Text),
-        // 科目配對的第三欄是已存的分類，畫面一向寫「科目分類」。
+        // 科目配對的第三欄是已存的分類，畫面寫成「科目分類」。
         "standardizedCategory" => Detail(column, "科目分類", RdeFieldValueTypeNames.Text),
         _ => throw new InvalidOperationException($"TB 與科目配對的資料預覽沒有欄位 '{column}'。")
     };

@@ -8,8 +8,7 @@
     <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-    <!-- xUnit1051 newly flags ~1,000 intentional CancellationToken.None calls which are test inputs
-         (including cancellation semantics); keep other analyzer warnings active and gate them. -->
+    <!-- CancellationToken.None 是測試的固定輸入，部分案例專門驗證取消行為。 -->
     <NoWarn>$(NoWarn);xUnit1051</NoWarn>
     <Configurations>Debug;Release</Configurations>
     <EnableWindowsTargeting Condition="'$(OS)' != 'Windows_NT'">true</EnableWindowsTargeting>

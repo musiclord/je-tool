@@ -3,7 +3,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 底稿第 4 與 4-1 頁把已存情境位置換成位元遮罩的唯一寫法：位置 n 對應位元 n-1，位置上限是
+/// 底稿 step4 符合高風險條件傳票與 step4-1 符合高風險條件傳票明細把已存情境位置換成位元遮罩的唯一寫法：位置 n 對應位元 n-1，位置上限是
 /// <see cref="FilterScenarioLimits.MaxSavedScenarios"/>。
 /// </summary>
 internal static class ScenarioTagMask

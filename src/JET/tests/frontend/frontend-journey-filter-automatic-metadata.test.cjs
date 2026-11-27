@@ -8,7 +8,7 @@ require('./support/resource-guard.cjs');
 //   - 後端：tests/JET.Tests/Application/FilterScenarioAutomaticMetadataTests.cs 留白儲存後讀回名稱與動機；
 //   - 前端：這個檔用正式第五步畫面編輯已存情境，按儲存後讀送出的名稱與動機。
 // 預期文字照第五步現在的自動帶入規則逐字寫下，不由程式算出。全部資料都是程式生成的合成資料。
-// 夾具也涵蓋舊式文字條件的關鍵字，以及同一組裡混用且與或（只有這一組、旁邊另有一組）。
+// 夾具也涵蓋同一組裡混用且與或（只有這一組、旁邊另有一組）。
 // 文字條件那一則帶重複的關鍵字，前端讀回和送出時用同一寫法。
 const test = require('node:test');
 const assert = require('node:assert/strict');

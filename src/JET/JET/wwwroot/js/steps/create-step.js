@@ -1,5 +1,5 @@
 /*
-  Step 0：建立案件。
+  第一步：建立案件。
   渲染 metadata 表單與已建立摘要。
 */
 (function (global) {
@@ -44,7 +44,7 @@
     );
   }
 
-  // databaseProvider 顯示名。目前只建立 SQLite 案件，建案表單不讓使用者選擇。
+  // databaseProvider 顯示名。JET 只建立 SQLite 案件，建案表單不讓使用者選擇。
   function providerLabel() {
     return 'SQLite（本機檔案）';
   }
@@ -337,7 +337,7 @@
     form.addEventListener('submit', function (event) {
       event.preventDefault();
 
-      // 這張表單的案件已經建立、只是沒有開啟，而且當時也放不掉它，畫面才會還在這裡：再按一次只開啟它，不再建立一次。
+      // 這張表單的案件已經建立、只是沒有開啟，而且當時後端也放不掉這個案件，畫面才會還在這裡：再按一次只開啟它，不再建立一次。
       if (draft.createdProjectId) {
         Ui.openCreatedProject(draft.createdProjectId);
         return;

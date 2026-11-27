@@ -21,7 +21,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
     // ================= 封面、JE WorkingPaper說明與 step5 三張固定文字的表;另有一則核對封面與 step3 的查核期間 =================
 
     [Fact]
-    public async Task WriteAsync_EmitsCoverIntroAndStep5Sheets()
+    public async Task WriteAsync_EmitsCoverIntroAndPostClosingEntriesSheets()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupBalancedAsync(host);
@@ -30,7 +30,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         var names = workbook.Worksheets.Select(ws => ws.Name).ToList();
         Assert.Contains(CoverSheet, names);
         Assert.Contains(IntroSheet, names);
-        Assert.Contains(Step5Sheet, names);
+        Assert.Contains(PostClosingEntriesSheet, names);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
     }
 
     [Fact]
-    public async Task WriteAsync_CoverAndStep3_AuditPeriodScope_AreExplicitAndConsistent()
+    public async Task WriteAsync_CoverAndHighRiskSummary_AuditPeriodScope_AreExplicitAndConsistent()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupBalancedAsync(host);
@@ -93,10 +93,10 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal(
             string.Empty,
             workbook.Worksheet(CoverSheet).Cell("A3").GetString());
-        var step3 = workbook.Worksheet(Step3Sheet);
-        Assert.Contains("2025-01-01 ~ 2025-12-31", step3.Cell("B7").GetString(), StringComparison.Ordinal);
+        var highRiskSummary = workbook.Worksheet(HighRiskSummarySheet);
+        Assert.Contains("2025-01-01 ~ 2025-12-31", highRiskSummary.Cell("B7").GetString(), StringComparison.Ordinal);
         // 這句用未納入原因的名稱「總帳日期空白」；底稿句子裡的欄位名稱照原樣寫，不加任何符號。
-        Assert.Contains("查核期間外與總帳日期空白的分錄", step3.Cell("B9").GetString(), StringComparison.Ordinal);
+        Assert.Contains("查核期間外與總帳日期空白的分錄", highRiskSummary.Cell("B9").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -113,18 +113,18 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
     }
 
     [Fact]
-    public async Task WriteAsync_Step5Sheet_HasYellowBannerMergedAcrossA1R1()
+    public async Task WriteAsync_PostClosingEntriesSheet_HasYellowBannerMergedAcrossA1R1()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupBalancedAsync(host);
         using var workbook = await WriteAndReadAsync(host, projectId);
 
-        var step5 = workbook.Worksheet(Step5Sheet);
-        Assert.Contains("Post-closing entries", step5.Cell("A1").GetString());
-        Assert.Contains("A1:R1", step5.MergedRanges.Select(r => r.RangeAddress.ToString()));
+        var postClosingEntries = workbook.Worksheet(PostClosingEntriesSheet);
+        Assert.Contains("Post-closing entries", postClosingEntries.Cell("A1").GetString());
+        Assert.Contains("A1:R1", postClosingEntries.MergedRanges.Select(r => r.RangeAddress.ToString()));
     }
 
-    // ================= 自動化工具-檔案欄位資訊(欄位配對正準名)=================
+    // ================= 自動化工具-檔案欄位資訊(配對後的欄位名稱)=================
 
     [Fact]
     public async Task FieldInfo_TypedPath_UsesCanonicalProjectionAndDynamicTwoRowGap()
@@ -164,8 +164,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
-        // JET.Domain 新增記錄型別 FieldInfoSheet後，這裡的工作表名稱常數要寫明出處才不會撞名；
-        // （編譯失敗）。
+        // JET.Domain 也有名為 FieldInfoSheet 的記錄型別，這裡寫明工作表名稱常數來自 WorkingPaperWriterTestSupport，避免撞名。
         var sheet = workbook.Worksheet(WorkingPaperWriterTestSupport.FieldInfoSheet);
         // 第一列不寫版本字樣，A1 是空白。
         Assert.True(sheet.Cell("A1").IsEmpty());
@@ -222,7 +221,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         // 照舊版保護整張表。
         Assert.True(sheet.Protection.IsProtected);
 
-        // 週末表固定(資料化常數,非逐列特判):A1/B1 標頭 + 7 列;Mon-Fri=N、Sat/Sun=Y。
+        // 示範案件沒有設定每週休息日，週末表照預設：A1、B1 是標頭，下面 7 列週一到週五寫 N，週六、週日寫 Y。
         Assert.Equal("DAYOFWEEK", sheet.Cell("A1").GetString());
         Assert.Equal("WORKDAY", sheet.Cell("B1").GetString());
         Assert.Equal("Monday", sheet.Cell("A2").GetString());
@@ -234,7 +233,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal("Sunday", sheet.Cell("A8").GetString());
         Assert.Equal("Y", sheet.Cell("B8").GetString());
 
-        // 假日表標頭存在;假日筆數 == calendar store recount(獨立查 staging 表)。
+        // 假日表標頭存在；假日筆數和直接查 calendar_day 表得到的假日筆數相同。
         var holidayHeaderRow = FindRowByColumnValue(sheet, "A", "DATE_OF_HOLIDAY", 1);
         Assert.True(holidayHeaderRow > 0, "應有假日表標頭 DATE_OF_HOLIDAY");
         Assert.Equal("HOLIDAY_NAME", sheet.Cell($"B{holidayHeaderRow}").GetString());

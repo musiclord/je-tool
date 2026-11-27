@@ -74,9 +74,6 @@ try {
     }
 }
 
-# 改壞檢查用的副本只給 tools/tests/support/mutate-frontend.cjs 使用；正式路線一律讀工作樹的前端。
-[Environment]::SetEnvironmentVariable('JET_FRONTEND_TEST_WWWROOT', $null)
-
 $productTestsRoot = Join-Path $RepositoryRoot 'src/JET/tests/frontend'
 [string[]]$selected = @()
 foreach ($relative in @('src/JET/tests/frontend', 'tools/tests')) {

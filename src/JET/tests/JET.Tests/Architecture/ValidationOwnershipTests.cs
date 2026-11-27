@@ -8,18 +8,6 @@ public sealed class ValidationOwnershipTests
         typeof(global::JET.Domain.JetActionException).Assembly;
 
     [Fact]
-    public void ValidationGenericExecutionSeams_AreRemovedAfterTypedCutover()
-    {
-        Assert.Null(ProductionAssembly.GetType("JET.Domain.IValidationRunRepository"));
-        Assert.Null(ProductionAssembly.GetType("JET.Domain.ValidationRunInput"));
-        Assert.Null(ProductionAssembly.GetType("JET.Domain.ValidationReportProjectionParser"));
-        Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.ValidationAuditRuntime"));
-        Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.ProviderRoutingValidationRunRepository"));
-        // 沒有資料庫分流層，確認分流用的 ProviderRoutingValidationFactsPort 不存在。
-        Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.ProviderRoutingValidationFactsPort"));
-    }
-
-    [Fact]
     public void TypedValidationSurface_IsInternal()
     {
         // 清單裡的型別都須存在且維持 internal。
@@ -47,7 +35,7 @@ public sealed class ValidationOwnershipTests
     [Theory]
     [InlineData("JET.Application.ValidateRunHandler")]
     [InlineData("JET.Infrastructure.LocalValidationRunRepository")]
-    public void ExistingProductionTypes_RemainPublicDuringTypedCutover(string name)
+    public void RunHandlerAndRepository_ArePublic(string name)
     {
         var type = ProductionAssembly.GetType(name);
 

@@ -259,11 +259,11 @@ public sealed class MappingRestoreDraftHandler(
 
 public sealed class MappingCommitGlHandler : IApplicationActionHandler
 {
-    private readonly MappingRestoreDraftAuthorizationStore restoreAuthorizations;
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
-    private readonly IJetEventPublisher eventPublisher;
-    private readonly ILogger? logger;
+    private readonly MappingRestoreDraftAuthorizationStore _restoreAuthorizations;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
+    private readonly IJetEventPublisher _eventPublisher;
+    private readonly ILogger? _logger;
 
     internal MappingCommitGlHandler(
         MappingRestoreDraftAuthorizationStore restoreAuthorizations,
@@ -271,26 +271,26 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         ProjectSession session,
         IJetEventPublisher eventPublisher, ILogger? logger = null)
     {
-        this.restoreAuthorizations = restoreAuthorizations;
-        this.projectStore = projectStore;
-        this.session = session;
-        this.eventPublisher = eventPublisher;
-        this.logger = logger;
+        this._restoreAuthorizations = restoreAuthorizations;
+        this._projectStore = projectStore;
+        this._session = session;
+        this._eventPublisher = eventPublisher;
+        this._logger = logger;
     }
 
     public string Action => "mapping.commit.gl";
 
-    /// <summary>配對確認後，案件至少推進到第三步。</summary>
-    internal const int WorkflowStep = 3;
+    /// <summary>配對確認後，案件至少推進到資料驗證與測試這一步。</summary>
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Validate;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
 
         var mapping = PayloadReader.GetStringMap(payload, "mapping");
         var amountModeName = PayloadReader.GetRequiredString(payload, "amountMode");
         var amountMode = JetAuditProgram.ParseGlAmountMode(amountModeName);
-        var postingStatusPolicy = MappingV2CommitPayloadPrerequisite.ReadPostingStatusPolicy(payload);
+        var postingStatusPolicy = MappingCommitGlPayloadReader.ReadPostingStatusPolicy(payload);
 
         SupportOperationStage.Enter("state_read");
         var batch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Gl, cancellationToken)
@@ -315,14 +315,14 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             ?? [];
         var permittedRdeIds = existingRdeIds.ToHashSet(StringComparer.Ordinal);
         permittedRdeIds.UnionWith(
-            restoreAuthorizations.GetAuthorizedFieldIds(projectId, batch.BatchId));
-        var projectionOptions = MappingV2CommitPayloadPrerequisite.ReadProjectionOptions(
+            _restoreAuthorizations.GetAuthorizedFieldIds(projectId, batch.BatchId));
+        var projectionOptions = MappingCommitGlPayloadReader.ReadProjectionOptions(
             payload,
             mapping,
             postingStatusPolicy,
             permittedRdeIds);
         SupportOperationStage.Enter("metadata_read");
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         SupportOperationStage.Enter("plan");
@@ -342,7 +342,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             {
                 ProjectionOptions = projectionOptions
             });
-        restoreAuthorizations.EnsureMatches(
+        _restoreAuthorizations.EnsureMatches(
             projectId,
             batch.BatchId,
             payload,
@@ -354,7 +354,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             () => repositories.MappingFacts.ExecuteAsync(
                 plan,
                 cancellationToken,
-                progress => eventPublisher.Publish("mapping.progress", new
+                progress => _eventPublisher.Publish("mapping.progress", new
                 {
                     kind = "gl",
                     rowsProcessed = progress.RowsProcessed,
@@ -363,20 +363,20 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             cancellationToken);
 
         var result = JetAuditProgram.Finalize(plan, projection);
-        restoreAuthorizations.Clear(projectId, batch.BatchId);
+        _restoreAuthorizations.Clear(projectId, batch.BatchId);
 
         SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(
-            projectStore,
+            _projectStore,
             document,
-            WorkflowStep,
-            CancellationToken.None, logger);
+            AdvancesTo,
+            CancellationToken.None, _logger);
 
         var operationLogWarning = await CommittedOperationLog.AppendMappingRecommitAsync(
-            repositories.ProjectOperationLog, projectId, recordsRecommit, "gl", result.Projection.ProjectedRowCount, logger);
+            repositories.ProjectOperationLog, projectId, recordsRecommit, "gl", result.Projection.ProjectedRowCount, _logger);
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, _logger);
         // 非阻斷提醒（如必填欄整欄空白，疑似配錯欄）；前端提交成功後一併顯示。多數情況為空陣列。
         var warnings = CommittedOperationLog.WithWarning(result.Projection.Warnings, operationLogWarning);
         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
@@ -396,7 +396,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         {
             // 變更已提交，讀不到授權清單比對狀態時和讀不回結果狀態相同處理：回報成功、附提醒，
             // 回應不帶這個欄位，前端保留畫面上的狀態。支援日誌記下錯誤類型。
-            if (logger is not null) WorkflowResultStateSupport.StateReadFailed(logger, "authorized_preparer_state", error.GetType().Name);
+            if (_logger is not null) WorkflowResultStateSupport.StateReadFailed(_logger, "authorized_preparer_state", error.GetType().Name);
             var unavailable = WorkflowResultStateSupport.StateUnavailable(mutationState.InvalidatedResults);
             return new
             {
@@ -454,30 +454,30 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
 
 public sealed class MappingCommitTbHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
-    private readonly IJetEventPublisher eventPublisher;
-    private readonly ILogger? logger;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
+    private readonly IJetEventPublisher _eventPublisher;
+    private readonly ILogger? _logger;
 
     internal MappingCommitTbHandler(
         IProjectStore projectStore,
         ProjectSession session,
         IJetEventPublisher eventPublisher, ILogger? logger = null)
     {
-        this.projectStore = projectStore;
-        this.session = session;
-        this.eventPublisher = eventPublisher;
-        this.logger = logger;
+        this._projectStore = projectStore;
+        this._session = session;
+        this._eventPublisher = eventPublisher;
+        this._logger = logger;
     }
 
     public string Action => "mapping.commit.tb";
 
-    /// <summary>配對確認後，案件至少推進到第三步。</summary>
-    internal const int WorkflowStep = 3;
+    /// <summary>配對確認後，案件至少推進到資料驗證與測試這一步。</summary>
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Validate;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
 
         var mapping = PayloadReader.GetStringMap(payload, "mapping");
         var changeModeName = PayloadReader.GetRequiredString(payload, "changeMode");
@@ -498,7 +498,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             : await repositories.ProjectOperationLog.TryRequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
 
         SupportOperationStage.Enter("metadata_read");
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         SupportOperationStage.Enter("plan");
@@ -517,7 +517,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             () => repositories.MappingFacts.ExecuteAsync(
                 plan,
                 cancellationToken,
-                progress => eventPublisher.Publish("mapping.progress", new
+                progress => _eventPublisher.Publish("mapping.progress", new
                 {
                     kind = "tb",
                     rowsProcessed = progress.RowsProcessed,
@@ -529,16 +529,16 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
 
         SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(
-            projectStore,
+            _projectStore,
             document,
-            WorkflowStep,
-            CancellationToken.None, logger);
+            AdvancesTo,
+            CancellationToken.None, _logger);
 
         var operationLogWarning = await CommittedOperationLog.AppendMappingRecommitAsync(
-            repositories.ProjectOperationLog, projectId, recordsRecommit, "tb", result.Projection.ProjectedRowCount, logger);
+            repositories.ProjectOperationLog, projectId, recordsRecommit, "tb", result.Projection.ProjectedRowCount, _logger);
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, _logger);
         return new
         {
             ok = true,
@@ -560,13 +560,13 @@ internal static class MappingCommitShared
     public static async Task AdvanceStepAsync(
         IProjectStore projectStore,
         JET.Domain.ProjectDocument document,
-        int milestone,
+        WorkflowStep milestone,
         CancellationToken cancellationToken,
         ILogger? logger = null)
     {
         await AfterCommitAsync(async () =>
         {
-            var nextStep = Math.Max(document.CurrentStep, milestone);
+            var nextStep = Math.Max(document.CurrentStep, (int)milestone);
             if (nextStep != document.CurrentStep)
                 await projectStore.SaveAsync(document with { CurrentStep = nextStep }, cancellationToken);
         }, logger);
@@ -591,17 +591,17 @@ internal static class MappingCommitShared
 /// </summary>
 public sealed class MappingRestoreDraftAuthorizationStore
 {
-    private readonly object sync = new();
-    private readonly Dictionary<string, Grant> grants = new(StringComparer.Ordinal);
+    private readonly object _sync = new();
+    private readonly Dictionary<string, Grant> _grants = new(StringComparer.Ordinal);
 
     public void Authorize(
         string projectId,
         string batchId,
         IReadOnlyList<GlRdeFieldMetadata> fields)
     {
-        lock (sync)
+        lock (_sync)
         {
-            grants[projectId] = new Grant(
+            _grants[projectId] = new Grant(
                 batchId,
                 fields.ToDictionary(static field => field.FieldId, StringComparer.Ordinal));
         }
@@ -609,9 +609,9 @@ public sealed class MappingRestoreDraftAuthorizationStore
 
     public IReadOnlySet<string> GetAuthorizedFieldIds(string projectId, string batchId)
     {
-        lock (sync)
+        lock (_sync)
         {
-            return grants.TryGetValue(projectId, out var grant)
+            return _grants.TryGetValue(projectId, out var grant)
                    && string.Equals(grant.BatchId, batchId, StringComparison.Ordinal)
                 ? grant.Fields.Keys.ToHashSet(StringComparer.Ordinal)
                 : new HashSet<string>(StringComparer.Ordinal);
@@ -625,9 +625,9 @@ public sealed class MappingRestoreDraftAuthorizationStore
         IReadOnlyList<GlRdeFieldMetadata> fields,
         IReadOnlySet<string> existingFieldIds)
     {
-        lock (sync)
+        lock (_sync)
         {
-            grants.TryGetValue(projectId, out var grant);
+            _grants.TryGetValue(projectId, out var grant);
             var canonicalFields = fields.ToDictionary(static field => field.FieldId, StringComparer.Ordinal);
             if (!payload.TryGetProperty("rdeFields", out var rdeElement)
                 || rdeElement.ValueKind != JsonValueKind.Array)
@@ -665,12 +665,12 @@ public sealed class MappingRestoreDraftAuthorizationStore
 
     public void Clear(string projectId, string batchId)
     {
-        lock (sync)
+        lock (_sync)
         {
-            if (grants.TryGetValue(projectId, out var grant)
+            if (_grants.TryGetValue(projectId, out var grant)
                 && string.Equals(grant.BatchId, batchId, StringComparison.Ordinal))
             {
-                grants.Remove(projectId);
+                _grants.Remove(projectId);
             }
         }
     }
@@ -684,7 +684,7 @@ public sealed class MappingRestoreDraftAuthorizationStore
 /// 從 mapping.commit.gl 的 payload 讀出 GL 配對的進階設定：傳票核准日的配對方式、過帳狀態的取捨、人工與自動分錄的判斷、
 /// 攸關資料元素欄位，以及往下填補的欄位。這裡只檢查 JSON 的形狀；正規化與跨欄位的驗證由 AuditCore 與 Domain 執行。
 /// </summary>
-internal static class MappingV2CommitPayloadPrerequisite
+internal static class MappingCommitGlPayloadReader
 {
     internal static GlMappingOptions ReadProjectionOptions(
         JsonElement payload,

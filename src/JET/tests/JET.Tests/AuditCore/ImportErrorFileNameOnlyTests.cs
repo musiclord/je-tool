@@ -34,7 +34,6 @@ public sealed class ImportErrorFileNameOnlyTests
             else if (kind == "authorizedPreparer") _ = JetAuditProgram.Plan(new AuthorizedPreparerRequest("synthetic", path, false, ".xlsx", "replace", "Code"));
             else _ = JetAuditProgram.Plan(new CalendarFileRequest("import.holiday.fromFile", "synthetic", CalendarDayType.Holiday, path, false, ".xlsx"));
         });
-        // 這句的用字已定案。
         Assert.Equal("找不到檔案「合成.xlsx」。", error.Message);
         Assert.DoesNotContain(Path.GetDirectoryName(path)!, error.Message);
     }

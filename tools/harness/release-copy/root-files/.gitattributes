@@ -1,0 +1,40 @@
+* text=auto
+
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.slnx text eol=lf
+*.props text eol=lf
+*.targets text eol=lf
+*.ps1 text eol=lf
+*.resx text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.sql text eol=lf
+*.svg text eol=lf
+*.pubxml text eol=lf
+*.txt text eol=lf
+
+*.xlsx binary
+*.docx binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+
+JET/JET/wwwroot/assets/fonts/**/OFL.txt -text -eol -whitespace
+JET/JET/wwwroot/vendor/**/LICENSE*.txt -text -eol -whitespace
+JET/JET/wwwroot/vendor/**/NOTICE.txt -text -eol -whitespace
+JET/JET/wwwroot/assets/icons/fluent/LICENSE -text -eol -whitespace

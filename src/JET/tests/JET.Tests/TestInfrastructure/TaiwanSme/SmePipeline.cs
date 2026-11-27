@@ -5,15 +5,15 @@ using System.Text.Json.Nodes;
 using JET.Bridge;
 using JET.Domain;
 
-namespace Jet.Harness.TaiwanSme;
+namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
-/// <summary>以正式 action 名稱與 payload 呼叫 JET；瀏覽器主機接 ActionDispatcher，測試接 HandlerTestHost。</summary>
+/// <summary>以正式 action 名稱與 payload 呼叫 JET；測試接 HandlerTestHost，其他呼叫端可以接 ActionDispatcher。</summary>
 internal delegate Task<JsonElement> SmeDispatch(string action, JsonElement payload);
 
 /// <summary>
 /// 台灣中小企業案件的建案流程與比對：建案、匯入、配對、分類、驗證、預篩選、篩選、匯出。
 /// 每一步只呼叫正式 action；完成後把 JET 的驗證摘要、預篩選與情境命中，和 <see cref="SmeOracle"/>
-/// 獨立算出的答案逐筆比對。瀏覽器主機與自動測試共用這一份流程，結果寫在 <see cref="SmeCaseLog"/>。
+/// 獨立算出的答案逐筆比對，結果寫在 <see cref="SmeCaseLog"/>。
 /// </summary>
 internal static class SmePipeline
 {
@@ -287,21 +287,21 @@ internal static class SmePipeline
 
 /// <summary>
 /// 一個案件的建案紀錄：每個動作的耗時、每項比對的結果與失敗原因。給了資料夾時另存每個動作的回應，
-/// 方便對照；echo 用來把不一致與失敗即時印到主機視窗。
+/// 方便對照；echo 用來把不一致與失敗即時印出來。
 /// </summary>
 internal sealed class SmeCaseLog(string projectName, string? directory = null, Action<string>? echo = null)
 {
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
-    private int sequence;
-    private int matched;
-    private int mismatched;
+    private int _sequence;
+    private int _matched;
+    private int _mismatched;
 
     public string ProjectName { get; } = projectName;
     public List<string> Lines { get; } = [];
     public bool Failed { get; private set; }
-    public bool AllMatched => mismatched == 0 && !Failed;
-    public int MatchedCount => matched;
-    public string Summary => $"{matched} 項一致、{mismatched} 項不一致";
+    public bool AllMatched => _mismatched == 0 && !Failed;
+    public int MatchedCount => _matched;
+    public string Summary => $"{_matched} 項一致、{_mismatched} 項不一致";
 
     public async Task<JsonElement> DispatchAsync(SmeDispatch dispatch, string action, object payload)
     {
@@ -311,9 +311,9 @@ internal sealed class SmeCaseLog(string projectName, string? directory = null, A
         if (directory is not null)
         {
             Directory.CreateDirectory(directory);
-            sequence++;
+            _sequence++;
             File.WriteAllText(
-                Path.Combine(directory, $"{sequence:00}-{action}.json"),
+                Path.Combine(directory, $"{_sequence:00}-{action}.json"),
                 JsonSerializer.Serialize(result, Indented),
                 new UTF8Encoding(false));
         }
@@ -328,12 +328,12 @@ internal sealed class SmeCaseLog(string projectName, string? directory = null, A
         var extra = actual.Except(expected).Order(StringComparer.Ordinal).ToList();
         if (missing.Count == 0 && extra.Count == 0)
         {
-            matched++;
+            _matched++;
             Lines.Add($"- {label}：一致，{expected.Count:N0} 筆");
             return;
         }
 
-        mismatched++;
+        _mismatched++;
         Lines.Add($"- {label}：不一致，預期 {expected.Count:N0} 筆、JET {actual.Count:N0} 筆；"
             + $"JET 少了 {missing.Count:N0} 筆（例如 {string.Join("、", missing.Take(5))}），"
             + $"多了 {extra.Count:N0} 筆（例如 {string.Join("、", extra.Take(5))}）");
@@ -344,12 +344,12 @@ internal sealed class SmeCaseLog(string projectName, string? directory = null, A
     {
         if (expected == actual)
         {
-            matched++;
+            _matched++;
             Lines.Add($"- {label}：一致，{expected:N0}");
             return;
         }
 
-        mismatched++;
+        _mismatched++;
         Lines.Add($"- {label}：不一致，預期 {expected:N0}、JET {actual:N0}");
         echo?.Invoke($"[seed] {ProjectName} {label} 不一致：預期 {expected}、JET {actual}。");
     }

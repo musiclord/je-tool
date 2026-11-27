@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ClosedXML.Excel;
@@ -9,15 +8,38 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 五份報告與科目配對工作檔的完整旅程：驗證、填回範本原檔、重新匯出驗證報告，再完成篩選與底稿。
-/// 類別名稱與 JET_SIX_REPORT_EVIDENCE_DIR 為既有篩選及證據介面保留；六份工作簿只有五份進報告清單。
 /// 全程使用自含合成資料，不讀外部範本或真實帳務資料。
 /// </summary>
-public sealed class SixReportWorkflowJourneyTests
+public sealed partial class SixReportWorkflowJourneyTests
 {
     [Fact]
     public async Task AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate()
     {
         using var host = new HandlerTestHost();
+        var journey = await RunAccountMappingHandoffAsync(host);
+        var projectDirectory = Path.Combine(host.ProjectsRoot, journey.ProjectId);
+
+        // 路徑、查核期間與 V_Report 5 可讀性須沿完整旅程核對。
+        Assert.All(journey.Reports, report =>
+        {
+            Assert.Contains("_20250101-20251231_", report.GetProperty("fileName").GetString());
+            Assert.Equal(Path.Combine(projectDirectory, report.GetProperty("fileName").GetString()!),
+                report.GetProperty("fullPath").GetString());
+        });
+        // 所有 10 點明細頁的列高統一為 15 點，V_Report 5 也一樣；15 點不會切到微軟正黑體 10 點。
+        using var readableValidation = new XLWorkbook(ReportPath(journey.Reports, projectDirectory, "validationReport"));
+        Assert.Equal(15D, readableValidation.Worksheet("V_Report 5").RowHeight);
+        Assert.All(readableValidation.Worksheet("V_Report 5").RowsUsed(), row => Assert.Equal(15D, row.Height));
+        // 科目配對範本工作檔走完整個旅程後仍在產生時回傳的位置。
+        Assert.True(File.Exists(journey.AccountMappingTemplatePath));
+    }
+
+    /// <summary>
+    /// 走完驗證、填回範本原檔、重新匯出驗證報告、篩選與底稿，途中逐步核對；
+    /// 回傳案件名稱、五份報告的回應，以及科目配對範本工作檔的完整路徑。
+    /// </summary>
+    private static async Task<AccountMappingHandoffJourney> RunAccountMappingHandoffAsync(HandlerTestHost host)
+    {
         var projectId = await InlineWorkbookProject.SetupAsync(host,
             builder => builder.WithColumns("傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
                 .AddRow("JV-001","2025-03-05","2026-01-02","1101","現金","調整分錄","2000000.00",1)
@@ -96,8 +118,7 @@ public sealed class SixReportWorkflowJourneyTests
                {"type":"voucher","quantifier":"all","conditions":[{"type":"drCrOnly","drCr":"credit"},
                  {"type":"accountSide","join":"OR","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}]}]
           """).RootElement;
-        // Keep both independent answers; add A and D from the 2024 entry catalogue
-        // so the native Excel round-trip also exercises their prescreen descriptions.
+        // 除了上面兩個各自獨立的情境，再加入 2024 年舊表條件目錄的 A 與 D，讓原生 Excel 來回也涵蓋它們的預篩選說明；
         // 目錄放在測試夾具。
         var scenarios = JsonNode.Parse(originalScenarios.GetRawText())!.AsArray();
         var legacy = Architecture.LegacyFormCatalogTests.ReadCatalog()["conditions"]!.AsArray();
@@ -183,7 +204,7 @@ public sealed class SixReportWorkflowJourneyTests
         AssertHiddenMappingMetadata(workingPaperPath);
         using (var workingPaper = new XLWorkbook(workingPaperPath))
         {
-            var selected = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step3).RowsUsed()
+            var selected = workingPaper.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary).RowsUsed()
                 .Single(row => row.Cell(2).GetString() == "C2");
             // 兩值語意：分類留白的貸方視為 Others，C2 命中兩張傳票（與上方預覽的 voucherCount 一致）。
             Assert.Equal(2, selected.Cell(5).GetValue<long>());
@@ -237,20 +258,14 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Equal(tbRowsBefore, await DemoProjectPipeline.QueryScalarAsync(
             host, projectId, "SELECT COUNT(*) FROM tb;"));
 
-        await ExportEvidenceIfRequestedAsync(projectId, reports, projectDirectory, mappingPath);
-        // 路徑、查核期間與 V_Report 5 可讀性須沿完整旅程核對。
-        Assert.All(reports, report =>
-        {
-            Assert.Contains("_20250101-20251231_", report.GetProperty("fileName").GetString());
-            Assert.Equal(Path.Combine(projectDirectory, report.GetProperty("fileName").GetString()!),
-                report.GetProperty("fullPath").GetString());
-        });
-        // 所有 10 點明細頁的列高統一為 15 點，V_Report 5 也一樣；15 點不會切到微軟正黑體 10 點。
-        using var readableValidation = new XLWorkbook(validationPath);
-        Assert.Equal(15D, readableValidation.Worksheet("V_Report 5").RowHeight);
-        Assert.All(readableValidation.Worksheet("V_Report 5").RowsUsed(), row => Assert.Equal(15D, row.Height));
-
+        return new AccountMappingHandoffJourney(projectId, reports, mappingPath);
     }
+
+    /// <summary>完整旅程的案件名稱、五份報告的回應，以及科目配對範本工作檔的完整路徑。</summary>
+    private sealed record AccountMappingHandoffJourney(
+        string ProjectId,
+        JsonElement[] Reports,
+        string AccountMappingTemplatePath);
 
     private static string ReportPath(JsonElement[] reports, string projectDirectory, string kind)
     {
@@ -326,81 +341,5 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Equal(
             committed.GetProperty("tb").GetProperty("changeMode").GetString(),
             restored.GetProperty("tb").GetProperty("changeMode").GetString());
-    }
-
-    private static async Task ExportEvidenceIfRequestedAsync(
-        string projectId,
-        JsonElement[] reports,
-        string projectDirectory,
-        string accountMappingTemplatePath)
-    {
-        var receiptDirectory = Environment.GetEnvironmentVariable("JET_SIX_REPORT_EVIDENCE_DIR");
-        if (string.IsNullOrWhiteSpace(receiptDirectory))
-        {
-            return;
-        }
-
-        if (!Path.IsPathFullyQualified(receiptDirectory))
-        {
-            throw new InvalidOperationException(
-                "JET_SIX_REPORT_EVIDENCE_DIR must be an absolute path.");
-        }
-
-        await NativeAccessImportAcceptance.VerifyAsync(receiptDirectory);
-        var workbookDirectory = Path.Combine(receiptDirectory, "workbooks");
-        if (Directory.Exists(workbookDirectory) || File.Exists(workbookDirectory))
-        {
-            throw new InvalidOperationException(
-                $"Evidence workbook directory already exists: {workbookDirectory}");
-        }
-
-        Directory.CreateDirectory(workbookDirectory);
-        // Excel 路線仍要開六份工作簿：五份報告加上科目配對範本工作檔，範本以 accountMapping 為種類名。
-        var sources = reports
-            .Select(report => (
-                Kind: report.GetProperty("kind").GetString()!,
-                FileName: report.GetProperty("fileName").GetString()!,
-                SourcePath: Path.Combine(projectDirectory, report.GetProperty("fileName").GetString()!)))
-            .Append((
-                Kind: "accountMapping",
-                FileName: Path.GetFileName(accountMappingTemplatePath),
-                SourcePath: accountMappingTemplatePath))
-            .OrderBy(source => source.Kind, StringComparer.Ordinal);
-        var evidence = sources
-            .Select(source =>
-            {
-                var kind = source.Kind;
-                var fileName = source.FileName;
-                var sourcePath = source.SourcePath;
-                var evidenceFileName = $"{kind}.xlsx";
-                var evidencePath = Path.Combine(workbookDirectory, evidenceFileName);
-                File.Copy(sourcePath, evidencePath);
-
-                using var stream = File.OpenRead(evidencePath);
-                var sha256 = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-                using var workbook = new XLWorkbook(evidencePath);
-                return new
-                {
-                    kind,
-                    sourceFileName = fileName,
-                    evidenceFileName,
-                    bytes = stream.Length,
-                    sha256,
-                    sheets = workbook.Worksheets.Select(sheet => sheet.Name).ToArray()
-                };
-            })
-            .ToArray();
-
-        Directory.CreateDirectory(receiptDirectory);
-        File.WriteAllText(
-            Path.Combine(receiptDirectory, "evidence-manifest.json"),
-            JsonSerializer.Serialize(
-                new
-                {
-                    generatedAtUtc = DateTimeOffset.UtcNow,
-                    projectId,
-                    artifacts = evidence
-                },
-                new JsonSerializerOptions { WriteIndented = true }));
     }
 }

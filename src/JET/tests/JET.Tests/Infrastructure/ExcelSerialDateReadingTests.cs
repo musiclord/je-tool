@@ -19,7 +19,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class ExcelSerialDateReadingTests
 {
     // 序列值與 Excel 顯示的日期。日曆上沒有的日期照 Excel 顯示的年月日寫成文字，確認配對時列為無法辨識。
-    // 負數與超過 9999-12-31 的序列值，Excel 只顯示 #####，讀取器照舊交出序列值的文字。
+    // 負數與超過 9999-12-31 的序列值，Excel 只顯示 #####，讀取器交出序列值的文字。
     private static readonly (double Serial, string Shown)[] Dates1900 =
     [
         (0, "1900-01-00"),
@@ -156,8 +156,8 @@ public sealed class ExcelSerialDateReadingTests
         finally { File.Delete(path); }
     }
 
-    // 內建格式 32 在繁體中文版 Excel 顯示「13時30分」這類只有時間的寫法，JET 仍當成日期格式讀。
-    // 只有時間、沒有日期部分的值不換成日期，交出序列值的文字，不同的時間仍分得出來；帶日期的值照舊只取日期。
+    // 內建格式 32 在繁體中文版 Excel 顯示「13時30分」這類只有時間的寫法，JET 一樣當成日期格式讀。
+    // 只有時間、沒有日期部分的值不換成日期，交出序列值的文字，不同的時間仍分得出來；帶日期的值只取日期。
     [Fact]
     public async Task TraditionalChineseTimeFormat_TimeOnlyValueIsKeptAsSerialText()
     {

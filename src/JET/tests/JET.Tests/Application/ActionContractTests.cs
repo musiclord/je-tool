@@ -8,12 +8,12 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 回應契約鎖:手寫語意斷言。
-/// 目的:把各 action 的回應形狀變成可執行的測試——欄位被改名／拿掉／改型別／悄悄新增時,
-/// 這裡會失敗,逼人確認「故意還是改壞」(Linus「不破壞 userspace」用在 JS↔C# 介面)。
+/// 目的:把各 action 的回應形狀變成可執行的測試。欄位被改名、拿掉、改型別或悄悄新增時,
+/// 這裡會失敗,由維護者確認變動是否預期,前端與 C# 之間的介面不會在沒有察覺時改變。
 ///
 /// 鎖的是「欄位集合＋型別＋巢狀結構」,不鎖屬性順序、不鎖具體數值。
 /// 巢狀的 run 形狀(validationResult、prescreenResult 內)由各自 action 的契約鎖負責,project.load 只鎖外層信封。
-/// 陣列元素形狀「有資料才檢查」;新欄位(unbalancedVouchers／blankRows)另以固定 seed 保證有資料、確實鎖到。
+/// 陣列元素形狀「有資料才檢查」;明細陣列(unbalancedVouchers、blankRows)另以固定 seed 保證有資料、確實鎖到。
 /// </summary>
 public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixture<DemoProjectFixture>
 {
@@ -172,7 +172,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Str(resultRef, "logicVersion");
     }
 
-    /// <summary>新明細欄位以固定 seed 保證非空,確實鎖住元素形狀(借貸不平 + 空值)。</summary>
+    /// <summary>明細陣列以固定 seed 保證非空,確實鎖住元素形狀(借貸不平與空值)。</summary>
     [Fact]
     public async Task ValidateRun_DetailArrays_ElementShapeIsLocked()
     {
@@ -201,7 +201,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.True(blankRows.GetArrayLength() >= 1, "seed 應產生空值列");
         JsonShape.Element(blankRows, e =>
         {
-            // 空值明細多帶每一列的傳票核准日，第四步「核准日不在期間」的明細才顯示得出來；
+            // 空值明細每一列帶傳票核准日，第四步「核准日不在期間」的明細才顯示得出來；
             JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "description", "issues");
             JsonShape.Str(e, "voucherNumber", nullable: true);
             JsonShape.Str(e, "accountNumber", nullable: true);
@@ -221,7 +221,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.HasExactKeys(data,
             "prepPeriodApproval", "suspiciousKeywords", "unexpectedAccountPair", "trailingZeros",
             "preparerSummary", "rareAccounts", "weekendActivity", "holidayActivity", "blankDescription",
-            // 回應沒有 backdatedPosting。
+            // 回溯過帳（backdatedPosting）是已停用的條件，回應沒有這一項。
             // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目這兩條規則，回應沒有 rarePreparer、rareAccount 與 rareAccounts.rareAccountCount。
             "nonAuthorizedPreparer",
             "rulePeriod", "concentration", "positioning", "resultRef");
@@ -309,8 +309,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             JsonShape.Number(rule, "ratePct", nullable: true);
         });
 
-        // 集中度分析（總覽區塊⑤）：不適用時 preparers／rareAccounts／distinctAccountCount 為 null，
-        // 因此三者在型別上都可為空；demo 案件有配對編製人員，故此處實測非空分支。
+        // 集中度分析：不適用時 preparers、rareAccounts、distinctAccountCount 為 null，
+        // 因此三者在型別上都可為空；示範案件有配對編製人員，所以這裡測的是非空分支。
         var concentration = JsonShape.Obj(data, "concentration");
         JsonShape.HasExactKeys(
             concentration, "status", "naReason", "preparers", "rareAccounts", "distinctAccountCount");
@@ -365,7 +365,6 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(
             "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             positioning.GetProperty("exportDefaultGuidance").GetString());
-        // 這句的用字已定案。
         Assert.Equal(
             "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。",
             positioning.GetProperty("exportPendingRunGuidance").GetString());
@@ -389,7 +388,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 rationale = "契約鎖測試用情境",
                 groups = new[]
                 {
-                    new { join = "AND", conditions = new[] { new { join = "AND", type = "numRange", field = "amount", from = "0" } } }
+                    new { join = "AND", conditions = new[] { new { join = "AND", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "0", amountBasis = "absolute" } } }
                 }
             }
         });
@@ -481,11 +480,11 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task QueryDataPreview_ResponseShape_IsLocked()
     {
-        // 資料名稱全系統統一：資料預覽的 wire key 與型別名稱用同一套名稱。
+        // 資料預覽的 wire key 與型別名稱用同一套資料名稱。
         var data = await fixture.Host.DispatchAsync(
             "query.dataPreview", JsonSerializer.Serialize(new { dataset = "gl" }));
 
-        // 資料預覽依配對列欄位，欄名和欄位配對畫面相同：回應多帶 columnDetails，
+        // 資料預覽依配對列欄位，欄名和欄位配對畫面相同：回應另帶 columnDetails，
         // 和 columns 同順序寫出每欄的名稱與型別。
         JsonShape.HasExactKeys(data, "dataset", "columns", "columnDetails", "rows", "totalCount", "stats");
         JsonShape.Str(data, "dataset");
@@ -613,19 +612,17 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(JsonValueKind.Null, previousMapping.GetProperty("tb").ValueKind);
         var mapping = JsonShape.Obj(data, "mapping");
         var glMapping = JsonShape.Obj(mapping, "gl");
-        // 前端依後端算好的可用欄位停用第五步的入口，GL 配對多帶 availableGlFields；
-        // 原有八個鍵不變。
-        // 確認配對時往下填補空白的欄位跟著配對保存，GL 配對多帶 fillDownFields；
-        // 往下填補的格數隨配對保存，GL 配對多帶 fillDownCount，第三步摘要在重開案件後也列得出來；
+        // availableGlFields：前端依後端算好的可用欄位停用第五步的入口。
+        // fillDownFields 與 fillDownCount：確認配對時往下填補空白的欄位與格數，跟著配對保存，重開案件後第三步摘要也列得出來。
         JsonShape.HasExactKeys(
             glMapping,
             "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
             "manualAutoPolicy", "rdeFields", "fillDownFields", "fillDownCount", "sourceBatchId", "committedUtc", "availableGlFields",
-            // 第五步依後端算好的清單，不替 GL 中一定有值的欄位提供「空白」的比較方式，GL 配對多帶 neverBlankGlFields。
+            // neverBlankGlFields：第五步依後端算好的清單，不替 GL 中一定有值的欄位提供「空白」的比較方式。
             "neverBlankGlFields",
-            // 尾數 0 的個數照 IDEA 版由 GL 算出，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡，GL 配對多帶 zerosThreshold。
+            // zerosThreshold：尾數 0 的個數照 IDEA 版由 GL 算出，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡。
             "zerosThreshold",
-            // 確認配對時的日期提醒隨配對存在案件資料庫，重開案件後第三步照樣列出，GL 配對多帶 dateNotices。
+            // dateNotices：確認配對時的日期提醒隨配對存在案件資料庫，重開案件後第三步也列得出來。
             "dateNotices");
         Assert.Equal(JsonValueKind.Array, glMapping.GetProperty("dateNotices").ValueKind);
         JsonShape.Element(JsonShape.Arr(glMapping, "fillDownFields"), field =>
@@ -715,7 +712,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         JsonShape.HasExactKeys(data, "projects");
 
-        // sqlite 條目：基礎九鍵，且**不含** syncStatus。
+        // 本機案件條目恰有九個鍵。
         var projects = JsonShape.Arr(data, "projects");
         Assert.True(projects.GetArrayLength() >= 1);
         JsonShape.Element(projects, e => JsonShape.HasExactKeys(e,
@@ -768,7 +765,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
-        // 每列多帶傳票核准日；
+        // 每列帶傳票核准日；
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
             // 「核准日不在期間」裡讀不成日期的核准日另帶來源原文 approvalDateRawValue，其他類別是 null。
             JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "approvalDateRawValue", "description"));
@@ -1089,7 +1086,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
 /// <summary>
 /// JSON 形狀斷言小工具:鎖「鍵集合(順序無關)＋型別」,不鎖順序或數值。
-/// 一致的寫法套用到每個 action,不為單一 action 另搞特例(Linus 好品味:消除特例)。
+/// 一致的寫法套用到每個 action,不為單一 action 另寫特例。
 /// </summary>
 internal static class JsonShape
 {

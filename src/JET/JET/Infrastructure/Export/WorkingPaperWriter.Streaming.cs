@@ -8,8 +8,8 @@ namespace JET.Infrastructure;
 internal sealed partial class WorkingPaperWriter
 {
     /// <summary>
-    /// 可能超過 Excel 列上限的資料表共用續頁骨架。每頁重建固定表頭與欄標；普通規模只建立正準 sheet 名，
-    /// 第 2 頁起才加「(續N)」。列來源保持 forward-only，換頁不重查、不全載入。
+    /// 可能超過 Excel 列上限的資料表共用的續頁寫法：每頁重寫固定表頭與欄標；資料放得進一頁時只用原本的工作表名稱，
+    /// 第 2 頁起才加「(續N)」。資料只往前讀，換頁時不重新查詢，也不整批載入。
     /// </summary>
     private async Task<long> EmitContinuedRowsAsync<T>(
         List<SheetStat> stats,

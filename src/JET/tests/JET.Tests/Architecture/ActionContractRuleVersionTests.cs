@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// action 契約裡凡是說「現行」或「目前」篩選版本的句子，版本都要等於程式常數 <see cref="RuleLogicVersions.Filter"/>。
-/// 版本沿革可以列舊版本；只有宣稱現行的句子要跟程式一致，避免契約同時寫出兩個現行版本。
+/// 篩選版本宣告的掃描規則：句子寫「現行」或「目前」時抓出其中的版本，寫版本沿革的句子不算；
+/// 簡寫的版本抓得到，但不會等於程式常數 <see cref="RuleLogicVersions.Filter"/>。
 /// </summary>
 public sealed partial class ActionContractRuleVersionTests
 {
@@ -17,9 +17,9 @@ public sealed partial class ActionContractRuleVersionTests
     public void ClaimScanRecognisesBothCurrentWordingsAndIgnoresHistory()
     {
         const string text = """
-            不新增由後端解讀字母的通道。目前篩選計算版本為 `filter-2026-10-04-v17`；
-            2026-10-04 落實空白號碼的裁定，篩選版本推進為 `filter-2026-10-04-v17`。
-            2026-10-06 加入查核期末視窗，現行篩選版本為
+            目前篩選計算版本為 `filter-2026-10-04-v17`；
+            歷史篩選版本為 `filter-2026-10-04-v17`。
+            現行篩選版本為
             `filter-2026-10-06-v18`。
             """;
         Assert.Equal(

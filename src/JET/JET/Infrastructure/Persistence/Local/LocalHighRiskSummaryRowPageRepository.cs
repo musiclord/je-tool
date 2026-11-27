@@ -13,8 +13,7 @@ namespace JET.Infrastructure;
 public sealed class LocalHighRiskSummaryRowPageRepository(ILocalProjectDatabase database)
     : IHighRiskSummaryRowPageRepository,
       IHighRiskSummaryRowStreamRepository,
-      IWorkingPaperStep41PageRepository,
-      IWorkingPaperStep41PreparedSessionFactory
+      IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory
 {
     async IAsyncEnumerable<(long EntryId, bool IsHit)> IHighRiskSummaryRowStreamRepository.StreamAsync(
         string projectId,
@@ -49,36 +48,14 @@ public sealed class LocalHighRiskSummaryRowPageRepository(ILocalProjectDatabase 
             connection, database.Dialect, context, request, scenarioPositions, cancellationToken);
     }
 
-    async Task<WorkingPaperStep41Page> IWorkingPaperStep41PageRepository.GetPageAsync(
-        string projectId,
-        GlPopulationContext context,
-        PageRequest request,
-        IReadOnlyList<int> scenarioPositions,
-        LegacyFieldKind lineItemKind,
-        CancellationToken cancellationToken)
-    {
-        await database.EnsureReadyAsync(projectId, cancellationToken);
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-
-        return await HighRiskSummaryRowPageReader.ReadWorkingPaperAsync(
-            connection,
-            database.Dialect,
-            context,
-            request,
-            scenarioPositions,
-            lineItemKind,
-            cancellationToken);
-    }
-
-    Task<IWorkingPaperStep41PreparedSession>
-        IWorkingPaperStep41PreparedSessionFactory.PrepareAsync(
+    Task<IWorkingPaperHighRiskVoucherDetailPreparedSession>
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory.PrepareAsync(
             string projectId,
             GlPopulationContext context,
             IReadOnlyList<int> scenarioPositions,
             LegacyFieldKind lineItemKind,
             CancellationToken cancellationToken) =>
-        WorkingPaperStep41PreparedSession.CreateAsync(
+        WorkingPaperHighRiskVoucherDetailPreparedSession.CreateAsync(
             CreatePreparedConnection(projectId),
             database.Dialect,
             schemaPrefix: string.Empty,
@@ -88,15 +65,15 @@ public sealed class LocalHighRiskSummaryRowPageRepository(ILocalProjectDatabase 
             dedicatedConnection: true,
             cancellationToken);
 
-    Task<IWorkingPaperStep41PreparedSession>
-        IWorkingPaperStep41PreparedSessionFactory.PrepareAsync(
+    Task<IWorkingPaperHighRiskVoucherDetailPreparedSession>
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory.PrepareAsync(
             string projectId,
             GlPopulationContext context,
             IReadOnlyList<int> scenarioPositions,
             LegacyFieldKind lineItemKind,
             CancellationToken cancellationToken,
             IReadOnlyList<int> hitVoucherScenarioPositions) =>
-        WorkingPaperStep41PreparedSession.CreateAsync(
+        WorkingPaperHighRiskVoucherDetailPreparedSession.CreateAsync(
             CreatePreparedConnection(projectId),
             database.Dialect,
             schemaPrefix: string.Empty,

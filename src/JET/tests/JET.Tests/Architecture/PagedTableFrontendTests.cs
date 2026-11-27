@@ -56,7 +56,7 @@ public sealed class PagedTableFrontendTests
             Collect(seen, match.Groups["action"].Value, Regex.Matches(match.Groups["body"].Value, @"'(?<key>\w+)'").Select(m => m.Groups["key"].Value));
         }
 
-        // 矩陣沒有分錄明細頁；其餘固定表頭逐項保留，不能只降低數量門檻。
+        // 矩陣（query.highRiskSummaryRowPage）沒有分錄明細頁，不在清單內；其餘有固定表頭的查詢逐項列出。
         var expectedActions = new[]
         {
             "query.completenessDiffPage", "query.voucherBalancePage", "query.blankRecordsPage",

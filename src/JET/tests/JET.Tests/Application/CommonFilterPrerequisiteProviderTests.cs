@@ -23,10 +23,10 @@ public sealed class CommonFilterPrerequisiteProviderTests
             CommonScenario("特定人員", new
             {
                 join = "AND",
-                type = "text",
+                type = "fieldValue",
                 field = "createdBy",
-                keywords = "特定建立者",
-                mode = "exact"
+                @operator = "in",
+                values = new[] { "特定建立者" }
             }),
             ["E-1|1"]),
         new(

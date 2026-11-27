@@ -59,8 +59,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
             (new { join = "AND", type = "fieldValue", field = "approvalDate", @operator = "after", value = "2025-01-01" }, ["傳票核准日"]),
             (new { join = "AND", type = "fieldValue", field = "approvalDate", @operator = "isWeekend" }, ["傳票核准日"]),
             (new { join = "AND", type = "fieldValue", field = "approvalDate", @operator = "between", from = "2025-01-01", to = "2025-12-31" }, ["傳票核准日"]),
-            (new { join = "AND", type = "text", field = "createdBy", keywords = "E0", mode = "contains" }, ["傳票建立人員"]),
-            (new { join = "AND", type = "dateRange", field = "approvalDate", from = "2025-01-01", to = "2025-12-31" }, ["傳票核准日"]),
             (new { join = "AND", type = "entityFrequency", field = "approvedBy", countUnit = "entries", countOperator = "lessThan", countFrom = 3 }, ["傳票核准人員"]),
             (new { join = "AND", type = "manualAuto", isManual = true }, ["人工/自動分錄"]),
             (new { join = "AND", type = "preparerEqualsApprover" }, ["傳票建立人員", "傳票核准人員"])
@@ -113,7 +111,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
             } }
         }));
 
-        // 模擬較早版本存下的情境：條件用到沒有配對的傳票建立人員，當時的檢查不擋「包含任一文字」。
+        // 已存情境的條件用到沒有配對的傳票建立人員：畫面存不出這種情境，所以直接改資料庫模擬。
         var definitionJson = await TextAsync(host, projectId, provider,
             "SELECT definition_json FROM filter_scenario WHERE position = 1;");
         var definition = JsonNode.Parse(definitionJson)!.AsObject();
@@ -139,13 +137,13 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task Step4AndStep5_GiveTheSameReasonForTheSameRule(string provider)
+    public async Task PrescreenAndFilter_GiveTheSameReasonForTheSameRule(string provider)
     {
         using var host = new HandlerTestHost();
         // 沒有期末財報準備日、科目配對與授權名單；假日檔已上傳，所以兩步的假日規則都不因假日檔寫原因（第五步也檢查假日檔）。
         await SetupAsync(host, provider, holidays: ["2025-03-04"]);
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var step4 = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
+        var prescreenReasons = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
             .ToDictionary(
                 static rule => rule.GetProperty("key").GetString()!,
                 static rule => rule.GetProperty("naReason").GetString(),
@@ -154,7 +152,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         const string prepStartDate = "尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫";
         const string noCategory = "科目配對中尚無任何科目設定分類，請先在第四步設定";
         const string noPreparerList = "尚未匯入授權編製人員清單，請先在第二步匯入";
-        var expected = new Dictionary<string, (string? Step4, string[] Step5)>(StringComparer.Ordinal)
+        var expected = new Dictionary<string, (string? PrescreenReason, string[] FilterReasons)>(StringComparer.Ordinal)
         {
             [PrescreenRuleKeys.PrepPeriodApproval] = (ApprovalDateMissing + FieldFix + prepStartDate + "。", [ApprovalDateMissing, prepStartDate]),
             [PrescreenRuleKeys.SuspiciousKeywords] = (null, []),
@@ -168,20 +166,20 @@ public sealed class GlFieldAvailabilityWorkflowTests
             [PrescreenRuleKeys.NonAuthorizedPreparer] = (noPreparerList + "。" + CreatedByMissing + FieldFix, [noPreparerList, CreatedByMissing])
             // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目兩條規則，這裡也沒有這兩列。
         };
-        Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), step4.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), prescreenReasons.Keys.Order(StringComparer.Ordinal));
 
-        foreach (var (key, (step4Reason, step5Reasons)) in expected)
+        foreach (var (key, (prescreenReason, filterReasons)) in expected)
         {
-            Assert.Equal(step4Reason, step4[key]);
+            Assert.Equal(prescreenReason, prescreenReasons[key]);
             var payload = Preview(new { join = "AND", type = "prescreen", prescreenKey = key });
-            if (step5Reasons.Length == 0)
+            if (filterReasons.Length == 0)
             {
                 await host.DispatchAsync("filter.preview", payload);
                 continue;
             }
 
             var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview", payload));
-            Assert.Equal(string.Join("；", step5Reasons.Select(static reason => "第 1 組第 1 條：" + reason)), error.Message);
+            Assert.Equal(string.Join("；", filterReasons.Select(static reason => "第 1 組第 1 條：" + reason)), error.Message);
         }
 
         // 人員彙總與集中度沿用同一條規則的原因。
@@ -221,7 +219,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
         var holiday = prescreen.GetProperty("holidayActivity");
         Assert.Equal("na", holiday.GetProperty("status").GetString());
         Assert.Equal(
-            // 這句的用字已定案。
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。" + ApprovalDateMissing + FieldFix,
             holiday.GetProperty("naReason").GetString());
         Assert.Equal(JsonValueKind.Null, holiday.GetProperty("approvalNaReason").ValueKind);
@@ -233,7 +230,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task MissingHolidayCalendar_Step5HolidayConditionsAreDisabledWithTheStep4Reason(string provider)
+    public async Task MissingHolidayCalendar_FilterHolidayConditionsAreDisabledWithThePrescreenReason(string provider)
     {
         // 沒有國定假日清單時，第五步的假日條件比照未配對的欄位停用並寫原因，和第四步同一句；
         // 「非營業日」也看週末，沒有清單時照常可用。
@@ -242,13 +239,13 @@ public sealed class GlFieldAvailabilityWorkflowTests
         const string noHolidayList = "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳";
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var step4 = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
+        var prescreenReasons = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
             .ToDictionary(
                 static rule => rule.GetProperty("key").GetString()!,
                 static rule => rule.GetProperty("naReason").GetString(),
                 StringComparer.Ordinal);
-        Assert.Equal(noHolidayList + "。", step4[PrescreenRuleKeys.HolidayPosting]);
-        Assert.Equal(noHolidayList + "。" + ApprovalDateMissing + FieldFix, step4[PrescreenRuleKeys.HolidayApproval]);
+        Assert.Equal(noHolidayList + "。", prescreenReasons[PrescreenRuleKeys.HolidayPosting]);
+        Assert.Equal(noHolidayList + "。" + ApprovalDateMissing + FieldFix, prescreenReasons[PrescreenRuleKeys.HolidayApproval]);
 
         var cases = new (object Rule, string[] Reasons)[]
         {
@@ -271,7 +268,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task MissingMakeupCalendar_Step5MakeupConditionsAreDisabledLikeHolidays(string provider)
+    public async Task MissingMakeupCalendar_FilterMakeupConditionsAreDisabledLikeHolidays(string provider)
     {
         // 沒有補班日清單時，第五步的補班日條件比照國定假日停用並寫原因；上傳清單後就能預覽。
         // 這裡只上傳國定假日清單，確認兩份清單各自判斷。
@@ -370,7 +367,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         numericReason["blankRecordsTest"]!["approvalDateNotInPeriodCount"] = null;
         numericReason["blankRecordsTest"]!["approvalDateNotInPeriodNaReason"] = 0;
         Assert.False(ValidationSummaryShapeValidator.IsValid(numericReason.ToJsonString()));
-        // 較早版本的結果沒有原因欄，傳票核准日沒有配對時也寫 0，必須重新驗證。
+        // 沒有原因欄、筆數寫 0 的結果不能當成目前的結果，必須重新驗證。
         var withoutReason = complete.DeepClone().AsObject();
         withoutReason["blankRecordsTest"]!.AsObject().Remove("approvalDateNotInPeriodNaReason");
         withoutReason["blankRecordsTest"]!["approvalDateNotInPeriodCount"] = 0;

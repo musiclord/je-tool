@@ -1,13 +1,13 @@
 'use strict';
-// 情境 7：第四步執行資料驗證並解讀結果；情境 8：完整性不符時能做什麼，以及執行預篩選；
-// 情境 9：第四步科目分類與科目配對。
+// 第四步執行資料驗證並解讀結果；完整性不符時能做什麼，以及執行預篩選；
+// 第四步科目分類與科目配對。
 //
 // 審計員的操作：
-//   情境 7　按「執行驗證」並回應合成結果；看 GL 分錄數、三項測試的說明、總帳日期空白的來源檔與列號並換頁；
+//   資料驗證：按「執行驗證」並回應合成結果；看 GL 分錄數、三項測試的說明、總帳日期空白的來源檔與列號並換頁；
 //           在右側資料預覽打開 GL(未納入測試) 看原因；展開資料可靠性測試的抽樣明細，看攸關資料元素的金額欄。
-//   情境 8　沒有驗證結果、舊驗證結果沒有判定、後端判定不可繼續、可繼續但沒有預篩選結果時，看預篩選卡、左側第五步與頁尾；
+//   完整性不符與預篩選：沒有驗證結果、舊驗證結果沒有判定、後端判定不可繼續、可繼續但沒有預篩選結果時，看預篩選卡、左側第五步與頁尾；
 //           按鈕狀態沒更新時硬按預篩選；執行預篩選並看結果的排列；展開兩項彙總與資料缺漏輔助檢視的明細後，重跑預篩選或驗證。
-//   情境 9　打開分類設定，新增與改名分類，名稱空白或重複，儲存失敗後重試成功；移除只被情境用到的分類；看內建分類；
+//   科目分類與科目配對：打開分類設定，新增與改名分類，名稱空白或重複，儲存失敗後重試成功；移除只被情境用到的分類；看內建分類；
 //           驗證時建立科目配對範本失敗，在「在 JET 配對」分頁看到原因並到 Excel 分頁重試；在 Excel 分頁按「預覽」。
 //
 // 夾具：本檔的 step4Fixture。用 support/frontend-fixtures.cjs 的假 DOM 與記錄請求的 JetApi，
@@ -17,7 +17,7 @@
 //
 // 前面的測試不斷言這些訊息面板的句子：驗證完成、預篩選完成、預篩選尚無法執行、科目分類已更新、操作失敗與尚無法執行的句子；
 // 它們在本檔最後核對。後端原因一律用合成字串，只確認原樣顯示。
-// 逐字比對的只有已定案的畫面用字；其他文字只比對意思。
+// 斷言依案例逐字核對或比對意思。
 // 斷言的失敗值一律不是假 DOM 節點（節點只用 === 轉成布林）；預期值一律寫死；action payload 用 deepEqual 精確比對，並確認沒有 `__` 鍵。
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -217,7 +217,7 @@ test('on a laptop the finished steps above the current one fold into one row tha
 // WebView2 維護無障礙樹時，掛著 ::before 或 ::after 的元素一改樣式，就把底下整棵子樹重送一遍；
 // 目前步驟那一列包著整個工作面，掛虛擬元素會讓捲動頓一下。所以流程軸線與目前步驟的藍色圓環是每一列裡
 // aria-hidden 的空元素：軸線是第一個子元素、圓環是最後一個，疊放順序和 ::before、::after 相同。
-// app.css 不在大型版面容器掛虛擬元素，由 DesignIntegrationFrontendTests 檢查。
+// app.css 不在大型版面容器掛虛擬元素，由 AppearanceFrontendTests 檢查。
 test('each flow row draws its rail and the current ring as hidden empty children', async () => {
   const f = await openStep4({ laptop: true });
   const classes = node => (node.getAttribute('class') || '').split(/\s+/);
@@ -355,7 +355,7 @@ async function runValidation(f, data, templateOutcome = { resolve: { disposition
   return template;
 }
 
-// ---- 情境 7：執行資料驗證並解讀結果 ----
+// ---- 執行資料驗證並解讀結果 ----
 
 test('running validation shows the backend GL entry count, no population summary, and the three test descriptions in their fixed wording', async () => {
   const f = await openStep4();
@@ -375,12 +375,12 @@ test('running validation shows the backend GL entry count, no population summary
   assert.ok(f.$('[data-action="preview-excluded-entries"]') === null, 'no excluded-entries shortcut');
   assert.equal(f.body().textContent.includes('檢視 GL(未納入測試)'), false);
 
-  // 三項測試的說明逐字比對。
+  // 核對三項測試的說明。
   // 說明不常駐在標題下方：滑鼠停在標題上時出現，展開後寫在明細最上方。這裡讀標題的提示。
   // 資料可靠性測試的說明寫出先後順序，只是說明，畫面不因此擋下。
   assert.equal(f.$$('.rule-item__desc').length, 0, 'no description is kept under the titles');
   const desc = title => { const item = ruleItem(f, title); assert.ok(item !== null, title + ' listed'); return item.querySelector('.rule-item__title').getAttribute('title'); };
-  // 完整性測試的說明只核對資訊：比對 GL 與 TB 年度變動金額；裁定過的判讀句逐字核對。JET 自己的寫入核對不寫在說明裡。
+  // 完整性測試的說明只核對資訊：比對 GL 與 TB 年度變動金額；判讀句逐字核對。JET 自己的寫入核對不寫在說明裡。
   const completeness = desc('完整性測試');
   for (const piece of ['GL', 'TB', '年度變動金額', '金額不符時，要確認 GL 分錄是否完整。']) {
     assert.ok(completeness.includes(piece), piece + ' in: ' + completeness);
@@ -393,7 +393,7 @@ test('running validation shows the backend GL entry count, no population summary
   // 說明只比對意思：寫出這些分錄沒有納入本次測試。
   const blank = desc('總帳日期空白');
   assert.match(blank, /未納入/);
-  // 說明裡沒有報表沿革。
+  // 說明只寫這一項在檢查什麼，不寫它在各份報告裡的名稱與發布方式。
   assert.equal(f.body().textContent.includes('ValidationReport 與 INF 報表中稱為'), false);
   assert.equal(f.body().textContent.includes('INF Report 只會發布'), false);
   // 驗證後按鈕改成重新執行；報告清單列出兩份報告（INF 的名稱由報告清單共用的對照顯示，只比對意思：含「抽樣」）。
@@ -457,8 +457,8 @@ test('with no blank GL dates the item reads as nothing found and has no detail t
   assert.ok(item.querySelector('.rule-detail') === null, 'no detail table');
 });
 
-// GL(未納入測試) 的日期不符分成「總帳日期空白」「早於查核期間」「晚於查核期間」三種原因並各自計數，
-// 資料預覽可以只看其中一種。連同過帳狀態不符，這個測試核對四種原因、四個計數與依原因篩選。
+// GL(未納入測試) 的日期不符分成「總帳日期空白」「總帳日期無法辨識」「早於查核期間」「晚於查核期間」四種原因並各自計數，
+// 資料預覽可以只看其中一種。連同過帳狀態不符，這個測試核對五種原因、五個計數與依原因篩選。
 test('entries left out of the test are their own preview dataset, each reason has its own count, and one reason can be viewed alone', async () => {
   const f = await openStep4({ validation: validationResult() });
   const aside = f.dom.content.querySelector('[data-bind="data-preview"]');
@@ -561,11 +561,11 @@ test('the sampled entries table takes its columns from the backend and reads RDE
   assert.deepEqual(panel.querySelectorAll('tbody tr')[0].querySelectorAll('td').map(td => td.textContent), ['JV-31', '1,234.50']);
 });
 
-// ---- 情境 8：完整性不符時能做什麼，以及執行預篩選 ----
+// ---- 完整性不符時能做什麼，以及執行預篩選 ----
 
 test('before any validation the prescreen card, the fifth step and the footer ask to run validation first; an old summary asks to run it again', async () => {
   // 從未驗證時請審計員先執行資料驗證，不寫「重新」；舊的驗證結果才請重新執行。
-  // 這幾句沒有逐字定案，所以只比對「先執行」與「重新執行」的差別。
+  // 這幾句只比對「先執行」與「重新執行」的差別。
   const never = await openStep4();
   assert.equal(never.$('[data-action="run-prescreen"]').disabled, true);
   const neverGate = never.text('.rule-card--prescreen .rule-card__gate');
@@ -848,7 +848,7 @@ test('validate-step.js names itself the fourth step and the next-step paragraph 
   assert.doesNotMatch(readWwwroot('css/app.css'), /rule-detail__remedy/);
 });
 
-// ---- 情境 9：科目分類與科目配對 ----
+// ---- 科目分類與科目配對 ----
 
 const CATEGORY_WITH_BANK = { revision: 2, categories: [
   { categoryId: 'builtin.cash', label: 'Cash', ordinal: 0, semanticRole: 'cash', isBuiltIn: true },
@@ -1361,7 +1361,6 @@ test('messages: a finished validation leaves one short completion line, and blan
   assert.equal(done.length, 1, 'one completion line');
   assert.match(done[0].text, new RegExp('^資料驗證完成，' + ELAPSED + '。$'));
   assert.equal(done[0].level, 'info');
-  // 這句的用字已定案。
   assert.ok(messages.some(m => m.text === '已在案件資料夾產生驗證階段的 2 份報告。' && m.level === 'info'), 'the report line');
   // 訊息裡沒有合計的說法，也不逐欄串成「欄位異常」。
   assert.ok(!messages.some(m => /異常項次合計|空值項目合計|獨立計數|欄位異常/.test(m.text)), 'no combined count wording');
@@ -1389,7 +1388,7 @@ test('messages: the prescreen says it cannot run yet with the reason, from the b
   f.click('[data-action="run-prescreen"]');
   f.request('prescreenRun').reject({ code: 'completeness_prerequisite_failed', message: '合成：後端判定完整性前提不足。' });
   await flush();
-  // 作業名稱沒有定案，只確認提到預篩選；句型和上一則相同。
+  // 作業名稱只確認提到預篩選；句型和上一則相同。
   const blocked = messageList(f)[0];
   assert.match(blocked.text, /^[^：]*預篩選[^：]*尚無法執行：合成：後端判定完整性前提不足。$/);
   assert.equal(blocked.level, 'warn');
@@ -1418,7 +1417,7 @@ test('messages: saving categories logs the count and that the prescreen must run
   f.click('[data-action="save-category"]');
   f.request('accountCategorySave').reject({ code: 'synthetic_failure', message: '合成：儲存失敗' }); await flush();
   // 失敗句在括號後接句號。
-  // 作業名稱沒有定案，只確認提到分類。
+  // 作業名稱只確認提到分類。
   assert.match(messageList(f)[0].text, new RegExp('^[^：]*分類[^：]*失敗：合成：儲存失敗（' + ELAPSED + '）。$'));
   assert.equal(messageList(f)[0].level, 'error');
   f.click('[data-action="save-category"]');

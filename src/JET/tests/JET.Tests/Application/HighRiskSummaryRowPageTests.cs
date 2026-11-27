@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// query.highRiskSummaryRowPage 驗收。
+/// query.highRiskSummaryRowPage 走訪測試。
 /// 每測試自建 host(filter.commit 改狀態,不可共用唯讀 fixture)。
 ///
 /// 設計技術:狀態轉換(commit 多情境 → 走訪行層矩陣)+ 獨立 recount oracle(以 SQL 重算,
@@ -37,11 +37,11 @@ public sealed class HighRiskSummaryRowPageTests
                 new {
                     name = "廣域金額", rationale = "命中情境",
                     groups = new[] { new { join = "and", conditions = new object[] {
-                        new { join = "and", type = "numRange", field = "amount", from = "0" } } } } },
+                        new { join = "and", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "0", amountBasis = "absolute" } } } } },
                 new {
                     name = "天價(打不中)", rationale = "0 命中情境",
                     groups = new[] { new { join = "and", conditions = new object[] {
-                        new { join = "and", type = "numRange", field = "amount", from = "999999999999" } } } } }
+                        new { join = "and", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "999999999999", amountBasis = "absolute" } } } } }
             }
         });
 

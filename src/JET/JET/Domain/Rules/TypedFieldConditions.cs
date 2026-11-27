@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// typed 條件（wire 上是 <c>type:"typed"</c>）能用的 operator，只有這裡列出的這些。
-/// operator 名稱要和這裡的拼法逐字相同（Ordinal 比對）。哪一種 RDE 欄位型別能用哪些 operator，只看這裡各型別的清單。
+/// 欄位值條件共用的幾個比較方式代號，以及判斷比較方式要帶哪一種比較值的規則。
+/// 各欄位種類能用哪些比較方式見 <see cref="FieldValueConditions.Operators"/>；代號比對區分大小寫。
 /// </summary>
 public static class TypedFieldOperatorSets
 {
@@ -12,29 +12,6 @@ public static class TypedFieldOperatorSets
     public const string In = "in";
     public const string NotIn = "notIn";
 
-    public static readonly IReadOnlyList<string> Text =
-        ["equals", "notEquals", "contains", "notContains", In, NotIn, IsBlank, IsNotBlank];
-
-    public static readonly IReadOnlyList<string> Date =
-        ["on", "before", "onOrBefore", "after", "onOrAfter", Between, IsBlank, IsNotBlank];
-
-    public static readonly IReadOnlyList<string> Amount =
-        ["equals", "notEquals", "greaterThan", "greaterThanOrEqual",
-         "lessThan", "lessThanOrEqual", Between, IsBlank, IsNotBlank];
-
-    /// <summary>三型別 operator token 的封閉聯集（解析層 closed-token 檢查用）。</summary>
-    public static readonly IReadOnlySet<string> All =
-        Text.Concat(Date).Concat(Amount).ToHashSet(StringComparer.Ordinal);
-
-    /// <summary>依 RDE 欄位的值型別回傳可用的 operator；不認得的型別回空集合，等於什麼 operator 都不能用。</summary>
-    public static IReadOnlyList<string> ForValueType(string? valueType) => valueType switch
-    {
-        RdeFieldValueTypeNames.Text => Text,
-        RdeFieldValueTypeNames.Date => Date,
-        RdeFieldValueTypeNames.Amount => Amount,
-        _ => []
-    };
-
     public static bool IsBlankFamily(string op) => op is IsBlank or IsNotBlank;
 
     public static bool IsBetweenOperator(string op) => op is Between;
@@ -42,7 +19,7 @@ public static class TypedFieldOperatorSets
     public static bool IsSetOperator(string op) => op is In or NotIn;
 }
 
-/// <summary>金額型別的 typed 條件一定要填 <c>amountBasis</c>，值只能是這裡的兩個。</summary>
+/// <summary>金額欄位的欄位值條件一定要填 <c>amountBasis</c>，值只能是這裡的兩個。</summary>
 public static class TypedAmountBasisNames
 {
     public const string Signed = "signed";
@@ -52,11 +29,11 @@ public static class TypedAmountBasisNames
 }
 
 /// <summary>
-/// typed 條件比較值的正規化規則只寫在這裡。Domain 的檢查與 AuditCore 組 SQL 都用它，兩邊才不會各算各的。
-/// 文字：去掉頭尾空白、不分大小寫，和 TextMatch 這類條件在 SQL 用的 UPPER(TRIM(...)) 相同；正規化後不能是空字串。
+/// 欄位值條件比較值的正規化規則只寫在這裡。Domain 的檢查與 AuditCore 組 SQL 都用它，兩邊才不會各算各的。
+/// 文字：去掉頭尾空白、不分大小寫，和 SQL 那一側用的 UPPER(TRIM(...)) 相同；正規化後不能是空字串。
 /// 日期：依案件的日期選項，用 GL 同一個 <see cref="DateNormalizer"/> 解析。
 /// 金額：用 <see cref="MoneyScaling"/> 以 invariant culture 解析成 decimal，再依案件的 MoneyScale 放大成整數；
-/// numRange 條件的比較值、GL 投影時 RDE 金額的轉換，用的是同一套解析。
+/// GL 投影時攸關資料元素金額的轉換，用的是同一套解析。
 /// </summary>
 internal static class TypedFieldOperandRules
 {

@@ -191,7 +191,7 @@ public sealed class CriteriaSelectionReportDetailReadTests(ITestOutputHelper tes
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             new LocalPrescreenPageRepository(database),

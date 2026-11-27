@@ -6,8 +6,8 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 篩選結果分頁的游標多包一層，做法和傳票預覽相同：外層記這次查詢的識別碼 QueryRevision，內層 Key 是原本接續下一頁用的游標，
-/// 內層游標與 SQL 都不變。QueryRevision 由案件、action、情境位置、資料版本、情境版本、排序與搜尋文字算出；
+/// 篩選結果分頁的游標外面多包一層，做法和傳票預覽相同：外層記這次查詢的識別碼 QueryRevision，內層 Key 是接續下一頁用的游標，
+/// SQL 只用內層游標。QueryRevision 由案件、action、情境位置、資料版本、情境版本、排序與搜尋文字算出；
 /// 換頁時只要其中一項不同就回 stale_result，新舊頁面不會混在一起。
 /// </summary>
 internal sealed record FilterResultQuerySnapshot(

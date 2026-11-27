@@ -334,8 +334,8 @@ public sealed class FieldInfoPersistenceTests
     }
 
     /// <summary>
-    /// 任何企圖以第二遍來源列掃描計算欄位定義的實作都會直接失敗；
-    /// 正確實作須在 staging writer 原本的 await foreach 中同步彙總 observation。
+    /// 來源列只能列舉一次，第二次列舉就丟出例外；欄位定義要在 staging writer 寫入來源列的
+    /// 同一個 await foreach 裡一起彙總 observation。
     /// </summary>
     private sealed class ThrowOnSecondEnumerationRows(IReadOnlyList<StagingRow> rows)
         : IAsyncEnumerable<StagingRow>

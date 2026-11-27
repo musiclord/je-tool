@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 「一條規則一個定義」：規則的身分只登錄一份、述詞每條只有一個方法、
-/// 第四步與第五步三個入口都從同一張對應表取述詞，前端只留一份鏡像。這裡讀原始碼確認各處不各自列規則；
+/// 第四步與第五步三個入口都從同一張對應表取述詞，前端只有一份鏡像。這裡讀原始碼確認各處不各自列規則；
 /// 行為由 PrescreenRuleFixedAnswerTests 的固定答案鎖住。
 /// </summary>
 public sealed class PrescreenRuleRegistryTests
@@ -68,7 +68,7 @@ public sealed class PrescreenRuleRegistryTests
         var values = ReadProduct("AuditCore", "GlRulePredicates.Values.cs");
         var frequency = ReadProduct("AuditCore", "GlRulePredicates.Frequency.cs");
 
-        // 尾零併入尾數樣態；較少使用人員與較少使用科目由統計條件同一個方法產生；自訂關鍵字與摘要特定描述共用同一個包含比對。
+        // 尾零屬於尾數樣態，沒有自己的方法；較少使用人員與較少使用科目由統計條件的同一個方法產生；自訂關鍵字與摘要特定描述共用同一個包含比對。
         Assert.DoesNotContain("string TrailingZeros(", predicates, StringComparison.Ordinal);
         Assert.DoesNotContain("string RarePreparer(", predicates, StringComparison.Ordinal);
         Assert.DoesNotContain("string RareAccount(", predicates, StringComparison.Ordinal);
@@ -100,20 +100,16 @@ public sealed class PrescreenRuleRegistryTests
         Assert.DoesNotContain("PrescreenRuleKeys.PrepPeriodApproval =>", compilation, StringComparison.Ordinal);
         Assert.Contains("PrescreenRulePredicates", compilation, StringComparison.Ordinal);
 
-        // 只檢查本機倉儲。
-        var local = ReadProduct("Infrastructure", "Persistence", "Local", "LocalPrescreenRunRepository.cs");
-        foreach (var repository in new[] { local })
+        var repository = ReadProduct("Infrastructure", "Persistence", "Local", "LocalPrescreenRunRepository.cs");
+        Assert.Contains("PrescreenRulePredicates", repository, StringComparison.Ordinal);
+        foreach (var call in new[]
         {
-            Assert.Contains("PrescreenRulePredicates", repository, StringComparison.Ordinal);
-            foreach (var call in new[]
-            {
-                "Predicates.PrepPeriodApproval(", "Predicates.SuspiciousKeywords(", "Predicates.UnexpectedAccountPair(",
-                "Predicates.TrailingZeros(", "Predicates.Weekend(", "Predicates.Holiday(", "Predicates.BlankDescription(",
-                "Predicates.NonAuthorizedPreparer(", "Predicates.RarePreparer(", "Predicates.RareAccount("
-            })
-            {
-                Assert.DoesNotContain(call, repository, StringComparison.Ordinal);
-            }
+            "Predicates.PrepPeriodApproval(", "Predicates.SuspiciousKeywords(", "Predicates.UnexpectedAccountPair(",
+            "Predicates.TrailingZeros(", "Predicates.Weekend(", "Predicates.Holiday(", "Predicates.BlankDescription(",
+            "Predicates.NonAuthorizedPreparer(", "Predicates.RarePreparer(", "Predicates.RareAccount("
+        })
+        {
+            Assert.DoesNotContain(call, repository, StringComparison.Ordinal);
         }
     }
 

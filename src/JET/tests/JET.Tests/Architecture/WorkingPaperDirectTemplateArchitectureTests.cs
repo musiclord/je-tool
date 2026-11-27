@@ -60,48 +60,45 @@ public sealed class WorkingPaperDirectTemplateArchitectureTests
     }
 
     [Fact]
-    public void FinalizedStep41_UsesPreparedSessionAndCannotReachTypedPaging()
+    public void FinalizedHighRiskVoucherDetail_UsesPreparedSession()
     {
         var root = typeof(WorkingPaperWriter).GetMethod(
-            "EmitStep41Async",
+            "EmitHighRiskVoucherDetailAsync",
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException(
                 "Finalized WorkingPaper Step4-1 emitter is missing.");
         var reachable = ReadReachableProductionCalls(root).ToArray();
 
         Assert.Contains(reachable, method =>
-            method.DeclaringType == typeof(IWorkingPaperStep41PreparedSessionFactory)
-            && method.Name == nameof(IWorkingPaperStep41PreparedSessionFactory.PrepareAsync));
+            method.DeclaringType == typeof(IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)
+            && method.Name == nameof(IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory.PrepareAsync));
         Assert.Contains(reachable, method =>
-            method.DeclaringType == typeof(IWorkingPaperStep41PreparedSession)
-            && method.Name == nameof(IWorkingPaperStep41PreparedSession.ReadRowsAsync));
-        Assert.DoesNotContain(reachable, method =>
-            method.DeclaringType == typeof(IWorkingPaperStep41PageRepository)
-            && method.Name == nameof(IWorkingPaperStep41PageRepository.GetPageAsync));
+            method.DeclaringType == typeof(IWorkingPaperHighRiskVoucherDetailPreparedSession)
+            && method.Name == nameof(IWorkingPaperHighRiskVoucherDetailPreparedSession.ReadRowsAsync));
     }
 
     [Fact]
-    public void FinalizedStep41_RdeProjectionRunsAfterPreparedSessionScope()
+    public void FinalizedHighRiskVoucherDetail_RdeProjectionRunsAfterPreparedSessionScope()
     {
         var source = File.ReadAllText(Path.Combine(
             JetRoot(),
             "JET",
             "Infrastructure",
             "Export",
-            "WorkingPaperWriter.Step2To41.cs"));
+            "WorkingPaperWriter.InfSamplingAndHighRisk.cs"));
         var start = source.IndexOf(
-            "private async Task EmitStep41Async(",
+            "private async Task EmitHighRiskVoucherDetailAsync(",
             StringComparison.Ordinal);
         Assert.True(start >= 0, "Finalized WorkingPaper Step4-1 emitter is missing.");
         var end = source.IndexOf(
-            "private static SheetWriter CreateStep41Page(",
+            "private static SheetWriter CreateHighRiskVoucherDetailPage(",
             start,
             StringComparison.Ordinal);
         Assert.True(end > start, "Finalized WorkingPaper Step4-1 emitter boundary is missing.");
         var emitter = source[start..end];
 
         var preparedScope = emitter.IndexOf(
-            "await using (var prepared = await step41PreparedSessions.PrepareAsync(",
+            "await using (var prepared = await highRiskVoucherDetailPreparedSessions.PrepareAsync(",
             StringComparison.Ordinal);
         var sourceReplay = emitter.IndexOf(
             "if (sourceSpool is not null)",
@@ -113,7 +110,7 @@ public sealed class WorkingPaperDirectTemplateArchitectureTests
         Assert.True(preparedScope >= 0, "Step4-1 prepared session scope is missing.");
         Assert.True(sourceReplay > preparedScope, "RDE source replay must follow prepared setup.");
         Assert.True(rdeRead > sourceReplay, "RDE reads must start only after prepared disposal.");
-        Assert.Contains("Step41SourceSpool.Create()", emitter, StringComparison.Ordinal);
+        Assert.Contains("HighRiskVoucherDetailSourceSpool.Create()", emitter, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "ReadWorkingPaperRdeValuesAsync(",
             emitter[preparedScope..sourceReplay],
@@ -121,16 +118,16 @@ public sealed class WorkingPaperDirectTemplateArchitectureTests
     }
 
     [Fact]
-    public void FinalizedStep4_UsesSingleVoucherStreamAndCannotReachPublicPaging()
+    public void FinalizedHighRiskVoucher_UsesSingleVoucherStreamAndCannotReachPublicPaging()
     {
         var source = File.ReadAllText(Path.Combine(
             JetRoot(),
             "JET",
             "Infrastructure",
             "Export",
-            "WorkingPaperWriter.Step2To41.cs"));
+            "WorkingPaperWriter.InfSamplingAndHighRisk.cs"));
         var start = source.IndexOf(
-            "private async IAsyncEnumerable<TaggedVoucherRow> StreamStep4VoucherRowsAsync(",
+            "private async IAsyncEnumerable<TaggedVoucherRow> StreamHighRiskVoucherRowsAsync(",
             StringComparison.Ordinal);
         Assert.True(start >= 0, "Finalized WorkingPaper Step4 stream adapter is missing.");
         // 終點是緊接在後的下一個宣告。
@@ -141,7 +138,7 @@ public sealed class WorkingPaperDirectTemplateArchitectureTests
         Assert.True(end > start, "Finalized WorkingPaper Step4 stream adapter boundary is missing.");
         var adapter = source[start..end];
 
-        Assert.Contains("step4Vouchers.StreamAsync(", adapter, StringComparison.Ordinal);
+        Assert.Contains("highRiskVouchers.StreamAsync(", adapter, StringComparison.Ordinal);
         Assert.DoesNotContain("GetPageAsync(", adapter, StringComparison.Ordinal);
     }
 

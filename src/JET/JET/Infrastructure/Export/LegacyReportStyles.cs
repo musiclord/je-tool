@@ -7,8 +7,8 @@ namespace JET.Infrastructure;
 /// <summary>照舊版 JET 版型寫出的六份報告共用的樣式表。樣式全部由這裡的程式建立，不從別的活頁簿複製中繼資料、圖片或外部關聯。</summary>
 internal static class LegacyReportStyles
 {
-    // cellXfs 0 到 14 是 JET 報告原有的樣式。照舊版 JET 外觀補上的樣式只能加在後面，
-    // 這樣每個既有的寫出程式用到的索引都不會變。
+    // cellXfs 0 到 14 是 JET 報告的基本樣式，15 號以後是照舊版 JET 外觀的樣式；新的樣式只能加在最後，
+    // 其他寫出程式用到的索引才不會變。
     public const uint Default = 0;
     public const uint Title = 1;
     public const uint Section = 2;
@@ -58,8 +58,8 @@ internal static class LegacyReportStyles
     /// </summary>
     public const uint LegacyVersionBanner = 20;
 
-    // IDEA ExportDatabase 頁面使用的樣式。只能往後追加：既有 0 到 20 號索引
-    // 已被範本套版與外觀比對腳本使用，改動會讓既有輸出外觀跑掉。
+    // IDEA ExportDatabase 頁面使用的樣式。只能往後追加：0 到 20 號索引
+    // 已被範本套版使用，改動會讓輸出外觀跑掉。
     public const uint ExportDatabaseGeneral = 21;
     public const uint ExportDatabaseText = 22;
     public const uint ExportDatabaseDate = 23;

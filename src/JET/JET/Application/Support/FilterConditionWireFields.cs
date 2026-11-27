@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace JET.Application;
 
 /// <summary>
-/// 已存條件的格式只在這裡決定：後端儲存時只保留該條件類型用得到的欄位，已存的舊情境在下次儲存時整理，
-/// 前端送出的格式不變。
+/// 已存條件的格式只在這裡決定：後端儲存時只保留該條件類型用得到的欄位，其他已存情境在下一次儲存時才整理；
+/// 前端送出的格式不受影響。
 /// 儲存一個情境時，每一條條件只保留 type、join 和下表列出的屬性；情境層與條件組層原樣保留。
 /// </summary>
 internal static class FilterConditionWireFields
@@ -19,10 +19,6 @@ internal static class FilterConditionWireFields
             ["group"] = ["conditions"],
             ["voucher"] = ["conditions", "quantifier", "side"],
             ["prescreen"] = ["prescreenKey"],
-            ["text"] = ["field", "keywords", "mode"],
-            ["textSet"] = ["field", "values", "mode", "normalization"],
-            ["dateRange"] = ["field", "from", "to"],
-            ["numRange"] = ["field", "from", "to"],
             ["drCrOnly"] = ["drCr"],
             ["manualAuto"] = ["isManual"],
             ["accountPair"] = ["pairMode", "debitCategoryIds", "creditCategoryIds", "categorySelection"],
@@ -32,7 +28,6 @@ internal static class FilterConditionWireFields
             ["revenueWithoutNormalCounterpart"] = [],
             ["manualRevenueEntry"] = [],
             ["preparerEqualsApprover"] = [],
-            ["typed"] = ["fieldId", "operator", "value", "from", "to", "values", "amountBasis"],
             ["fieldValue"] = ["field", "fieldId", "operator", "value", "from", "to", "values", "amountBasis", "includeBlank", "drCr"],
             ["accountSide"] = ["categoryMode", "categoryIds", "categorySelection", "drCr"]
         };

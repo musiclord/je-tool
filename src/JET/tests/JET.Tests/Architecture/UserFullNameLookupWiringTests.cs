@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 使用者全名只在正式環境向 Windows 查。產品程式只有組裝 runtime 的地方啟動查詢，而且只在沒有注入身分時啟動；
-/// 測試與驗證工具組裝 runtime 時一律注入合成身分，所以不讀這台電腦的 Windows 帳號，真實姓名不會寫進測試案件與報告。
+/// 測試組裝 runtime 時一律注入合成身分，所以不讀這台電腦的 Windows 帳號，真實姓名不會寫進測試案件與報告。
 /// 正式環境那一支會查真實帳號，不能用建案的測試核對，所以這裡讀原始碼核對接線。
 /// </summary>
 public sealed partial class UserFullNameLookupWiringTests

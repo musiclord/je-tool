@@ -35,9 +35,6 @@ public sealed partial class MessageLogWriteScopeTests
         Assert.False(ActionExecutionPolicy.IsExclusive("log.append"));
     }
 
-    /// <remarks>
-    /// 期望清單只有本機的實作。
-    /// </remarks>
     [Fact]
     public void MessageLogStoreImplementations_AreExactlyTheGuardedLeaves()
     {

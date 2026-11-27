@@ -8,7 +8,7 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-/// <summary>不依賴 Office 的讀取邊界測試；實際 ACE 相容性另由 NativeAccessImportAcceptance 驗證。</summary>
+/// <summary>不依賴 Office 的 Access 讀取邊界測試。</summary>
 public sealed class AccessTableReaderTests
 {
     [Theory]
@@ -65,7 +65,7 @@ public sealed class AccessTableReaderTests
     public async Task Rows_TrimTextLikeTheOtherReaders_AndTreatWhitespaceOnlyAsBlank()
     {
         using var data = Data();
-        data.Rows.Add(" 001　", 1m, new DateTime(2025, 3, 1), true, " 合成摘要	");
+        data.Rows.Add(" 001　", 1m, new DateTime(2025, 3, 1), true, "\u00A0合成摘要\t");
         data.Rows.Add("	002 ", 2m, new DateTime(2025, 3, 2), false, "   ");
         var rows = await CollectAsync(Reader(new SourceConnection(data)));
 

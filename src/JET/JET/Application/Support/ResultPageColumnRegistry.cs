@@ -79,8 +79,7 @@ internal static class ResultPageColumnRegistry
         }
 
         foreach (var rule in spec.Groups.SelectMany(static group => group.Conditions).SelectMany(rule => rule.DescendantsAndSelf())
-                     .Where(static rule => rule.Type == FilterConditionType.TypedField
-                         || rule.Type == FilterConditionType.FieldValue && rule.FieldId is not null))
+                     .Where(static rule => rule.Type == FilterConditionType.FieldValue && rule.FieldId is not null))
         {
             if (rule.FieldId is null || !byFieldId.TryGetValue(rule.FieldId, out var field))
             {
@@ -88,8 +87,7 @@ internal static class ResultPageColumnRegistry
             }
 
             if (rule.TypedOperator is null
-                || !(rule.Type == FilterConditionType.FieldValue ? FieldValueConditions.Operators(field.ValueType) : TypedFieldOperatorSets.ForValueType(field.ValueType))
-                    .Contains(rule.TypedOperator, StringComparer.Ordinal))
+                || !FieldValueConditions.Operators(field.ValueType).Contains(rule.TypedOperator, StringComparer.Ordinal))
             {
                 throw Stale("篩選情境用到的攸關資料元素欄位，目前的設定已不適用原本的比較方式。請到第五步重新選擇比較方式後儲存情境。");
             }
@@ -136,7 +134,7 @@ internal static class ResultPageColumnRegistry
 }
 
 /// <summary>
-/// 把資料庫讀回的攸關資料元素欄位值轉成回應裡的值，不分資料庫種類：文字照原樣，日期是 yyyy-MM-dd 字串，金額換算回小數。
+/// 把資料庫讀回的攸關資料元素欄位值轉成回應裡的值：文字照原樣，日期是 yyyy-MM-dd 字串，金額換算回小數。
 /// 先拿已確認配對裡全部的 RDE 欄位檢查每一個讀回的值，有不符的就回 stale_result；再只留這個 action 要顯示的欄位。
 /// 每一筆分錄的結果都帶齊這些欄位的鍵，沒有值的填 null。
 /// </summary>

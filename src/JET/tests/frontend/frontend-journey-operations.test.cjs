@@ -1,8 +1,8 @@
 'use strict';
-// 情境 22：長作業、忙碌中再按與取消；情境 23：訊息面板「複製紀錄」。
+// 長作業、忙碌中再按與取消，以及訊息面板「複製紀錄」的情境測試。
 //
 // 審計員的操作：
-//   情境 22　按「執行驗證」與「執行預篩選」看忙碌畫面的經過時間與提示，匯入時沒有那句提示；忙碌中又按了別的按鈕；
+//   長作業：按「執行驗證」與「執行預篩選」看忙碌畫面的經過時間與提示，匯入時沒有那句提示；忙碌中又按了別的按鈕；
 //           開案時按「取消作業」；產生工作底稿途中取消，取消成功、動作剛好做完與取消失敗；
 //           長作業成功與失敗後在訊息面板看到的句子；後端錯誤沒有附原因。另外直接用 Ui.run 走過「完成後重新整理」的規則。
 //           開案載入完成、還在讀訊息紀錄時看取消鈕；按下取消時動作剛好做完；選授權編製人員清單時連續兩個可以取消的請求。
@@ -14,18 +14,18 @@
 //           開發者面板換頁，確認配對；這些都沒有開始，畫面和按下前一樣。
 //           勾選每週休息日後沒有存進去：送出後被取消、後端回覆另一項作業還在進行、後端回覆失敗，
 //           以及步驟上方還留著失敗提示時再勾選並取消；勾選都回到已存的設定。
-//   情境 23有案件時按「複製紀錄」；剪貼簿拒絕；複製途中換成同名的另一個案件；沒有開啟案件時按。
+//   複製紀錄：有案件時按「複製紀錄」；剪貼簿拒絕；複製途中換成同名的另一個案件；沒有開啟案件時按。
 //
 // 夾具：
-//   情境 22 用支援模組的 fullAppFixture（經 bootFullApp 開啟，本檔叫 boot）：整個 index.html 的 body 標記與它列出的全部前端腳本（不含 ECharts 函式庫），
+//   長作業的測試用支援模組的 fullAppFixture（經 bootFullApp 開啟，本檔叫 boot）：整個 index.html 的 body 標記與它列出的全部前端腳本（不含 ECharts 函式庫），
 //   正式的 jet-api.js 經假的 chrome.webview 收發，app.js 照瀏覽器在 DOMContentLoaded 執行正式的 init()。
 //   所以忙碌畫面的作業名稱由 jet-api.js 真的送出請求時的 onRequestStarted 事件帶入，不改 app.js 的內部變數。
 //   不用 remapAppFixture：它在 app.js 外面放了一個自己的 busyActiveAction，忙碌畫面讀不到。
-//   情境 23 用支援模組裡為這個情境準備的 messagePanelFixture。
+//   複製紀錄的測試用支援模組裡為它準備的 messagePanelFixture。
 //
-// 逐字比對的只有用字已定案的句子，其他文字只比對意思。預期值一律寫死；action payload 用 deepEqual 精確比對；斷言的失敗值不是假 DOM 節點。
-// 產品裡的作業名稱（Ui.run 的 label）多數的用字沒有定案，放在已定案的句型裡時只比對意思；測試自己傳入的合成作業名稱照樣逐字。
-// 每個測試都有 30 秒上限：改壞檢查時若有請求永遠等不到回應，測試直接失敗，不會拖到改壞工具的時間上限。
+// 斷言依案例逐字核對或比對意思。預期值使用固定文字，action payload 用 deepEqual 精確比對。
+// 產品裡的作業名稱只比對意思，測試自己傳入的合成作業名稱逐字核對。
+// 每個測試都有 30 秒上限：有請求永遠等不到回應時，測試直接失敗，不會一直等下去。
 // 「忙碌中再按」的測試也不等待被擋下的作業，只確認它立刻結束。
 const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
@@ -63,7 +63,7 @@ function validationData(resultId = 'v-operations') {
   };
 }
 
-// ---- 情境 22：長作業、忙碌中再按與取消 ----
+// ---- 長作業、忙碌中再按與取消 ----
 
 test('validation and the prescreen show a monotonic elapsed time and the long-operation guidance, an import shows no guidance, and everything clears afterwards', async () => {
   const f = await openCaseAtValidation();
@@ -108,7 +108,6 @@ test('validation and the prescreen show a monotonic elapsed time and the long-op
   assert.equal(f.overlay.guidance(), '資料量大時需要較長時間，可按「取消作業」中止。');
   f.clock.advance(4200);
   f.reply(prescreen, plain(remapPrescreen('p-operations'))); await flush();
-  // 這句的用字已定案。
   assert.deepEqual(f.messages()[0], { text: '預篩選已更新，耗時 4.2 秒。', level: 'info' });
   assert.equal(f.overlay.guidance(), null);
 
@@ -263,7 +262,6 @@ test('cancelling records the operation and its progress at that moment, a finish
   f.emit('export.progress', { reportKind: 'workingPaper', phase: 'writingSheet', sheetName: '合成表', sheetsCompleted: 1, rowsWritten: 1500, elapsedMilliseconds: 4200 });
   f.click('[data-action="cancel-operation"]');
   f.reply('operation.cancel', { requested: true }); await flush();
-  // 第二句的用字已定案。
   assert.deepEqual(f.messages()[0], {
     text: '已要求取消「產生工作底稿」，當時進度：工作底稿正在寫入「合成表」，已完成 1 張工作表、寫入 1,500 列，經過 4.2 秒。', level: 'info' });
   assert.equal(f.state().busy, true, 'the operation is still settling');
@@ -305,7 +303,7 @@ test('cancelling records the operation and its progress at that moment, a finish
   f.fail(f.request('export.workingPaperStream'), { code: 'operation_cancelled', message: '合成：已取消' }); await done;
 });
 
-// ---- 情境 22：取消鈕對準哪一個請求；取消與「另一項作業還在進行」不算失敗 ----
+// ---- 取消鈕對準哪一個請求；取消與「另一項作業還在進行」不算失敗 ----
 
 // 從案件清單開案到指定的步驟；arrange 用 store 佈置那一步需要的前置狀態。
 async function openCaseAt(stepIndex, arrange) {
@@ -649,7 +647,7 @@ test('the validation reports and the account mapping template are not marked 尚
   noErrorLine(f, 'validation then reports');
 });
 
-// ---- 情境 22：已經有作業在跑時再按一次，這次操作沒有開始，畫面維持原樣 ----
+// ---- 已經有作業在跑時再按一次，這次操作沒有開始，畫面維持原樣 ----
 
 // 讓一項合成作業先佔著整個畫面的作業；回傳的函式讓它結束。
 function holdAnotherOperation(f) {
@@ -657,7 +655,7 @@ function holdAnotherOperation(f) {
   const ping = f.sent('system.ping').at(-1);
   return async () => { f.reply(ping, {}); await held; await flush(); };
 }
-// 這句的用字已定案；作業名稱是測試自己傳入的合成名稱。
+// 作業名稱是測試自己傳入的合成名稱。
 const HELD_STILL_RUNNING = { text: '「合成第一項作業」還在進行，請等它完成後再試。', level: 'info' };
 
 // 第二步打開 GL 的匯入精靈，選一個文字檔，檢視成功後列在待匯入清單。
@@ -1057,7 +1055,7 @@ test('a backend error without a reason is written in Chinese without codes, and 
   assert.deepEqual(plain(f.request('support.log.export').payload), {});
 });
 
-// ---- 情境 23：訊息面板「複製紀錄」 ----
+// ---- 訊息面板「複製紀錄」 ----
 
 // 複製的紀錄寫畫面上的說法（前端不露出系統用詞）：中文欄名、資料庫名稱、三級訊息的名稱，
 // 時間是這台電腦的當地日期與時間到秒；sv-SE 的日期格式正好是 YYYY-MM-DD HH:mm:ss，用來獨立算出預期值。
@@ -1201,7 +1199,7 @@ function filterStepFixture({ saved = [] } = {}) {
 }
 const ELAPSED = /耗時(?: \d+\.\d 秒|不到 0\.1 秒|\d+ 分 \d+ 秒)/.source;
 const panelMessages = f => plain(f.store.getState().messages.map(m => ({ text: m.text, level: m.level })));
-// 已定案的失敗句型，作業名稱只比對意思。
+// 失敗句中的作業名稱只比對意思。
 function assertFailureLine(f, reason, labelMeaning) {
   const line = panelMessages(f)[0];
   const sentence = line.text.match(new RegExp('^(.+)失敗：' + reason + '（' + ELAPSED + '）。$'));

@@ -6,7 +6,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// host.selectFile 契約測試：handler 只委派 host boundary，並回傳路徑與檔名。
-/// IHostShell 依專案測試規範使用手寫 recording stub。
+/// IHostShell 是 host 邊界，用手寫的 recording stub，不用 mock 框架。
 /// </summary>
 public sealed class HostSelectFileHandlerTests
 {

@@ -12,7 +12,7 @@ public sealed record ProjectionResult(
     /// </summary>
     public int TotalErrorCount { get; init; } = Errors.Count;
 
-    /// <summary>完整來源的分組計數與有界樣本；舊呼叫端未提供時仍由 Errors 呈現。</summary>
+    /// <summary>完整來源的分組計數與有界樣本；沒有提供時由 Errors 呈現。</summary>
     internal IReadOnlyList<ProjectionErrorGroupSummary>? ErrorGroups { get; init; }
 
     /// <summary>GL 投影時記下的控制總數，只算納入測試的分錄；TB 投影及失敗結果維持 null。</summary>
@@ -50,7 +50,7 @@ public sealed record GlTotals(
     long GlDebitScaled,
     long GlCreditScaled);
 
-/// <summary>staging → target 投影的非權威進度快照。</summary>
+/// <summary>把 staging 投影到 target 時只供顯示的進度快照。</summary>
 public sealed record ProjectionProgress(long RowsProcessed);
 
 /// <summary>

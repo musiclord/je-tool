@@ -86,7 +86,6 @@ public sealed class MutationInvalidationStateTests
             AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
             AssertFlags(response.GetProperty("staleState"), false, true, false);
             Assert.Equal(JsonValueKind.Null, response.GetProperty("reports").ValueKind);
-            // 這句的用字已定案。
             Assert.Equal("變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。",
                 response.GetProperty("reportWarning").GetString());
         }

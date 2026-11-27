@@ -8,7 +8,7 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class SqliteRepositoryTests
 {
-    // 結果時間讀不出來要請重跑；
+    // 已存結果的產生時間讀不出來時，回報結果過期，請審計員重新執行。
     [Theory]
     [InlineData("validation_result", ResultKind.Validation)]
     [InlineData("prescreen_result", ResultKind.Prescreen)]
@@ -34,7 +34,7 @@ public sealed class SqliteRepositoryTests
         Assert.Contains("重新執行", error.Message);
     }
 
-    // 其餘已存欄位損壞案例的
+    // 已存篩選情境的儲存時間、排列位置或編號讀不出來時，回報資料庫損壞。
     [Theory]
     [InlineData("UPDATE filter_scenario SET saved_utc = 'broken';")]
     [InlineData("UPDATE filter_scenario SET position = 2147483648;")]
@@ -257,7 +257,7 @@ public sealed class SqliteRepositoryTests
     }
 
     [Fact]
-    public async Task MappingStateStore_LegacyV1Row_IsRejectedAsOldProject()
+    public async Task MappingStateStore_RowWithAnEarlierFormatVersion_IsRejectedAsOldProject()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -441,7 +441,7 @@ public sealed class SqliteRepositoryTests
     }
 
     /// <summary>
-    /// 設計不變量 #4:lineItem 未對應時的逐傳票編號必須是冪等的——對同一批次重複投影,
+    /// 設計不變量:lineItem 未對應時的逐傳票編號必須是冪等的——對同一批次重複投影,
     /// 讀回的完整編號序列(依 voucher_number, source_row_number)兩次必須完全相同。
     /// 投影會先 DELETE target 再重建,若編號依賴殘留的 rowid/插入順序而非 source_row_number,
     /// 重投影就會漂移;此測試以「兩次投影後序列字串相等」鎖住冪等性。
@@ -540,7 +540,7 @@ public sealed class SqliteRepositoryTests
             CancellationToken.None);
         Assert.Empty(result.Errors);
 
-        // 前置事實:NULL-doc 列確實落地為 voucher_number IS NULL(schema 允許 NULL;若失敗代表 NOT NULL,需另行回報)。
+        // 前置事實:NULL-doc 列確實寫成 voucher_number IS NULL；schema 不允許 NULL 時這裡就會失敗，下面的編號斷言也就沒有意義。
         Assert.Equal(3, await ScalarAsync(db, projectId,
             "SELECT COUNT(*) FROM gl WHERE voucher_number IS NULL"));
 
@@ -654,7 +654,7 @@ public sealed class SqliteRepositoryTests
 
     /// <summary>
     /// 必填文字欄整欄空白偵測：來源若有兩個同名「摘要」欄且一空一有值，配到空的那欄
-    /// 會讓 blank_description 全列誤命中）。投影成功，但 description 配到的來源欄整欄空 → ProjectionResult
+    /// 會讓 blank_description 全列誤命中。投影成功，但 description 配到的來源欄整欄空 → ProjectionResult
     /// 帶非阻斷警示，指名是哪個必填欄、配到哪個來源欄；有值的必填欄不誤報。
     /// oracle：規格（GlMappedColumnAudit：必填文字欄整欄空白才警示，金額/日期欄不在此）。
     /// </summary>
@@ -763,7 +763,7 @@ public sealed class SqliteRepositoryTests
         var error = Assert.Single(result.Errors);
         Assert.Equal(3, error.SourceRowNumber);
         Assert.Equal("debit", error.Field);
-        Assert.Null(error.SourceLabel); // 單來源批次：錯誤訊息維持與單檔時代一致（無來源前綴）
+        Assert.Null(error.SourceLabel); // 單來源批次的錯誤訊息不加來源前綴。
         Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl"));
     }
 
@@ -818,8 +818,8 @@ public sealed class SqliteRepositoryTests
     }
 
     /// <summary>
-    /// 失效範圍收斂：存入筆數與合計核對的控制總數 gl_control_total 的上游只有 GL，
-    /// 由 GL 投影隨 gl 一起 upsert。TB 投影（及科目配對／行事曆／授權清單匯入）與 GL 無關，
+    /// 控制總數的失效範圍：存入筆數與合計核對的控制總數 gl_control_total 的上游只有 GL，
+    /// 由 GL 投影隨 gl 一起 upsert。TB 投影（以及科目配對、行事曆與授權清單匯入）與 GL 無關，
     /// **不得**把它連帶清掉。否則 GUI 最自然的「先 commit GL、後 commit TB」順序，會讓 GL 投影落地的
     /// 控制總數被 TB commit 清除，存入筆數與合計核對變全 null（控制總數核對形同沒跑）。
     /// 不變量：先投影 GL（寫入 gl_control_total）、再投影 TB，控制總數仍應存活且值不變。
@@ -877,7 +877,7 @@ public sealed class SqliteRepositoryTests
         await tbRepo.ProjectStagingToTargetAsync(
             projectId, tbBatch.BatchId, tbSpec, 10_000, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
-        // 不變量：TB 投影不得清掉 GL 的控制總數（收斂前此處 COUNT 會變 0，存入筆數與合計核對全是 null）。
+        // 不變量：TB 投影不得清掉 GL 的控制總數；清掉的話這裡的 COUNT 是 0，存入筆數與合計核對全是 null。
         Assert.Equal(1, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl_control_total"));
         Assert.Equal(2, await ScalarAsync(db, projectId,
             "SELECT stored_row_count FROM gl_control_total WHERE singleton = 1"));

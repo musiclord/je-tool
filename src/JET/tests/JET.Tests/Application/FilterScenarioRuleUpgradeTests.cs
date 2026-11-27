@@ -20,7 +20,7 @@ public sealed class FilterScenarioRuleUpgradeTests
 
     private const string DebitRule = """{"join":"AND","type":"drCrOnly","drCr":"debit"}""";
     private const string UnknownRdeRule =
-        """{"join":"AND","type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}""";
+        """{"join":"AND","type":"fieldValue","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}""";
 
     private static string Definition(
         string? logicVersion = "filter-2026-09-18-v15",
@@ -245,7 +245,6 @@ public sealed class FilterScenarioRuleUpgradeTests
         var problem = Assert.Single(result.Problems);
         Assert.Equal(2, problem.Position);
         Assert.Equal("情境2", problem.Name);
-        // 這句的用字已定案。
         Assert.Equal(["條件內容無法讀取"], problem.Messages);
     }
 
@@ -305,7 +304,6 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.True(RuleLogicVersions.IsCurrent(write.Rows[1]));
         Assert.Equal("not json", write.Rows[2].DefinitionJson);
         Assert.Equal([1, 3], write.Problems.Select(problem => problem.Position));
-        // 這句的用字已定案。
         Assert.Equal(["條件內容無法讀取"], write.Problems[1].Messages);
         Assert.Equal(1, write.UpgradedOthers);
     }

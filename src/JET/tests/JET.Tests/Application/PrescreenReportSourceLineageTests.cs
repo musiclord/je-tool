@@ -26,7 +26,7 @@ public sealed class PrescreenReportSourceLineageTests
     private const string DebitFlagColumn = "借方旗標X";
 
     [Fact]
-    public async Task R2_EmitsCompleteSourceSchemaCatalogIncludingUnmappedColumns()
+    public async Task SuspiciousKeywordsSheet_EmitsCompleteSourceSchemaCatalogIncludingUnmappedColumns()
     {
         using var host = new HandlerTestHost();
         var project = await SetupAndExportAsync(
@@ -65,7 +65,7 @@ public sealed class PrescreenReportSourceLineageTests
     [Theory]
     [InlineData("科目代號#1", "科目名稱※中")]
     [InlineData("Acct No.(1)", "Acct Desc-中文")]
-    public async Task R6_SourceDerivedHeaders_UseActualMappedSourceColumnNames(
+    public async Task RareAccountsSheet_SourceDerivedHeaders_UseActualMappedSourceColumnNames(
         string accountNumberColumn,
         string accountNameColumn)
     {
@@ -96,7 +96,7 @@ public sealed class PrescreenReportSourceLineageTests
         Assert.DoesNotContain("ACCOUNT_CODE", headers);
         Assert.Equal(string.Empty, r6.Cell(1, 6).GetString());
 
-        // 彙總資料本身仍是既有科目彙總語意。
+        // 彙總資料本身是科目彙總。
         var firstAccounts = new[]
         {
             r6.Cell(2, 1).GetString(),
@@ -108,7 +108,7 @@ public sealed class PrescreenReportSourceLineageTests
     }
 
     [Fact]
-    public async Task R6_EmitsAliasNamesOnlyWhenSourceColumnsActuallyBearThem()
+    public async Task RareAccountsSheet_EmitsAliasNamesOnlyWhenSourceColumnsActuallyBearThem()
     {
         using var host = new HandlerTestHost();
         var project = await SetupAndExportAsync(
@@ -126,7 +126,7 @@ public sealed class PrescreenReportSourceLineageTests
     }
 
     [Fact]
-    public async Task R6_MissingGlMapping_FailsClosedInsteadOfEmittingAliases()
+    public async Task RareAccountsSheet_MissingGlMapping_FailsClosedInsteadOfEmittingAliases()
     {
         var projectId = $"lineage-fail-closed-{Guid.NewGuid():N}";
         var projectsRoot = Path.Combine(
@@ -143,7 +143,7 @@ public sealed class PrescreenReportSourceLineageTests
             var plan = ZeroHitPlan(projectId, projection);
             await using var output = new MemoryStream();
 
-            // 專案沒有 committed GL mapping 時，R6 沒有可沿用的 schema lineage；
+            // 案件沒有 committed GL mapping 時，R6 沒有可沿用的 schema lineage；
             // 必須 fail closed，不得退回固定 alias 標題。
             var exception = await Assert.ThrowsAsync<JetActionException>(() =>
                 ((IPrescreenReportWriter)writer).WriteAsync(
@@ -245,7 +245,7 @@ public sealed class PrescreenReportSourceLineageTests
                 ["description"] = DescriptionColumn,
                 ["amount"] = AmountColumn,
                 ["drCr"] = DebitFlagColumn,
-                // 上方合成來源明確使用 1/0，補貸方 0，來源與報告固定預期不變。
+                // 上方合成來源明確使用借方 1、貸方 0，配對同時寫出借方與貸方代碼。
                 ["drCrDebitCode"] = "1",
                 ["drCrCreditCode"] = "0"
             },
@@ -314,7 +314,7 @@ public sealed class PrescreenReportSourceLineageTests
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             new LocalPrescreenPageRepository(database),

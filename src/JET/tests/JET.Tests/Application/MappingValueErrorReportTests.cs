@@ -35,7 +35,6 @@ public sealed class MappingValueErrorReportTests
         var before = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         var error = await Assert.ThrowsAsync<JetActionException>(() => CommitManualAsync(host, ["M"], ["A"]));
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        // 這句的用字已定案。
         Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("以下依前", error.Message, StringComparison.Ordinal);
         var details = ErrorDetails(error).EnumerateArray().ToArray();
@@ -61,7 +60,6 @@ public sealed class MappingValueErrorReportTests
         using var host = new HandlerTestHost();
         await SetupGlAsync(host, provider, Enumerable.Range(1, 400).Select(index => $"BAD-{index:000}").ToArray());
         var error = await Assert.ThrowsAsync<JetActionException>(() => CommitManualAsync(host, ["M"], ["A"]));
-        // 這句的用字已定案。
         Assert.StartsWith("有 400 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("以下依前", error.Message, StringComparison.Ordinal);
         var detail = Assert.Single(ErrorDetails(error).EnumerateArray());
@@ -90,7 +88,6 @@ public sealed class MappingValueErrorReportTests
             await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new
             { filePath = second, fileName = "second-source.xlsx", mode = "append" }));
             var error = await Assert.ThrowsAsync<JetActionException>(() => CommitManualAsync(host, ["M"], ["A"]));
-            // 這句的用字已定案。
         Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(ErrorDetails(error).EnumerateArray());
             var text = detail.GetProperty("message").GetString()!;
@@ -98,7 +95,6 @@ public sealed class MappingValueErrorReportTests
             Assert.Contains("共 62 列", text, StringComparison.Ordinal);
             Assert.Contains("「Y」在 second-source.xlsx 第 4、5、6 列", text, StringComparison.Ordinal);
             Assert.Contains("inline-gl.xlsx", text, StringComparison.Ordinal);
-            // 這句的用字已定案。
             Assert.Contains("以下僅列出部分的值與列號。", error.Message, StringComparison.Ordinal);
             Assert.InRange(error.Message.Length, 1, 2000);
         }
@@ -119,13 +115,11 @@ public sealed class MappingValueErrorReportTests
         {
             await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = path }));
             var error = await Assert.ThrowsAsync<JetActionException>(() => CommitTbAsync(host));
-            // 這句的用字已定案。
             Assert.StartsWith("有 63 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("以下依前", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(ErrorDetails(error).EnumerateArray());
             Assert.Equal("變動金額", detail.GetProperty("sourceColumn").GetString());
             var text = detail.GetProperty("message").GetString()!;
-            // 這句的用字已定案。
             Assert.Contains("有 63 列不是有效的金額", text, StringComparison.Ordinal);
             Assert.Contains("共 60 列", text, StringComparison.Ordinal);
             Assert.Contains("「bad-Y」在第 62、63、64 列", text, StringComparison.Ordinal);

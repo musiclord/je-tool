@@ -29,8 +29,8 @@ public abstract class GlRuleSqlEquivalenceTests
     ///   D09 2025-07-09(三) 核准 07-10        摘要「零元測試」      借方 0 元＋貸方 |0.50|
     ///   D10 2025-09-10(三) 核准 09-11        摘要「領料出庫」      借 5101 銷貨成本＋貸 4101 銷貨收入 |333.33|
     /// 科目配對（fixture 對照）：1101→Cash、2201→Receivables、4101→自訂分類（semantic role=revenue）、
-    /// 5101→Others。4101 的 transitional standardized_category 刻意寫 Others；若述詞仍比較顯示文字，
-    /// 所有收入規則都會失敗，因此這套 golden 會鎖住 role-based 行為。
+    /// 5101→Others。4101 的 standardized_category 刻意寫 Others；述詞若比較的是顯示文字而不是 semantic role，
+    /// 所有收入規則都會失敗，所以這組固定答案能確認述詞依 semantic role 判斷。
     /// 預篩選尾數規則的 0 的個數正式流程由 GL 算出，這組固定答案的條件環境帶入 6：先取主單位整數，再以 10⁶ 取模；
     /// 只有 D06（|2,000,000.00| 的主單位整數為 2,000,000）命中。
     /// 預期命中（傳票集合）：
@@ -114,8 +114,7 @@ public abstract class GlRuleSqlEquivalenceTests
         JsonDocument.Parse($$"""{"groups":[{"conditions":[{{rule}}]}]}""").RootElement, MoneyScale).Groups[0].Conditions[0];
 
     private static FilterConditionSpec Prescreen(string key) =>
-        new(FilterJoin.And, FilterConditionType.Prescreen, key, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null);
+        new(FilterJoin.And, FilterConditionType.Prescreen, key, null, [], null, null);
 
     private async Task<IReadOnlyList<string>> HitDocumentsAsync(FilterConditionSpec rule)
     {
@@ -164,47 +163,6 @@ public abstract class GlRuleSqlEquivalenceTests
         Assert.Empty(await HitDocumentsAsync(Prescreen(PrescreenRuleKeys.NonAuthorizedPreparer)));
     }
 
-    [Fact]
-    public async Task TextContains_FixedFixture_HitsExpectedDocuments()
-    {
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.Text, null, "description",
-            ["進貨"], TextMatchMode.Contains, null, null, null, null, null, null);
-
-        Assert.Equal(["D01"], await HitDocumentsAsync(rule));
-    }
-
-    [Fact]
-    public async Task TextNotContains_FixedFixture_TreatsNullAsEmptyAndHitsComplement()
-    {
-        // NULL 摘要視為空字串 → notContains「進貨」成立；只排除 D01 兩列。
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.Text, null, "description",
-            ["進貨"], TextMatchMode.NotContains, null, null, null, null, null, null);
-
-        Assert.Equal(["D02", "D03", "D04", "D05", "D06", "D09", "D10"], await HitDocumentsAsync(rule));
-    }
-
-    [Fact]
-    public async Task DateRange_FixedFixture_BoundsAreInclusive()
-    {
-        // BVA：邊界含入——from=2025-03-05 恰為 D01 的過帳日；NULL 過帳日（D08）不命中。
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DateRange, null, "glDate",
-            [], TextMatchMode.Contains, "2025-03-05", "2025-04-03", null, null, null, null);
-
-        Assert.Equal(["D01", "D02"], await HitDocumentsAsync(rule));
-    }
-
-    [Theory]
-    [InlineData("1000.00", new[] { "D02", "D06" })] // 邊界值：|1,000.00| 恰等於下限 → 含入
-    [InlineData("1000.01", new[] { "D06" })]        // 上鄰：剛超過 D02 金額 → 只剩 D06
-    public async Task AmountRange_FixedFixture_AbsoluteScaledBoundary(string from, string[] expectedDocs)
-    {
-        var fromScaled = (long)(decimal.Parse(from) * MoneyScale);
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "amount",
-            [], TextMatchMode.Contains, null, null, fromScaled, null, null, null);
-
-        Assert.Equal(expectedDocs, await HitDocumentsAsync(rule));
-    }
-
     // 特定金額尾數比對＝整數化金額末 k 位與樣態相等（＝legacy @Right(@Str(@int(x),1,0),k)）；k≥2 須整數 ≥ 10^(k-1)。
     // 000000（k=6，下界 10^5）：D06=2,000,000 整數末 6 位 = 000000 → 命中；D09 的次單位金額（0.50／0，整數 0）
     //   位數 < 6、字串短於樣態、長度不符不相等 → 不命中。
@@ -224,7 +182,7 @@ public abstract class GlRuleSqlEquivalenceTests
     public async Task DrCrOnly_FixedFixture_CreditSideOnly()
     {
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DrCrOnly, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, "credit", null);
+            [], "credit", null);
 
         var result = await Repository.PreviewAsync(ProjectId, SingleRule(rule), Context, CancellationToken.None);
 
@@ -237,7 +195,7 @@ public abstract class GlRuleSqlEquivalenceTests
     public async Task ManualAuto_FixedFixture_NullFlagNeverMatches()
     {
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.ManualAuto, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, null, true);
+            [], null, true);
 
         // is_manual=1 → D02、D05；NULL（D03）不匹配 true 也不匹配 false。
         Assert.Equal(["D02", "D05"], await HitDocumentsAsync(rule));
@@ -248,7 +206,7 @@ public abstract class GlRuleSqlEquivalenceTests
     {
         // 借方錨定 Receivables（=2201）：只有 D03 含 Receivables 借方 → 輸出錨定列＋同傳票貸方列。
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.AccountPair, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, null, null,
+            [], null, null,
             PairMode: AccountPairModes.DebitAnchor)
         {
             // 用分類身分陣列表達這一組分類。
@@ -267,7 +225,7 @@ public abstract class GlRuleSqlEquivalenceTests
         // 精確配對 Cash 借＋Revenue 貸：除 D03 外全部命中；
         // D09 的 0 元 Cash 借方屬借方側（借方側的判定是 `>= 0`），改 `>` 即漏 D09。
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.AccountPair, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, null, null,
+            [], null, null,
             PairMode: AccountPairModes.Exact)
         {
             // 用分類身分陣列表達這一組分類。
@@ -285,7 +243,7 @@ public abstract class GlRuleSqlEquivalenceTests
     {
         // Receivables 借＋Revenue 貸：D03 有 Receivables 借方但無 Revenue 貸方 → 空集合。
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.AccountPair, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, null, null,
+            [], null, null,
             PairMode: AccountPairModes.Exact)
         {
             // 用分類身分陣列表達這一組分類。
@@ -302,7 +260,7 @@ public abstract class GlRuleSqlEquivalenceTests
     [InlineData(2, new[] { "D01", "D02", "D06" })] // 10^2 主單位整數倍：100.00／1,000.00／2,000,000.00
     [InlineData(3, new[] { "D02", "D06" })]        // 10^3 主單位整數倍：1,000.00／2,000,000.00
     [InlineData(6, new[] { "D06" })]               // 固定預設 6：只剩 D06（|2,000,000.00| 為 10^6 整數倍）
-    public async Task CustomTrailingZeros_FixedFixture_FixedDigitsBoundaries(int digits, string[] expectedDocs)
+    public async Task EndsWithZeroDigits_FixedFixture_FixedDigitsBoundaries(int digits, string[] expectedDocs)
     {
         // 條件寫成同一個子條件組裡的「整數尾數符合」N 個 0
         // 與「大於或等於 1」。
@@ -327,8 +285,7 @@ public abstract class GlRuleSqlEquivalenceTests
             ]),
             new FilterGroupSpec(FilterJoin.And,
             [
-                new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "amount",
-                    [], TextMatchMode.Contains, null, null, 150_000L, null, null, null)
+                Parsed("""{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1500","amountBasis":"absolute"}""")
             ])
         ]);
 
@@ -338,7 +295,7 @@ public abstract class GlRuleSqlEquivalenceTests
     }
 }
 
-/// <summary>SQLite provider 的等價測試子類：temp 專案 DB + 固定 fixture。</summary>
+/// <summary>SQLite provider 的等價測試子類：temp 案件 DB + 固定 fixture。</summary>
 public sealed class SqliteGlRuleSqlEquivalenceTests : GlRuleSqlEquivalenceTests, IDisposable
 {
     private readonly TempProjectRoot _root = new();

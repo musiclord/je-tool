@@ -581,7 +581,7 @@ public sealed class FieldInfoProjectorTests
 
     /// <summary>
     /// 說明句裡的來源欄名和來源檔的欄名一字不差：欄名有空白、連字號、頓號、逗號或全形括號時，照原樣寫進句子，
-    /// 前後不加任何符號；過帳判斷值與借方代碼這類值照舊用「」。
+    /// 前後不加任何符號；過帳判斷值與借方代碼這類值用「」括起來。
     /// </summary>
     [Fact]
     public void GeneratedDescriptions_WriteSourceColumnNamesExactlyAsInTheSourceFile()

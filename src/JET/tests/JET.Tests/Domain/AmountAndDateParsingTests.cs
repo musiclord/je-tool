@@ -44,7 +44,7 @@ public sealed class AmountAndDateParsingTests
     [InlineData("45292")]
     [InlineData("73415")]
     [InlineData("73415.5")]
-    public void ExcelSerial_FormerlyWithinYearBoundary_IsNoLongerADate(string raw)
+    public void ExcelSerialNumbers_AreNotDates(string raw)
     {
         Assert.False(DateNormalizer.TryNormalize(raw, DateParseOptions.Default, out _));
         Assert.False(DateNormalizer.TryNormalize(raw, new DateParseOptions(false), out _));

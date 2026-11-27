@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 共用的 demo 專案建置流程，依序送出這些 action：
+/// 共用的 demo 案件建置流程，依序送出這些 action：
 /// loadDemo → create → export xlsx → import.*.fromFile → calendar → mapping commit → validate。
 /// Debug-only demo actions 由本測試專用 dispatcher 提供；正式 workflow actions 仍走 production composition。
 /// 測試以此為 deterministic 母體，並以 QueryScalarAsync 做獨立 SQL recount。
@@ -182,7 +182,7 @@ internal static class DemoProjectPipeline
             new ProjectSession());
     }
 
-    /// <summary>獨立的參數化 SQL recount：不經 handler，直接查專案 DB。</summary>
+    /// <summary>獨立的參數化 SQL recount：不經 handler，直接查案件 DB。</summary>
     public static async Task<long> QueryScalarAsync(
         HandlerTestHost host,
         string projectId,
@@ -204,7 +204,7 @@ internal static class DemoProjectPipeline
         return result is null or DBNull ? 0L : Convert.ToInt64(result);
     }
 
-    /// <summary>獨立的參數化 SQL 單欄列表 recount:不經 handler,直接查專案 DB,回第一欄字串(NULL→null)。</summary>
+    /// <summary>獨立的參數化 SQL 單欄列表 recount:不經 handler,直接查案件 DB,回第一欄字串(NULL→null)。</summary>
     public static async Task<List<string?>> QueryStringListAsync(
         HandlerTestHost host,
         string projectId,
@@ -234,7 +234,7 @@ internal static class DemoProjectPipeline
 }
 
 /// <summary>
-/// xUnit class fixture：同類別測試共用一個已建置完成的 demo 專案。
+/// xUnit class fixture：同類別測試共用一個已建置完成的 demo 案件。
 /// 約定：共用此 fixture 的測試只能呼叫規則執行 action 並斷言「該次呼叫自身的 response」
 /// （或穩定母體事實），不得依賴跨測試的執行順序。
 /// </summary>

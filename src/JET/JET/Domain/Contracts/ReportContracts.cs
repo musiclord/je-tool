@@ -98,7 +98,7 @@ public sealed record ReportSourceRefs(
     string? FilterDataRevision = null);
 
 /// <summary>
-/// 專案內一份報告的索引紀錄。<see cref="RelativeFileName"/> 永遠只是專案資料夾直下的檔名；
+/// 案件內一份報告的索引紀錄。<see cref="RelativeFileName"/> 永遠只是案件資料夾直下的檔名；
 /// 絕對路徑由儲存服務依目前案件目錄解析，僅供本機畫面使用；需要實體檔案時使用 <see cref="IReportStore.ResolvePathAsync"/>。
 /// <see cref="Bytes"/> 與 <see cref="LastWriteUtc"/> 是 JET 寫完當下記下的值，只用來判斷
 /// <see cref="FileState"/>，不用來核對或拒絕。

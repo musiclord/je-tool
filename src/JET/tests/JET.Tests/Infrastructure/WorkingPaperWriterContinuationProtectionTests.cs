@@ -29,11 +29,11 @@ public sealed class WorkingPaperWriterContinuationProtectionTests
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
         var expectations = new (string Sheet, string[] References)[]
         {
-            (Step1Sheet, ["A5", "B8", "A16", "G15", "A20", "G20", "A26", "B26", "F26", "XFD20"]),
-            (Step11Sheet, ["A5", "A13", "F13", "G16", "A17", "G17", "A26", "B26", "XFD17"]),
-            (Step12Sheet, ["A5", "A12", "I12", "A24", "B24", "XFD12"]),
-            (Step13Sheet, ["A5", "A17", "H17", "A26", "B26", "XFD17"]),
-            (Step4Sheet, ["A4", "A6", "A8", "A10", "G10", "G11", "V11", "B12", "V13", "A26", "O26", "XFD13"])
+            (CompletenessSheet, ["A5", "B8", "A16", "G15", "A20", "G20", "A26", "B26", "F26", "XFD20"]),
+            (VoucherBalanceSheet, ["A5", "A13", "F13", "G16", "A17", "G17", "A26", "B26", "XFD17"]),
+            (PreparerSummarySheet, ["A5", "A12", "I12", "A24", "B24", "XFD12"]),
+            (CompletenessDifferenceSheet, ["A5", "A17", "H17", "A26", "B26", "XFD17"]),
+            (HighRiskVoucherSheet, ["A4", "A6", "A8", "A10", "G10", "G11", "V11", "B12", "V13", "A26", "O26", "XFD13"])
         };
 
         foreach (var (baseName, references) in expectations)
@@ -48,15 +48,15 @@ public sealed class WorkingPaperWriterContinuationProtectionTests
 
     // 第一頁這兩段是範本原有的格子，照鎖定資料區鎖住；續頁沒有範本格，沒寫值的位置也要一樣鎖住。
     [Fact]
-    public async Task ProtectedContinuationPages_Step1AndStep11HeaderRanges_StayLockedLikeFirstPage()
+    public async Task ProtectedContinuationPages_CompletenessAndVoucherBalanceHeaderRanges_StayLockedLikeFirstPage()
     {
         using var host = new HandlerTestHost();
         using var document = await WriteContinuationWorkingPaperAsync(host);
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
         var headerRanges = new (string Sheet, string[] References)[]
         {
-            (Step1Sheet, Cells(15, 19, 2, 6)),
-            (Step11Sheet, Cells(12, 16, 2, 5))
+            (CompletenessSheet, Cells(15, 19, 2, 6)),
+            (VoucherBalanceSheet, Cells(12, 16, 2, 5))
         };
 
         foreach (var (baseName, references) in headerRanges)
@@ -80,10 +80,10 @@ public sealed class WorkingPaperWriterContinuationProtectionTests
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
         var rightAligned = new HashSet<(string Sheet, string Column)>
         {
-            (Step12Sheet, "D"), (Step12Sheet, "E"), (Step13Sheet, "D")
+            (PreparerSummarySheet, "D"), (PreparerSummarySheet, "E"), (CompletenessDifferenceSheet, "D")
         };
 
-        foreach (var baseName in new[] { Step1Sheet, Step11Sheet, Step12Sheet, Step13Sheet, Step4Sheet })
+        foreach (var baseName in new[] { CompletenessSheet, VoucherBalanceSheet, PreparerSummarySheet, CompletenessDifferenceSheet, HighRiskVoucherSheet })
         {
             var firstPage = WorksheetFor(document, baseName);
             var continuationName = ExcelWorksheetConstraints.ContinuationSheetName(baseName, 2);

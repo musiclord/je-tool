@@ -22,7 +22,7 @@ public sealed class DateNormalizerTests
     [InlineData("2025/6/11", "2025-06-11")]    // yyyy/M/d
     [InlineData("2025.06.11", "2025-06-11")]   // yyyy.M.d
     [InlineData("20250611", "2025-06-11")]     // yyyyMMdd
-    [InlineData("2024/06/30", "2024-06-30")]   // 顯式西元（原寬鬆 fallback 案例，結果不變）
+    [InlineData("2024/06/30", "2024-06-30")]   // 顯式西元
     public void TryNormalize_UniversalFormats_SameForBothRocSettings(string raw, string expected)
     {
         Assert.True(DateNormalizer.TryNormalize(raw, RocOn, out var onResult));
@@ -73,7 +73,7 @@ public sealed class DateNormalizerTests
     [Fact]
     public void TryNormalize_RocDisabled_SlashRocIsRejectedNotYear0114()
     {
-        // 現行缺陷修復：關閉民國年時 114/6/11 必須被拒絕，不得被寬鬆 fallback 吞成西元 0114
+        // 關閉民國年時 114/6/11 必須被拒絕，不得被寬鬆解析讀成西元 0114 年。
         Assert.False(DateNormalizer.TryNormalize("114/6/11", RocOff, out _));
     }
 
@@ -83,7 +83,7 @@ public sealed class DateNormalizerTests
     [Theory]
     [InlineData("2")]
     [InlineData("73415")]
-    public void TryNormalize_FormerOaDateSerialBoundaries_Rejected(string raw)
+    public void TryNormalize_OaDateSerialNumbers_Rejected(string raw)
     {
         Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out var isoDate));
         Assert.Null(isoDate);
@@ -142,7 +142,7 @@ public sealed class DateNormalizerTests
 
     // BVA：寬鬆 fallback 的年份 sanity guard（1900–2100）
     [Theory]
-    [InlineData("June 11, 2025", "2025-06-11")]   // 寬鬆 fallback 仍可用
+    [InlineData("June 11, 2025", "2025-06-11")]   // 寬鬆解析讀得出的寫法
     [InlineData("Jan 1, 1900", "1900-01-01")]     // guard 下界
     [InlineData("Dec 31, 2100", "2100-12-31")]    // guard 上界
     public void TryNormalize_LooseFallbackWithinGuard_Accepted(string raw, string expected)

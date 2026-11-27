@@ -93,14 +93,14 @@ public static class FilterScenarioCorruption
 }
 
 /// <summary>
-/// <see cref="FilterScenarioValidator.Validate"/> 的結果：仍是逐條訊息清單，另外記下損毀條件的原因代號。
-/// 呼叫端只需要訊息時照舊當成字串清單使用。
+/// <see cref="FilterScenarioValidator.Validate"/> 的結果：逐條訊息清單，另外記下損毀條件的原因代號。
+/// 呼叫端只需要訊息時當成字串清單使用。
 /// </summary>
 public sealed class FilterValidationErrors : List<string>
 {
-    private readonly List<FilterScenarioCorruptReason> corrupt = [];
+    private readonly List<FilterScenarioCorruptReason> _corrupt = [];
 
-    public IReadOnlyList<FilterScenarioCorruptReason> Corrupt => corrupt;
+    public IReadOnlyList<FilterScenarioCorruptReason> Corrupt => _corrupt;
 
-    internal void AddCorrupt(FilterScenarioCorruptReason reason) => corrupt.Add(reason);
+    internal void AddCorrupt(FilterScenarioCorruptReason reason) => _corrupt.Add(reason);
 }

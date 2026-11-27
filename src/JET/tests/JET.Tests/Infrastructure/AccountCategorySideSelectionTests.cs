@@ -84,7 +84,7 @@ internal static class AccountCategorySideFixture
 
     internal static object ScenarioPayload(string side, string? selection, string mode = "is")
     {
-        //  Keep fixed answers; express direction and absence explicitly.
+        // 條件的方向與「沒有」的寫法都明確寫出，預期值是固定答案。
         var rule = new Dictionary<string, object>
         {
             ["type"] = "accountSide", ["categoryMode"] = mode == "absent" ? "is" : mode, ["categoryIds"] = new[] { B }

@@ -5,8 +5,7 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 預篩選收尾丟棄不適用規則的計數時，讀規則需求表的判定，不只依手列的清單。
-/// 每一條規則都照同一個判定，只需要必填欄的六條規則也一樣。
+/// 預篩選收尾丟棄不適用規則的計數時，每一條規則都讀規則需求表的同一個判定，只需要必填欄的六條規則也一樣。
 /// </summary>
 public sealed class PrescreenFinalizeApplicabilityTests
 {

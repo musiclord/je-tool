@@ -79,7 +79,6 @@ public sealed class IntakeMappingProgramTests
                 DateParseOptions.Default)));
 
         Assert.Equal(JetErrorCodes.MissingRequiredMapping, error.Code);
-        // 這句的用字已定案。
         Assert.Equal("尚有必填欄位未選擇來源欄：傳票號碼、總帳日期、會計科目編號、會計科目名稱、傳票摘要、金額。", error.Message);
     }
 
@@ -115,7 +114,6 @@ public sealed class IntakeMappingProgramTests
         // 同一欄同一種問題只寫一次，再依值列出列號，不是每列一整句；
         // 每組另放進 details 並帶來源欄。
         Assert.Equal(
-                        // 這句的用字已定案。
                         "有 1 列的值無法讀取，本次配對未儲存。來源欄「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。",
             error.Message);
         var detail = Assert.Single(error.Details!);
@@ -228,7 +226,6 @@ public sealed class IntakeMappingProgramTests
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(
-                        // 這句的用字已定案。
                         "檔案有 2 列無法讀取：第 3 列：日期「2025/13/01」不是 2026-12-31 這種格式；第 4 列：日期空白",
             error.Message);
     }
@@ -322,7 +319,7 @@ public sealed class IntakeMappingProgramTests
         Assert.Equal("檔案有 1 列無法讀取：第 3 列：日期「114/01/04」不是 2026-12-31 這種格式", error.Message);
     }
 
-    // 讀不成日期的值照舊整份不儲存：不存在的日期、純數字與缺年份的寫法。
+    // 讀不成日期的值同樣整份不儲存：不存在的日期、純數字與缺年份的寫法。
     [Fact]
     public async Task CalendarFileProjection_UnrecognisedDates_StillRejectTheWholeFile()
     {

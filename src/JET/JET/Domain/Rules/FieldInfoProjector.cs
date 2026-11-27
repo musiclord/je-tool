@@ -19,7 +19,7 @@ internal static class FieldInfoProjector
         GlMappingSpec spec,
         int moneyScale)
     {
-        // 沒有來源欄位定義的舊批次不回推；配對後的欄位定義留空，直到使用者重新匯入建立新批次。
+        // 沒有來源欄位定義的批次不回推；配對後的欄位定義留空，直到使用者重新匯入建立新批次。
         if (source.Count == 0)
         {
             return [];
@@ -191,7 +191,7 @@ internal static class FieldInfoProjector
     // 借方代碼與過帳判斷值這類值不是欄位，照條件說明的寫法用「」。兩欄相減的減號前後空不空格照舊版：
     // GL 借貸兩欄寫「借方欄-貸方欄」；TB 借減貸與期末減期初寫「甲 - 乙」；期末與期初各分借貸時，期初那一組寫「期初借-期初貸」。
     // 欄名本身有連字號時，從底稿帶回配對要靠欄位資訊表列出的來源欄確認切法。
-    // 改名欄位的說明欄存的是來源欄名本身，底稿第四步之一拿它當讀原始資料的欄名，欄位資訊也照這個名稱顯示。
+    // 改名欄位的說明欄存的是來源欄名本身，底稿 step4-1 符合高風險條件傳票明細拿它當讀原始資料的欄名，欄位資訊也照這個名稱顯示。
     private static string SourceName(IReadOnlyDictionary<string, string> mapping, string key) =>
         TryMappedSource(mapping, key, out var sourceName) ? sourceName : key;
 
@@ -201,7 +201,7 @@ internal static class FieldInfoProjector
     /// <summary>
     /// 系統產生欄位的說明句，只由確認的配對決定。案件資料庫存的是確認配對當時寫下的句子；
     /// 讀出欄位定義時依同一份配對重新產生，句子的寫法改變後，已經建立的案件不必重新確認配對。
-    /// 改名欄位的說明是來源欄名本身，不在這裡改；沒有說明句的系統產生欄位（自動編號的傳票文件項次）照舊沒有說明。
+    /// 改名欄位的說明是來源欄名本身，不在這裡改；沒有說明句的系統產生欄位（自動編號的傳票文件項次）不寫說明。
     /// </summary>
     internal static IReadOnlyList<FieldInfoState> WithCurrentDescriptions(
         IReadOnlyList<FieldInfoState> target,

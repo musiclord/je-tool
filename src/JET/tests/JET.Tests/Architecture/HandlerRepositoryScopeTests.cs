@@ -13,22 +13,23 @@ public sealed partial class HandlerRepositoryScopeTests
 {
 
     /// <summary>handler 類別、所在檔案（Application/Handlers 之下）與它可用的資料庫組屬性（以逗號分隔）。</summary>
-    // 變更回應及匯出清單必須重新讀取目前結果，因此逐項列出四個明示port；整組傳遞禁令及精確相等斷言仍然適用。
+    // 會變更資料的 handler 在回應與匯出清單裡要帶目前結果，所以都逐項列出 FilterScenarios、ReportStore、ResultStaleStates、Results 四項；
+    // 這些 handler 同樣不得拿到整組，用到的屬性也要和表上完全相同。
     private static readonly (string ClassName, string HandlerFile, string Properties)[] Table =
     [
         ("LogAppendHandler", "MessageLogHandlers.cs", "MessageLog"),
         ("LogRecentHandler", "MessageLogHandlers.cs", "MessageLog"),
         ("DevDbOverviewHandler", "DevDbHandlers.cs", "DevDatabaseInspector"),
         ("DevDbTableDataHandler", "DevDbHandlers.cs", "DevDatabaseInspector"),
-        // 更新案件資料也必須讀目前版本，回傳後端權威的結果及報告狀態。
+        // 更新案件資料也要讀目前版本，回傳以後端為準的結果與報告狀態。
         ("ProjectUpdateHandler", "Project/ProjectUpdateHandler.cs", "FilterScenarios,ReportStore,ResultStaleStates,Results"),
         ("ProjectReleaseLockHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
-        // 建案與開案前離開前一個案件，和 project.releaseLock 一樣只放掉它的工作鎖。
+        // 建案與開案前離開前一個案件，和 project.releaseLock 一樣只放掉它的案件鎖。
         ("ProjectSessionDeparture", "Project/ProjectSessionDeparture.cs", "LockService"),
         ("QueryAccountMappingDifferencePageHandler", "Query/QueryAccountMappingDifferencePageHandler.cs", "AccountMappingDifferences"),
         ("QueryAccountMappingBlankPageHandler", "Query/QueryAccountMappingBlankPageHandler.cs", "AccountMappingBlankPages"),
         ("QueryCompletenessDiffPageHandler", "Query/QueryCompletenessDiffPageHandler.cs", "CompletenessDiffPages"),
-        // GL 與 GL(未納入測試) 依已確認的配對列欄位，資料預覽因此多讀 GL 配對。
+        // GL 與 GL(未納入測試) 依已確認的配對列出欄位，所以資料預覽也讀 GL 配對。
         ("QueryDataPreviewHandler", "Query/QueryDataPreviewHandler.cs", "DataPreview,MappingStates"),
         ("QueryVoucherBalancePageHandler", "Query/QueryVoucherBalancePageHandler.cs", "VoucherBalancePages"),
         (
@@ -42,7 +43,7 @@ public sealed partial class HandlerRepositoryScopeTests
             "InfSamplePages,MappingStates,ResultPageRdeValues,Results"
         ),
         ("QueryBlankRecordsPageHandler", "Query/QueryBlankRecordsPageHandler.cs", "BlankRecordsPages"),
-        // 尾數 0 的個數照 IDEA 版由 GL 算出，預篩選明細頁要讀已確認的 GL 配對帶出的控制總數，因此多讀 GL 配對。
+        // 尾數 0 的個數照 IDEA 版由 GL 算出，預篩選明細頁要讀已確認的 GL 配對帶出的控制總數，所以也讀 GL 配對。
         ("QueryPrescreenPageHandler", "Query/QueryPrescreenPageHandler.cs", "MappingStates,PrescreenPages"),
         ("QuerySourceQualityPageHandler", "Query/QuerySourceQualityPageHandler.cs", "SourceQualityPages"),
         (
@@ -68,21 +69,20 @@ public sealed partial class HandlerRepositoryScopeTests
         ("ImportCalendarFromFileHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportStore,ResultStaleStates,Results"),
         ("CalendarSetNonWorkingDaysHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportStore,ResultStaleStates,Results"),
         ("MappingRestoreDraftHandler", "MappingHandlers.cs", "Imports"),
-        // 確認GL配對後更新授權清單比對摘要，新增唯讀AuthorizedPreparers依賴。
+        // 確認 GL 配對後要更新授權清單比對摘要，所以也讀 AuthorizedPreparers，只讀不寫。
         ("MappingCommitGlHandler", "MappingHandlers.cs", "AuthorizedPreparers,FilterScenarios,Imports,MappingFacts,MappingStates,ProjectOperationLog,ReportStore,ResultStaleStates,Results"),
         ("MappingCommitTbHandler", "MappingHandlers.cs", "FilterScenarios,Imports,MappingFacts,MappingStates,ProjectOperationLog,ReportStore,ResultStaleStates,Results"),
         ("MappingValueProfileHandler", "MappingValueProfileHandler.cs", "Imports,MappingValueProfiles"),
-        // 來源樣本與summary持久化由正式同交易port負責，這個handler不列這兩項依賴；整組傳遞的禁令不放寬。
-        // 逐科目比對無法執行時要分辨「沒有匯入 TB」與「TB 欄位配對尚未確認」，驗證因此多讀 TB 的匯入紀錄。
+        // 來源樣本與摘要由 ValidationFacts 在同一個交易裡寫入，所以這個 handler 不另外列這兩項。
+        // 逐科目比對無法執行時要分辨「沒有匯入 TB」與「TB 欄位配對尚未確認」，所以驗證也讀 TB 的匯入紀錄。
         ("ValidateRunHandler", "ValidateRunHandler.cs", "Imports,MappingStates,ValidationFacts"),
-        // 第四步的原因要和第五步寫同一套分類名稱，預篩選因此多讀科目分類設定，
-        // 第五步的驗證本來就讀它。
+        // 第四步的原因要和第五步寫同一套分類名稱，所以預篩選也讀科目分類設定；第五步的驗證同樣讀它。
         (
             "PrescreenRunHandler", "PrescreenRunHandler.cs",
             "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,MappingStates,PrescreenFacts,Results"
         ),
-        // 沒有國定假日清單時，只看清單的假日條件停用並寫原因，第五步的預覽、保存與重新檢查
-        // 因此多讀行事曆的國定假日筆數。
+        // 沒有國定假日清單時，只看清單的假日條件停用並寫原因，所以第五步的預覽、保存與重新檢查
+        // 也讀行事曆的國定假日筆數。
         (
             "FilterPreviewHandler", "FilterHandlers.cs",
             "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,MappingStates"
@@ -147,7 +147,7 @@ public sealed partial class HandlerRepositoryScopeTests
 
     [Theory]
     [MemberData(nameof(Handlers))]
-    public void Handler_UsesOnlyTheRepositoriesItReceivedBeforeTheSetWasIntroduced(
+    public void Handler_UsesOnlyItsListedRepositories(
         string className,
         string handlerFile,
         string expectedProperties)
@@ -294,6 +294,55 @@ public sealed partial class HandlerRepositoryScopeTests
         Assert.Equal(
             ["MappingStates", "Results"],
             HandlerRepositoryUsage.PropertiesUsedIn(source, "GoodHandler"));
+    }
+
+    [Fact]
+    public void UsageCheck_ListsPropertiesReadThroughTheSessionField()
+    {
+        const string source = """
+            public sealed class FieldHandler
+            {
+                private readonly ProjectSession _session;
+
+                public FieldHandler(ProjectSession session)
+                {
+                    this._session = session;
+                }
+
+                public async Task Run()
+                {
+                    var (projectId, repositories) = _session.RequireActive();
+                    await repositories.MappingStates.FindAsync(projectId);
+                    if (_session.Current is (var currentId, var _)) await Task.CompletedTask;
+                }
+            }
+            """;
+
+        Assert.Equal(["MappingStates"], HandlerRepositoryUsage.PropertiesUsedIn(source, "FieldHandler"));
+    }
+
+    [Fact]
+    public void UsageCheck_RejectsHandingTheSessionFieldToAnotherObject()
+    {
+        const string source = """
+            public sealed class FieldForwardingHandler
+            {
+                private readonly ProjectSession _session;
+
+                public FieldForwardingHandler(ProjectSession session)
+                {
+                    _session = session;
+                }
+
+                public Task Run() => Other.Run(_session);
+            }
+            """;
+
+        // 拿掉轉交 session 的那一行就通過，所以擋下來的原因是轉交，不是欄位的宣告或指派。
+        Assert.Empty(HandlerRepositoryUsage.PropertiesUsedIn(
+            source.Replace("Other.Run(_session)", "Task.CompletedTask", StringComparison.Ordinal),
+            "FieldForwardingHandler"));
+        Assert.ThrowsAny<Exception>(() => HandlerRepositoryUsage.PropertiesUsedIn(source, "FieldForwardingHandler"));
     }
 
     private static string ProductRoot()

@@ -36,7 +36,7 @@ public sealed record AuthorizedPreparerImportResult(
 
 /// <summary>
 /// 授權清單的目前狀態（presence 查詢，供 project.load resume 顯示「已匯入(N 筆)」）。
-/// 授權清單另保存匯入統計；舊名單缺少的統計為 null。未確認 GL 建立人員配對時比對數為 null。
+/// 授權清單另保存匯入統計；名單沒有匯入統計時為 null。未確認 GL 建立人員配對時比對數為 null。
 /// 名單空時為 null（RowCount 永遠 &gt; 0）。
 /// </summary>
 public sealed record AuthorizedPreparerState(long RowCount)

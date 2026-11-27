@@ -8,15 +8,15 @@ public static class WorkingPaperSheetCatalog
 {
     public const string Cover = "資料預先整理之說明";
     public const string Intro = "JE WorkingPaper說明";
-    public const string Step1 = "step1 完整性測試";
-    public const string Step11 = "step1-1 借貸不平測試";
-    public const string Step12 = "step1-2 分錄編製人員說明";
-    public const string Step13 = "step1-3 完整性測試之差異說明";
-    public const string Step2 = "step2 可靠性測試";
-    public const string Step3 = "step3 高風險條件彙總";
-    public const string Step4 = "step4 符合高風險條件傳票";
-    public const string Step41 = "step4-1 符合高風險條件傳票明細";
-    public const string Step5 = "step5 財務報表關帳後調整之分錄";
+    public const string Completeness = "step1 完整性測試";
+    public const string VoucherBalance = "step1-1 借貸不平測試";
+    public const string PreparerSummary = "step1-2 分錄編製人員說明";
+    public const string CompletenessDifference = "step1-3 完整性測試之差異說明";
+    public const string InfSampling = "step2 可靠性測試";
+    public const string HighRiskSummary = "step3 高風險條件彙總";
+    public const string HighRiskVoucher = "step4 符合高風險條件傳票";
+    public const string HighRiskVoucherDetail = "step4-1 符合高風險條件傳票明細";
+    public const string PostClosingEntries = "step5 財務報表關帳後調整之分錄";
     public const string FieldInfo = "自動化工具-檔案欄位資訊";
     public const string CalendarInfo = "自動化工具-假期假日資訊";
     public const string AccountMapping = "自動化工具-科目配對資訊";
@@ -25,15 +25,15 @@ public static class WorkingPaperSheetCatalog
     [
         Cover,
         Intro,
-        Step1,
-        Step11,
-        Step12,
-        Step13,
-        Step2,
-        Step3,
-        Step4,
-        Step41,
-        Step5,
+        Completeness,
+        VoucherBalance,
+        PreparerSummary,
+        CompletenessDifference,
+        InfSampling,
+        HighRiskSummary,
+        HighRiskVoucher,
+        HighRiskVoucherDetail,
+        PostClosingEntries,
         FieldInfo,
         CalendarInfo,
         AccountMapping
@@ -41,7 +41,7 @@ public static class WorkingPaperSheetCatalog
 }
 
 /// <summary>
-/// 匯出底稿(WorkingPaper)寫出所需的專案層脈絡。封面/各表表頭取自此(公司名、測試期間)、
+/// 匯出底稿(WorkingPaper)寫出所需的案件層脈絡。封面/各表表頭取自此(公司名、測試期間)、
 /// 金額顯示換算取 <see cref="MoneyScale"/>(scaled 整數 → 顯示值)、條件表(完整性差異調節)
 /// 需上期起日。正式底稿固定輸出完整方法學工作表；使用者只選擇要納入的已存情境。
 /// Validation 與 filter reference 必須由 handler 驗證為目前有效版本後傳入，writer 不隱含選「最新」。
@@ -76,7 +76,7 @@ public sealed record ExportStats(long BytesWritten, IReadOnlyList<SheetStat> She
 /// <summary>匯出檔裡一張工作表有幾格文字因為超過 Excel 每格上限而截斷。</summary>
 public sealed record TruncatedTextCells(string SheetName, int Count);
 
-/// <summary>每完成一張底稿工作表後的非權威進度快照。</summary>
+/// <summary>每完成一張底稿工作表後只供顯示的進度快照。</summary>
 public sealed record WorkingPaperProgress(string SheetName, int SheetsCompleted, long RowsWritten)
 {
     /// <summary>
@@ -122,10 +122,10 @@ public static class PreparerSummaryDisplay
 }
 
 /// <summary>
-/// 不截斷的全編製人員彙總查詢(匯出底稿 step1-2)。鏡射既有 prescreen preparer 彙總 SQL 但去掉 LIMIT 50:
-/// step1-2 要列出每一位編製人員。distinct created_by 基數有界(人員數 + 自動拋轉傳票類型,實務數十~數百),
-/// 故回完整清單即可、**不需分頁**——對有界基數加分頁是過度工程化。
-/// 查詢 row 與介面相鄰放在 Domain;實作在 Infrastructure。
+/// 不截斷的全編製人員彙總查詢（匯出底稿 step1-2）：分組和預篩選的編製者彙總相同，但不限 50 列，
+/// 因為 step1-2 要列出每一位編製人員。不同的 created_by 有上限，是人員數加上自動拋轉傳票的類型，
+/// 實務上數十到數百，所以一次回完整清單，不分頁。
+/// 查詢 row 與介面相鄰放在 Domain；實作在 Infrastructure。
 /// </summary>
 public interface IPreparerSummaryExportRepository
 {

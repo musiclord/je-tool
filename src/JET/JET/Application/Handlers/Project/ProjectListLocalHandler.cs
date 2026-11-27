@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// project.listLocal：列出這台電腦上的 SQLite 案件。以前建立的 DuckDB 與 SQL Server 案件不列出，
+/// project.listLocal：列出這台電腦上的 SQLite 案件。DuckDB 與 SQL Server 的案件不列出，
 /// 也不動它們的資料夾；設定檔讀不通的案件照常列成錯誤列，讓審計員能刪除。
 /// 依上次開啟時間從新到舊排列，沒開過的案件用建立時間；錯誤列排在最後。
 /// </summary>

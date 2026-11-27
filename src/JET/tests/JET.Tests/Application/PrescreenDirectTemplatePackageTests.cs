@@ -43,9 +43,6 @@ public sealed class PrescreenDirectTemplatePackageTests
             CancellationToken.None);
 
         var bytes = output.ToArray();
-        WriteReceiptArtifactIfRequested(
-            $"prescreen-{plannedRowCount}.xlsx",
-            bytes);
         var templateBytes = await TemplateBytesAsync(
             ReportTemplateCatalog.Prescreen);
         AssertDirectPackageAllowedDiff(
@@ -386,9 +383,6 @@ public sealed class PrescreenDirectTemplatePackageTests
             CancellationToken.None);
 
         var bytes = output.ToArray();
-        WriteReceiptArtifactIfRequested(
-            "criteria-multiple-scenarios-continuation.xlsx",
-            bytes);
         var templateBytes = await TemplateBytesAsync(
             ReportTemplateCatalog.CriteriaSelection);
         AssertDirectPackageAllowedDiff(
@@ -1316,7 +1310,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             pages,
@@ -1349,7 +1343,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             pages,
@@ -1674,23 +1668,6 @@ public sealed class PrescreenDirectTemplatePackageTests
         using var output = new MemoryStream();
         input.CopyTo(output);
         return output.ToArray();
-    }
-
-    private static void WriteReceiptArtifactIfRequested(
-        string fileName,
-        byte[] bytes)
-    {
-        var receiptDirectory = Environment.GetEnvironmentVariable(
-            "JET_PRESCREEN_CRITERIA_RECEIPT_DIR");
-        if (string.IsNullOrWhiteSpace(receiptDirectory))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(receiptDirectory);
-        File.WriteAllBytes(
-            Path.Combine(receiptDirectory, fileName),
-            bytes);
     }
 
     private static WorksheetPart WorksheetPartFor(

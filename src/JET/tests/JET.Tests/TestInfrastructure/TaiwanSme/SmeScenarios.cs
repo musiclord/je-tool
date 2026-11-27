@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace Jet.Harness.TaiwanSme;
+namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
 /// <summary>一個要存進第五步的篩選情境，以及獨立算出的預期命中分錄。</summary>
 internal sealed record SmeScenario(string Name, JsonObject Wire, Func<SmeOracle, HashSet<string>> Expected);
@@ -80,22 +80,17 @@ internal static class SmeScenarios
             CustomScenario("年底大額人工分錄",
                 "12 月 20 日以後入帳、金額 100 萬元以上的人工分錄，是期末調整與操縱的高風險區。",
                 [[
-                    Rule("dateRange", rule => { rule["from"] = "2025-12-20"; rule["to"] = "2025-12-31"; }),
+                    FieldValue("glDate", "onOrAfter", value: "2025-12-20"),
                     Rule("manualAuto"),
-                    Rule("numRange", rule => rule["from"] = "1000000"),
+                    FieldValue("amount", "greaterThanOrEqual", value: "1000000"),
                 ]],
                 oracle => oracle.Select(line =>
                     line.GlDate >= new DateOnly(2025, 12, 20) && line.IsManual && line.Amount >= 1_000_000m)),
             CustomScenario("非營業日重大交易或總經理經手",
                 "非營業日入帳且金額 50 萬元以上，或總經理親自建立的分錄，兩者擇一即列入覆核。",
                 [
-                    [NonBusinessDayGroup(), Rule("numRange", rule => rule["from"] = "500000")],
-                    [Rule("text", rule =>
-                    {
-                        rule["field"] = "createdBy";
-                        rule["mode"] = "exact";
-                        rule["keywords"] = SmePeople.GeneralManager;
-                    })],
+                    [NonBusinessDayGroup(), FieldValue("amount", "greaterThanOrEqual", value: "500000")],
+                    [FieldValue("createdBy", "in", values: [SmePeople.GeneralManager])],
                 ],
                 oracle => oracle.Select(line =>
                     (SmeCalendar.IsNonBusinessDay(line.GlDate) && line.Amount >= 500_000m)
@@ -150,7 +145,7 @@ internal static class SmeScenarios
                 [[
                     AccountSide("debit", Id(SmeChart.OperatingExpenses), Id(SmeChart.ManufacturingOverhead)),
                     FieldValue("amount", "endsWithDigits", value: "000"),
-                    Rule("numRange", rule => rule["from"] = "100000"),
+                    FieldValue("amount", "greaterThanOrEqual", value: "100000"),
                 ]],
                 oracle => oracle.Select(line =>
                 {
@@ -178,13 +173,6 @@ internal static class SmeScenarios
             ["join"] = "AND",
             ["type"] = type,
             ["prescreenKey"] = "suspiciousKeywords",
-            ["field"] = type == "dateRange" ? "glDate" : type == "numRange" ? "amount" : "description",
-            ["keywords"] = string.Empty,
-            ["values"] = new JsonArray(),
-            ["mode"] = "contains",
-            ["normalization"] = "preserve",
-            ["from"] = string.Empty,
-            ["to"] = string.Empty,
             ["drCr"] = "debit",
             ["isManual"] = "true",
             ["pairMode"] = type == "specialAccountCategoryPair" ? "drAndCr" : "exact",
@@ -196,10 +184,6 @@ internal static class SmeScenarios
 
         rule["debitCategoryIds"] = new JsonArray("builtin.receivables");
         rule["creditCategoryIds"] = new JsonArray("builtin.revenue");
-        rule["fieldId"] = string.Empty;
-        rule["operator"] = string.Empty;
-        rule["amountBasis"] = "absolute";
-        rule["value"] = string.Empty;
         rule["windowDays"] = string.Empty;
         overrides?.Invoke(rule);
         return rule;

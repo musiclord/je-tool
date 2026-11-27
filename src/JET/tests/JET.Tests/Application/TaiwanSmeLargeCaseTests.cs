@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Jet.Harness.TaiwanSme;
+using JET.Tests.TestInfrastructure.TaiwanSme;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -8,7 +8,6 @@ namespace JET.Tests.Application;
 /// 一整年的合成台灣中小型製造業總帳（一萬一千多張傳票、三萬多筆分錄）與 200 個科目的試算表，
 /// 經正式 action 走完建案、匯入、配對、分類、驗證、預篩選、篩選與匯出。驗證摘要 14 項、預篩選 10 項
 /// 與 10 個情境的命中，逐筆和產生器依規則文字獨立算出的答案比對（SmeOracle 只用 LINQ，不呼叫 JET 的計算）。
-/// 同一份資料也是瀏覽器主機的檢查案件，原始檔在 TestInfrastructure/TaiwanSme。
 /// </summary>
 public sealed class TaiwanSmeLargeCaseTests
 {

@@ -13,8 +13,7 @@ namespace JET.Infrastructure;
 /// JET 寫了什麼。它不核對檔案內容，不擋載入；審計員在 JET 之外改了檔案，<see cref="ListAsync"/> 只在
 /// <see cref="Report.FileState"/> 回報。
 ///
-/// JET 預設審計員可信，所以這裡不另外記錄寫入過程，不把檔案移到隔離區，不用 SHA-256 核對內容，
-/// 也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
+/// JET 預設審計員可信，所以這裡不核對檔案內容，也不在載入案件時拒絕。reports.json 讀不出來時改名保留，以空的清單繼續。
 /// 工作底稿每次匯出寫新版本檔，其餘報告覆蓋同名檔。
 /// </summary>
 public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
@@ -333,8 +332,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
                 }
 
                 // 工作底稿每次都是新檔；其他報告覆蓋同名檔，清單只留最新一筆。
-                // 這次的檔名和清單記的不同時，例如查核期間改了，或那一筆是用之前的檔名規則匯出的，
-                // 之前的檔案留在案件資料夾，不改名也不刪除。
+                // 這次的檔名和清單記的不同時，例如查核期間改了，之前的檔案留在案件資料夾，不改名也不刪除。
                 var publishedNames = published
                     .Select(report => report.RelativeFileName)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -709,8 +707,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             return null;
         }
 
-        // 報告清單舊設計的欄名 sourceRefs、createdUtc 不讀回；
-        // 只有舊欄名的紀錄和其他讀不懂的紀錄一樣不列出。
+        // 欄名 sourceRefs、createdUtc 不讀回；只有這兩個欄名的紀錄，和其他讀不懂的紀錄一樣不列出。
         var generatedUtc = entry.GeneratedUtc;
         if (generatedUtc is null)
         {

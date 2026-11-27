@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 執行 project.create 的實際動作：發布案件資料夾與設定檔、取得工作鎖、建立資料庫，失敗時回復。
+/// 執行 project.create 的實際動作：發布案件資料夾與設定檔、取得案件鎖、建立資料庫，失敗時回復。
 /// 案件的設定值都由計畫帶來的 <see cref="ProjectDocument"/> 提供，這裡不決定任何設定值。
 /// </summary>
 internal sealed class ProjectCreateFactsPort(
@@ -20,7 +20,7 @@ internal sealed class ProjectCreateFactsPort(
         IProjectCreateBackendAttempt? backendAttempt = null;
         var lockAcquiredThisCall = false;
 
-        // 檔案鎖要先讀到 project.json，所以先發布設定檔；取得一把「本次新建」的工作鎖之後才建立資料庫。
+        // 檔案鎖要先讀到 project.json，所以先發布設定檔；取得一把「本次新建」的案件鎖之後才建立資料庫。
         try
         {
             await projectStore.CreateAsync(document, cancellationToken);
@@ -120,7 +120,7 @@ internal sealed class ProjectCreateFactsPort(
     {
         var cleanupFailed = false;
 
-        // 工作鎖必須先釋放，再回滾資料庫；否則同一個帳號等待中的建案可能先繼承舊鎖，隨後又被這次的釋放刪掉。
+        // 案件鎖必須先釋放，再回滾資料庫；否則同一個帳號等待中的建案可能先繼承舊鎖，隨後又被這次的釋放刪掉。
         if (lockAcquiredThisCall)
         {
             try
@@ -150,7 +150,7 @@ internal sealed class ProjectCreateFactsPort(
 
         if (cleanupFailed)
         {
-            // 資料庫回滾或釋放工作鎖失敗時保留資料夾，留下判斷殘留狀態需要的依據。
+            // 資料庫回滾或釋放案件鎖失敗時保留資料夾，留下判斷殘留狀態需要的依據。
             return;
         }
 

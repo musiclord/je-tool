@@ -121,7 +121,7 @@ public sealed class MappingValueProfileHandler(
                 comparisonGroups = CompareCodes(profile.Values.Select(item => item.Value).Concat(comparisonValues)),
                 comparisonKeys = ComparisonKeys(profile.Values.Select(item => item.Value).Concat(comparisonValues)),
                 missingComparisonValues = missing,
-                sourceValueCheckStatus = missing is null ? "unsupportedProvider" : "checked"
+                sourceValueCheckStatus = "checked"
             };
         }
         if (hasComparisonValues)

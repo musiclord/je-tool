@@ -229,11 +229,6 @@ public sealed class FilterProgramTests
                             null,
                             null,
                             [],
-                            TextMatchMode.Contains,
-                            null,
-                            null,
-                            null,
-                            null,
                             "debit",
                             null)
                     ])
@@ -253,11 +248,6 @@ public sealed class FilterProgramTests
                             PrescreenRuleKeys.UnexpectedAccountPair,
                             null,
                             [],
-                            TextMatchMode.Contains,
-                            null,
-                            null,
-                            null,
-                            null,
                             null,
                             null)
                     ])

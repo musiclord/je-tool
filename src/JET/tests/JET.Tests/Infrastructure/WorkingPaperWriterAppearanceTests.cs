@@ -82,7 +82,7 @@ public sealed class WorkingPaperWriterAppearanceTests
             positiveDocument,
             entries,
             WorkingPaperAppearanceIds.Skip(10).Take(4),
-            Step12Sheet,
+            PreparerSummarySheet,
             targetReference: "B13",
             baselineReference: "B12");
     }
@@ -286,8 +286,8 @@ public sealed class WorkingPaperWriterAppearanceTests
             normalTargets,
             WorkingPaperAppearanceIds.Skip(39).Take(4));
 
-        // A sibling source may be present without activating this source's header patch.
-        // AutoFit is compared only where the sibling source does not share the same columns.
+        // 另一段有資料、這一段沒有資料時，這一段不套標題外觀，要和空白案件相同；
+        // 兩段不共用同一欄時，才一併比對欄寬自動調整。
         AssertReferenceConditionMatchesBaseline(
             makeupDocument,
             emptyDocument,
@@ -395,7 +395,7 @@ public sealed class WorkingPaperWriterAppearanceTests
 
     // step4-1 第一頁疊在範本上寫，工作表預設列高沿用範本；接續工作表另外建立，預設列高照 12 點字級算。
     [Fact]
-    public async Task Step41DefaultRowHeight_FirstPageKeepsTheTemplate_ContinuationFollowsTheFontSize()
+    public async Task HighRiskVoucherDetailDefaultRowHeight_FirstPageKeepsTheTemplate_ContinuationFollowsTheFontSize()
     {
         const uint continuationRowLimit = 25;
         using var host = new HandlerTestHost();
@@ -414,17 +414,17 @@ public sealed class WorkingPaperWriterAppearanceTests
         using var template = SpreadsheetDocument.Open(templatePath, false);
         using var actual = OpenWorkingPaper(output.Bytes);
         var actualSheets = WorksheetsByName(actual);
-        var templateHeight = WorksheetsByName(template)[Step41Sheet]
+        var templateHeight = WorksheetsByName(template)[HighRiskVoucherDetailSheet]
             .GetFirstChild<SheetFormatProperties>()?.DefaultRowHeight?.Value;
-        var continuation = ExcelWorksheetConstraints.ContinuationSheetName(Step41Sheet, 2);
+        var continuation = ExcelWorksheetConstraints.ContinuationSheetName(HighRiskVoucherDetailSheet, 2);
 
         Assert.NotNull(templateHeight);
         Assert.Equal(
             templateHeight,
-            actualSheets[Step41Sheet].GetFirstChild<SheetFormatProperties>()?.DefaultRowHeight?.Value);
+            actualSheets[HighRiskVoucherDetailSheet].GetFirstChild<SheetFormatProperties>()?.DefaultRowHeight?.Value);
         Assert.True(actualSheets.ContainsKey(continuation), $"{continuation} 應存在。");
         Assert.Equal(
-            FormalWorkbookTypography.RowHeight(WorkingPaperStyles.Step41FontSize),
+            FormalWorkbookTypography.RowHeight(WorkingPaperStyles.HighRiskVoucherDetailFontSize),
             actualSheets[continuation].GetFirstChild<SheetFormatProperties>()?.DefaultRowHeight?.Value);
     }
 }

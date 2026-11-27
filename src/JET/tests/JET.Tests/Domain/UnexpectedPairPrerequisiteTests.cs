@@ -18,7 +18,7 @@ public sealed class UnexpectedPairPrerequisiteTests
             HasRevenueCategory: revenue, HasCounterpartCategory: counterpart);
         var errors = FilterScenarioValidator.Validate(scenario, context);
         Assert.NotEmpty(errors);
-        // 分類名稱寫第四步分類設定裡目前的名稱（這裡沒有帶分類設定，是內建名稱）；這句的用字已定案，核對整句。
+        // 分類名稱使用第四步分類設定的名稱。未帶分類設定時使用內建名稱。
         if (!imported) Assert.Contains("第 1 組第 1 條：科目配對中尚無任何科目設定分類，請先在第四步設定", errors);
         else
         {

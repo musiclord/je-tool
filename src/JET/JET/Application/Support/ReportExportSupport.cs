@@ -17,7 +17,7 @@ internal static class ReportExportSupport
 
     /// <summary>
     /// 報告清單更新期限用的時間來源，只讓測試在同一個非同步流程內替換；正式程式一律用系統時間。
-    /// 資料形狀紀錄的流程要確定走到清單更新完成的分支，不能隨機器快慢改走逾時分支。
+    /// 測試要固定走到其中一個分支，不隨機器快慢改變，例如記錄 action 回應格式的流程要走到清單更新完成的分支。
     /// </summary>
     internal static AsyncLocal<TimeProvider?> CatalogRefreshClock { get; } = new();
 

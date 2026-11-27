@@ -6,7 +6,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 讓 SQLite 執行中的語句可以取消。Microsoft.Data.Sqlite 的 <see cref="SqliteCommand.Cancel"/> 不做任何事，
-/// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停（實測 54.7 秒）。
+/// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停。
 /// 這條連線建立的命令改用 <see cref="CancellableSqliteCommand"/>；設定與基底的 <c>CreateCommand</c> 相同。
 /// 有傳入監看模組時，命令在執行前後通知它，監看模組只記錄，不改變語句的執行與結果。
 /// 有傳入 <paramref name="openSettings"/> 時，每次開啟都先執行這段設定。
@@ -209,7 +209,7 @@ internal sealed class CancellableSqliteDataReader(
     SqlStatementWatch? statement = null)
     : System.Data.Common.DbDataReader
 {
-    private bool interrupted;
+    private bool _interrupted;
 
     public override Task<bool> ReadAsync(CancellationToken cancellationToken) =>
         StepAsync(inner.Read, cancellationToken, countsRow: true);
@@ -231,7 +231,7 @@ internal sealed class CancellableSqliteDataReader(
             if (cancellationToken.IsCancellationRequested)
             {
                 // 取消在這一列剛讀完時才送達，語句仍帶著中斷旗標；不交出這一列，直接回報取消。
-                interrupted = true;
+                _interrupted = true;
                 SqlStatementObservation.Failed(statement, new OperationCanceledException(cancellationToken), cancellationToken);
                 return Task.FromCanceled<bool>(cancellationToken);
             }
@@ -245,7 +245,7 @@ internal sealed class CancellableSqliteDataReader(
         }
         catch (OperationCanceledException exception)
         {
-            interrupted = true;
+            _interrupted = true;
             SqlStatementObservation.Failed(statement, exception, cancellationToken);
             return Task.FromException<bool>(exception);
         }
@@ -384,7 +384,7 @@ internal sealed class CancellableSqliteDataReader(
         {
             try
             {
-                if (interrupted)
+                if (_interrupted)
                 {
                     CancellableSqliteCommand.DisposeAfterInterrupt(inner);
                 }

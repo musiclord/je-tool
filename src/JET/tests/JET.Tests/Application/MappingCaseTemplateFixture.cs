@@ -9,9 +9,9 @@ internal sealed class MappingCaseTemplateFixture : IDisposable
 {
     internal HandlerTestHost Host { get; } = new();
     internal string ProjectId { get; private set; } = "";
-    private readonly string provider;
+    private readonly string _provider;
 
-    private MappingCaseTemplateFixture(string provider) => this.provider = provider;
+    private MappingCaseTemplateFixture(string provider) => this._provider = provider;
 
     /// <summary>同一組參數在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。</summary>
     internal static async Task<MappingCaseTemplateFixture> CreateAsync(string provider, bool manyRows = false)

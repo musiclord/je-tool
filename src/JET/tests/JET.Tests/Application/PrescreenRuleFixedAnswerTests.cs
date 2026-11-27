@@ -8,8 +8,8 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 預篩選規則照「一條規則一個定義」，在 SQLite 核對固定答案。
 /// 第四步照舊版沒有編製分錄較少的人員與使用較少的科目兩條規則，共十二條；
-/// 第五步依審計目的的兩個統計條件預設 11 筆以下，下面用欄位條件寫法核對它們的固定答案。
-/// 同一個合成母體，第四步 prescreen.run、第五步「預篩選」分頁的條件，以及依審計目的條件與常用篩選條件卡片用欄位條件寫的版本，都要算出同一個數字；
+/// 第五步欄位條件的兩項常用查法預設 11 筆以下，下面用欄位條件寫法核對它們的固定答案。
+/// 同一個合成母體，第四步 prescreen.run、第五步「預篩選」分頁的條件，以及常用查法與常用篩選條件卡片用欄位條件寫的版本，都要算出同一個數字；
 /// 每種寫法都對照寫死的答案，不只比對兩種寫法相等。
 /// 固定答案不是由程式算出來的，見檔內的母體說明。
 /// </summary>
@@ -49,8 +49,8 @@ public sealed class PrescreenRuleFixedAnswerTests
 
     // 第四步卡片照舊版列整張命中傳票：未預期借貸組合是 V04 的 2 列；第五步的條件仍只直接命中收入貸方 1 列。
     private const long UnexpectedAccountPairWholeVoucherRows = 2;
-    private const long RarePreparerStepFiveRows = 10;
-    private const long RareAccountStepFiveRows = 12;
+    private const long RarePreparerFilterRows = 10;
+    private const long RareAccountFilterRows = 12;
     private const long PreparerGroups = 7;
     private const int TrailingZeroDigits = 4;
     // 常用篩選條件「特定尾數」卡片預設 000000，是 6 個 0，只有 V01 的 2 列；預篩選這條規則的個數由 GL 算出，兩者不相等。
@@ -88,7 +88,7 @@ public sealed class PrescreenRuleFixedAnswerTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task EveryRule_HitsTheFixedAnswer_FromStepFourStepFiveAndTheFieldConditionForms(string provider)
+    public async Task EveryRule_HitsTheFixedAnswer_FromPrescreenFilterAndTheFieldConditionForms(string provider)
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder =>
@@ -122,25 +122,25 @@ public sealed class PrescreenRuleFixedAnswerTests
             Expect("filter.preview prescreen " + key, expected, await PreviewCountAsync(host, new { type = "prescreen", prescreenKey = key }));
         }
 
-        // 依審計目的條件與常用篩選條件卡片用欄位條件寫的版本，以及較少使用人員與較少使用科目的統計條件寫法：答案相同。
+        // 常用查法與常用篩選條件卡片用欄位條件寫的版本，以及較少使用人員與較少使用科目的統計條件寫法：答案相同。
         var endsWithSixZeros = new { type = "fieldValue", field = "amount", operator_ = "endsWithDigits", values = new[] { "000000" }, amountBasis = "absolute" };
         var forms = new (string Label, object Rule, long Expected)[]
         {
-            ("摘要含特定字詞（依審計目的、特定摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "contains", values = SuspiciousKeywords }), RowTagAnswers["suspiciousKeywords"]),
-            ("空白摘要（依審計目的、空白摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "isBlank" }), RowTagAnswers["blankDescription"]),
+            ("摘要含特定字詞（常用查法、特定摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "contains", values = SuspiciousKeywords }), RowTagAnswers["suspiciousKeywords"]),
+            ("空白摘要（常用查法、空白摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "isBlank" }), RowTagAnswers["blankDescription"]),
             ("金額尾數連續六個 0（特定尾數卡片）", Rule(endsWithSixZeros), SixZeroRows),
-            ("金額尾數連續六個 0 加金額大於或等於 1（依審計目的）", new
+            ("金額尾數連續六個 0 加金額大於或等於 1（常用查法）", new
             {
                 type = "group",
                 conditions = new object[] { Rule(endsWithSixZeros), Rule(new { type = "fieldValue", field = "amount", operator_ = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }) }
             }, SixZeroRows),
             ("金額尾數連續多個 0，預設由 GL 算出的個數", Rule(new { type = "fieldValue", field = "amount", operator_ = "endsWithZeros", value = "4", amountBasis = "absolute" }), RowTagAnswers["trailingZeros"]),
-            ("總帳日期在週末（依審計目的）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isWeekend" }), RowTagAnswers["weekendPosting"]),
+            ("總帳日期在週末（常用查法）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isWeekend" }), RowTagAnswers["weekendPosting"]),
             ("傳票核准日在週末", Rule(new { type = "fieldValue", field = "approvalDate", operator_ = "isWeekend" }), RowTagAnswers["weekendApproval"]),
-            ("總帳日期在國定假日（依審計目的）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isHoliday" }), RowTagAnswers["holidayPosting"]),
+            ("總帳日期在國定假日（常用查法）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isHoliday" }), RowTagAnswers["holidayPosting"]),
             ("傳票核准日在國定假日", Rule(new { type = "fieldValue", field = "approvalDate", operator_ = "isHoliday" }), RowTagAnswers["holidayApproval"]),
-            ("編製分錄較少的人員（統計條件）", new { type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }, RarePreparerStepFiveRows),
-            ("較少使用的科目（統計條件）", new { type = "entityFrequency", field = "accountNumber", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }, RareAccountStepFiveRows)
+            ("編製分錄較少的人員（統計條件）", new { type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }, RarePreparerFilterRows),
+            ("較少使用的科目（統計條件）", new { type = "entityFrequency", field = "accountNumber", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }, RareAccountFilterRows)
         };
         foreach (var form in forms)
         {
@@ -154,7 +154,7 @@ public sealed class PrescreenRuleFixedAnswerTests
     //     第五步直接命中的是收入貸方 1 列，第四步、第四步明細與報告列整張傳票 4 列。
     // W03 應收借 200／收入貸 200 有正常對方科目，不挑中。
     // W05 費用借 0／收入貸 50：0 元不算正金額，不挑中。
-    // 改程式前的寫法挑中 W01、W02、W05 的收入貸方各 1 列。
+    // 若不要求正金額分錄，W01、W02、W05 的收入貸方各 1 列都會被挑中。
     private static IEnumerable<object?[]> PositiveEntryRows()
     {
         yield return ["W01", "2025-03-03", "2025-03-03", "4101", "銷貨收入", "收入", "700.00", 0, "E01"];
@@ -175,7 +175,7 @@ public sealed class PrescreenRuleFixedAnswerTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    public async Task UnexpectedAccountPair_NeedsAPositiveEntry_AndStepFourAndTheReportListTheWholeVoucher(string provider)
+    public async Task UnexpectedAccountPair_NeedsAPositiveEntry_AndPrescreenAndTheReportListTheWholeVoucher(string provider)
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder =>
@@ -199,7 +199,7 @@ public sealed class PrescreenRuleFixedAnswerTests
         Assert.All(page.GetProperty("rows").EnumerateArray(), row => Assert.Equal("W02", row.GetProperty("voucherNumber").GetString()));
         Expect("query.prescreenPage rows", 4, page.GetProperty("rows").GetArrayLength());
 
-        // 第五步只用這一個條件：直接命中的仍是收入貸方 1 列，畫面的分錄筆數照現在的規則算整張傳票。
+        // 第五步只用這一個條件：直接命中的仍是收入貸方 1 列，畫面的分錄筆數算整張傳票。
         var preview = await PreviewAsync(host, new { type = "prescreen", prescreenKey = "unexpectedAccountPair" });
         Expect("filter.preview count", 1, preview.GetProperty("count").GetInt64());
         Expect("filter.preview voucherCount", 1, preview.GetProperty("voucherCount").GetInt64());
@@ -226,11 +226,11 @@ public sealed class PrescreenRuleFixedAnswerTests
 
     /// <summary>
     /// 第四步照舊版不列 11 筆以下的人員與科目：回應、規則期間分布與報告都沒有這兩條規則，
-    /// 依筆數排序的兩份彙總仍在。第五步「依審計目的」的兩項預設 11 筆以下，由前端測試核對。
+    /// 依筆數排序的兩份彙總仍在。第五步欄位條件的兩項常用查法預設 11 筆以下，由前端測試核對。
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    public async Task StepFour_NoLongerPicksPreparersOrAccountsWithElevenEntriesOrFewer(string provider)
+    public async Task Prescreen_DoesNotPickPreparersOrAccountsWithElevenEntriesOrFewer(string provider)
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder =>

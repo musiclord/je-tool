@@ -8,8 +8,9 @@
     每份都強制存檔，各份文件的樣式名稱與文件摘要資訊才都由 Word 寫出，不留 python-docx 範本的預設值。
 
     Word 存檔時會把這台電腦的 Office 使用者名稱寫進「上次儲存者」。Word 結束後，本腳本改寫每份文件的文件屬性：
-    作者與上次儲存者固定為 JET，公司、管理者與超連結基底清空。最後檢查每份文件內部的 XML，
+    作者與上次儲存者照 source/document-properties.json 寫，公司、管理者與超連結基底清空。最後檢查每份文件內部的 XML，
     找到 Windows 使用者名稱、Office 使用者名稱、電腦名稱或本機路徑時報錯；錯誤訊息只寫類別與所在的零件，不寫出名稱。
+    作者與上次儲存者是使用者指定的值，不列入這項搜尋。
 .PARAMETER Path
     要處理的文件，寫相對於 Root 的路徑。
 .PARAMETER Root
@@ -27,7 +28,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$propertyOwner = 'JET'
+$productName = 'JET'
+# 送審文件的作者與上次儲存者，由使用者指定。
+$recorder = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'source/document-properties.json') -Raw -Encoding utf8 | ConvertFrom-Json
+$recordedValue = @{ 'dc:creator' = [string]$recorder.creator; 'cp:lastModifiedBy' = [string]$recorder.lastModifiedBy }
 $coreNamespace = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties'
 $dublinCoreNamespace = 'http://purl.org/dc/elements/1.1/'
 $extendedNamespace = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties'
@@ -109,7 +113,7 @@ function Set-PackagePart {
 }
 
 function Set-DocumentProperty {
-    # 把作者與上次儲存者固定為 JET，清空公司、管理者與超連結基底。回傳 Word 原本寫入的上次儲存者。
+    # 作者與上次儲存者照使用者指定的值寫，清空公司、管理者與超連結基底。回傳 Word 原本寫入的上次儲存者。
     param([string] $File)
     $replacement = @{}
 
@@ -126,7 +130,7 @@ function Set-DocumentProperty {
         } elseif ($property.Query -eq 'cp:lastModifiedBy') {
             $savedBy = $node.InnerText
         }
-        $node.InnerText = $propertyOwner
+        $node.InnerText = $recordedValue[$property.Query]
     }
     $replacement['docProps/core.xml'] = ConvertFrom-XmlDocument $core
 
@@ -154,8 +158,8 @@ function Assert-NoPersonalInformation {
     $names = Get-CoreNamespaceManager $core
     foreach ($query in 'dc:creator', 'cp:lastModifiedBy') {
         $node = $core.DocumentElement.SelectSingleNode($query, $names)
-        if ($null -eq $node -or $node.InnerText -cne $propertyOwner) {
-            $problems.Add("docProps/core.xml 的 $query 不是 $propertyOwner")
+        if ($null -eq $node -or $node.InnerText -cne $recordedValue[$query]) {
+            $problems.Add("docProps/core.xml 的 $query 和 document-properties.json 不同")
         }
     }
     $appBytes = Read-PackagePart $File 'docProps/app.xml'
@@ -186,6 +190,10 @@ function Assert-NoPersonalInformation {
             if ($entry.FullName -notmatch '\.(xml|rels)$') { continue }
             $reader = [IO.StreamReader]::new($entry.Open(), [Text.Encoding]::UTF8)
             try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            if ($entry.FullName -eq 'docProps/core.xml') {
+                # 作者與上次儲存者已在上面核對過是使用者指定的值，搜尋時先拿掉。
+                $text = $text -replace '<(dc:creator|cp:lastModifiedBy)>[^<]*</\1>', ''
+            }
             foreach ($term in $Terms) {
                 if ($text.IndexOf($term.Value, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
                     $problems.Add("$($entry.FullName) 裡有$($term.Label)")
@@ -209,7 +217,7 @@ function Add-SearchTerm {
     param([Collections.Generic.List[object]] $Terms, [string] $Label, [string] $Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return }
     $Value = $Value.Trim()
-    if ($Value.Length -lt 2 -or $Value -eq $propertyOwner) { return }
+    if ($Value.Length -lt 2 -or $Value -eq $productName) { return }
     foreach ($form in @($Value, [Security.SecurityElement]::Escape($Value)) | Select-Object -Unique) {
         if (-not ($Terms | Where-Object { $_.Value -eq $form })) {
             $Terms.Add(@{ Label = $Label; Value = $form })

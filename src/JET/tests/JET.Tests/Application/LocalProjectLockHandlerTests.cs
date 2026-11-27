@@ -7,13 +7,12 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 本地案件跨執行個體互斥的 Application 驗收。以兩個真 <see cref="HandlerTestHost"/> 共用同一 projects root，
+/// 本地案件跨執行個體互斥的 Application 測試。以兩個真 <see cref="HandlerTestHost"/> 共用同一 projects root，
 /// 模擬兩個程序同時開啟同案；oracle 是錯誤碼
 /// project_locked 的語意。
 /// </summary>
 public sealed class LocalProjectLockHandlerTests
 {
-    // 這句的用字已定案。
     private const string ExternalProcessLockMessage =
         "此案件已在另一個 JET 視窗中開啟，請先在該視窗離開案件後再試一次。";
 
@@ -67,7 +66,6 @@ public sealed class LocalProjectLockHandlerTests
         var held = await Assert.ThrowsAsync<JetActionException>(
             () => contender.DispatchAsync("project.load", LoadPayload(projectId)));
         Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
-        // 這句的用字已定案，核對整句。
         Assert.Equal(ExternalProcessLockMessage, held.Message);
 
         await owner.DispatchAsync("project.releaseLock");

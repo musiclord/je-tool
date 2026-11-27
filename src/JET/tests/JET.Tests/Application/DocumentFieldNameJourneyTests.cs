@@ -7,14 +7,14 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 底稿與條件篩選報告寫出的欄位名稱不加任何符號。條件說明裡的欄位名稱照原樣寫，值照舊用「」；
+/// 底稿與條件篩選報告寫出的欄位名稱不加任何符號。條件說明裡的欄位名稱照原樣寫，值用「」包住；
 /// 底稿「自動化工具-檔案欄位資訊」的配對前欄位名稱和來源檔的欄名一字不差，欄名含空白、連字號、頓號、全形逗號或全形括號也一樣。
 /// 用合成案件走正式流程匯出兩份文件後讀檔核對。畫面讀回的寫法由 FilterConditionRendererTests 守住。
 /// </summary>
 public sealed class DocumentFieldNameJourneyTests
 {
     private const string ExpectedConditionText =
-        "傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000 且 總帳日期 每月幾日屬於「5、31」";
+        "傳票摘要 包含任一文字「調整」；空白不列入 且 金額絕對值 大於或等於「1000」 且 總帳日期 每月幾日屬於「5、31」";
 
     private const string VoucherColumn = "傳票 號碼";
     private const string GlDateColumn = "傳票日期";
@@ -87,8 +87,8 @@ public sealed class DocumentFieldNameJourneyTests
                   "rationale": "合成案件",
                   "groups": [
                     { "join": "AND", "conditions": [
-                      { "join": "AND", "type": "text", "field": "description", "mode": "contains", "keywords": "調整" },
-                      { "join": "AND", "type": "numRange", "field": "amount", "from": "1000", "to": "" },
+                      { "join": "AND", "type": "fieldValue", "field": "description", "operator": "contains", "values": ["調整"] },
+                      { "join": "AND", "type": "fieldValue", "field": "amount", "operator": "greaterThanOrEqual", "value": "1000", "amountBasis": "absolute" },
                       { "join": "AND", "type": "fieldValue", "field": "glDate", "operator": "dayOfMonthIn", "values": ["5", "31"] }
                     ] }
                   ]
@@ -117,7 +117,7 @@ public sealed class DocumentFieldNameJourneyTests
 
         using (var workingPaper = new XLWorkbook(ReportPath(reports, projectDirectory, "workingPaper")))
         {
-            var row = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step3).RowsUsed()
+            var row = workingPaper.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary).RowsUsed()
                 .Single(candidate => candidate.Cell(2).GetString() == "C1");
             var description = row.Cell(3).GetString();
             // 儲存格裡的換行寫成 CRLF，比對前統一成 LF。

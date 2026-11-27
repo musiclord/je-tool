@@ -12,7 +12,6 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class ManualAutoListedCodeWarningTests
 {
-    // 這句的用字已定案。
     private const string ListsManualMissing =
         "來源欄「人工傳票」中沒有人工分錄代碼「1」，有值的列都將視為自動分錄。代碼有誤時，請修改後重新確認配對。";
 

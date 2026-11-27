@@ -42,7 +42,7 @@ public interface ISupportDiagnosticLogStore
 public interface ISupportCaseHistory
 {
     /// <summary>
-    /// 建立或載入案件、持有工作鎖之後呼叫：建立紀錄資料夾，之後這個案件的事件都附加到紀錄檔。
+    /// 建立或載入案件、持有案件鎖之後呼叫：建立紀錄資料夾，之後這個案件的事件都附加到紀錄檔。
     /// <paramref name="createdNow"/> 表示案件是這次建立的。不丟例外。
     /// </summary>
     void Prepare(string projectId, bool createdNow);

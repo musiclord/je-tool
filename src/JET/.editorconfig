@@ -1,0 +1,27 @@
+# 產品程式與測試共用的命名規則。建置時檢查，違反就建置失敗。
+# 私有的執行個體欄位用底線開頭的 camelCase，例如 _workerQueue。
+# 私有的 static 欄位與常數用 PascalCase，不加底線或 s_。const 隱含 static，所以也套用 static 這條。
+# 兩條都涵蓋私有欄位；static 那條多了修飾詞，比較特定，所以 static 欄位照 static 那條。
+[*.cs]
+dotnet_naming_rule.private_instance_fields_use_underscore_camel_case.symbols = private_fields
+dotnet_naming_rule.private_instance_fields_use_underscore_camel_case.style = underscore_camel_case
+dotnet_naming_rule.private_instance_fields_use_underscore_camel_case.severity = error
+
+dotnet_naming_rule.private_static_fields_use_pascal_case.symbols = private_static_fields
+dotnet_naming_rule.private_static_fields_use_pascal_case.style = pascal_case
+dotnet_naming_rule.private_static_fields_use_pascal_case.severity = error
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+
+dotnet_naming_symbols.private_static_fields.applicable_kinds = field
+dotnet_naming_symbols.private_static_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_static_fields.required_modifiers = static
+
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+# 上面的 severity 只有編輯器看得懂；命令列建置看這一行。
+dotnet_diagnostic.IDE1006.severity = error

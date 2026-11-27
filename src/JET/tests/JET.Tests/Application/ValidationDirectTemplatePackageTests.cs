@@ -13,7 +13,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// Validation 固定範本的 production writer 驗收。門檻 count 與 fake page 實際列數刻意
+/// Validation 固定範本的 production writer 測試。門檻 count 與 fake page 實際列數刻意
 /// 解耦，避免測試真的配置一萬列，並讓錯誤的「先查明細再決定 summary-only」實作必然失敗。
 /// </summary>
 public sealed class ValidationDirectTemplatePackageTests
@@ -59,7 +59,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         Assert.Equal(expectedDetailSheets ? 4 : 0, repositories.BlankPageCalls);
         Assert.Equal(expectedDetailSheets ? 4 : 0, repositories.RawRowCalls);
-        Assert.Equal(0, repositories.UnbalancedPageCalls);
+        Assert.Equal(0, repositories.UnbalancedDetailReads);
         Assert.Contains("V_Report 5", workbook.Worksheets.Select(sheet => sheet.Name));
         AssertOpenXmlValid(bytes);
     }
@@ -89,7 +89,7 @@ public sealed class ValidationDirectTemplatePackageTests
             expectedDetailSheet,
             workbook.Worksheets.Any(sheet => sheet.Name == "V_Report 6"));
         Assert.Equal(2, workbook.Worksheet("ValidationReport").Cell("D25").GetValue<int>());
-        Assert.Equal(expectedDetailSheet ? 1 : 0, repositories.UnbalancedPageCalls);
+        Assert.Equal(expectedDetailSheet ? 1 : 0, repositories.UnbalancedDetailReads);
         Assert.Equal(expectedDetailSheet ? 1 : 0, repositories.RawRowCalls);
         Assert.Equal(
             rawDetailRowCount,
@@ -874,7 +874,7 @@ public sealed class ValidationDirectTemplatePackageTests
             var names = document.WorkbookPart!.RequiredWorkbook().Sheets!.Elements<Sheet>()
                 .Select(sheet => sheet.Name!.Value!)
                 .ToArray();
-            Assert.Contains(LegacyReportWriter.SeriesName(WorkingPaperSheetCatalog.Step13, 2), names);
+            Assert.Contains(LegacyReportWriter.SeriesName(WorkingPaperSheetCatalog.CompletenessDifference, 2), names);
             Assert.Contains(LegacyReportWriter.SeriesName("V_Report 1", 2), names);
             Assert.Contains(LegacyReportWriter.SeriesName("Source_Quality", 2), names);
             Assert.Contains("V_Report 5", names);
@@ -1120,7 +1120,7 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.True(column.CustomWidth?.Value == true);
             Assert.InRange(column.Width?.Value ?? 0, 1, 255);
         });
-        // 工作表外觀對齊舊流程：欄位名稱欄的寬度上限是 40 並換行。
+        // 欄位名稱欄的寬度上限是 40，「由系統產生」的長說明超過時換行。
         // 300 個全形字約 600 字寬，扣掉留白後每行約 33 字寬，換成 19 行，10 點字每行 15 點。
         Assert.Equal(40d, visibleColumns[0].Width?.Value);
         var longNameRow = worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
@@ -1552,18 +1552,15 @@ public sealed class ValidationDirectTemplatePackageTests
             "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         var expectedDeltas = new Dictionary<string, int>(StringComparer.Ordinal)
         {
-            // The closed ExportDatabase raw-page family is appended. The
-            // Field Info repair adds a borderless regular/bold/wrapped base plus
-            // the shared TB/GL header patches. The validation copy
-            // does not patch a blue version banner (it follows the host report),
-            // so it adds no font or fill for one.
+            // 封閉的 ExportDatabase 原始頁樣式附加在後面。欄位資訊頁另加一組無框線的一般、粗體與換行基本樣式，
+            // 以及 TB、GL 共用的表頭樣式。驗證報告裡的這一頁跟著所在報告，不加藍底版本列，
+            // 所以不為它新增字型或填色。
             ["numFmts"] = 30,
             ["fonts"] = 13,
             ["fills"] = 15,
             ["borders"] = 3,
             ["cellStyleXfs"] = 2,
-            // Generated writer formats plus the component patches
-            // and the ExportDatabase family remain append-only.
+            // 寫出程式產生的格式、各元件的樣式與 ExportDatabase 樣式都只往後附加。
             ["cellXfs"] = 62
         };
         var actualDeltas = expectedDeltas.Keys.ToDictionary(
@@ -1786,7 +1783,6 @@ public sealed class ValidationDirectTemplatePackageTests
         ICompletenessAccountStreamRepository,
         ICompletenessDiffPageRepository,
         ICompletenessDiffStreamRepository,
-        IUnbalancedVoucherPageRepository,
         IUnbalancedVoucherEntryStreamRepository,
         IBlankRecordsPageRepository,
         IBlankRecordEntryStreamRepository,
@@ -1836,7 +1832,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         internal int BlankPageCalls { get; private set; }
 
-        internal int UnbalancedPageCalls { get; private set; }
+        internal int UnbalancedDetailReads { get; private set; }
 
         internal int RawRowCalls { get; private set; }
 
@@ -1961,25 +1957,13 @@ public sealed class ValidationDirectTemplatePackageTests
             }
         }
 
-        public Task<PageResult<long>> GetEntryIdsPageAsync(
-            string projectId,
-            string periodStart,
-            string periodEnd,
-            PageRequest request,
-            CancellationToken cancellationToken)
-        {
-            UnbalancedPageCalls++;
-            ThrowIfForbidden();
-            return Task.FromResult(new PageResult<long>([901], null));
-        }
-
-        // V_Report 6 一次讀完不平傳票的分錄；這一次讀取和上面的分頁一樣計入 UnbalancedPageCalls，也一樣受禁止讀取明細的設定限制。
+        // V_Report 6 一次讀完不平傳票的分錄；這一次讀取計入 UnbalancedDetailReads，也受禁止讀取明細的設定限制。
         async IAsyncEnumerable<long> IUnbalancedVoucherEntryStreamRepository.StreamEntryIdsAsync(
             string projectId,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             await Task.CompletedTask;
-            UnbalancedPageCalls++;
+            UnbalancedDetailReads++;
             ThrowIfForbidden();
             yield return 901;
         }

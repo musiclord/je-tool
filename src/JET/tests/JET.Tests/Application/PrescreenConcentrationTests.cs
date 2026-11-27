@@ -10,8 +10,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// prescreen.run 的集中度分析（流程總覽區塊⑤）wire 契約。母體刻意設計成
-/// 「編製人員數（52）＞ 彙總列上限（50）」，因此兩個新純量若誤取 top-50 合計就會被抓到：
+/// prescreen.run 的集中度分析（流程總覽的集中度分析區塊）wire 契約。母體刻意設計成
+/// 「編製人員數（52）＞ 彙總列上限（50）」，因此期間分錄總筆數與期間相異編製人員數這兩個純量若誤取 top-50 合計，就會被抓到：
 /// 期間分錄總筆數 118 ≠ 已列出 50 位的 116，期間相異編製人員 52 ≠ 50。
 /// 累積占比、其他彙總與前五佔比一律由後端算好（前端只鏡射），故此處以手算值對照。
 /// </summary>
@@ -115,14 +115,14 @@ public sealed class PrescreenConcentrationTests
     }
 
     [Fact]
-    public async Task ProjectLoad_OldPrescreenSummary_ReplaysWithoutFabricatingConcentration()
+    public async Task ProjectLoad_SummaryWithoutConcentration_ReplaysWithoutFabricatingIt()
     {
-        // resume 舊 summary_json（本欄位落地前存下的執行結果）：後端不補 0 或空物件冒充統計。
-        // 舊英文不適用原因的替換已隨舊案件相容程式移除，保存的原因照原樣回放。
+        // 開啟沒有集中度欄位的已存 summary_json 時，後端不補 0 或空物件冒充統計。
+        // 保存的不適用原因照原樣回放，不做替換。
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, BuildConcentrationGl);
 
-        await SaveLegacyPrescreenSummaryAsync(host, projectId);
+        await SavePrescreenSummaryWithoutConcentrationAsync(host, projectId);
 
         var loaded = await host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId }));
@@ -188,7 +188,7 @@ public sealed class PrescreenConcentrationTests
         Assert.Equal(ExpectedPreparerCount, preparers.GetProperty("totalPreparerCount").GetInt64());
         Assert.Equal(ExpectedEntryCount, preparers.GetProperty("totalEntryCount").GetInt64());
 
-        // 假綠防呆：既有彙總確實被 50 列上限截斷，兩個純量因此不可能由它加總得到。
+        // 前提檢查：預篩選的人員彙總確實被 50 列上限截斷，兩個純量因此不可能由它加總得到。
         var listed = data.GetProperty("preparerSummary").GetProperty("preparers").EnumerateArray().ToList();
         Assert.Equal(ExpectedListedPreparers, listed.Count);
         Assert.Equal(ExpectedListedEntryCount, listed.Sum(c => c.GetProperty("entryCount").GetInt64()));
@@ -256,9 +256,9 @@ public sealed class PrescreenConcentrationTests
 
     /// <summary>
     /// 直接落地一份沒有集中度欄位的 prescreen summary（同 prescreen_result 通道），
-    /// 模擬使用者用較早版本的 JET 執行預篩選、之後才換成目前版本開案的情境。
+    /// 模擬已存的預篩選摘要沒有集中度欄位的情形。
     /// </summary>
-    private static async Task SaveLegacyPrescreenSummaryAsync(HandlerTestHost host, string projectId)
+    private static async Task SavePrescreenSummaryWithoutConcentrationAsync(HandlerTestHost host, string projectId)
     {
         var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
@@ -289,8 +289,8 @@ public sealed class PrescreenConcentrationTests
                     new { accountNumber = "A01", accountName = "科目 A01", entryCount = 4, debitTotal = 400.0, creditTotal = 0.0 }
                 }
             },
-            // 規則判定與命中集合未變，因此 prescreen 的 logicVersion 不推進：
-            // 舊摘要仍屬「現行」而會被回放，只是少了後來新增的顯示用彙總。
+            // 集中度欄位只用於顯示，不影響規則判定與命中集合，所以 prescreen 的 logicVersion 不變；
+            // 沒有這些欄位的摘要仍是目前版本，照樣回放，只是沒有顯示用的彙總。
             resultRef = new
             {
                 resultId,

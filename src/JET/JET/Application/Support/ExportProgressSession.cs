@@ -77,7 +77,7 @@ internal sealed class ExportProgressSession
 
 /// <summary>
 /// 送給畫面的 export.progress 內容，欄名與順序固定。剛寫完一張工作表時，另帶那張表的資料列數與標了符合條件的列數；
-/// 這兩項只給日誌讀，序列化時略過，畫面收到的內容不變。
+/// 這兩項只給日誌讀，序列化時略過，不會送到畫面。
 /// </summary>
 internal sealed class ExportProgressUpdate(
     string reportKind,

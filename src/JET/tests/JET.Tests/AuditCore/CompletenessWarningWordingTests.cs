@@ -44,7 +44,7 @@ public sealed class CompletenessWarningWordingTests
                 AccountComparisonApplicable: true,
                 AccountComparisonDifferenceAccountCount: 0));
 
-        // 開頭照裁定寫出完整性兩項檢查裡哪一項沒通過；其餘只核對審計員需要的資訊：是 JET 存下的 GL 有誤，
+        // 開頭寫出完整性兩項檢查裡哪一項沒通過；其餘核對提醒寫出是 JET 存下的 GL 有誤，
         // 以及回第三步「GL 欄位配對」按「重新確認配對」、再重新執行驗證。
         // JET 自己存錯時審計員沒有差異原因可說明，所以不接「可說明差異原因並繼續」那句。
         Assert.StartsWith("存入筆數與合計核對未通過：", importControlMismatch.Warning, StringComparison.Ordinal);

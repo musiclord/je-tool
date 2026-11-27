@@ -13,7 +13,7 @@ internal enum FieldInfoScope
 /// 一個欄位的定義，內容比照舊版的 TableDef，不綁特定資料庫。TextLength 只有文字欄有值，
 /// DecimalPlaces 只有數字欄有值；Ordinal 是這一欄在同一組定義裡的序號，從 1 起算，固定不變。
 /// Origin 是這一欄的來歷，JetField 是它對應的 JET 欄位（標準欄寫語意欄名稱，攸關資料元素寫 fieldId）；
-/// 欄位資訊與底稿第四步之一看這兩項判斷哪一欄是 JET 欄位。
+/// 欄位資訊與底稿 step4-1 符合高風險條件傳票明細看這兩項判斷哪一欄是 JET 欄位。
 /// </summary>
 internal sealed record FieldInfo(
     int Ordinal,

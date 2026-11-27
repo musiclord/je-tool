@@ -18,14 +18,14 @@ public sealed class WorkingPaperDirectTemplatePackageTests
     private static readonly string[] DynamicSheets =
     [
         WorkingPaperSheetCatalog.Cover,
-        WorkingPaperSheetCatalog.Step1,
-        WorkingPaperSheetCatalog.Step11,
-        WorkingPaperSheetCatalog.Step12,
-        WorkingPaperSheetCatalog.Step13,
-        WorkingPaperSheetCatalog.Step2,
-        WorkingPaperSheetCatalog.Step3,
-        WorkingPaperSheetCatalog.Step4,
-        WorkingPaperSheetCatalog.Step41,
+        WorkingPaperSheetCatalog.Completeness,
+        WorkingPaperSheetCatalog.VoucherBalance,
+        WorkingPaperSheetCatalog.PreparerSummary,
+        WorkingPaperSheetCatalog.CompletenessDifference,
+        WorkingPaperSheetCatalog.InfSampling,
+        WorkingPaperSheetCatalog.HighRiskSummary,
+        WorkingPaperSheetCatalog.HighRiskVoucher,
+        WorkingPaperSheetCatalog.HighRiskVoucherDetail,
         WorkingPaperSheetCatalog.FieldInfo,
         WorkingPaperSheetCatalog.CalendarInfo,
         WorkingPaperSheetCatalog.AccountMapping
@@ -46,14 +46,6 @@ public sealed class WorkingPaperDirectTemplatePackageTests
 
         var outputBytes = await ExportFourteenSheetWorkingPaperAsync();
         WorkingPaperPackageDiff.AssertAllowed(templateBytes, outputBytes);
-        var evidencePath = Environment.GetEnvironmentVariable(
-            "JET_WORKING_PAPER_DIRECT_EVIDENCE_PATH");
-        if (!string.IsNullOrWhiteSpace(evidencePath))
-        {
-            Directory.CreateDirectory(
-                Path.GetDirectoryName(Path.GetFullPath(evidencePath))!);
-            await File.WriteAllBytesAsync(evidencePath, outputBytes);
-        }
 
         var mutated = WorkingPaperPackageDiff.MutateWorkbookPart(outputBytes);
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(
@@ -61,7 +53,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
     }
 
     [Fact]
-    public async Task Step13WithoutDifference_RemovesRelationshipClosureAndPreservesLocalDefinedNameOwners()
+    public async Task NoCompletenessDifference_RemovesRelationshipClosureAndPreservesLocalDefinedNameOwners()
     {
         var templateBytes = await ReadTemplateBytesAsync();
         var outputBytes = await ExportWorkingPaperAsync(
@@ -72,7 +64,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
         WorkingPaperPackageDiff.AssertWorksheetRemoval(
             templateBytes,
             outputBytes,
-            WorkingPaperSheetCatalog.Step13);
+            WorkingPaperSheetCatalog.CompletenessDifference);
     }
 
     [Fact]

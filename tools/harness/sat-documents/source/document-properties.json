@@ -1,0 +1,5 @@
+{
+  "說明": "送審 Word 與 Excel 成品的文件記錄人員。creator 是文件屬性的作者，lastModifiedBy 是上次儲存者；空字串表示留空。產生腳本照這兩個值寫，不用這台電腦的 Office 使用者名稱。",
+  "creator": "",
+  "lastModifiedBy": "Fang, Rich L.C. (TW/100ITA)"
+}

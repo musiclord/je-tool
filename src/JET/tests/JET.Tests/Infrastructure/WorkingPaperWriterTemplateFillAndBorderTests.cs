@@ -18,7 +18,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class WorkingPaperWriterTemplateFillAndBorderTests
 {
     [Fact]
-    public async Task Step2To4_DynamicDataCells_PreserveTemplateFillAndBorders()
+    public async Task InfSamplingToHighRiskVoucher_DynamicDataCells_PreserveTemplateFillAndBorders()
     {
         using var host = new HandlerTestHost();
         var ctx = await DemoProjectPipeline.SetupAsync(host);
@@ -38,22 +38,22 @@ public sealed class WorkingPaperWriterTemplateFillAndBorderTests
         AssertTemplateFillAndBorder(
             template,
             output,
-            Step2Sheet,
+            InfSamplingSheet,
             ["A53", "F53", "M53", "T53"]);
         AssertTemplateFillAndBorder(
             template,
             output,
-            Step3Sheet,
+            HighRiskSummarySheet,
             ["B19", "C19", "D19", "E19"]);
         AssertTemplateFillAndBorder(
             template,
             output,
-            Step4Sheet,
+            HighRiskVoucherSheet,
             ["A13", "E13", "F13", "O13"]);
     }
 
     [Fact]
-    public async Task Step4_ContinuationFirstDataRow_PreservesTemplateFillAndBorders()
+    public async Task HighRiskVoucher_ContinuationFirstDataRow_PreservesTemplateFillAndBorders()
     {
         const int voucherCount = 9;
         const uint continuationRowLimit = 20;
@@ -72,7 +72,7 @@ public sealed class WorkingPaperWriterTemplateFillAndBorderTests
             context,
             plan,
             CancellationToken.None);
-        var continuationSheetName = ExcelWorksheetConstraints.ContinuationSheetName(Step4Sheet, 2);
+        var continuationSheetName = ExcelWorksheetConstraints.ContinuationSheetName(HighRiskVoucherSheet, 2);
         var continuationStats = Assert.Single(
             stats.SheetStats,
             stat => string.Equals(
@@ -92,19 +92,19 @@ public sealed class WorkingPaperWriterTemplateFillAndBorderTests
         AssertTemplateFillAndBorder(
             template,
             output,
-            Step4Sheet,
+            HighRiskVoucherSheet,
             ["A13", "E13", "F13", "O13", "P13", "U13"],
             continuationSheetName);
         AssertTemplateCellFormats(
             template,
             output,
-            Step4Sheet,
+            HighRiskVoucherSheet,
             ["A1", "A5", "B5", "A11", "E11"],
             continuationSheetName);
     }
 
     [Fact]
-    public async Task Step4_FirstPageRowsBeyondTemplateExtent_PreserveTemplateFillAndBorders()
+    public async Task HighRiskVoucher_FirstPageRowsBeyondTemplateExtent_PreserveTemplateFillAndBorders()
     {
         const int voucherCount = 989;
         using var host = new HandlerTestHost();
@@ -125,7 +125,7 @@ public sealed class WorkingPaperWriterTemplateFillAndBorderTests
             AssertTemplateFillAndBorderAt(
                 template,
                 output,
-                Step4Sheet,
+                HighRiskVoucherSheet,
                 expectedReference: $"{column}13",
                 outputReference: $"{column}1001");
         }

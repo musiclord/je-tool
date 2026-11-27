@@ -14,18 +14,20 @@ namespace JET.Tests.Infrastructure;
 public sealed class FilterHitLoggingTests
 {
     // 篩選範圍由 AuditCore「只看納入測試的分錄」的 predicate 唯一限定。
-    private const string SqliteSnapshotDigest = "CC535F625B81289224E2F282ABEF85C748BBD73B62677979E4E602CFCFC5AF07";
+    private const string SqliteSnapshotDigest = "9DECDF0EBE15762DFE21E88F02A808E544665A4CEB318821FDA2FC8A9893F46C";
 
     private const long DistinctiveAmount = 123_456L; // 可辨識的下限值，應原樣出現在 parameters
 
-    // 單一 NumRange 規則：金額下限。值參數綁定 → parameters 應含 DistinctiveAmount。
+    // 單一欄位值條件：金額絕對值大於或等於 1,234.56。值參數綁定 → parameters 應含 DistinctiveAmount。
     private static FilterScenarioSpec AmountFromScenario() =>
         new("logging", "amount lower bound",
         [
             new FilterGroupSpec(FilterJoin.And,
             [
-                new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "amount",
-                    [], TextMatchMode.Contains, null, null, DistinctiveAmount, null, null, null)
+                new FilterConditionSpec(FilterJoin.And, FilterConditionType.FieldValue, null, "amount", [], null, null)
+                {
+                    TypedOperator = "greaterThanOrEqual", TypedValue = "1234.56", AmountBasis = TypedAmountBasisNames.Absolute
+                }
             ])
         ]);
 

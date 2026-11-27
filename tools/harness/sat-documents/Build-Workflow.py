@@ -21,6 +21,7 @@ import bisect
 import io
 import json
 import math
+import os
 import re
 import sys
 import zipfile
@@ -692,7 +693,9 @@ def package_parts(model):
                   el('main:definedNames', None,
                      el('main:definedName', {'name': '_xlnm.Print_Area', 'localSheetId': 0}, text=print_area)),
                   nsmap={None: NS['main'], 'r': NS['r']})
-    core = el('cp:coreProperties', None, el('dc:title', text=sheet['name']), el('dc:creator', text='JET'),
+    recorder = json.loads((HERE / 'source' / 'document-properties.json').read_text(encoding='utf-8'))
+    core = el('cp:coreProperties', None, el('dc:title', text=sheet['name']), el('dc:creator', text=recorder['creator']),
+              el('cp:lastModifiedBy', text=recorder['lastModifiedBy']),
               nsmap={'cp': NS['cp'], 'dc': NS['dc']})
     return [
         ('[Content_Types].xml', content_types),
@@ -734,6 +737,15 @@ def main():
     expected_shapes = len(model['shapes']) + len(model['text_boxes'])
     if written_shapes != expected_shapes or written_connectors != len(model['connectors']):
         raise SystemExit('寫出的圖形或連接線數量和來源不一致。')
+    # 成品裡不得留下這台電腦的使用者名稱、電腦名稱、使用者資料夾路徑或 AI 產品的名稱。
+    local = [value.strip().lower() for value in (os.environ.get('USERNAME', ''), os.environ.get('COMPUTERNAME', ''),
+                                                 os.environ.get('USERPROFILE', '')) if len(value.strip()) >= 2]
+    forbidden = local + ['chatgpt', 'openai', 'codex', 'claude', 'anthropic', 'copilot']
+    with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as package:
+        for name in package.namelist():
+            text = package.read(name).decode('utf-8', errors='replace').lower()
+            if any(value in text for value in forbidden):
+                raise SystemExit('%s 裡有這台電腦的使用者資訊或 AI 產品的名稱。' % name)
 
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_bytes(buffer.getvalue())

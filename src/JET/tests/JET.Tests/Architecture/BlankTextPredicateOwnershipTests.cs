@@ -28,7 +28,7 @@ public sealed class BlankTextPredicateOwnershipTests
         foreach (var parts in Consumers)
         {
             var source = ProductSources.Product(parts);
-            // 一條規則只有一個定義，所以欄位條件的空白判斷改呼叫 GlRulePredicates.BlankText（它呼叫 SqlBlankText），和第四步空白摘要同一個方法。
+            // 一條規則只有一個定義，所以欄位條件的空白判斷呼叫 GlRulePredicates.BlankText（它呼叫 SqlBlankText），和第四步空白摘要同一個方法。
             Assert.True(source.Contains("SqlBlankText.", StringComparison.Ordinal) || source.Contains("BlankText(", StringComparison.Ordinal),
                 string.Join("/", parts) + " 沒有呼叫共用的空白判定");
             Assert.DoesNotContain("IS NULL OR {dialect.Trim(", source, StringComparison.Ordinal);

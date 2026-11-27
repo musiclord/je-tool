@@ -26,9 +26,9 @@ public sealed class FilterConditionLabelMirrorTests
     [Fact]
     public void PrescreenKeyOptions_MirrorDomainLabels_Bidirectional()
     {
-        // 共用 11 與 6 的門檻常數後，literal-only regex 會把串接文字截斷，並非可見標籤變更。
-        // 從JS自己的常數求出完整文字；Domain只作另一側比對，全部鍵仍逐一核對。
-        // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。
+        // PRESCREEN_RULES 的標籤串接 11 與 6 的門檻常數，只抓字面值的正則會把文字截斷，所以從 JS 自己的常數求出完整文字；
+        // Domain 只作另一側比對，全部鍵逐一核對。
+        // 一條規則只有一個定義，前端只有一份 PRESCREEN_RULES。
         var frontend = FrontendConstantTextReader.ValueLabels(ReadUiCore(), "PRESCREEN_RULES");
         Assert.Equal(FilterConditionLabels.PrescreenKeys, frontend);
         // 尾數規則的名稱是「分錄金額中有連續 0 的尾數」；0 的個數由 GL 算出，知道個數時才寫成「金額尾數連續 N 個 0」。
@@ -46,13 +46,6 @@ public sealed class FilterConditionLabelMirrorTests
         Assert.Equal(
             PrescreenRuleKeys.FilterableKeys.OrderBy(k => k, StringComparer.Ordinal),
             FilterConditionLabels.PrescreenKeys.Keys.OrderBy(k => k, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void TextModeOptions_MirrorDomainLabels_Bidirectional()
-    {
-        var frontend = ExtractValueLabelMap("TEXT_MODE_OPTIONS");
-        Assert.Equal(FilterConditionLabels.TextModes, frontend);
     }
 
     [Fact]
@@ -112,7 +105,7 @@ public sealed class FilterConditionLabelMirrorTests
     [Fact]
     public void CategoryListSeparator_MirrorsDomainLabel()
     {
-        // 借貸組合多選讀回的分隔字元：後端 renderer 是唯一權威輸出，前端只能鏡射同一字元。
+        // 借貸組合多選讀回的分隔字元：讀回文字以後端 renderer 的輸出為準，前端只能鏡射同一字元。
         var source = ReadUiCore();
         var match = Regex.Match(source, @"FILTER_CATEGORY_LIST_SEPARATOR\s*=\s*'(?<separator>[^']+)'");
         Assert.True(match.Success, "ui-core.js 找不到 FILTER_CATEGORY_LIST_SEPARATOR");
@@ -122,7 +115,7 @@ public sealed class FilterConditionLabelMirrorTests
     [Fact]
     public void RuleFamilies_CoverEveryBackendRuleType()
     {
-        // 家族只是畫面分類：三個家族合起來正好涵蓋後端認得的全部型別，wire 型別鍵不變。
+        // 家族只是畫面分類：四個家族合起來正好涵蓋後端認得的全部型別，wire 型別鍵不變。
         // 前端行為測試讀不到後端的 FilterConditionLabels.RuleTypes，後端新增型別而前端漏接時只有這裡看得出來。
         var filter = ProductSources.FilterStepFrontend();
         var families = Regex.Match(filter, @"var RULE_FAMILIES = \{(?<body>.*?)\n  \};", RegexOptions.Singleline).Groups["body"].Value;

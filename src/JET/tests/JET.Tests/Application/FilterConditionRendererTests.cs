@@ -8,17 +8,17 @@ namespace JET.Tests.Application;
 /// 條件 AST → 中文布林式渲染器（<see cref="FilterConditionRenderer"/>）。
 ///
 /// oracle 策略（規格 oracle）：預期值以前端 <c>filter-step-rules.js</c> 的 <c>readBackHtml</c> ＋
-/// <c>ruleSummaryLabel(rule, 0)</c> 為權威，逐一手算成字面斷言——渲染器必須與前端藍色 read-back
+/// <c>ruleSummaryLabel(rule, 0)</c> 為準，逐一手算成字面斷言——渲染器必須與前端藍色 read-back
 /// 的 <c>.scenario-readback__expr</c> 文字內容同構。標籤（週末過帳、假日過帳…）來自 Domain
 /// FilterConditionLabels（前端鏡像，另有 FilterConditionLabelMirrorTests 守衛），此處不重測標籤內容，
 /// 只鎖布林式的結構：組內組合器、組間運算子、內層括號、非營業日括號的讀回、空組過濾。
 ///
 /// 設計技術：決策表（Decision Table）——以「條件組數 × 組內規則數 × 有無非營業日」為條件維度，
-/// 每列一個代表情境。join 一律用大寫 AND/OR（對齊前端 comboSegment 值與 read-back 的大小寫敏感比對）。
+/// 每列一個代表情境。join 一律用大寫 AND/OR，和前端送出的值一致，讀回的比對分大小寫。
 /// </summary>
 public sealed class FilterConditionRendererTests
 {
-    // 省略方向時仍寫借方的
+    // 省略借貸方向時，讀回只寫科目分類，不寫成借方。
     [Fact]
     public void ClassificationWithoutDirection_DoesNotDescribeItAsDebit()
     {
@@ -195,37 +195,6 @@ public sealed class FilterConditionRendererTests
             result);
     }
 
-    [Fact]
-    public void SingleGroup_TextAndNumRangeBothBounds_RendersDisplayStrings()
-    {
-        // text 原子（欄+模式+關鍵字原文）與 numRange 雙邊界（≥…、≤…）；組內 AND。
-        var result = Render(new
-        {
-            groups = new[] { new { join = "AND", conditions = new object[]
-            {
-                new { join = "AND", type = "text", field = "description", mode = "contains", keywords = "調整" },
-                new { join = "AND", type = "numRange", field = "amount", from = "1000", to = "5000" }
-            } } }
-        });
-
-        Assert.Equal("傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000、≤ 5000", result);
-    }
-
-    [Fact]
-    public void SingleGroup_DateRangeOneSided_UsesEllipsisForMissingBound()
-    {
-        // dateRange 缺 to → 以刪節號替代（前端 rule.to || '…'）。
-        var result = Render(new
-        {
-            groups = new[] { new { join = "AND", conditions = new object[]
-            {
-                new { join = "AND", type = "dateRange", field = "glDate", from = "2024-01-01" }
-            } } }
-        });
-
-        Assert.Equal("總帳日期 2024-01-01～…", result);
-    }
-
     // ---- 多組（ne≥2）：組間運算子 + 內層括號 ----
 
     [Fact]
@@ -238,7 +207,7 @@ public sealed class FilterConditionRendererTests
             {
                 new { join = "OR", conditions = new object[]
                 {
-                    new { join = "AND", type = "text", field = "description", mode = "contains", keywords = "調整" }
+                    new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } }
                 } },
                 new { join = "OR", conditions = new object[]
                 {
@@ -247,7 +216,7 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        Assert.Equal("傳票摘要 包含「調整」 或 僅借方", result);
+        Assert.Equal("傳票摘要 包含任一文字「調整」；空白不列入 或 僅借方", result);
     }
 
     [Fact]
@@ -260,8 +229,8 @@ public sealed class FilterConditionRendererTests
             {
                 new { join = "AND", conditions = new object[]
                 {
-                    new { join = "AND", type = "text", field = "description", mode = "contains", keywords = "調整" },
-                    new { join = "AND", type = "numRange", field = "amount", from = "1000000" }
+                    new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } },
+                    new { join = "AND", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "1000000", amountBasis = "absolute" }
                 } },
                 new { join = "AND", conditions = new object[]
                 {
@@ -270,7 +239,7 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        Assert.Equal("（傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000000） 且 僅借方", result);
+        Assert.Equal("（傳票摘要 包含任一文字「調整」；空白不列入 且 金額絕對值 大於或等於「1000000」；空白不列入） 且 僅借方", result);
     }
 
     // ---- 已存情境裡兩條預篩選自成一組的非營業日條件(I)：照一般條件組讀回 ----
@@ -330,7 +299,7 @@ public sealed class FilterConditionRendererTests
             {
                 new { join = "AND", conditions = new object[]
                 {
-                    new { join = "AND", type = "text", field = "description", mode = "contains", keywords = "調整" },
+                    new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } },
                     new { join = "OR", type = "drCrOnly", drCr = "debit" }
                 } },
                 new { join = "AND", conditions = new object[]
@@ -341,7 +310,7 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        Assert.Equal("（傳票摘要 包含「調整」 或 僅借方） 且 （預篩選：週末過帳 或 預篩選：假日過帳）", result);
+        Assert.Equal("（傳票摘要 包含任一文字「調整」；空白不列入 或 僅借方） 且 （預篩選：週末過帳 或 預篩選：假日過帳）", result);
     }
 
     // ---- 非營業日(I) 子條件組：在原位置讀回「非營業日（週末或假日）」----
@@ -488,9 +457,8 @@ public sealed class FilterConditionRendererTests
     [Fact]
     public void ManualOrCombinator_SingleSameShapeGroup_RendersAsNormalGroup()
     {
-        // 手動 或 同形組（單組情境）：wire 上 group join 經 toWireDraft 收斂為 "OR"（scenarioJoin 預設），
-        // 與當時非營業日卡片預設組固定的 "AND" 可分。保存當下 read-back 把它當一般可編輯組渲染
-        // （「預篩選：週末過帳 或 預篩選：假日過帳」，無預設區塊）——渲染器同構照渲。
+        // 手動 或 同形組（單組情境）：wire 上的 group join 經 toWireDraft 收斂為 "OR"（scenarioJoin 預設）。
+        // 保存當下的讀回把它當一般可編輯組，寫成「預篩選：週末過帳 或 預篩選：假日過帳」，沒有預設區塊；渲染器照同樣的方式讀回。
         var result = Render(new
         {
             groups = new[] { new { join = "OR", conditions = new object[]
@@ -503,7 +471,7 @@ public sealed class FilterConditionRendererTests
         Assert.Equal("預篩選：週末過帳 或 預篩選：假日過帳", result);
     }
 
-    // ---- 原子全型別覆蓋（決策表補齊：其餘 13 種 atom 型別 + 變體）----
+    // ---- 其餘原子型別與變體的讀回（決策表：每型別一代表值）----
     // oracle：前端 ruleSummaryLabel(rule, 0) 手算（等價分割：每型別一代表值；
     // manualAuto 補一負向變體、revenueDebitNearQuarterEnd 補缺值刪節號變體）。
 
@@ -577,74 +545,7 @@ public sealed class FilterConditionRendererTests
             FilterConditionRenderer.Render(document.RootElement, labels));
     }
 
-    // ---- typed 條件（type:"typed"）----
-
-    [Fact]
-    public void TypedAtom_UsesCurrentRdeLabel_AndRendersRawOperandStrings()
-    {
-        const string fieldId = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";
-        var rdeLabels = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            [fieldId] = "稅務備註"
-        };
-        var json = $$"""
-            {"groups":[{"join":"AND","conditions":[
-              {"join":"AND","type":"typed","fieldId":"{{fieldId}}","operator":"equals","value":"  Alpha "}
-            ]}]}
-            """;
-        using var document = JsonDocument.Parse(json);
-
-        // label 改名（type／identity 不變）時情境仍合法、renderer 用目前 metadata；
-        // operand 顯示原始 wire 字串（含空白），不顯示比較用的正規化值。
-        Assert.Equal(
-            "稅務備註 等於「  Alpha 」",
-            FilterConditionRenderer.Render(document.RootElement, null, rdeLabels));
-    }
-
-    [Fact]
-    public void TypedAtom_UnknownField_NamesTheMissingFieldWithoutItsId()
-    {
-        const string fieldId = "rde.dddd0000dddd0000dddd0000dddd0000";
-        var json = $$"""
-            {"groups":[{"join":"AND","conditions":[
-              {"join":"AND","type":"typed","fieldId":"{{fieldId}}","operator":"isBlank"}
-            ]}]}
-            """;
-        using var document = JsonDocument.Parse(json);
-
-        // 不印程式代號。
-        var rendered = FilterConditionRenderer.Render(document.RootElement);
-        Assert.Equal("已不在欄位配對中的攸關資料元素欄位 為空白", rendered);
-        Assert.DoesNotContain(fieldId, rendered, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TypedAtom_BetweenInValuesAndMoneyBasis_RenderPerCarrier()
-    {
-        const string dateField = "rde.bbbb0000bbbb0000bbbb0000bbbb0000";
-        const string moneyField = "rde.cccc0000cccc0000cccc0000cccc0000";
-        const string textField = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";
-        var rdeLabels = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            [dateField] = "審核日",
-            [moneyField] = "稅額",
-            [textField] = "備註"
-        };
-        var json = $$"""
-            {"groups":[{"join":"AND","conditions":[
-              {"join":"AND","type":"typed","fieldId":"{{dateField}}","operator":"between","from":"2025-01-01","to":"2025-06-30"},
-              {"join":"AND","type":"typed","fieldId":"{{moneyField}}","operator":"greaterThan","value":"100.50","amountBasis":"absolute"},
-              {"join":"AND","type":"typed","fieldId":"{{textField}}","operator":"notIn","values":["A","B"]}
-            ]}]}
-            """;
-        using var document = JsonDocument.Parse(json);
-
-        Assert.Equal(
-            "審核日 介於「2025-01-01」～「2025-06-30」 且 稅額 大於「100.50」（金額絕對值） 且 備註 不屬於任何值（排除）「A、B」",
-            FilterConditionRenderer.Render(document.RootElement, null, rdeLabels));
-    }
-
-    // 底稿與報告的條件說明，欄位名稱照原樣寫，不加任何符號，值照舊用「」；畫面的讀回也不加。
+    // 底稿與報告的條件說明，欄位名稱照原樣寫，不加任何符號，值用「」包住；畫面的讀回也不在欄位名稱加符號。
     // 兩種寫法只差在統計條件：畫面用「」包住欄位名稱，文件裡欄位名稱前後各留一個半形空白。
     // 認不得的欄位寫的是替代句，兩種寫法相同。
     [Fact]
@@ -654,15 +555,15 @@ public sealed class FilterConditionRendererTests
         var rdeLabels = new Dictionary<string, string>(StringComparer.Ordinal) { [rdeField] = "成本中心" };
         var json = $$"""
             {"groups":[{"join":"AND","conditions":[
-              {"join":"AND","type":"text","field":"description","mode":"contains","keywords":"調整"},
-              {"join":"AND","type":"numRange","from":"1000","to":""},
-              {"join":"AND","type":"dateRange","field":"glDate","from":"2024-01-01","to":""},
-              {"join":"AND","type":"textSet","field":"description","mode":"exact","values":["1101"]},
+              {"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["調整"]},
+              {"join":"AND","type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1000","amountBasis":"absolute"},
+              {"join":"AND","type":"fieldValue","field":"glDate","operator":"onOrAfter","value":"2024-01-01"},
+              {"join":"AND","type":"fieldValue","field":"description","operator":"in","values":["1101"]},
               {"join":"AND","type":"fieldValue","field":"amount","operator":"between","from":"10","to":"20","amountBasis":"absolute"},
-              {"join":"AND","type":"typed","fieldId":"{{rdeField}}","operator":"equals","value":"X"},
+              {"join":"AND","type":"fieldValue","fieldId":"{{rdeField}}","operator":"equals","value":"X"},
               {"join":"AND","type":"entityFrequency","field":"createdBy","countUnit":"entries","countOperator":"lessThan","countFrom":"3"},
-              {"join":"AND","type":"text","field":"nope","mode":"contains","keywords":"x"},
-              {"join":"AND","type":"typed","fieldId":"rde.gone","operator":"isBlank"}
+              {"join":"AND","type":"fieldValue","field":"nope","operator":"contains","values":["x"]},
+              {"join":"AND","type":"fieldValue","fieldId":"rde.gone","operator":"isBlank"}
             ]}]}
             """;
         using var document = JsonDocument.Parse(json);
@@ -673,16 +574,16 @@ public sealed class FilterConditionRendererTests
         Assert.DoesNotContain("【", screen, StringComparison.Ordinal);
         Assert.DoesNotContain("【", paper, StringComparison.Ordinal);
         Assert.DoesNotContain("】", paper, StringComparison.Ordinal);
-        Assert.Contains("傳票摘要 包含「調整」", paper, StringComparison.Ordinal);
-        Assert.Contains("金額（絕對值） ≥ 1000", paper, StringComparison.Ordinal);
-        Assert.Contains("總帳日期 2024-01-01～…", paper, StringComparison.Ordinal);
-        Assert.Contains("傳票摘要 完全符合任一值「1101」（保留半形空白）", paper, StringComparison.Ordinal);
+        Assert.Contains("傳票摘要 包含任一文字「調整」", paper, StringComparison.Ordinal);
+        Assert.Contains("金額絕對值 大於或等於「1000」", paper, StringComparison.Ordinal);
+        Assert.Contains("總帳日期 當日或以後「2024-01-01」", paper, StringComparison.Ordinal);
+        Assert.Contains("傳票摘要 符合清單任一值「1101」", paper, StringComparison.Ordinal);
         Assert.Contains("金額絕對值 介於「10」至「20」", paper, StringComparison.Ordinal);
         Assert.Contains("成本中心 等於「X」", paper, StringComparison.Ordinal);
         Assert.Contains("GL 中「傳票建立人員」分錄筆數", screen, StringComparison.Ordinal);
         Assert.Contains("GL 中 傳票建立人員 分錄筆數", paper, StringComparison.Ordinal);
-        Assert.Contains("已不存在的欄位 包含「x」", paper, StringComparison.Ordinal);
-        Assert.Contains("已不在欄位配對中的攸關資料元素欄位 為空白", paper, StringComparison.Ordinal);
+        Assert.Contains("已不存在的欄位 包含任一文字「x」", paper, StringComparison.Ordinal);
+        Assert.Contains("已不在欄位配對中的攸關資料元素欄位 空白", paper, StringComparison.Ordinal);
         Assert.Equal(
             screen.Replace("GL 中「傳票建立人員」分錄筆數", "GL 中 傳票建立人員 分錄筆數", StringComparison.Ordinal),
             paper);

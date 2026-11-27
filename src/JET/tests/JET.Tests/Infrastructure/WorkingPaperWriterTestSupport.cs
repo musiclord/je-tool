@@ -14,13 +14,13 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 匯出底稿 SAX 寫出器(封面、固定文字表與 step1 家族)。
+/// 匯出底稿 SAX 寫出器測試共用的組裝、合成母體與讀回工具。
 /// 寫到 MemoryStream,再用 ClosedXML 讀回斷言;測試端可以用 ClosedXML,寫出器本身不用。
 ///
-/// oracle 來源:
+/// 預期值的來源:
 ///   - 封面/固定文字:測試裡寫死的 cell 內容、合併範圍、表名。
 ///   - step1 家族資料列:獨立參數化 SQL recount(DemoProjectPipeline.QueryScalarAsync),
-///     鎖「數值＋身分」(科目差異、名單筆數、diff≠0 子集),非弱斷言非空。
+///     核對數值與對象（科目差異、名單筆數、差異不為 0 的科目），不只確認有資料。
 ///
 /// 母體以 InlineWorkbookProject(flag 金額模式:借方旗標 1=借/0=貸 → amount_scaled ±|金額|)自造,
 /// 借貸平衡 vs 不平衡、完整性 diff=0 vs diff≠0 皆可控,證實條件表(step1-1 例外、step1-3)的存在性。
@@ -30,16 +30,16 @@ internal static class WorkingPaperWriterTestSupport
 {
     internal const string CoverSheet = "資料預先整理之說明";
     internal const string IntroSheet = "JE WorkingPaper說明";
-    internal const string Step5Sheet = "step5 財務報表關帳後調整之分錄";
-    internal const string Step1Sheet = "step1 完整性測試";
-    internal const string Step11Sheet = "step1-1 借貸不平測試";
-    internal const string Step12Sheet = "step1-2 分錄編製人員說明";
-    internal const string Step13Sheet = "step1-3 完整性測試之差異說明";
-    internal const string RemovedStep131Sheet = "step1-3-1完整性差異調節";
-    internal const string Step2Sheet = "step2 可靠性測試";
-    internal const string Step3Sheet = "step3 高風險條件彙總";
-    internal const string Step4Sheet = "step4 符合高風險條件傳票";
-    internal const string Step41Sheet = "step4-1 符合高風險條件傳票明細";
+    internal const string PostClosingEntriesSheet = "step5 財務報表關帳後調整之分錄";
+    internal const string CompletenessSheet = "step1 完整性測試";
+    internal const string VoucherBalanceSheet = "step1-1 借貸不平測試";
+    internal const string PreparerSummarySheet = "step1-2 分錄編製人員說明";
+    internal const string CompletenessDifferenceSheet = "step1-3 完整性測試之差異說明";
+    internal const string RemovedCompletenessReconciliationSheet = "step1-3-1完整性差異調節";
+    internal const string InfSamplingSheet = "step2 可靠性測試";
+    internal const string HighRiskSummarySheet = "step3 高風險條件彙總";
+    internal const string HighRiskVoucherSheet = "step4 符合高風險條件傳票";
+    internal const string HighRiskVoucherDetailSheet = "step4-1 符合高風險條件傳票明細";
     internal const string FieldInfoSheet = "自動化工具-檔案欄位資訊";
     internal const string CalendarInfoSheet = "自動化工具-假期假日資訊";
     internal const string AccountMappingSheet = "自動化工具-科目配對資訊";
@@ -52,8 +52,8 @@ internal static class WorkingPaperWriterTestSupport
         HandlerTestHost host,
         WorkingPaperWriterOptions? options = null,
         int progressRowInterval = 10_000,
-        IWorkingPaperStep41PreparedSessionFactory? highRiskSummaryRowsOverride = null,
-        IWorkingPaperStep4StreamRepository? highRiskSummaryVouchersOverride = null,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory? highRiskSummaryRowsOverride = null,
+        IWorkingPaperHighRiskVoucherStreamRepository? highRiskSummaryVouchersOverride = null,
         ICompletenessDiffStreamRepository? completenessDiffsOverride = null,
         ICalendarExportRepository? calendarDaysOverride = null,
         IAccountMappingExportRepository? accountMappingsOverride = null,
@@ -147,7 +147,7 @@ internal static class WorkingPaperWriterTestSupport
                 GlPopulationScopeValues.TryParse(
                     definition.RootElement.GetProperty("populationScope").GetString(),
                     out populationScope),
-                "已存測試情境應含正準 populationScope。");
+                "已存測試情境的 populationScope 應是 JET 認得的值。");
         }
 
         var context = ContextFor(projectId);
@@ -321,13 +321,13 @@ internal static class WorkingPaperWriterTestSupport
                 new {
                     name = "天價(打不中)", rationale = "0 命中情境(對照欄集邊界)",
                     groups = new[] { new { join = "and", conditions = new object[] {
-                        new { join = "and", type = "numRange", field = "amount", from = "999999999999" } } } } }
+                        new { join = "and", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "999999999999", amountBasis = "absolute" } } } } }
             }
         });
 
     /// <summary>
     /// 兩個互斥傳票情境：C1 只命中 DOC-C1，C2 只命中 DOC-C2 的第一條借方行。
-    /// DOC-C2 另有一條未命中借方 30，所以 step4 完整傳票借方總額的手算 oracle 是 10+30=40。
+    /// DOC-C2 另有一條未命中借方 30，所以 step4 完整傳票借方總額手算是 10+30=40。
     /// </summary>
     internal static Task<string> SetupSelectedScenarioProjectAsync(HandlerTestHost host) =>
         InlineWorkbookProject.SetupAsync(
@@ -362,11 +362,11 @@ internal static class WorkingPaperWriterTestSupport
                 new {
                     name = "C1 專屬", rationale = "只命中 DOC-C1",
                     groups = new[] { new { join = "and", conditions = new object[] {
-                        new { join = "and", type = "text", field = "description", keywords = "MATCH-C1", mode = "contains" } } } } },
+                        new { join = "and", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "MATCH-C1" } } } } } },
                 new {
                     name = "C2 專屬", rationale = "只命中 DOC-C2 的一行",
                     groups = new[] { new { join = "and", conditions = new object[] {
-                        new { join = "and", type = "text", field = "description", keywords = "MATCH-C2", mode = "contains" } } } } }
+                        new { join = "and", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "MATCH-C2" } } } } } }
             }
         });
 
@@ -877,13 +877,13 @@ internal static class WorkingPaperWriterTestSupport
         worksheet.Descendants<Cell>()
             .Single(cell => cell.CellReference?.Value == reference);
 
-    internal sealed class CapturingStep41PreparedRepository(
+    internal sealed class CapturingHighRiskVoucherDetailPreparedRepository(
         LocalHighRiskSummaryRowPageRepository inner)
-        : IHighRiskSummaryRowPageRepository, IWorkingPaperStep41PreparedSessionFactory
+        : IHighRiskSummaryRowPageRepository, IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory
     {
         internal int TypedPageCalls { get; private set; }
 
-        internal WorkingPaperStep41PreparedSessionMetrics? Metrics { get; private set; }
+        internal WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics? Metrics { get; private set; }
 
         public Task<(
             PageResult<RowTagRow> Page,
@@ -905,14 +905,14 @@ internal static class WorkingPaperWriterTestSupport
                 cancellationToken);
         }
 
-        public async Task<IWorkingPaperStep41PreparedSession> PrepareAsync(
+        public async Task<IWorkingPaperHighRiskVoucherDetailPreparedSession> PrepareAsync(
             string projectId,
             GlPopulationContext context,
             IReadOnlyList<int> scenarioPositions,
             LegacyFieldKind lineItemKind,
             CancellationToken cancellationToken)
         {
-            var session = await ((IWorkingPaperStep41PreparedSessionFactory)inner)
+            var session = await ((IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)inner)
                 .PrepareAsync(
                     projectId,
                     context,
@@ -924,10 +924,10 @@ internal static class WorkingPaperWriterTestSupport
         }
     }
 
-    internal sealed class CapturingStep4StreamRepository(
+    internal sealed class CapturingHighRiskVoucherStreamRepository(
         LocalHighRiskSummaryVoucherPageRepository inner)
         : IHighRiskSummaryVoucherPageRepository,
-          IWorkingPaperStep4StreamRepository
+          IWorkingPaperHighRiskVoucherStreamRepository
     {
         internal int PublicPageCalls { get; private set; }
 
@@ -952,8 +952,8 @@ internal static class WorkingPaperWriterTestSupport
                 cancellationToken);
         }
 
-        async IAsyncEnumerable<WorkingPaperStep4VoucherRow>
-            IWorkingPaperStep4StreamRepository.StreamAsync(
+        async IAsyncEnumerable<WorkingPaperHighRiskVoucherRow>
+            IWorkingPaperHighRiskVoucherStreamRepository.StreamAsync(
                 string projectId,
                 GlPopulationContext context,
                 IReadOnlyList<int> scenarioPositions,
@@ -961,7 +961,7 @@ internal static class WorkingPaperWriterTestSupport
                 CancellationToken cancellationToken)
         {
             StreamCalls++;
-            await foreach (var row in ((IWorkingPaperStep4StreamRepository)inner)
+            await foreach (var row in ((IWorkingPaperHighRiskVoucherStreamRepository)inner)
                                .StreamAsync(
                                    projectId,
                                    context,
@@ -1110,11 +1110,11 @@ internal static class WorkingPaperWriterTestSupport
     internal static IReadOnlyDictionary<string, LegacyAppearanceTarget> WorkingPaperAppearanceTargets(uint glHeaderRow)
     {
         var targets = new Dictionary<string, LegacyAppearanceTarget>(StringComparer.Ordinal);
-        AddTargets(targets, WorkingPaperAppearanceIds.Take(4), WorkingPaperAppearanceOutput.Positive, Step1Sheet, Cells(15, 17, 2, 2));
-        AddTargets(targets, WorkingPaperAppearanceIds.Skip(4).Take(3), WorkingPaperAppearanceOutput.Positive, Step11Sheet, Cells(12, 16, 2, 6));
-        AddTargets(targets, [WorkingPaperAppearanceIds[7]], WorkingPaperAppearanceOutput.Positive, Step11Sheet, Cells(12, 15, 2, 2));
-        AddTargets(targets, WorkingPaperAppearanceIds.Skip(8).Take(2), WorkingPaperAppearanceOutput.Positive, Step11Sheet, Cells(16, 16, 2, 6));
-        AddTargets(targets, WorkingPaperAppearanceIds.Skip(10).Take(4), WorkingPaperAppearanceOutput.MissingPreparer, Step12Sheet, ["B13"]);
+        AddTargets(targets, WorkingPaperAppearanceIds.Take(4), WorkingPaperAppearanceOutput.Positive, CompletenessSheet, Cells(15, 17, 2, 2));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(4).Take(3), WorkingPaperAppearanceOutput.Positive, VoucherBalanceSheet, Cells(12, 16, 2, 6));
+        AddTargets(targets, [WorkingPaperAppearanceIds[7]], WorkingPaperAppearanceOutput.Positive, VoucherBalanceSheet, Cells(12, 15, 2, 2));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(8).Take(2), WorkingPaperAppearanceOutput.Positive, VoucherBalanceSheet, Cells(16, 16, 2, 6));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(10).Take(4), WorkingPaperAppearanceOutput.MissingPreparer, PreparerSummarySheet, ["B13"]);
         AddTargets(targets, WorkingPaperAppearanceIds.Skip(14).Take(5), WorkingPaperAppearanceOutput.Positive, FieldInfoSheet, ["A1"]);
         AddTargets(targets, WorkingPaperAppearanceIds.Skip(19).Take(4), WorkingPaperAppearanceOutput.Positive, FieldInfoSheet, Cells(3, 3, 1, 5));
         AddTargets(targets, WorkingPaperAppearanceIds.Skip(23).Take(4), WorkingPaperAppearanceOutput.Positive, FieldInfoSheet, Cells(glHeaderRow, glHeaderRow, 1, 5));

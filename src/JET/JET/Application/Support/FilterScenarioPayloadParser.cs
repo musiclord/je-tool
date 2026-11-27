@@ -6,11 +6,11 @@ namespace JET.Application;
 
 /// <summary>
 /// 把前端條件編輯器送來的情境 JSON 解析成 FilterScenarioSpec。
-/// 這裡只檢查並轉換資料的形狀：辨認條件類型、把金額換算成整數、拆開關鍵字。
+/// 這裡只檢查並轉換資料的形狀：辨認條件類型，讀出比較值與分類清單。
 /// 哪些值可以用、哪些欄位必填、上下限是多少，由 Domain 的 FilterScenarioValidator 檢查。
 /// 形狀不對時一律丟出 invalid_scenario。只有存檔損毀或程式送錯資料才會出現的形狀錯誤，畫面只寫
 /// <see cref="FilterScenarioCorruption.RuleMessage"/>，原因代號記進支援日誌；
-/// 審計員看得懂、也做得到的原因（已停用的條件類型與比較方式、金額不是數字）照確認的句子寫。
+/// 審計員看得懂、也做得到的原因（已停用的條件類型），畫面寫出這個原因。
 /// 條件的錯誤帶「第 N 組第 M 條」位置，儲存時才標得到那一條條件。
 /// </summary>
 public static class FilterScenarioPayloadParser
@@ -48,7 +48,7 @@ public static class FilterScenarioPayloadParser
         var rationale = ReadString(scenario, "rationale") ?? string.Empty;
 
         // 情境的來源標記是選填的 source 欄位。ReadString 會去掉前後空白，全是空白時回 null。
-        // Domain 只認得 "common"；其他值（包括舊的代碼）都和 null 一樣，當成審計員自己寫的情境。
+        // Domain 只認得 "common"；其他值都和 null 一樣，當成審計員自己寫的情境。
         var source = ReadString(scenario, "source");
 
         var groups = new List<FilterGroupSpec>();
@@ -173,10 +173,6 @@ public static class FilterScenarioPayloadParser
             "group" => FilterConditionType.Group,
             "voucher" => FilterConditionType.Voucher,
             "prescreen" => FilterConditionType.Prescreen,
-            "text" => FilterConditionType.Text,
-            "textSet" => FilterConditionType.TextSet,
-            "dateRange" => FilterConditionType.DateRange,
-            "numRange" => FilterConditionType.NumRange,
             "drCrOnly" => FilterConditionType.DrCrOnly,
             "manualAuto" => FilterConditionType.ManualAuto,
             "accountPair" => FilterConditionType.AccountPair,
@@ -186,48 +182,12 @@ public static class FilterScenarioPayloadParser
             "revenueWithoutNormalCounterpart" => FilterConditionType.RevenueWithoutNormalCounterpart,
             "manualRevenueEntry" => FilterConditionType.ManualRevenueEntry,
             "preparerEqualsApprover" => FilterConditionType.PreparerEqualsApprover,
-            "typed" => FilterConditionType.TypedField,
             "fieldValue" => FilterConditionType.FieldValue,
             "accountSide" => FilterConditionType.AccountSide,
-            // 有寫類型但目前版本沒有的，是已停用的條件類型，包括舊式關鍵字、尾數與兩種筆數條件
-            // （已儲存情境的舊寫法不讀回）；完全沒寫類型只會是內容損毀。
+            // 有寫類型但不在上面清單裡的，是已停用的條件類型，畫面請審計員刪除這一條；完全沒寫類型只會是內容損毀。
             "" => throw FilterScenarioCorruption.Exception(label, "condition_type_missing"),
             _ => throw Positioned(label, "此條件的類型已停用，請刪除此條件")
         };
-
-        var modeName = ReadClosedToken(rule, "mode") ?? "contains";
-        var mode = modeName switch
-        {
-            "contains" => TextMatchMode.Contains,
-            "exact" => TextMatchMode.Exact,
-            "notContains" => TextMatchMode.NotContains,
-            "notExact" => TextMatchMode.NotExact,
-            _ => throw FilterScenarioCorruption.Exception(label, "text_mode_invalid")
-        };
-
-        var keywords = FieldValueConditions.SplitInputList(ReadString(rule, "keywords"));
-        var values = type == FilterConditionType.TextSet
-            ? ParseTextSetValues(rule, label)
-            : Array.Empty<string>();
-        var (normalization, unknownNormalization) = type == FilterConditionType.TextSet
-            ? ParseTextSetNormalization(rule)
-            : (TextSetNormalization.Preserve, null);
-
-        long? fromScaled = null;
-        long? toScaled = null;
-        string? fromDate = null;
-        string? toDate = null;
-
-        if (type == FilterConditionType.NumRange)
-        {
-            fromScaled = ParseAmount(ReadString(rule, "from"), moneyScale, label);
-            toScaled = ParseAmount(ReadString(rule, "to"), moneyScale, label);
-        }
-        else if (type == FilterConditionType.DateRange)
-        {
-            fromDate = ReadString(rule, "from");
-            toDate = ReadString(rule, "to");
-        }
 
         var (join, unknownJoin) = ParseJoin(rule);
         var debitCategoryIds = ParseCategoryIds(rule, "debitCategoryIds", label);
@@ -240,23 +200,18 @@ public static class FilterScenarioPayloadParser
         string? typedTo = null;
         string? amountBasis = null;
         IReadOnlyList<string>? typedValues = null;
-        if (type is FilterConditionType.TypedField or FilterConditionType.FieldValue)
+        if (type == FilterConditionType.FieldValue)
         {
-            // typed 條件與欄位值條件裡放比較值的屬性（value、from、to、values）必須是字串或字串陣列；
+            // 欄位值條件裡放比較值的屬性（value、from、to、values）必須是字串或字串陣列；
             // 是 null 或其他型別時，這裡就丟出條件內容損毀的錯誤。字串照原樣保留，前後空白也不去掉。
             // 運算子這類固定代號寫得對不對、這個運算子該帶哪一種比較值，由 Domain 的驗證依欄位型別判斷。
             fieldId = ReadTypedString(rule, "fieldId", label);
             typedOperator = ReadTypedString(rule, "operator", label);
-            if (type == FilterConditionType.TypedField && typedOperator is not null && !TypedFieldOperatorSets.All.Contains(typedOperator))
-            {
-                throw Positioned(label, "此條件的比較方式已停用，請重新選擇");
-            }
-
             typedValue = ReadTypedString(rule, "value", label);
             typedFrom = ReadTypedString(rule, "from", label);
             typedTo = ReadTypedString(rule, "to", label);
             amountBasis = ReadTypedString(rule, "amountBasis", label);
-            typedValues = ParseTypedValues(rule, label, type == FilterConditionType.FieldValue);
+            typedValues = ParseTypedValues(rule, label);
         }
 
         return new FilterConditionSpec(
@@ -264,12 +219,7 @@ public static class FilterScenarioPayloadParser
             type,
             ReadString(rule, "prescreenKey"),
             ReadString(rule, "field"),
-            keywords,
-            mode,
-            fromDate,
-            toDate,
-            fromScaled,
-            toScaled,
+            [],
             type == FilterConditionType.FieldValue ? ReadTypedString(rule, "drCr", label) : ReadString(rule, "drCr"),
             ParseManual(rule),
             PairMode: ReadString(rule, "pairMode"),
@@ -280,9 +230,6 @@ public static class FilterScenarioPayloadParser
             Quantifier = ReadConditionChoice(rule, "quantifier", label),
             Side = ReadConditionChoice(rule, "side", label),
             CategorySelection = ReadConditionChoice(rule, "categorySelection", label),
-            Values = values,
-            Normalization = normalization,
-            UnknownNormalization = unknownNormalization,
             DebitCategoryIds = debitCategoryIds ?? [],
             CreditCategoryIds = creditCategoryIds ?? [],
             FieldId = fieldId,
@@ -330,7 +277,7 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// 讀 <c>typed</c> 條件與欄位值條件的字串屬性。字串照原樣回傳；沒有這個屬性時回 null。
+    /// 讀欄位值條件的字串屬性。字串照原樣回傳；沒有這個屬性時回 null。
     /// 屬性存在但值是 null、數字、布林等不是字串的 JSON 值時，丟出條件內容損毀的錯誤，因為這些條件的比較值必須是字串。
     /// 這裡不能用 ReadString：ReadString 會把全是空白的字串當成 null，「帶了空白值」就會被讀成「沒帶」，
     /// 「是空白」這類不需要比較值的運算子帶了比較值時就檢查不出來。
@@ -351,11 +298,11 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// <c>typed</c> 條件與欄位值條件的 values 陣列，元素都必須是字串。沒有這個屬性時回 null。
-    /// 個數超過上限時在這裡就丟出條件內容損毀的錯誤：<c>typed</c> 條件的上限是 <see cref="FilterScenarioLimits.MaxTypedInValuesPerRule"/>，
-    /// 欄位值條件的上限是 <see cref="FilterScenarioLimits.MaxCompiledParameters"/>。
+    /// 欄位值條件的 values 陣列，元素都必須是字串。沒有這個屬性時回 null。
+    /// 個數超過 <see cref="FilterScenarioLimits.MaxCompiledParameters"/> 時在這裡就丟出條件內容損毀的錯誤；
+    /// 每條清單畫面看得懂的上限由 Domain 的驗證檢查。
     /// </summary>
-    private static IReadOnlyList<string>? ParseTypedValues(JsonElement rule, string label, bool newValueRule = false)
+    private static IReadOnlyList<string>? ParseTypedValues(JsonElement rule, string label)
     {
         if (rule.ValueKind != JsonValueKind.Object || !rule.TryGetProperty("values", out var values))
         {
@@ -375,7 +322,7 @@ public static class FilterScenarioPayloadParser
                 throw FilterScenarioCorruption.Exception(label, "typed_values_not_strings");
             }
 
-            if (result.Count >= (newValueRule ? FilterScenarioLimits.MaxCompiledParameters : FilterScenarioLimits.MaxTypedInValuesPerRule))
+            if (result.Count >= FilterScenarioLimits.MaxCompiledParameters)
             {
                 throw FilterScenarioCorruption.Exception(label, "typed_values_too_many");
             }
@@ -389,7 +336,7 @@ public static class FilterScenarioPayloadParser
     /// <summary>
     /// 科目配對條件借方或貸方一側所選的分類 ID 陣列。回傳 null 代表 JSON 裡沒有這個屬性，呼叫端當成空集合。
     /// 帶了空陣列代表使用者沒有選任何分類，回傳空集合，再由驗證回 invalid_scenario。
-    /// 兩種情形都不讀單選分類欄位 debitCategory、creditCategory，那兩個欄位照未知欄位處理。
+    /// 兩種情形都不讀 debitCategory、creditCategory，這兩個欄位照未知欄位處理。
     /// </summary>
     private static IReadOnlyList<string>? ParseCategoryIds(JsonElement rule, string property, string label)
     {
@@ -421,50 +368,6 @@ public static class FilterScenarioPayloadParser
         }
 
         return values;
-    }
-
-    private static IReadOnlyList<string> ParseTextSetValues(JsonElement rule, string label)
-    {
-        if (rule.ValueKind != JsonValueKind.Object
-            || !rule.TryGetProperty("values", out var values))
-        {
-            return [];
-        }
-
-        if (values.ValueKind != JsonValueKind.Array)
-        {
-            throw FilterScenarioCorruption.Exception(label, "text_set_values_not_array");
-        }
-
-        var result = new List<string>();
-        foreach (var value in values.EnumerateArray())
-        {
-            if (value.ValueKind != JsonValueKind.String)
-            {
-                throw FilterScenarioCorruption.Exception(label, "text_set_values_not_strings");
-            }
-
-            if (result.Count >= FilterScenarioLimits.MaxTextSetValuesPerRule)
-            {
-                throw FilterScenarioCorruption.Exception(label, "text_set_values_too_many");
-            }
-
-            result.Add(value.GetString() ?? string.Empty);
-        }
-
-        return result;
-    }
-
-    private static (TextSetNormalization Normalization, string? UnknownNormalization)
-        ParseTextSetNormalization(JsonElement rule)
-    {
-        var normalization = ReadClosedToken(rule, "normalization");
-        return normalization switch
-        {
-            null or "preserve" => (TextSetNormalization.Preserve, null),
-            "removeAsciiSpaces" => (TextSetNormalization.RemoveAsciiSpaces, null),
-            _ => (TextSetNormalization.Preserve, normalization)
-        };
     }
 
     private static int? ParseInt(JsonElement rule, string name)
@@ -502,27 +405,11 @@ public static class FilterScenarioPayloadParser
 
     /// <summary>
     /// 條件組只有同一分錄列一種比對範圍：沒寫或寫 row 時回 null，其他值原樣帶回，由驗證層當成無法讀取的內容。
-    /// 舊的 sameVoucher 也走這一條（已儲存情境的舊寫法不讀回）。
     /// </summary>
     private static string? ParseUnknownMatchScope(JsonElement group)
     {
         var matchScope = ReadClosedToken(group, "matchScope");
         return matchScope is null or "row" ? null : matchScope;
-    }
-
-    private static long? ParseAmount(string? text, int moneyScale, string label)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
-
-        if (!MoneyScaling.TryParseScaled(text, moneyScale, out var scaled))
-        {
-            throw Positioned(label, FilterScenarioValidator.AmountFormatReason(text));
-        }
-
-        return scaled;
     }
 
     private static bool? ParseManual(JsonElement rule)
@@ -555,7 +442,7 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// 讀只接受固定幾個代號的屬性，例如 type 與 mode。代號照原始 JSON 的寫法保存，供讀回文字使用。
+    /// 讀只接受固定幾個代號的屬性，例如 type 與 categoryMode。代號照原始 JSON 的寫法保存，供讀回文字使用。
     /// 不是空白的值在這裡不去掉前後空白：如果執行時把前後多了空白的代號當成標準寫法接受，保存的卻是原始寫法，
     /// 讀回文字與重新解析時就可能顯示成另一個意思。
     /// 沒有這個屬性、不是字串、是 null 或全是空白時回 null，由呼叫端套用預設值；

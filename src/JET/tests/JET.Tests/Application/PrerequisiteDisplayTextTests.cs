@@ -35,7 +35,7 @@ public sealed class PrerequisiteDisplayTextTests
     [Fact]
     public void MissingTbAndOptionalFields_UseConfirmationLanguageWithoutChangingAvailability()
     {
-        // 沒有 TB 時的兩種原因句用字已定案；提醒直接沿用原因句，不另寫一句。
+        // 沒有 TB 時，提醒直接沿用原因句。
         Assert.Equal("TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。", AccountComparisonProcedure.MissingTbMappingReason);
         Assert.Equal("沒有匯入 TB，無法執行 GL 與 TB 逐科目比對。", AccountComparisonProcedure.MissingTbImportReason);
         // A completed N/A account comparison still stores count 0.

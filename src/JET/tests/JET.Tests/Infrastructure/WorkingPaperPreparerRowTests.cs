@@ -6,8 +6,8 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 工作底稿 Step 1-2 的空白人員組和預篩選報告、畫面一樣寫「（空白）」。
-/// 列投影與資料庫無關：空白組的鍵不論是空字串或只有空白字元，都顯示同一個詞。
-/// oracle：預篩選報告既有的顯示詞「（空白）」。
+/// 這個測試只呼叫把人員彙總列轉成儲存格的函式，不經過資料庫：空白組的鍵不論是空字串或只有空白字元，都顯示同一個詞。
+/// 預期值取自預篩選報告的顯示詞「（空白）」。
 /// </summary>
 public sealed class WorkingPaperPreparerRowTests
 {

@@ -12,7 +12,7 @@ namespace JET.Infrastructure;
 /// </summary>
 internal sealed class CsvRecordReader(TextReader reader, char delimiter)
 {
-    private readonly StringBuilder field = new();
+    private readonly StringBuilder _field = new();
 
     /// <summary>最近一次 <see cref="ReadRecord"/> 讀到的記錄編號（1 起算）。</summary>
     public int RecordNumber { get; private set; }
@@ -32,14 +32,14 @@ internal sealed class CsvRecordReader(TextReader reader, char delimiter)
         RecordNumber++;
         RecordSpansLines = false;
         var fields = new List<string>();
-        field.Clear();
+        _field.Clear();
         var atFieldStart = true;
 
         while (true)
         {
             if (c == -1)
             {
-                fields.Add(field.ToString());
+                fields.Add(_field.ToString());
                 return fields;
             }
 
@@ -55,8 +55,8 @@ internal sealed class CsvRecordReader(TextReader reader, char delimiter)
 
             if (c == delimiter)
             {
-                fields.Add(field.ToString());
-                field.Clear();
+                fields.Add(_field.ToString());
+                _field.Clear();
                 atFieldStart = true;
                 c = reader.Read();
                 continue;
@@ -69,17 +69,17 @@ internal sealed class CsvRecordReader(TextReader reader, char delimiter)
                     reader.Read();
                 }
 
-                fields.Add(field.ToString());
+                fields.Add(_field.ToString());
                 return fields;
             }
 
             if (c == '\n')
             {
-                fields.Add(field.ToString());
+                fields.Add(_field.ToString());
                 return fields;
             }
 
-            field.Append((char)c);
+            _field.Append((char)c);
             c = reader.Read();
         }
     }
@@ -101,7 +101,7 @@ internal sealed class CsvRecordReader(TextReader reader, char delimiter)
                 if (reader.Peek() == '"')
                 {
                     reader.Read();
-                    field.Append('"');
+                    _field.Append('"');
                     continue;
                 }
 
@@ -113,7 +113,7 @@ internal sealed class CsvRecordReader(TextReader reader, char delimiter)
                 RecordSpansLines = true;
             }
 
-            field.Append((char)c);
+            _field.Append((char)c);
         }
     }
 

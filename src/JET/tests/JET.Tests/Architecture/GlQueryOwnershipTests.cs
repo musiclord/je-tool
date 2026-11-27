@@ -4,13 +4,11 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// Downstream GL queries must consume the projection-owned is_excluded flag. This guard is deliberately
-/// limited to the validation/prescreen/filter/INF/tag/report query surfaces; raw control and preview paths
-/// have separate contracts.
+/// 下游的 GL 查詢要用投影寫好的 is_excluded 旗標。這項檢查只涵蓋驗證、預篩選、篩選、INF、標籤與報告的查詢；
+/// 原始資料的控制總數與預覽另有各自的檢查。
 /// </summary>
 public sealed class GlQueryOwnershipTests
 {
-    // 兩份清單只列本機檔案。
     private static readonly string[] DirectQueryFiles =
     [
         "JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
@@ -28,7 +26,7 @@ public sealed class GlQueryOwnershipTests
         "JET/Infrastructure/Persistence/Local/LocalCompletenessDiffPageRepository.cs",
         "JET/Infrastructure/Persistence/Local/LocalCompletenessAccountPageRepository.cs",
         "JET/Infrastructure/Persistence/Local/LocalVoucherBalancePageRepository.cs",
-        "JET/Infrastructure/Persistence/Local/LocalUnbalancedVoucherPageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalUnbalancedVoucherEntryStreamRepository.cs",
         "JET/Infrastructure/Persistence/Local/LocalValidationReportPlanningFactsPort.cs",
         "JET/Infrastructure/Persistence/Local/LocalAccountMappingExportRepository.cs",
     ];

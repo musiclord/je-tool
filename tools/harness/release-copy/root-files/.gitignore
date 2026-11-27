@@ -1,0 +1,57 @@
+# Development tools and local configuration
+.vs/
+.idea/
+.vshistory/
+*.user
+*.rsuser
+*.suo
+*.DotSettings.user
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+node_modules/
+.DS_Store
+Thumbs.db
+~$*
+
+# Build, publish, package and test output
+[Bb]in/
+[Oo]bj/
+/artifacts/
+publish/
+out/
+TestResults/
+*.binlog
+*.trx
+*.coverage
+*.coveragexml
+*.log
+*.nupkg
+*.snupkg
+
+# Runtime data and credentials
+projects/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+EBWebView/
+*.WebView2/
+*.env
+.env.*
+appsettings.Development.json
+
+# Reviewed reference workbooks
+/data/*
+!/data/AccountMapping.xlsx
+!/data/CriteriaSelectionReport.xlsx
+!/data/Holiday2024CN.xlsx
+!/data/Holiday2025TW.xlsx
+!/data/INFReport.xlsx
+!/data/MakeupDay2024CN.xlsx
+!/data/MakeUpDay2025TW.xlsx
+!/data/PrescreeningReport.xlsx
+!/data/ValidationReport.xlsx
+!/data/WorkingPaper.xlsx

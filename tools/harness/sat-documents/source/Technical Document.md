@@ -91,8 +91,8 @@ JET 為 Windows 桌面應用程式，使用者依下表的六個步驟操作。
 | 模組職責 | Application 負責安排操作流程。<br>AuditCore 與 Domain 定義查核邏輯，以及資料修改後需重新計算的結果。<br>Infrastructure 逐列讀取來源檔；產生工作簿時先建立暫存檔，再改名並更新報告清單。 |
 | 輸出檔的保存 | 報告儲存於案件資料夾，再次匯出時取代同名的報告。<br>工作底稿每次匯出另存新檔，檔名附匯出時間，已匯出的工作底稿不覆寫。 |
 | 專案組成 | 方案檔 JET.slnx 含應用程式專案 JET/JET.csproj 與測試專案 tests/JET.Tests/JET.Tests.csproj。應用程式專案編譯為單一 assembly，以資料夾與命名空間劃分為 Bridge、Application、AuditCore、Domain 與 Infrastructure 五個模組；JET 資料夾最上層的原始檔為 Host。各模組的職責見第 6 節。 |
-| 模組介面 | Bridge 依請求名稱，將前端的請求分派至實作 IApplicationActionHandler 的 handler。各 handler 經 Domain 定義的資料存取介面與 Application 定義的介面，使用資料庫、檔案與視窗的功能。AuditCore 的入口為 JetAuditProgram。 |
-| 相依方向 | Domain 不相依其他模組；AuditCore 不相依 Application、Infrastructure 與 Bridge；Application 與 Bridge 不相依 Infrastructure。Infrastructure 實作 Domain 定義的介面。各模組的物件由 AppCompositionRoot 組裝。規則見 Design Principle.docx 第 3 節，並由架構測試檢查。 |
+| 模組介面 | Bridge 依請求名稱，將前端的請求分派至實作 IApplicationActionHandler 的 handler。各 handler 經 Domain 與 AuditCore 定義的資料存取介面，以及 Application 定義的介面，使用資料庫、檔案與視窗的功能。AuditCore 的入口為 JetAuditProgram。 |
+| 相依方向 | Domain 不相依其他模組；AuditCore 不相依 Application、Infrastructure 與 Bridge；Application 與 Bridge 不相依 Infrastructure。Infrastructure 實作 Domain 與 AuditCore 定義的介面。各模組的物件由 AppCompositionRoot 組裝。規則見 Design Principle.docx 第 3 節，並由架構測試檢查。 |
 
 **版本、外部相依項目與相容性**
 
@@ -197,7 +197,7 @@ JET 為 Windows 桌面應用程式，使用者依下表的六個步驟操作。
 |---|---|
 | 工具與範圍 | 工具：.NET 10 SDK 的 NuGet 套件弱點查詢（dotnet package list），查詢命令見本節最後。<br>範圍：JET 直接與間接引用的 NuGet 套件，不含發布檔內含的 .NET runtime。<br>資料來源：nuget.org 提供的公開弱點資料。<br>查詢結果：2026-11-24 查詢，未發現已知弱點。<br>前端元件：依各元件原廠的弱點公告核對。 |
 | 檢查項目 | 弱點：查詢結果見上一項。<br>授權：逐一核對直接與間接引用的元件，各元件的結果見第 5.1 節。<br>停止維護元件：將查詢命令的 --vulnerable 改為 --deprecated，2026-11-24 查詢，所有套件均未標示停止維護。 |
-| 已處置的發現事項 | GHSA-2m69-gcr7-jv3q（CVE-2025-6965）影響 SQLite 3.50.2 以前的版本，已將 SQLitePCLRaw.bundle_e_sqlite3 升級至 3.0.5（SQLite 3.53.4）。 |
+| 已處置的發現事項 | 無。GHSA-2m69-gcr7-jv3q（CVE-2025-6965）影響 SQLite 3.50.2 以前的版本；JET 1.0.0.0 使用的 SQLitePCLRaw.bundle_e_sqlite3 3.0.5 內含 SQLite 3.53.4，不在影響範圍。 |
 | 其他發現事項 | 弱點：前端的 Apache ECharts 5.5.0 有已知弱點 CVE-2026-45249，影響 6.1.0 以前的版本。<br>影響條件：Lines series 搭配 tooltip、未自訂 tooltip 的 formatter，且資料項目設有 name 時，name 內的 HTML 可能於 tooltip 中執行。<br>JET 的使用方式：圖表只使用長條圖、折線圖與散布圖，每個 tooltip 皆自訂 formatter，並將顯示的文字轉為純文字。<br>處置：不符合影響條件，故未處置。 |
 | 誤判 | 無誤判的發現事項。 |
 | 處理責任 | 開發人員負責查詢與處置弱點，規則見 Design Principle.docx 第 8 節。複核與例外核准的責任：待填寫。 |
@@ -331,7 +331,7 @@ dotnet package list --project JET/JET.csproj `
 | 案件設定 | 存放：查核期間、金額存放倍率、民國年選項、隨機種子序號、建案者、期末財報準備日與每週休息日另存於資料庫。<br>金額存放倍率：金額轉為 Int64 時乘上的倍數。<br>民國年選項：日期是否接受民國年的寫法。<br>隨機種子序號：資料可靠性測試抽樣使用的隨機種子，建立案件時產生。<br>修改：查核期間、金額存放倍率、民國年選項、隨機種子序號與建案者於建立案件後不可修改，資料庫以 trigger 拒絕變更；期末財報準備日、客戶名稱、案件編號與每週休息日可修改。<br>不一致時：開啟案件時，案件設定檔與資料庫不同的項目依資料庫改回，並於「訊息」區提示。 |
 | 結果的過期 | 判定：資料變更後哪些結果過期，集中定義於 JET/Domain/Rules 的 AuditDependencyPolicy 類別；寫入資料的程式依該定義清除受影響的結果與篩選情境。<br>匯入 GL 或 TB、確認欄位配對：清除全部結果與篩選情境，並清除科目配對。<br>變更行事曆、科目配對、科目分類、授權編製人員清單或期末財報準備日：清除預篩選、篩選命中與篩選情境。<br>報告：已輸出的報告於報告清單標示為過期。 |
 | 交易 | 寫入案件資料的作業於交易內執行；取消或失敗時 rollback 交易，規則見 Design Principle.docx 第 4.3 節。 |
-| 版本與移轉 | 版本：案件資料庫與案件設定檔各自記錄格式版本。<br>升版：資料庫結構變更時版本加一，建表程式改為新的結構，並新增一個將前一版升至新版的升版步驟。開啟較早版本建立的案件時，於單一交易內逐版升至現行版本；失敗時 rollback 交易，資料庫維持原版本。<br>首次發布：1.0.0.0 的資料庫版本為後續版本可升版的最早版本，目前無升版步驟。<br>較新版本的案件：由較新版本的 JET 建立或開啟過的案件，JET 不開啟，並提示改用較新版本。 |
+| 版本與移轉 | 版本：案件資料庫的 schema_info 記錄結構版本，JET 開啟案件時不讀取；案件設定檔記錄格式版本。<br>結構比對：開啟案件時比對資料庫與建表程式的資料表、欄位、索引與 trigger；結構相同時不寫入資料庫。<br>補建：缺少的索引與 trigger，以及 1.0.0.0 之後新增並登錄於新增清單的資料表與欄位，於單一交易內補上；失敗時 rollback 交易，資料庫維持原狀。目前新增清單沒有項目。<br>無法開啟的案件：缺少新增清單以外的資料表或欄位時，JET 不開啟，並提示刪除案件後重新建立；案件設定檔由較新版本的 JET 寫入時，JET 不開啟，並提示改用較新版本。 |
 | 保存 | 案件資料：存放於使用者電腦的案件根資料夾，由使用者保存或刪除；JET 不自動清除。<br>刪除案件：永久刪除整個案件資料夾；刪除前列出將一併刪除的報告與工作底稿數。 |
 | 備份與復原 | JET 未提供備份功能。<br>備份：關閉 JET 後複製整個案件資料夾。<br>復原：將備份的資料夾以原名稱複製至案件根資料夾後開啟。 |
 | 機密資訊的處理 | 範圍：案件資料可能含受查者的機密資訊與人員名稱；資料保護見第 10.1 節。<br>建案者：使用者全名或帳號短名記錄於案件設定檔與資料庫，並寫入資料驗證報告、預篩選報告與條件篩選報告的「Prepared by」欄位。<br>來源檔：資料庫記錄來源檔的檔名。 |
@@ -408,14 +408,14 @@ tests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe --filter-not-trait "Test
 node --test --test-concurrency=4 tests/frontend/
 ```
 
-驗收條件為上列命令執行的測試案例全數通過，無失敗與略過。2026-11-25 的執行結果如下，明細見 Code Review/Unit test Report.xlsx。
+驗收條件為上列命令執行的測試案例全數通過，無失敗與略過。2026-11-27 的執行結果如下，明細見 Code Review/Unit test Report.xlsx。
 
 | 項目 | 結果 |
 |---|---|
-| 後端測試 | 5,765 個測試案例全數通過。 |
-| 前端測試 | 1,129 個測試案例全數通過。 |
-| 程式碼涵蓋率 | 後端的行涵蓋率（line coverage）為 93.2%，共 49,070 行中執行 45,717 行；以 Microsoft.Testing.Extensions.CodeCoverage 量測，命令見下方。未訂定涵蓋率門檻。 |
-| 涵蓋缺口 | 前端的 JavaScript 未量測涵蓋率。<br>Host 的行涵蓋率為 61.1%，Bridge 為 80.0%；主視窗 Form1 與 JetWebMessageBridge 中操作 WebView2 的程式，大部分未由自動化測試執行。 |
+| 後端測試 | 5,609 個測試案例全數通過。 |
+| 前端測試 | 1,110 個測試案例全數通過。 |
+| 程式碼涵蓋率 | 後端的行涵蓋率（line coverage）為 93.2%，共 48,345 行中執行 45,039 行；以 Microsoft.Testing.Extensions.CodeCoverage 量測，命令見下方。未訂定涵蓋率門檻。 |
+| 涵蓋缺口 | 前端的 JavaScript 未量測涵蓋率。<br>Host 的行涵蓋率為 61.0%，Bridge 為 80.0%；主視窗 Form1 與 JetWebMessageBridge 中操作 WebView2 的程式，大部分未由自動化測試執行。 |
 
 量測程式碼涵蓋率時，後端測試命令另加下列參數：
 
@@ -435,7 +435,7 @@ node --test --test-concurrency=4 tests/frontend/
 | 發布前檢查 | 自動化測試全數通過後產生發布檔；第三方元件的弱點查詢見第 5.2 節。 |
 | 核准 | 待填寫 |
 | 先決條件 | 見第 2 節的使用假設。無安裝程序，發布資料夾複製至 GD 環境的電腦後執行 JET.exe。 |
-| 移轉順序 | 1.0.0.0 為首次發布，無須移轉。後續版本的案件資料庫於開啟案件時升版，見第 9 節。 |
+| 移轉順序 | 1.0.0.0 為首次發布，無須移轉。後續版本開啟較早建立的案件時，補上新增的資料表與欄位，見第 9 節。 |
 | 復原 | 以上一版的發布資料夾取代現行的發布資料夾。1.0.0.0 為首次發布，無上一版。 |
 | 部署後確認 | 以一般權限的 Windows 帳號執行 JET，建立案件並完成六個步驟。 |
 
@@ -506,7 +506,7 @@ JET 1.0.0.0 為 repository 的首次 commit，無先前的修訂。Git commit �
 
 **延後工作**
 
-- 資料驗證報告的「完整性測試出現差異時之指引」工作表沿用舊版 JET 的範本內容，修訂內容尚未確定。
+- 資料驗證報告的「完整性測試出現差異時之指引」工作表沿用舊版 JET 的範本內容，修訂排入後續版本。
 - NuGet 套件的授權聲明檔尚未納入發布資料夾。
 
 預定完成的版本：待填寫。
@@ -541,7 +541,7 @@ JET 1.0.0.0 為 repository 的首次 commit，無先前的修訂。Git commit �
 
 **相關規格與佐證參考資料**
 
-相關文件為 Design Principle.docx、Code Review/Code review rule.docx 與 Code Review/Unit test rule.docx。外部參考資料如下：
+相關文件為 Design Principle.docx、Code Review/Code review rule.docx 與 Code Review/Unit test rule.docx，外部參考資料如下：
 
 - [ADSI WinNT 提供者](https://learn.microsoft.com/en-us/windows/win32/adsi/adsi-winnt-provider)
 - [Apache ECharts 弱點公告](https://security.apache.org/projects/echarts/)

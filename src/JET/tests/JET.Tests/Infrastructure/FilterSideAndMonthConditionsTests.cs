@@ -66,7 +66,7 @@ public sealed class FilterSideAndMonthConditionsTests
     {
         var scenario = FilterCompletenessTests.Scenario(JsonSerializer.Serialize(new
         { type = "fieldValue", field = "accountNumber", @operator = "equals", value = "A", drCr = direction }));
-        // 分錄方向的值不在允許範圍只會是內容損毀，畫面改寫通用句，改鎖原因代號。
+        // 分錄方向的值不在允許範圍只會是內容損毀：畫面顯示通用句，另外核對原因代號。
         var errors = FilterScenarioValidator.Validate(scenario, new(false, true, true));
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "field_value_side_invalid"), FilterScenarioCorruption.ReasonsOf(errors));

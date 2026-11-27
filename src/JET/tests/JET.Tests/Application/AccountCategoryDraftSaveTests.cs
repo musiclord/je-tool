@@ -42,7 +42,7 @@ public sealed class AccountCategoryDraftSaveTests
         var retryRows = JsonNode.Parse(categorySnapshot.GetProperty("categories").GetRawText())!.AsArray();
         var stale = await Assert.ThrowsAsync<JetActionException>(() => AccountCategoryDraftTestSupport.SaveAsync(host, 1, retryRows));
         Assert.Equal(JetErrorCodes.CategoryRevisionConflict, stale.Code);
-        // 舊呼叫端省略上層欄位時，既有階層仍保留，角色不因上層而改寫。
+        // 呼叫端省略上層欄位時，已存的階層保留，角色不因上層而改寫。
         foreach (var row in retryRows) row!.AsObject().Remove("parentCategoryId");
         saved = await AccountCategoryDraftTestSupport.SaveAsync(host, 2, retryRows);
         Assert.Equal(3, saved.GetProperty("revision").GetInt32());

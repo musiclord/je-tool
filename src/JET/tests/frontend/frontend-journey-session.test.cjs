@@ -1,5 +1,5 @@
 'use strict';
-// 情境 3：開案、換案、離開與重新開案。
+// 開案、換案、離開與重新開案的情境測試。
 //
 // 審計員的操作：開一個本機案件，再從案件清單換開另一個；在案件裡快速切換步驟；按頁首與第四步的「開啟資料夾」；
 // 作業進行中想回首頁；重新開案後看到情境版本與報告清單，直接到第六步匯出。
@@ -35,7 +35,7 @@ function liveIntervals(f) { return f.intervals.filter(entry => !entry.cleared); 
 test('opening a case starts no background timer, and the case list sends only the case name', async () => {
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker');
 
-  // 本機案件不定時送心跳，工作鎖由本機檔案鎖負責。
+  // 本機案件不定時送心跳，案件鎖由本機檔案鎖負責。
   const before = f.intervals.length;
   const first = await openThroughUi(f, 'sqlite-synthetic', loadResponse('sqlite-synthetic', 'sqlite'));
   assert.deepEqual(plain(first.payload), { projectId: 'sqlite-synthetic' });

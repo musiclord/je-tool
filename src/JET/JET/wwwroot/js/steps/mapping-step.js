@@ -1,12 +1,12 @@
 /*
-  Step 2：欄位配對。
+  第三步：欄位配對。
   來源欄位 → JET 邏輯欄位的對應；審計員逐項手動選取，提交標準化在後端執行。
 
-  每個資料集（GL/TB）的狀態模型（消除「已提交綠字 + 仍可按確認」的語意衝突）：
+  每個資料集（GL/TB）的狀態模型：
     未匯入        → 警示（請先匯入資料）
     草稿          → 編輯表格 + 預覽/確認配對
     已提交        → 收合摘要卡（模式、標準化列數、提交時間、key→欄名清單）；
-                    只有「重新配對」「預覽標準化資料」兩個動作，編輯表格不渲染
+                    只有「資料預覽」「重新配對」兩個動作，編輯表格不渲染
     草稿偏離      → 編輯表格 + 「配對已修改」提示 + 重新確認配對/取消變更
     來源變更失效  → 草稿 + 「來源資料已變更，原配對已失效」橫幅
 */
@@ -250,12 +250,7 @@
   }
 
   function acceptSourceValueCheck(profile, requested, data) {
-    if (data.sourceValueCheckStatus === 'unsupportedProvider') {
-      profile.sourceValueCheckStatus = 'unsupportedProvider';
-      return;
-    }
     if (!Array.isArray(data.missingComparisonValues)) { throw new Error('來源值是否存在尚未核對'); }
-    profile.sourceValueCheckStatus = 'checked';
     var checked = profile.checkedSourceValues || [];
     profile.checkedSourceValues = checked.concat(requested.filter(function (value) { return checked.indexOf(value) < 0; }));
     profile.missingSourceValues = (profile.missingSourceValues || []).filter(function (value) {
@@ -273,7 +268,7 @@
     // 即使暫時取消人工欄也要記住範圍已改變，切回同欄時不能沿用舊請求的等待狀態。
     var scope = comparisonScope();
     var cache = valueProfiles('gl'), profile = cache[column];
-    if (!profile || profile.metadataOnly || profile.loading || profile.error || profile.sourceValueCheckStatus === 'unsupportedProvider' ||
+    if (!profile || profile.metadataOnly || profile.loading || profile.error ||
         (profile.comparing && profile.comparing.scope === scope) || missingComparisonCodes(profile, column).length) { return; }
     var missing = uncheckedSourceCodes(profile, column);
     if (!missing.length || (profile.sourceChecking && profile.sourceChecking.scope === scope)) { return; }
@@ -298,11 +293,6 @@
       return '<p class="map-options__note">清單代碼是否出現在來源裡尚未核對。按「讀取來源值」後，才會查詢完整來源。</p>';
     }
     if (profile.loading || profile.error) { return ''; }
-    // 後端回 unsupportedProvider 時顯示這一句：資料庫實作沒有來源值核對。
-    // 目前只有 SQLite 案件，SQLite 有核對，所以不會出現。
-    if (profile.sourceValueCheckStatus === 'unsupportedProvider') {
-      return '<p class="map-options__note">線上案件無法核對清單代碼是否出現在來源中，仍可確認配對。</p>';
-    }
     if (!uncheckedSourceCodes(profile, column).length) { return ''; }
     return profile.sourceCheckError && profile.sourceCheckError.scope === comparisonScope()
       ? Ui.loadFailureHtml('來源值是否存在尚未核對。', { 'data-retry-source-check': column })
@@ -365,8 +355,8 @@
       if (comparisonScope() === comparison) { mergeComparisonGroups(cache[column], data.comparisonGroups, data.comparisonKeys); }
       if (checkSourceValues && comparisonScope() === comparison) {
         var loaded = cache[column];
-        // 缺少新欄位時只標為尚未核對，不使已取得的值概況失敗。
-        if (Array.isArray(data.missingComparisonValues) || data.sourceValueCheckStatus === 'unsupportedProvider') {
+        // 回應沒有 missingComparisonValues 時只標為尚未核對，不使已取得的值概況失敗。
+        if (Array.isArray(data.missingComparisonValues)) {
           acceptSourceValueCheck(loaded, comparisonValues, data);
         } else { loaded.sourceCheckError = { key: JSON.stringify(uncheckedSourceCodes(loaded, column)), scope: comparison }; }
       }
@@ -667,7 +657,7 @@
     });
   }
 
-  // 簡易清單與對照表格共用同一份提交資格鏡像；後端 mapping.commit 仍是權威驗證。
+  // 簡易清單與對照表格共用同一份提交資格鏡像；驗證以後端 mapping.commit 為準。
   // GL 另檢查標準化政策草稿（核准日互斥、過帳狀態政策、人工／自動代碼、攸關資料元素欄位）；
   // 這些只是就近引導，值的正規化、去重與跨欄判定仍全在系統端。
   function mappingCommitEligibility(fields, mode, mappingState, kind) {
@@ -1598,7 +1588,7 @@
       '<p class="map-required__title">' + title + '</p>' + tags + '</div>';
   }
 
-  // 標準化政策未補齊時的就近提示；後端仍是權威驗證。
+  // 標準化政策未補齊時的就近提示；驗證以後端為準。
   function optionProblemsHtml(eligibility, kind) {
     if (!eligibility.problems || !eligibility.problems.length) { return ''; }
     return '<p class="form-notice" data-bind="mapping-option-problems" data-motion-key="mapping-option-problems-' + kind + '">尚需補齊：' +
@@ -1894,7 +1884,7 @@
       '</section>';
   }
 
-  // mapping.commit.gl 的 additive payload：只有配對過帳狀態時才帶 policy（後端規定
+  // mapping.commit.gl 另帶的欄位：只有配對過帳狀態時才帶 policy（後端規定
   // 未配對時不得提供）；rdeFields 只送使用者勾選的欄位，新欄省略 fieldId。
   function glCommitPayload(mapping, mode) {
     var options = glOptions();
@@ -1951,7 +1941,7 @@
 
   /* ---- GL 標準化政策的事件 ----------------------------------------------------- */
 
-  // 原始草稿文字保留；已知等價關係只採後端結果，未知值交由完成配對時的正準化處理。
+  // 原始草稿文字保留；已知等價關係只採後端結果，未知值等完成配對時再由後端整理成固定格式。
   function toggleCodeValue(values, value, include, column) {
     var raw = String(value == null ? '' : value);
     if (!raw.length) { return values.slice(); }
@@ -2235,7 +2225,7 @@
           })
         });
         // 名稱是否空白會改變「確認配對」可用性與待補提示；就地更新，失焦時不重建整步。
-        // 舊做法在 blur 後延遲重建，滑鼠直接點確認鈕時按鈕會在按下與放開之間被換掉。
+        // 若在 blur 後延遲重建，滑鼠直接點確認鈕時按鈕會在按下與放開之間被換掉。
         refreshMappingDerived(section, 'gl', Ui.GL_FIELDS);
       });
     });
@@ -2255,7 +2245,7 @@
   }
 
   // 使用者正在文字輸入框修改已確認的配對時，維持編輯畫面；之後的背景重建不收回成摘要卡，
-  // 也就不會把正在輸入的欄位換掉。完成確認或取消變更時照舊收回。
+  // 也就不會把正在輸入的欄位換掉。完成確認或取消變更時才收回成摘要卡。
   function keepEditing(kind) {
     if (Store.getState().mapping[kind].committed) { editing[kind] = true; }
   }
@@ -2357,7 +2347,7 @@
       }, 0);
     });
 
-    // 摘要卡動作：重新配對（展開編輯）、預覽標準化資料。
+    // 摘要卡動作：重新配對（展開編輯）、資料預覽。
     // 摘要卡和編輯畫面互換，按下的那一個跟著不見：展開時焦點交給編輯畫面的第一個控制項。
     var remapBtn = section.querySelector('[data-action="remap-' + kind + '"]');
     if (remapBtn) {
@@ -2466,7 +2456,7 @@
 
     if (commitBtn) {
       commitBtn.addEventListener('click', function () {
-        // 確認配對會清除第四步已儲存和未儲存的科目分類；還有沒儲存的分類時先問，沒有時照舊直接確認。
+        // 確認配對會清除第四步已儲存和未儲存的科目分類；還有沒儲存的分類時先問，沒有時直接確認。
         if (!Ui.pendingAccountCategoryCount()) { commitMapping(); return; }
         Ui.confirmPendingAccountCategories('確認配對後，第四步已儲存和未儲存的科目分類都會清除。', '繼續確認', { saveable: false })
           .then(function (proceed) { if (proceed) { commitMapping(); } });

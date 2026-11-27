@@ -72,7 +72,7 @@ public sealed class DevToolsGatingTests
     public void ProductionComposition_DemoWireActionsMatchBuildConfiguration()
     {
         // 刻意開啟 runtime dev flag：Release 守衛必須證明是條件編譯移除，
-        // 不能讓錯誤的 if (enableDevTools) 實作假綠。
+        // 錯誤的 if (enableDevTools) 實作不能讓這則測試通過。
         using var host = new HandlerTestHost(enableDevTools: true);
 
 #if DEBUG

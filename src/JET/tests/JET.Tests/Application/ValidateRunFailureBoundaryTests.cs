@@ -7,9 +7,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// Characterizes facts, summary publication, and the post-commit navigation milestone.
-/// The production port now commits facts-related samples and summary together; these handler doubles
-/// preserve exception ordering, while WriteFailureRollbackTests verifies real database rollback.
+/// 核對 facts、摘要發布與提交後的導覽里程碑（post-commit navigation milestone）。
+/// 正式的 port 把 facts 相關的樣本與摘要一起提交；這些 handler 替身保留例外的先後順序，
+/// 真正的資料庫回復由 WriteFailureRollbackTests 核對。
 /// </summary>
 public sealed class ValidateRunFailureBoundaryTests
 {

@@ -78,7 +78,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     {
         // 注入形欄位字串必須被白名單擋下。
         var payload = PreviewPayload(ValidScenario(
-            new { join = "AND", type = "text", field = "voucher_number; DROP TABLE gl", keywords = "x", mode = "contains" }));
+            new { join = "AND", type = "fieldValue", field = "voucher_number; DROP TABLE gl", @operator = "contains", values = new[] { "x" } }));
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => fixture.Host.DispatchAsync("filter.preview", payload));
@@ -249,7 +249,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     public async Task FilterPreview_AccountPairWithoutAccountMapping_ThrowsInvalidScenario()
     {
         // 閘控:科目配對未匯入時 accountPair 述詞必須被擋下(invalid_scenario)。
-        // 自建 host 並關閉科目配對匯入以維持「前置不足」原意(共用 fixture 預設已匯入)。
+        // 自建 host 並關閉科目配對匯入，製造前置不足的情形(共用 fixture 預設已匯入)。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
 
@@ -268,7 +268,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     {
         // 非授權編製人員的 filter 端閘控（鏡射 unexpectedAccountPair）：授權編製人員清單未匯入時，
         // 空名單會讓 NOT IN 述詞反轉成全命中，validator 必須先擋下（invalid_scenario）。
-        // 自建 host 並關閉授權清單匯入以維持「未匯入」原意(共用 fixture 預設已匯入)。
+        // 自建 host 並關閉授權清單匯入，製造清單未匯入的情形(共用 fixture 預設已匯入)。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, importAuthorizedPreparer: false);
 
@@ -285,7 +285,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     public async Task FilterCommit_NonAuthorizedPreparerWithoutAuthorizedList_ThrowsInvalidScenario()
     {
         // commit 端同樣閘控（和 preview 一樣由 FilterScenarioValidator.Validate 擋下）。
-        // 自建 host 並關閉授權清單匯入以維持「未匯入」原意(共用 fixture 預設已匯入)。
+        // 自建 host 並關閉授權清單匯入，製造清單未匯入的情形(共用 fixture 預設已匯入)。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, importAuthorizedPreparer: false);
 
@@ -476,7 +476,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     public async Task FilterPreview_TextContains_MatchesRecount()
     {
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "text", field = "description", keywords = "調整", mode = "contains" })));
+            new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } })));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -488,28 +488,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_TextNotContains_TreatsNullAsEmpty()
-    {
-        using var host = new HandlerTestHost();
-        await InlineWorkbookProject.SetupAsync(host, builder => builder
-            .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
-            .AddRow("JV-001", "2025-03-05", "1101", "現金", "調整分錄", "100.00", 1)
-            .AddRow("JV-001", "2025-03-05", "4101", "銷貨收入", null, "100.00", 0)
-            .AddRow("JV-002", "2025-03-06", "1101", "現金", "一般進貨", "80.00", 1)
-            .AddRow("JV-002", "2025-03-06", "4101", "銷貨收入", "一般進貨", "80.00", 0));
-
-        var preview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "text", field = "description", keywords = "調整", mode = "notContains" })));
-
-        // NULL 摘要視為空字串 → notContains 成立；4 列中只排除「調整分錄」1 列。
-        Assert.Equal(3, preview.GetProperty("scenario").GetProperty("count").GetInt64());
-    }
-
-    [Fact]
     public async Task FilterPreview_NumRangeFiltersOnAbsoluteScaledAmount()
     {
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "numRange", field = "amount", from = "500000", to = "" })));
+            new { join = "AND", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "500000", amountBasis = "absolute" })));
 
         // ABS：貸方（負值）列同樣納入。500000 × 10000 = 5e9。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
@@ -525,7 +507,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     public async Task FilterPreview_DateRangeBoundsGlDate()
     {
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "dateRange", field = "glDate", from = "2025-01-01", to = "2025-01-31" })));
+            new { join = "AND", type = "fieldValue", field = "glDate", @operator = "between", from = "2025-01-01", to = "2025-01-31" })));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -888,10 +870,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var scenario = ValidScenario(new
         {
             join = "AND",
-            type = "text",
+            type = "fieldValue",
             field = "description",
-            keywords = "parity-hit",
-            mode = "contains"
+            @operator = "contains",
+            values = new[] { "parity-hit" }
         });
 
         var preview = await host.DispatchAsync("filter.preview", PreviewPayload(scenario));
@@ -927,7 +909,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task ProjectLoad_PreEffectiveValidFilterLogic_RecalculatesWithCurrentRules()
+    public async Task ProjectLoad_OutdatedFilterLogicVersion_RecalculatesWithCurrentRules()
     {
         // 開案時不要求逐案重新保存：舊版本但仍符合目前規則的情境，
         // 由 project.load 改成目前版本並清掉舊命中，第一次查詢時才用新規則重算。
@@ -1185,7 +1167,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(2, scenario.GetProperty("groups").GetArrayLength());
     }
 
-    /* ---- 新條件型別（自訂關鍵字、自訂尾數、科目配對分析） ------------------ */
+    /* ---- 期間內外、摘要關鍵字、金額尾數與科目配對條件 ---------------------- */
 
     [Theory]
     [InlineData("true")]
@@ -1224,7 +1206,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_CustomKeywords_MatchesDescriptionRecount()
+    public async Task FilterPreview_DescriptionFieldValueContains_MatchesRecount()
     {
         // demo R2 種子的借方行摘要含「調整」(KeywordDescription = 調整分錄);以此關鍵字
         // 保證母體非空,filter 命中數須等於同述詞的獨立 description recount。
@@ -1244,7 +1226,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_CustomTrailingZeros_FixedDigitsMatchesRecount()
+    public async Task FilterPreview_EndsWithZeroDigits_FixedDigitsMatchesRecount()
     {
         // 固定 4 位；先取主單位整數，再對 10^4 取模。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
@@ -1261,7 +1243,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_CustomTrailingZeros_UsesMajorUnitIntegerAndExcludesSubunitZero()
+    public async Task FilterPreview_EndsWithZeroDigits_UsesMajorUnitIntegerAndExcludesSubunitZero()
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder
@@ -1291,8 +1273,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task FilterPreview_TrailingZerosAndAmountThreshold_ComposesAuthorizationGate()
     {
-        // 方法學授權閘 = 圓整數 AND 金額≥授權門檻(customTrailingZeros AND numRange)。
-        // 驗證組合與獨立 recount 相等(catches AND/述詞 wiring 錯誤)。
+        // 金額尾數至少六個 0、而且金額達授權門檻的組合(ZeroRule 加 numRange)；
+        // 預覽筆數要等於獨立 recount，才抓得到 AND 或述詞接錯。
         var preview = await fixture.Host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
         {
             populationScope = GlPopulationScopeValues.AuditPeriod,
@@ -1308,14 +1290,14 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
                         conditions = new object[]
                         {
                             ZeroRule(6),
-                            new { join = "AND", type = "numRange", field = "amount", from = "5000000", to = "" }
+                            new { join = "AND", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "5000000", amountBasis = "absolute" }
                         }
                     }
                 }
             }
         }));
 
-        // customTrailingZeros(6)：主單位整數 % 10^6；numRange ABS ≥ 5,000,000×10000。
+        // ZeroRule(6)：主單位整數不為 0 且 % 10^6 為 0；金額條件取 ABS ≥ 5,000,000×10000。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             "SELECT COUNT(*) FROM gl "
@@ -1328,7 +1310,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_CustomTrailingZerosOutOfRange_ThrowsInvalidScenario()
+    public async Task FilterPreview_EndsWithZeroDigitsOutOfRange_ThrowsInvalidScenario()
     {
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
@@ -1495,9 +1477,9 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     /* ---- 常用篩選條件專用的型別與特定金額尾數的 wire 端到端 ---------------- */
 
     [Fact]
-    public async Task FilterPreview_TrailingDigits_MatchesControlledHits()
+    public async Task FilterPreview_EndsWithDigits_MatchesControlledHits()
     {
-        // 特定金額尾數端到端（型別字串解析 + keywords 承載尾數樣態 + 述詞執行）；尾數無需科目配對。
+        // 特定金額尾數端到端：fieldValue 的 endsWithDigits 用 value 帶尾數樣態，再執行述詞；尾數不需科目配對。
         // MoneyScale 預設 10000：1,999,999.00 主單位整數 1,999,999 尾數 999999；500.00 不符。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder
@@ -1520,7 +1502,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [InlineData("manualRevenueEntry", 0L, 0L)]
     public async Task FilterPreview_CommonParameterlessType_RunsEndToEnd(string type, long expectedCount, long expectedVouchers)
     {
-        // 原 count >= 0 永遠成立，改鎖正式 demo 的手算答案。
+        // 核對正式 demo 的手算答案。
         // 30 張 Others 借、Revenue 貸各命中一列；12 張應收借、Revenue 貸不命中。
         // Revenue seed 全為自動，人工列只在不含 Revenue 的 baseline，所以人工收入固定為零。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
@@ -1556,7 +1538,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_TrailingDigits_NonDigitPattern_ThrowsInvalidScenario()
+    public async Task FilterPreview_EndsWithDigits_NonDigitPattern_ThrowsInvalidScenario()
     {
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
@@ -1605,7 +1587,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     public async Task FilterPreview_CommonSourceWithEmptyNameAndRationale_IsAccepted()
     {
         // source:"common" 豁免名稱/動機必填——即便兩者皆空也不應擲 invalid_scenario。
-        // trailingDigits 不需額外 mapping 前置，能把本測試焦點收斂在 source metadata。
+        // 金額尾數條件不需額外的配對前置，能把本測試焦點收斂在 source metadata。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(CommonScenario(
             TailRule("000000"))));
 

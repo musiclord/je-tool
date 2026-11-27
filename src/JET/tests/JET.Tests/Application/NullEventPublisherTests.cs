@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// NullEventPublisher 是無 WebView 環境的 no-op event port；事件只承載 UX 進度，不是狀態權威。
+/// NullEventPublisher 是無 WebView 環境的 no-op event port；事件只承載 UX 進度，狀態不以事件為準。
 /// </summary>
 public sealed class NullEventPublisherTests
 {

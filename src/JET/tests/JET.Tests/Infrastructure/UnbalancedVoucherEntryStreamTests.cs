@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// V_Report 6 一個查詢讀完借貸不平傳票的全部有效分錄時，讀出的分錄與順序，要和分頁查詢逐頁讀完相同。
+/// V_Report 6 一個查詢讀完借貸不平傳票的全部有效分錄，依 entry_id 升冪。
 /// 合成資料同一張傳票的分錄散在各處，另有無效分錄與傳票號碼空白的分錄。預期值由下面的資料直接算出：
 ///
 ///   U：借 100、貸 90，不平 → entry 1、9
@@ -38,7 +38,7 @@ public sealed class UnbalancedVoucherEntryStreamTests
         """;
 
     [Fact]
-    public async Task Stream_ReadsEveryEffectiveRowOfUnbalancedVouchersInEntryOrder_SameAsWalkingEveryPage()
+    public async Task Stream_ReadsEveryEffectiveRowOfUnbalancedVouchersInEntryOrder()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -54,7 +54,7 @@ public sealed class UnbalancedVoucherEntryStreamTests
             await command.ExecuteNonQueryAsync();
         }
 
-        var repository = new LocalUnbalancedVoucherPageRepository(database);
+        var repository = new LocalUnbalancedVoucherEntryStreamRepository(database);
         var streamed = new List<long>();
         await foreach (var entryId in ((IUnbalancedVoucherEntryStreamRepository)repository).StreamEntryIdsAsync(
                            projectId,
@@ -64,15 +64,5 @@ public sealed class UnbalancedVoucherEntryStreamTests
         }
 
         Assert.Equal(new long[] { 1, 4, 9, 10 }, streamed);
-        var walked = new List<long>();
-        string? cursor = null;
-        do
-        {
-            var page = await repository.GetEntryIdsPageAsync(
-                projectId, "2025-01-01", "2025-12-31", new PageRequest(cursor, 2), CancellationToken.None);
-            walked.AddRange(page.Rows);
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-        Assert.Equal(walked, streamed);
     }
 }

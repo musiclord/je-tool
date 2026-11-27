@@ -187,9 +187,9 @@ public sealed class ProjectDatabaseCheckpointTests
             await creator.DispatchAsync("project.releaseLock");
         }
 
-        // 把版本改成比現行版本小：開案會在讀過資料庫之後被拒絕。
+        // 刪掉一張不能補上的資料表：開案會在讀過資料庫之後被拒絕。
         var databasePath = DatabasePath(projects, name, provider);
-        await ExecuteDirectAsync(databasePath, provider, "UPDATE schema_info SET value = '19' WHERE key = 'schema_version';");
+        await ExecuteDirectAsync(databasePath, provider, "DROP TABLE calendar_day;");
 
         using var host = new HandlerTestHost(projectsRootPath: projects);
         var rejected = await Assert.ThrowsAsync<JetActionException>(
@@ -331,7 +331,7 @@ public sealed class ProjectDatabaseCheckpointTests
         scenarios = new[] { new
         {
             name = "併回記錄檔", rationale = "合成資料的補算測試",
-            groups = new[] { new { conditions = new[] { new { type = "numRange", field = "amount", from = "1" } } } }
+            groups = new[] { new { conditions = new[] { new { type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "1", amountBasis = "absolute" } } } }
         } }
     });
 

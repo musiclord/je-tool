@@ -307,7 +307,7 @@
         "借貸不平測試與預篩選的明細，各以 9,999 列為上限。",
         "明細超過上限時只輸出摘要，預篩選報告並於摘要註明明細資料不匯出。"
       ],
-      "path": "AuditCore/ValidationReportProgram.cs；AuditCore/PrescreenReportProgram.cs"
+      "path": "AuditCore/JetAuditProgram.ValidationReport.cs；AuditCore/JetAuditProgram.PrescreenReport.cs"
     },
     {
       "id": 13,
@@ -1203,8 +1203,8 @@
     {
       "logic": "納入測試的分錄範圍",
       "item": "日期寫法",
-      "input": "同一個日期以西元與民國年的不同寫法表示，另有純數字、缺年份或缺日的寫法。",
-      "expected": "西元與民國年的寫法換算為同一個西元日期，分錄納入測試。純數字、缺年份或缺日的寫法視為無法辨識，分錄不納入。",
+      "input": "同一個日期以西元與民國年的不同寫法表示，另有 Excel 日期序號、只有年份或 6 位數字、年份只寫兩位數、缺年份或缺日的寫法。",
+      "expected": "西元與民國年的寫法換算為同一個西元日期，分錄納入測試。Excel 日期序號、只有年份或 6 位數字、年份只寫兩位數、缺年份或缺日的寫法視為無法辨識，分錄不納入。",
       "cases": [
         "POP-06",
         "POP-07"

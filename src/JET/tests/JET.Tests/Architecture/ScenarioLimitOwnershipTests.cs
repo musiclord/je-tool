@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 已存情境上限只定義在 <see cref="FilterScenarioLimits.MaxSavedScenarios"/>。底稿第 4 與 4-1 頁把位置換成位元的 SQL、
+/// 已存情境上限只定義在 <see cref="FilterScenarioLimits.MaxSavedScenarios"/>。底稿 step4 符合高風險條件傳票與 step4-1 符合高風險條件傳票明細把位置換成位元的 SQL、
 /// 解回位置的方法、高風險條件彙總與暫存檔的範圍檢查、條件篩選報告的列範圍，以及「最多可儲存」的句子都引用它，不各自寫 10。
 /// </summary>
 public sealed class ScenarioLimitOwnershipTests
@@ -17,8 +17,8 @@ public sealed class ScenarioLimitOwnershipTests
         var mask = ProductSources.Product("Infrastructure", "Sql", "ScenarioTagMask.cs");
         Assert.Contains("FilterScenarioLimits.MaxSavedScenarios", mask, StringComparison.Ordinal);
 
-        var stream = ProductSources.Product("Infrastructure", "Sql", "WorkingPaperStep4StreamReader.cs");
-        var session = ProductSources.Product("Infrastructure", "Sql", "WorkingPaperStep41PreparedSession.cs");
+        var stream = ProductSources.Product("Infrastructure", "Sql", "WorkingPaperHighRiskVoucherStreamReader.cs");
+        var session = ProductSources.Product("Infrastructure", "Sql", "WorkingPaperHighRiskVoucherDetailPreparedSession.cs");
         foreach (var source in new[] { stream, session })
         {
             Assert.Contains("ScenarioTagMask.", source, StringComparison.Ordinal);
@@ -34,7 +34,7 @@ public sealed class ScenarioLimitOwnershipTests
         Assert.Contains("FilterScenarioLimits.MaxSavedScenarios", scope, StringComparison.Ordinal);
         Assert.DoesNotContain("> 10", scope, StringComparison.Ordinal);
 
-        var spool = ProductSources.Product("Infrastructure", "Export", "WorkingPaperWriter.Step2To41.cs");
+        var spool = ProductSources.Product("Infrastructure", "Export", "WorkingPaperWriter.InfSamplingAndHighRisk.cs");
         Assert.Contains("positionCount > FilterScenarioLimits.MaxSavedScenarios", spool, StringComparison.Ordinal);
         Assert.DoesNotContain("positionCount is < 0 or > 10", spool, StringComparison.Ordinal);
     }
@@ -59,7 +59,7 @@ public sealed class ScenarioLimitOwnershipTests
         foreach (var source in new[]
                  {
                      ProductSources.Product("Application", "Handlers", "FilterHandlers.cs"),
-                     ProductSources.Product("AuditCore", "FilterProgram.cs"),
+                     ProductSources.Product("AuditCore", "JetAuditProgram.Filter.cs"),
                      ProductSources.Product("Application", "Support", "FilterScenarioBatchWriter.cs")
                  })
         {
@@ -67,7 +67,7 @@ public sealed class ScenarioLimitOwnershipTests
             Assert.DoesNotContain("最多可儲存", source, StringComparison.Ordinal);
         }
 
-        // 前端的句子由既有的 FilterBackendRuleMirrorFrontendTests 逐字核對；這裡確認它拼出來和後端那一句相同。
+        // 前端的句子由 FilterBackendRuleMirrorFrontendTests 逐字核對；這裡確認它拼出來和後端那一句相同。
         var core = ProductSources.Frontend("ui-core.js");
         var frontendSentence = "最多可儲存 " + ProductSources.FrontendInt(core, "FILTER_MAX_SAVED_SCENARIOS") + " 個篩選情境，請先移除不需要的情境。";
         Assert.Equal(message.GetValue(null), frontendSentence);

@@ -21,7 +21,7 @@ public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILo
 
     private readonly string _provider = database.Dialect.ProviderName;
 
-    private readonly GlFilterWhereBuilder WhereBuilder =
+    private readonly GlFilterWhereBuilder _whereBuilder =
         new(
             database.Dialect,
             new GlRulePredicates(database.Dialect, GlPopulationScopeSql.Predicate));
@@ -61,7 +61,7 @@ public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILo
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        var plan = WhereBuilder.BuildPlan(scenario, context);
+        var plan = _whereBuilder.BuildPlan(scenario, context);
         plan.BindParametersTo(command);
         // 條件組出的 WHERE 只用到子查詢裡的別名 g；外層用另一個別名 whole_row 數出這些傳票的全部分錄。
         command.CommandText = "SELECT COUNT(*) FROM gl whole_row "
@@ -80,7 +80,7 @@ public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILo
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        var plan = WhereBuilder.BuildPlan(scenario, context);
+        var plan = _whereBuilder.BuildPlan(scenario, context);
         plan.BindParametersTo(command);
         command.CommandText = $"SELECT {selectExpression} FROM gl g "
             + $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} AND ({plan.Sql});";
@@ -96,7 +96,7 @@ public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILo
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        var plan = WhereBuilder.BuildPlan(scenario, context);
+        var plan = _whereBuilder.BuildPlan(scenario, context);
         plan.BindParametersTo(command);
         command.CommandText =
             $"""

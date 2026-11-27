@@ -22,7 +22,7 @@ internal static class PageRequestReader
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "cursor_invalid");
         }
 
-        // 總筆數只在第一頁（沒有游標）計算；換頁沿用第一頁的數字，不再每頁重掃完整查詢範圍。
+        // 總筆數只在第一頁（沒有游標）計算；換頁沿用第一頁的數字，不必每頁重掃完整查詢範圍。
         return new PageRequest(cursor, ReadPageSize(payload),
             ReadSort(payload, catalog), ReadSearch(payload, catalog), IncludeTotalCount: string.IsNullOrEmpty(cursor));
     }

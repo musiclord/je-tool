@@ -37,7 +37,7 @@ public sealed class ReportWorkbookExcelLayoutTests(ReportWorkbookExcelLayoutFixt
         {
             "validationReport" =>
             [
-                "ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.Step13,
+                "ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.CompletenessDifference,
                 "V_Report 2", "V_Report 3", "V_Report 4", "V_Report 5", "V_Report 6",
                 ReportWorkbookMetadataFormat.WorksheetName
             ],

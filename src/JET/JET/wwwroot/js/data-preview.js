@@ -1,19 +1,19 @@
 /*
-  資料預覽（正式版功能；query.dataPreview）。
+  資料預覽（query.dataPreview）。
   讓使用者隨時看到目前操作的資料長什麼樣子：
   - 欄位配對時對照「欄名 ↔ 實際內容」（PBC-GL、PBC-TB）
   - 進階篩選前掌握數值/日期/摘要的大概樣貌（GL、TB 與概況統計）
-  每頁最多 200 列，分頁讀取完整資料；權威計算一律在後端。
+  每頁最多 200 列，分頁讀取完整資料；計算結果一律以後端為準。
   呈現層：常駐右欄面板（頁籤切換資料表＋橫向捲動表格）。
   - 資料集以頁籤選擇：PBC／標準化的 GL、TB 與科目配對直接可見，其餘收進「其他資料」選單；
     現行支援的全部資料集都可達（openDataPreview 對任一 key 都能定位並載入）。
   - 載入節制：切頁籤／步驟按鈕（openDataPreview）才呼叫 query.dataPreview；
-    另在首次進入 workflow 且有專案時自動載入一次。
+    另在首次進入 workflow 且有案件時自動載入一次。
   - 底層資料世代刷新：後端寫入成功且改變可預覽資料集後（匯入落地、配對提交、科目配對／授權
     清單／行事曆匯入），state.dataGeneration 遞增；本面板據此作廢快取——可見即自動重抓當前
-    作用資料集，收合則待展開再抓。世代訊號只在真實資料落地時跳（非每個 action），故不會對大母體
-    高頻打擊。詳見 initDataPreview 的訂閱者。
-  - 使用 query.dataPreview 的 limit 與 offset 分頁；不新增後端 action。
+    作用資料集，收合則待展開再抓。世代訊號只在真實資料落地時跳，不是每個 action 都跳，所以不會對大量資料
+    反覆重抓。詳見 initDataPreview 的訂閱者。
+  - 使用 query.dataPreview 的 limit 與 offset 分頁。
     GL(未納入測試) 另可帶 exclusionReason 只看一種未納入原因，換頁時沿用同一種。
   - GL 與 GL(未納入測試) 的欄位由後端依已確認的配對決定，欄名與型別讀回應的 columnDetails；
     金額固定顯示四位小數。
@@ -51,7 +51,7 @@
     { value: 'accountMapping', label: '科目配對' }
   ];
 
-  // 主頁籤以外的既有資料集（一個都不少）：收進「其他資料」選單，使用相同的業務名稱。
+  // 主頁籤以外的資料集全部收進「其他資料」選單，使用相同的業務名稱。
   var MORE = DATASETS.filter(function (d) {
     return !MAIN_TABS.some(function (t) { return t.value === d.value; });
   });
@@ -76,7 +76,7 @@
   var DAY_TYPE_LABELS = { holiday: '假日', makeup: '補班' };
 
   // GL(未納入測試) 的未納入原因（後端 closed wire value）→ 中文顯示與統計鍵；未登錄值原樣呈現。
-  // 日期不符分成四種原因並各自計數，資料預覽可以只看其中一種；總帳日期空白、早於與晚於查核期間的名稱逐字照當時的選項。
+  // 日期不符分成四種原因並各自計數，資料預覽可以只看其中一種；總帳日期空白、早於與晚於查核期間這三個名稱是確認過的畫面用字，逐字照用。
   // 原因欄、下方統計列與篩選選項都用這一組名稱。
   var EXCLUSION_REASONS = [
     { value: 'blankGlDate', label: '總帳日期空白', countKey: 'blankGlDateCount' },
@@ -179,9 +179,9 @@
   // 訂閱者不直接 refresh，改排進 microtask 並以 refreshQueued 去重。理由：applyLoadedProject
   // 是同步函式，會連呼 setProject＋6 個 bumpData setter；從 create-step 進案（建立案件）時
   // view 已是 'workflow'，每次 notify 都會同步進訂閱者——直呼 refresh 會單次進案
-  // 連發約 7 次 query.dataPreview（互相 supersede、末次才算數，違反「不盲目重抓」原則）。
+  // 連發約 7 次 query.dataPreview，前面幾次都被後面取代，只有最後一次算數，等於白白重抓。
   // 合併後同一同步輪只 flush 一次；flush 時重讀「當下」state 決定抓不抓：
-  //   已離開 workflow／專案已清 → 放棄（picker 期間不噴後端）；
+  //   已離開 workflow／案件已清 → 放棄（picker 期間不噴後端）；
   //   收合 → 只標 dirty 待展開再抓；可見 → refresh()（內部清 dirty）。
   // 「同世代不雙抓」由訂閱者的 lastDataGeneration 把關不變，flush 本身不動世代基準。
   function scheduleRefresh() {
@@ -244,17 +244,17 @@
     }
 
     // 資料預覽的刷新時機（節制與世代雙軌）：
-    //  1) 首次進入 workflow 且已有專案：自動載入一次（沿用舊 <details> 首開節制），並同步世代基準。
+    //  1) 首次進入 workflow 且已有案件：自動載入一次，並同步世代基準。
     //  2) 底層資料世代（state.dataGeneration）變動——匯入落地／配對提交等後端寫入成功後：
     //     作廢資料快取；面板可見即自動重抓當前作用資料集，收合則標記待展開再抓
-    //     （不對大母體高頻打擊；世代訊號只在真實資料落地時跳，非每個 action）。
+    //     （不會對大量資料反覆重抓；世代訊號只在真實資料落地時跳，不是每個 action 都跳）。
     //  3) 由收合切換為展開，且期間曾發生世代變動：補抓一次，確保展開看到的是新資料。
     // 三路觸發一律經 scheduleRefresh（microtask 合併）：同一同步輪不論來了幾次 notify／世代跳
     // （picker→openProject 的 applyLoadedProject、或 create-step 在 view 已是 workflow 時進案皆然），
     // 都只對後端抓一次。
     Store.subscribe(function (state) {
-      // 不在 workflow 或無專案（picker／載入中）：重置節制旗標，下次進 workflow 由首載分支重抓一次。
-      // picker 路徑的專案載入（applyLoadedProject）期間 dataGeneration 連跳但 view 仍是 picker，
+      // 不在 workflow 或無案件（picker／載入中）：重置節制旗標，下次進 workflow 由首載分支重抓一次。
+      // picker 路徑的案件載入（applyLoadedProject）期間 dataGeneration 連跳但 view 仍是 picker，
       // 於此略過；create-step 路徑（view 已是 workflow）的連跳則靠 scheduleRefresh 合併。
       if (state.view !== 'workflow' || !state.project) {
         loadedOnce = false;
@@ -263,7 +263,7 @@
         return;
       }
 
-      // 首次（或切換專案後重新）進入 workflow：同步世代基準並排一次載入。
+      // 首次（或切換案件後重新）進入 workflow：同步世代基準並排一次載入。
       // loadedOnce 就地設立（不等 flush）：同一同步輪的後續 notify 直接走世代分支，只更新基準、不重複排程。
       if (!loadedOnce) {
         loadedOnce = true;
@@ -455,8 +455,8 @@
     if (toggle) { toggle.classList.toggle('is-active', moreActive); }
   }
 
-  // 步驟內的「預覽資料」按鈕入口：展開右欄、切到對應資料集並載入。
-  // 簽名不變（既有 steps/*.js 以 dataset key 呼叫；四個主頁籤與「其他資料」皆覆蓋全部 key）。
+  // 步驟內的「資料預覽」按鈕入口：展開右欄、切到對應資料集並載入。
+  // steps/*.js 以 dataset key 呼叫；主頁籤與「其他資料」合起來涵蓋全部 key。
   function openDataPreview(dataset) {
     if (!elAside) { return; }
     setPreviewCollapsedByUser(false);
@@ -506,7 +506,7 @@
   function refresh(page) {
     var requestedPage = typeof page === 'number' ? page : 1;
     if (!Store.getState().project) {
-      loadedOnce = false; // 尚無專案，等有專案再由訂閱者自動載入一次
+      loadedOnce = false; // 尚無案件，等有案件再由訂閱者自動載入一次
       if (elBody) {
         clearPreviewRequestState();
         elBody.innerHTML = '<p class="data-preview__hint">尚未開啟案件。開啟案件後即可預覽資料。</p>';
@@ -544,7 +544,7 @@
     }
 
     // 唯讀、可併行的背景讀取：走 runBackground 而非 run——資料預覽的世代自動刷新會在某個變更型
-    // 作業的 run 仍持有 busy 期間觸發（匯入／配對提交／載入專案完成後的 bumpData），若走 run 會被
+    // 作業的 run 仍持有 busy 期間觸發（匯入／配對提交／載入案件完成後的 bumpData），若走 run 會被
     // single-flight 靜默吞掉而看到陳舊預覽；後端 query.dataPreview 屬 concurrent、可安全併行。
     // 使用者切頁籤發生在非 busy 時（作業進行中右欄已被 inert 擋住），此路徑一致不設整介面遮罩。
     var request = { dataset: dataset, limit: Ui.TABLE_PAGE_SIZE, offset: (requestedPage - 1) * Ui.TABLE_PAGE_SIZE };
@@ -620,7 +620,7 @@
     renderNote(data);
   }
 
-  // 底部註記：左＝真實列數／欄數（不寫死示意數字），右＝橫向捲動提示；
+  // 底部註記：左邊是實際的列數與欄數，右邊是橫向捲動提示；
   // GL 有概況統計時另補一列（供進階篩選前把關數值／日期區間）。
   function renderNote(data) {
     if (!elNote) { return; }

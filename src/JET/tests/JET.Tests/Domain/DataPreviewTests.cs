@@ -36,7 +36,7 @@ public sealed class DataPreviewTests
     [InlineData("")]
     [InlineData("tb_staging")]
     [InlineData("PbcTb")]
-    // 全系統的資料名稱統一；舊 wire key 不接受。
+    // 下面這些也不是資料集的 wire 名稱，一律不接受。
     [InlineData("glStaging")]
     [InlineData("glEntries")]
     [InlineData("glExcludedEntries")]

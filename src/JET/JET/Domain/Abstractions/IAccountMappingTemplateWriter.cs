@@ -21,8 +21,8 @@ public interface IAccountMappingTemplateWriter
 }
 
 /// <summary>
-/// 正式匯出用的進度回報介面。公開的 <see cref="IAccountMappingTemplateWriter"/> 維持原樣；
-/// 正式匯出改用這個介面，在每張工作表的 SAX writer 關閉後收到一次進度。
+/// 正式匯出用的進度回報介面：每張工作表的 SAX writer 關閉後回報一次進度；
+/// 公開的 <see cref="IAccountMappingTemplateWriter"/> 不回報進度。
 /// </summary>
 internal interface IAccountMappingTemplateProgressWriter : IAccountMappingTemplateWriter
 {
@@ -34,8 +34,8 @@ internal interface IAccountMappingTemplateProgressWriter : IAccountMappingTempla
 }
 
 /// <summary>
-/// 正式匯出用、會帶科目分類的介面。公開的 <see cref="IAccountMappingTemplateWriter"/> 維持原樣；
-/// 正式匯出改用這個介面，把案件快照裡的科目分類一起傳進來。
+/// 正式匯出用、會帶科目分類的介面，把案件快照裡的科目分類一起傳進來；
+/// 公開的 <see cref="IAccountMappingTemplateWriter"/> 不帶分類。
 /// </summary>
 internal interface IAccountMappingCategoryTemplateWriter : IAccountMappingTemplateWriter
 {

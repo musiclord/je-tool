@@ -10,7 +10,7 @@ namespace JET.AuditCore;
 /// 唯一刻意連未納入測試的分錄一起讀的是總帳日期空白 <c>blankGlDate</c>，只有來源資料品質的查詢與摘要使用。</para>
 ///
 /// <para><b>共用片段</b>：<see cref="UnbalancedCore"/> 是借貸不平三處查詢共用的傳票彙總。
-/// <see cref="UnbalancedDetailCore"/> 把借貸不平的傳票接回有效分錄，算筆數與分頁讀取都用它。
+/// <see cref="UnbalancedDetailCore"/> 把借貸不平的傳票接回有效分錄，算筆數與讀明細都用它。
 /// <see cref="InfSampleInsert"/> 是 INF 抽樣唯一的 INSERT。資料缺漏輔助檢視四個類別的條件集中在
 /// <c>BlankRecordsCategoryPredicate</c>，計數、明細與分頁三種查詢共用。</para>
 ///
@@ -44,15 +44,14 @@ public static class ValidationProcedures
     /// <summary>
     /// 借貸不平三處查詢共用的 SQL，從 FROM 開始：只看納入測試的分錄，依傳票號碼彙總，留下借貸淨額不是 0 的傳票。
     /// 三處是 validate.run 的計數與明細，以及 voucherBalancePage。
-    /// 要算筆數還是取明細欄，由呼叫端在前面的 SELECT 決定。<paramref name="extraFilter"/> 會接在 WHERE 的最後：
-    /// 分頁時傳 <c>" AND voucher_number &gt; @cursor"</c>，從上一頁最後一張傳票之後讀起；其他情況傳空字串。
+    /// 要算筆數還是取明細欄，由呼叫端在前面的 SELECT 決定。
     /// </summary>
-    public static string UnbalancedCore(string schemaPrefix = "", string extraFilter = "") =>
-        $"FROM {schemaPrefix}gl WHERE {GlExcludedPopulation.SqlPredicate()} AND voucher_number IS NOT NULL{extraFilter} " +
+    public static string UnbalancedCore(string schemaPrefix = "") =>
+        $"FROM {schemaPrefix}gl WHERE {GlExcludedPopulation.SqlPredicate()} AND voucher_number IS NOT NULL " +
         "GROUP BY voucher_number HAVING SUM(amount_scaled) <> 0";
 
     /// <summary>
-    /// 同一號碼跨不同入帳日的提醒，只讀有效分錄。傳票身分與既有程序仍只看號碼；空白的傳票號碼和
+    /// 同一號碼跨不同入帳日的提醒，只讀有效分錄。傳票的認定與其他程序只看號碼；空白的傳票號碼和
     /// 空白傳票號碼類別用同一個判定（去掉頭尾空白後是空字串也算空白），不列入提醒。
     /// </summary>
     internal static string VoucherNumberAcrossGlDatesSummary(
@@ -68,17 +67,13 @@ public static class ValidationProcedures
     /// <summary>
     /// 驗證報告借貸不平明細共用的 SQL：先用 <see cref="UnbalancedCore"/> 找出納入測試分錄裡的不平傳票，
     /// 再回接 GL 裡納入測試的每一列。
-    /// 匯出前算列數的查詢和匯出時分頁讀明細的查詢必須共用這個片段。這樣 10,000 列的明細上限，
+    /// 匯出前算列數的查詢和匯出時讀明細的查詢必須共用這個片段。這樣 10,000 列的明細上限，
     /// 比的是寫出程式真正會讀到的明細列數，不是不平傳票的張數。
-    /// <paramref name="extraFilter"/> 只給外層依 entry_id 分頁的條件使用，內容要自己帶開頭的 AND。
     /// </summary>
-    public static string UnbalancedDetailCore(
-        string schemaPrefix = "",
-        string extraFilter = "") =>
+    public static string UnbalancedDetailCore(string schemaPrefix = "") =>
         $"FROM {schemaPrefix}gl g " +
         $"WHERE {GlExcludedPopulation.SqlPredicate("g")} " +
-        $"AND g.voucher_number IN (SELECT voucher_number {UnbalancedCore(schemaPrefix)}) " +
-        extraFilter;
+        $"AND g.voucher_number IN (SELECT voucher_number {UnbalancedCore(schemaPrefix)}) ";
 
     /// <summary>
     /// 底稿 Step 1-1 明細：不平傳票的有效分錄依傳票號碼與總帳日期彙總借方與貸方（照舊版 JET）。
@@ -221,8 +216,8 @@ internal static class InfSamplingPrf
         long? persistedSeed,
         int? persistedVersion)
     {
-        // 只接受目前的抽樣演算法版本；缺版本或其他版本都是設定檔損壞。較早版本的 JET 建立的案件在讀設定檔版本時就擋下，
-        // 目前版本不保留舊排序法，也不替缺種子的案件補固定種子。
+        // 只接受目前的抽樣演算法版本；缺版本或版本不同都是設定檔損壞，讀設定檔時就擋下，
+        // 也不替缺種子的案件補固定種子。
         if (persistedVersion is null)
         {
             return InfSamplingSeedResolution.Invalid("缺少 sampleSeedVersion");

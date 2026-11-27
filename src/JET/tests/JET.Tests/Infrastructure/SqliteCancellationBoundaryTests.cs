@@ -62,7 +62,7 @@ public sealed class SqliteCancellationBoundaryTests
         await using var connection = await OpenAsync(root);
         await using (var command = connection.CreateCommand())
         {
-            // abs 的參數是最小的 64 位元整數時，SQLite 回報整數溢位；參數跟著 x 變，SQLite 不會提前算，只在第二列發生。
+            // abs 的參數是 long 的最小值時，SQLite 回報整數溢位；參數跟著 x 變，SQLite 不會提前算，只在第二列發生。
             command.CommandText = string.Format(TwoRowsCallingOnTheSecond, "abs(-9223372036854775806 - x)");
             await using var reader = await ((DbCommand)command).ExecuteReaderAsync(CancellationToken.None);
             Assert.True(await reader.ReadAsync(CancellationToken.None));

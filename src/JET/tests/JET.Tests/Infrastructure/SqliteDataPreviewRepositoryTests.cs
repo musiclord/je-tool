@@ -208,7 +208,7 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(["canonicalName", "physicalName", "layer", "audience", "browsable"], result.Columns);
         Assert.Null(result.Stats);
 
-        // 列 ≡ catalog 的 DataView + StructureOnly（Hidden 排除）；身分以正準名鎖定。
+        // 列 ≡ catalog 的 DataView + StructureOnly（Hidden 排除）；身分以審計用名稱鎖定。
         var expectedCanonical = JetSchemaCatalog.All
             .Where(e => e.Audience is SchemaAudience.DataView or SchemaAudience.StructureOnly)
             .Select(e => (string?)e.CanonicalName)
@@ -254,7 +254,7 @@ public sealed class SqliteDataPreviewRepositoryTests
             limit: 50,
             CancellationToken.None);
 
-        // GL 列：正準名 / 實體名 / 層 / 用途 / 可瀏覽（逐欄身分，對齊 catalog 宣告）。
+        // GL 列：審計用名稱 / 實體名 / 層 / 用途 / 可瀏覽（逐欄身分，對齊 catalog 宣告）。
         // 同一張表也承載 GL(未納入測試)。
         var gl = result.Rows.Single(r => r[0] == "GL、GL(未納入測試)");
         Assert.Equal(["GL、GL(未納入測試)", "gl", "Staging", "DataView", "是"], gl);

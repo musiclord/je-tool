@@ -299,7 +299,7 @@ public static partial class JetAuditProgram
 
         if (string.Equals(definition.Slug, "inf_sampling_test", StringComparison.Ordinal))
         {
-            // 只支援目前的 INF 抽樣演算法；沒有版本或其他版本的案件不得靜默改用新排序。
+            // 只支援目前的 INF 抽樣演算法版本；沒有版本或版本不同的案件直接拒絕，不用目前的排序法重新抽樣。
             if (snapshot.SampleSeedVersion != InfSamplingPrf.CurrentAlgorithmVersion)
             {
                 // 開案與資料驗證前都已擋下抽樣設定不對的案件，畫面照正常操作走不到這裡。

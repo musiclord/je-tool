@@ -5,12 +5,11 @@ namespace JET.Application;
 
 /// <summary>
 /// 資料已提交之後才寫的操作紀錄。寫入失敗時變更仍然有效，回報成功並附提醒，
-/// 不讓畫面誤以為整個動作失敗。本機案件的包裝已把失敗記進支援日誌並回 false；
-/// 其他實作往外丟的錯誤在這裡記下錯誤類型。
+/// 不讓畫面誤以為整個動作失敗。BestEffortProjectOperationLog 這層包裝已把失敗記進支援日誌並回 false；
+/// 沒有這層包裝的實作往外丟的錯誤，在這裡記下錯誤類型。
 /// </summary>
 internal static partial class CommittedOperationLog
 {
-    /// <summary>這句的用字已定案。</summary>
     internal const string AppendFailedWarning = "變更已儲存，但這次變更沒有寫入操作紀錄。";
 
     /// <summary>產生報告時的提醒。</summary>

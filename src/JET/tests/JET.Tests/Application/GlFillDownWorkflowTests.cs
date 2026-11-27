@@ -177,12 +177,12 @@ public sealed class GlFillDownWorkflowTests
         Assert.Equal(0, reloaded.GetProperty("mapping").GetProperty("gl").GetProperty("fillDownCount").GetInt64());
     }
 
-    // 往下填補之後，INF 報告主表與底稿第二步的「分錄來源」讀整理後的值，和同一列的傳票號碼一致；
+    // 往下填補之後，INF 報告主表與底稿 step2 可靠性測試的「分錄來源」讀整理後的值，和同一列的傳票號碼一致；
     // 「借貸代號」在原始列空白時，依整理後的借貸方向寫已確認配對的借方或貸方代碼。
     // 「可靠性樣本_所有欄位」仍是 PBC-GL 原樣。
     [Theory]
     [InlineData("sqlite")]
-    public async Task FillDown_InfAndWorkingPaperStep2_ShowTheCleanedSourceModuleAndDirection(string provider)
+    public async Task FillDown_InfAndWorkingPaperInfSampling_ShowTheCleanedSourceModuleAndDirection(string provider)
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", CreatePayload(provider));
@@ -319,11 +319,11 @@ public sealed class GlFillDownWorkflowTests
         Assert.Equal(["財務部", null, "業務部", "業務部", null, "財務部", null], Column(gl, "部門"));
     }
 
-    // INF 主表與底稿第二步共用的版面：樣本從第 53 列起，B 欄傳票號碼、E 欄借貸代號、J 欄分錄來源。
-    // 總帳日期配到數值儲存格的來源欄，例如存 20250305，欄位型態照來源記成數值。勾了往下填補時，底稿第 4-1 頁的總帳日期讀整理後的值
+    // INF 主表與底稿 step2 可靠性測試共用的版面：樣本從第 53 列起，B 欄傳票號碼、E 欄借貸代號、J 欄分錄來源。
+    // 總帳日期配到數值儲存格的來源欄，例如存 20250305，欄位型態照來源記成數值。勾了往下填補時，底稿 step4-1 符合高風險條件傳票明細的總帳日期讀整理後的值
     // 2025-03-05，它不是數值；照存下來的文字寫成文字儲存格，匯出照常完成。
     [Fact]
-    public async Task FillDown_GlDateFromANumberColumn_ExportsStep41WithTheFilledText()
+    public async Task FillDown_GlDateFromANumberColumn_ExportsHighRiskVoucherDetailWithTheFilledText()
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", CreatePayload("sqlite"));
@@ -401,7 +401,7 @@ public sealed class GlFillDownWorkflowTests
             host.ProjectsRoot, projectId, workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
         var sheet = workingPaper.Worksheet("step4-1 符合高風險條件傳票明細");
         var glDateColumn = sheet.Row(5).CellsUsed().Single(cell => cell.GetString() == "總帳日期_JE").Address.ColumnNumber;
-        // 這張傳票的兩列都列進第 4-1 頁，第一列寫的 20250305 與往下填補的第二列都是整理後的 2025-03-05。
+        // 這張傳票的兩列都列進底稿 step4-1 符合高風險條件傳票明細，第一列寫的 20250305 與往下填補的第二列都是整理後的 2025-03-05。
         Assert.Equal(
             ["Text|2025-03-05", "Text|2025-03-05"],
             new[] { 6, 7 }.Select(row => sheet.Cell(row, glDateColumn).DataType + "|" + sheet.Cell(row, glDateColumn).GetString()));

@@ -396,8 +396,8 @@ public sealed class SqliteImportAppendTests
         using var env = new Env();
         await env.ReplaceThreeRowsAsync(); // 批次欄位 = GlColumns（7 具名欄）
 
-        // 附加來源的佔位欄 COL_8 真的帶資料：具名快檢通過、串流後終檢必須誠實拒絕
-        //（有資料的欄位不得靜默消失），且既有批次完全不變
+        // 附加來源的佔位欄 COL_8 真的帶資料：具名欄的快速檢查通過，串流讀完後的最終檢查必須拒絕
+        //（有資料的欄位不得默默消失），已匯入的批次也完全不變。
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => env.ImportRepo.AppendToBatchAsync(
                 env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source("q2.csv"),

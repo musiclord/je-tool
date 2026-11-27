@@ -1,9 +1,9 @@
 /*
-  Step 1：匯入資料（多來源匯入精靈）。
+  第二步：匯入資料（多來源匯入精靈）。
   一個 GL/TB 資料集 = 一個批次，可由多個檔案或多個工作表組成：
   選檔（host.selectFiles）→ 逐檔預覽（import.inspectFile：工作表清單／偵測編碼與分隔符）→
   確認後將所有來源以單一 action 匯入，同一交易整批 replace 或 append。
-  前端零解析：欄名集合比對、編碼偵測、合併語意全部在後端。
+  前端不解析檔案：欄名集合比對、編碼偵測、合併語意全部在後端。
 */
 (function (global) {
   'use strict';
@@ -45,7 +45,7 @@
 
   // 匯入時正被 Excel 等程式開著的來源檔，後端另外列出的提醒（openElsewhereWarnings），依匯入項目記下：
   // gl、tb、authorizedPreparer、holiday、makeupDay。畫面把它放在那一項的匯入結果旁，審計員不必打開訊息面板
-  // 就看得到；訊息面板照舊另記一則當紀錄。同一項再匯入成功時換成這次的提醒，
+  // 就看得到；訊息面板也另記一則當紀錄。同一項再匯入成功時換成這次的提醒，
   // 移除清單或換案件時清掉。純區域 UI，比照 justImported：不進 state.js、不持久化。
   var openElsewhere = {};
 
@@ -91,7 +91,7 @@
 
   // 匯入步驟頂部：四列任務清單（GL／TB／授權編製人員清單／日期維度）。
   // 每列＝狀態符號＋名稱(＋必要/選用標)＋單一關鍵數字＋單一動作鈕；點動作鈕就地展開該列既有卡片完整 UI。
-  // 四張卡的 render 與事件綁定一律沿用既有函式，任務清單只承載入口。
+  // 四張卡的 render 與事件綁定都用各卡自己的函式，任務清單只放入口。
   function render(container, state) {
     if (!state.project) {
       container.innerHTML = Ui.noProjectPanel('匯入資料');
@@ -128,7 +128,7 @@
   // opts.done 決定符號與名稱色（✓ 已備／— 未匯入）。四列的按鈕是同一種每列重複的動作，一律用同一種低調按鈕；
   // 未匯入的授權清單也不另標成主要動作，否則多一圈外框，看起來像樣式漏掉，而且它是選用項目。
   // 按鈕寫出這一列要做的事：還沒匯入寫「匯入」，國定假日與補班日還沒設定寫「設定」，已經有資料寫「更改」。
-  // 展開（opts.open）時在列下方嵌入 cardHtml（既有卡片完整 UI，DOM 未改）。
+  // 展開（opts.open）時在列下方嵌入 cardHtml，也就是卡片的完整 UI。
   function taskItemHtml(key, opts, cardHtml) {
     var open = opts.open;
     var actionLabel = opts.done ? '更改' : (key === 'calendar' ? '設定' : '匯入');
@@ -154,8 +154,8 @@
     );
   }
 
-  // GL／TB 列。關鍵數字一律讀既有 importState 欄位（rowCount／columns.length／sources.length，與 summaryFaceHtml 同源），
-  // 前端不計算、不臆造；Ui.countText 只加千分位，非計算。四類資料都由這一列的按鈕展開。
+  // GL／TB 列。關鍵數字一律讀 importState 欄位（rowCount／columns.length／sources.length，與 summaryFaceHtml 同源），
+  // 前端不計算、不臆造；Ui.countText 只加千分位，非計算。這一列的資料由這一列的按鈕展開。
   function datasetTask(kind, name, info) {
     var meta = info
       ? Ui.countText(info.rowCount) + ' 列，' + Ui.countText(info.columns.length) + ' 欄，' +
@@ -186,8 +186,8 @@
     }, authorizedPreparerCard(info));
   }
 
-  // 日期維度列（選用）。完成狀態只鏡像後端持久 marker：成功匯入（即使零筆）
-  // 或曾儲存每週非工作日設定；數量只負責摘要，不能反推工作流狀態。
+  // 日期維度列（選用）。完成狀態只看後端保存的標記：成功匯入（即使零筆）
+  // 或曾儲存每週休息日設定；數量只用在摘要，不能用來反推流程狀態。
   function calendarTask(calendar) {
     var completed = !!(calendar && (calendar.calendarImported || calendar.nonWorkingDaysConfigured));
     var parts = [];
@@ -415,7 +415,7 @@
     }); }
   }
 
-  // 日期維度：上傳事務所假日／補班 .xlsx + 設定每週非工作日（週末判定）。前端零邏輯，權威在後端。
+  // 日期維度：上傳事務所假日與補班日 .xlsx，並設定每週休息日（週末判定）。前端不做判斷，以後端為準。
   function calendarCard(calendar) {
     var body = calendar && calendar.calendarImported
       ? '<p class="import-card__status import-card__status--ok">國定假日 ' +
@@ -427,7 +427,7 @@
     return (
       '<section class="import-card import-card--calendar" data-bind="import-card-calendar">' +
         '<h3 class="import-card__title">國定假日與補班日</h3>' +
-        // 開著檔案的提醒只在日曆已匯入時畫；目前沒有會清掉日曆的操作，這裡和科目配對托盤用同一個原則。
+        // 開著檔案的提醒只在日曆已匯入時畫；沒有會清掉日曆的操作，這裡和科目配對托盤用同一個原則。
         body + (calendar && calendar.calendarImported ? openElsewhereHtml('holiday') + openElsewhereHtml('makeupDay') : '') +
         '<p class="calendar-nonworking__hint">國定假日清單讀 Date_of_Holiday 欄，補班日清單讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。</p>' +
         '<div class="import-card__actions">' +
@@ -859,7 +859,7 @@
   /* ---- 匯入進度（import.progress 事件） ---------------- */
 
   // 進度是 UX 提示：百分比以 inspect 的 rowCountEstimate 估算（dimension 推估、可能過時），
-  // 權威列數以匯入 response 為準。estimate 缺席（CSV）→ 只顯示已寫入列數。
+  // 實際列數以匯入的 action 回應為準。estimate 缺席（CSV）→ 只顯示已寫入列數。
   function updateProgress(kind, item, itemIndex, totalItems, data) {
     var pane = document.querySelector('[data-bind="wizard-progress"]');
     var label = document.querySelector('[data-bind="wizard-progress-label"]');
@@ -927,7 +927,7 @@
     var confirmBtn = card.querySelector('[data-action="wizard-confirm"]');
     if (confirmBtn) {
       confirmBtn.addEventListener('click', function () {
-        // 匯入會清除第四步已儲存和未儲存的科目分類；還有沒儲存的分類時先問，沒有時照舊直接匯入。
+        // 匯入會清除第四步已儲存和未儲存的科目分類；還有沒儲存的分類時先問，沒有時直接匯入。
         if (!Ui.pendingAccountCategoryCount() || !includedWizardItems().length) { confirmWizard(kind, label); return; }
         Ui.confirmPendingAccountCategories('匯入後，第四步已儲存和未儲存的科目分類都會清除。', '繼續匯入', { saveable: false })
           .then(function (proceed) { if (proceed) { confirmWizard(kind, label); } });
@@ -1316,7 +1316,6 @@
     }, {
       // 完成句由 Ui.run 接上耗時（用秒與分秒的共用寫法）後記一則。
       completionMessage: function (data) {
-        // 這句的用字已定案。
         return data ? label + ' 匯入完成：本次新增 ' + Ui.countText(data.addedRowCount) + ' 列，目前共 ' +
           Ui.countText(data.rowCount) + ' 列、' + Ui.countText(data.columns.length) + ' 欄。' : '';
       }

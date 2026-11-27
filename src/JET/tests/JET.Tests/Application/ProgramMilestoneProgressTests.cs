@@ -6,15 +6,15 @@ namespace JET.Tests.Application;
 
 public sealed class ProgramMilestoneProgressTests
 {
-    // 直接讀各 handler 宣告的 WorkflowStep。
+    // 直接讀各 handler 宣告的 AdvancesTo。
     [Theory]
-    [InlineData(2, ValidateRunHandler.WorkflowStep, 4, 1)]
-    [InlineData(4, FilterCommitHandler.WorkflowStep, 5, 1)]
-    [InlineData(5, ValidateRunHandler.WorkflowStep, 5, 0)]
-    [InlineData(4, MappingCommitGlHandler.WorkflowStep, 4, 0)]
+    [InlineData(2, ValidateRunHandler.AdvancesTo, 4, 1)]
+    [InlineData(4, FilterCommitHandler.AdvancesTo, 5, 1)]
+    [InlineData(5, ValidateRunHandler.AdvancesTo, 5, 0)]
+    [InlineData(4, MappingCommitGlHandler.AdvancesTo, 4, 0)]
     public async Task MappingCommitShared_UsesMonotonicWorkflowMilestoneOnly(
         int currentStep,
-        int workflowStep,
+        WorkflowStep advancesTo,
         int expectedStep,
         int expectedSaveCalls)
     {
@@ -24,7 +24,7 @@ public sealed class ProgramMilestoneProgressTests
         await MappingCommitShared.AdvanceStepAsync(
             store,
             document,
-            workflowStep,
+            advancesTo,
             CancellationToken.None);
 
         Assert.Equal(expectedStep, store.Document.CurrentStep);

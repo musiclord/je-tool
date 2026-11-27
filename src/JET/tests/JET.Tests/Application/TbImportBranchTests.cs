@@ -294,7 +294,7 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task AdvancesToStepTwo_OnlyWhenBehind(string provider)
+    public async Task AdvancesToMappingStep_OnlyWhenBehind(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await CreateProjectAsync(host, provider);

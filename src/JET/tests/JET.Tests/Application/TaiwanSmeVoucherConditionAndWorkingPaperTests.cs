@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 傳票層條件（任一、全部、不存在；借方、貸方或整張）、巢狀括號混用「且」「或」、同一傳票佐證、
 /// 多組以「或」相連，以及同時儲存多個情境後匯出工作底稿。資料是一組七月份的費用與零用金傳票。
-/// 預期值依規則與條件目錄手算。
+/// 預期值依規則手算。
 /// </summary>
 public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
 {
@@ -30,7 +30,7 @@ public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
             .AddRow(null, "X1", "2025-07-05", "6112", "租金支出", "調整", "陳會計", 100, 1),
             databaseProvider: provider, validateForDownstream: true);
 
-    // 借貸方向與傳票佐證用明示寫法；「借方全部符合」還要求至少有借方，因此保留一條存在條件。
+    // 「借方全部是費用」寫成「至少有一列借方」且「沒有一列借方的科目不是費用」，所以有一條存在條件。
     private static JsonObject AllDebitsAreExpenses() => OneRule("借方全部是費用", """
         {"type":"group","conditions":[
           {"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"debit"}]},
@@ -121,24 +121,24 @@ public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
             .ToDictionary(item => item.GetProperty("sheetName").GetString()!, item => item.GetProperty("rowsWritten").GetInt64());
         // Step 4：C1 = {N1, N2, N3}、C2 = {N1, N4}、C3 = {N2, N3} 加上空白號碼 X1。
         // 具名傳票聯集 N1 到 N4 共 4 列，空白號碼的直接命中 X1 另列 1 列，合計 5 列。
-        Assert.Equal(5, stats[WorkingPaperSheetCatalog.Step4]);
+        Assert.Equal(5, stats[WorkingPaperSheetCatalog.HighRiskVoucher]);
         // Step 4-1：具名傳票展開整張 N1 2 列、N2 2 列、N3 3 列、N4 2 列，加上 X1 1 列，共 10 列。
-        Assert.Equal(10, stats[WorkingPaperSheetCatalog.Step41]);
+        Assert.Equal(10, stats[WorkingPaperSheetCatalog.HighRiskVoucherDetail]);
 
         using var workbook = new XLWorkbook(exported.GetProperty("publishedReport").GetProperty("fullPath").GetString()!);
-        var step3 = workbook.Worksheet(WorkingPaperSheetCatalog.Step3);
-        int VoucherCount(string code) => step3.RowsUsed().Single(row => row.Cell(2).GetString() == code).Cell(5).GetValue<int>();
+        var highRiskSummary = workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary);
+        int VoucherCount(string code) => highRiskSummary.RowsUsed().Single(row => row.Cell(2).GetString() == code).Cell(5).GetValue<int>();
         // Step 3 命中傳票數：C1 三張、C2 兩張、C3 只算具名的 N2、N3 兩張。
         Assert.Equal(3, VoucherCount("C1"));
         Assert.Equal(2, VoucherCount("C2"));
         Assert.Equal(2, VoucherCount("C3"));
 
-        var step4 = workbook.Worksheet(WorkingPaperSheetCatalog.Step4);
-        int TagColumn(string code) => step4.Row(11).CellsUsed().Single(cell => cell.GetString() == code).Address.ColumnNumber;
+        var highRiskVoucher = workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucher);
+        int TagColumn(string code) => highRiskVoucher.Row(11).CellsUsed().Single(cell => cell.GetString() == code).Address.ColumnNumber;
         var tagColumns = new[] { TagColumn("C1"), TagColumn("C2"), TagColumn("C3") };
-        var lastRow = step4.LastRowUsed()!.RowNumber();
+        var lastRow = highRiskVoucher.LastRowUsed()!.RowNumber();
         var rows = Enumerable.Range(13, lastRow - 12)
-            .Select(row => step4.Row(row))
+            .Select(row => highRiskVoucher.Row(row))
             .Where(row => !row.Cell(1).IsEmpty())
             .ToDictionary(
                 row => row.Cell(2).IsEmpty() ? BlankVoucherNumber : row.Cell(2).GetString(),

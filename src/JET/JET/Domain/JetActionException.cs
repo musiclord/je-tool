@@ -131,23 +131,19 @@ public static class ProjectFolderMessages
     /// <summary>刪除案件時，案件清單上的案件資料夾已不在。</summary>
     public static string CannotDelete(string projectName) => Missing(projectName, "刪除");
 
-    /// <summary>案件資料庫的版本值缺漏或讀不出整數。</summary>
-    public const string UnreadableDatabaseVersion =
-        "這個案件資料庫的版本資訊無法辨識，目前版本無法開啟。請從備份還原案件資料夾，或用目前版本重新建立案件，再重新匯入資料。";
-
     /// <summary>
-    /// 較新版本的 JET 建立或開啟過的案件：案件設定檔或案件資料庫的版本比目前版本新。讀不到案件名稱時寫「這個案件」。
+    /// 較新版本的 JET 建立或開啟過的案件：案件設定檔的版本比目前版本新。讀不到案件名稱時寫「這個案件」。
     /// </summary>
     public static string NewerVersionProject(string? projectName = null) =>
         (string.IsNullOrEmpty(projectName) ? "這個案件" : $"案件「{projectName}」")
         + "是較新版本的 JET 建立或開啟過的，目前版本無法開啟。請改用較新版本的 JET 開啟這個案件。";
 
-    /// <summary>較早版本建立的案件資料庫升到目前版本時失敗；升版在一個交易裡執行，失敗時資料庫留在原本的版本。</summary>
+    /// <summary>開啟案件時補上缺少的表、欄位、索引或觸發條件失敗；補齊在一個交易裡執行，失敗時資料庫保持原狀。</summary>
     public const string DatabaseUpgradeFailed =
         "案件資料庫升級到目前版本時發生錯誤，案件資料沒有變更。請關閉其他正在使用這個案件資料夾的程式後再開啟一次；仍然發生時，請輸出支援日誌並回報。";
 
     /// <summary>
-    /// 較早版本的 JET 建立、目前版本無法升級的案件。案件設定檔、案件資料庫與欄位配對讀到這類內容時都用這一句，
+    /// 較早版本的 JET 建立、目前版本無法開啟的案件。案件設定檔、案件資料庫與欄位配對讀到這類內容時都用這一句，
     /// 下一步是刪除後重建。讀不到案件名稱時寫「這個案件」。
     /// </summary>
     public static string OldVersionProject(string? projectName = null) =>
@@ -162,7 +158,7 @@ public static class ProjectFolderMessages
         $"案件「{projectName}」的資料庫檔案遺失，案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。";
 
     /// <summary>
-    /// 建案的名稱撞到以前建立的 DuckDB 或 SQL Server 案件。這類案件不列在案件清單，資料夾 JET 也不動，
+    /// 建案的名稱撞到 DuckDB 或 SQL Server 案件的資料夾。這類案件不列在案件清單，JET 也不動資料夾，
     /// 審計員要刪除時自己到案件位置刪除；只說「已存在」會讓人在清單上找不到原因。
     /// </summary>
     public static string RetiredProviderNameTaken(string projectName) =>
@@ -183,7 +179,7 @@ public static class JetErrorFields
     public const string ProjectName = "projectName";
 }
 
-/// <summary>錯誤碼註冊表。錯誤碼以此處為準，文件不另列清單。</summary>
+/// <summary>錯誤碼註冊表，所有錯誤碼以此處為準。</summary>
 public static class JetErrorCodes
 {
     public const string BridgeError = "bridge_error";
@@ -244,7 +240,7 @@ public static class JetErrorCodes
     public const string DatabaseBusy = "database_busy";
     /// <summary>本地資料庫檔案被另一個程序排他鎖定。</summary>
     public const string DatabaseLocked = "database_locked";
-    /// <summary>專案所在儲存空間不足，資料庫無法繼續寫入。</summary>
+    /// <summary>案件所在的儲存空間不足，資料庫無法繼續寫入。</summary>
     public const string DatabaseStorageFull = "database_storage_full";
     /// <summary>本地資料庫檔案損壞或不是有效資料庫。</summary>
     public const string DatabaseCorrupt = "database_corrupt";

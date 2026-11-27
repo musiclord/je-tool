@@ -33,7 +33,6 @@ public sealed class DuplicateImportSourceWarningTests
         Assert.Equal(warnings, actual.Length);
         if (warnings == 1)
         {
-            // 這句的用字已定案。
             Assert.Contains("已照常加入；請確認是否重複匯入", actual[0]);
             Assert.Contains("same.xlsx", actual[0]);
             Assert.Contains("First", actual[0]);

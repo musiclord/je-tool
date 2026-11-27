@@ -34,7 +34,7 @@ public sealed class MissingProjectDatabaseTests
         Assert.Equal(expected, rejected.Message);
         Assert.False(File.Exists(databasePath), "開案不得替資料庫遺失的案件建出新檔");
 
-        // 工作鎖已經釋放：另一個執行個體再開，得到的仍是同一個原因，而不是案件被鎖定。
+        // 案件鎖已經釋放：另一個執行個體再開，得到的仍是同一個原因，而不是案件被鎖定。
         using var otherInstance = new HandlerTestHost(projectsRootPath: root.Path);
         var again = await Assert.ThrowsAsync<JetActionException>(
             () => otherInstance.DispatchAsync("project.load", $$"""{ "projectId": "{{name}}" }"""));

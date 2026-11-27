@@ -6,23 +6,23 @@ internal sealed class ProjectionErrorCollector
     internal const int MaxErrorSamples = 50;
     internal const int MaxValuesPerGroup = 10;
     internal const int MaxRowsPerValue = 10;
-    private readonly List<RowProjectionError> samples = [];
-    private readonly Dictionary<(string Field, string Reason, string? Code), Group> groups = [];
+    private readonly List<RowProjectionError> _samples = [];
+    private readonly Dictionary<(string Field, string Reason, string? Code), Group> _groups = [];
 
     internal int TotalErrorCount { get; private set; }
-    internal IReadOnlyList<RowProjectionError> Samples => samples;
+    internal IReadOnlyList<RowProjectionError> Samples => _samples;
 
     internal void Observe(RowProjectionError error)
     {
         TotalErrorCount++;
-        if (samples.Count < MaxErrorSamples) samples.Add(error);
+        if (_samples.Count < MaxErrorSamples) _samples.Add(error);
         var key = (error.Field, error.Reason, error.ReasonCode);
-        if (!groups.TryGetValue(key, out var group))
+        if (!_groups.TryGetValue(key, out var group))
         {
             group = new Group(error.ReasonCode is ProjectionErrorCodes.ManualBlank or ProjectionErrorCodes.ManualUnlisted
                 or ProjectionErrorCodes.DebitCreditBlank or ProjectionErrorCodes.DebitCreditUnlisted
                 ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
-            groups.Add(key, group);
+            _groups.Add(key, group);
         }
         group.Count++;
         var value = error.RawValue.Trim();
@@ -40,12 +40,12 @@ internal sealed class ProjectionErrorCollector
         if (summary.Rows.Count < MaxRowsPerValue) summary.Rows.Add(error);
     }
 
-    internal IReadOnlyList<ProjectionErrorGroupSummary> Summaries() => groups.Select(item =>
+    internal IReadOnlyList<ProjectionErrorGroupSummary> Summaries() => _groups.Select(item =>
         new ProjectionErrorGroupSummary(item.Key.Field, item.Key.Reason, item.Key.Code, item.Value.Count,
             item.Value.Values.Values.Select(value => new ProjectionErrorValueSummary(value.Text, value.Count, value.Rows.ToArray())).ToArray(),
             item.Value.OmittedValueRowCount)).ToArray();
 
-    internal ProjectionResult FailedResult() => new(0, samples.ToArray())
+    internal ProjectionResult FailedResult() => new(0, _samples.ToArray())
     {
         TotalErrorCount = TotalErrorCount,
         ErrorGroups = Summaries()

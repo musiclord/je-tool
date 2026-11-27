@@ -93,8 +93,8 @@ public sealed class FilterProjectDateFormatWorkflowTests
         };
         var cases = new (string Rule, string[] Expected)[]
         {
-            ($$"""{"type":"typed","fieldId":"{{RdeDateId}}","operator":"on","value":"114/6/11"}""", ["D1"]),
-            ($$"""{"type":"typed","fieldId":"{{RdeDateId}}","operator":"between","from":"2025/6/11","to":"114/6/12"}""", ["D1", "D2"]),
+            ($$"""{"type":"fieldValue","fieldId":"{{RdeDateId}}","operator":"on","value":"114/6/11"}""", ["D1"]),
+            ($$"""{"type":"fieldValue","fieldId":"{{RdeDateId}}","operator":"between","from":"2025/6/11","to":"114/6/12"}""", ["D1", "D2"]),
             ($$"""{"type":"fieldValue","fieldId":"{{RdeDateId}}","operator":"in","values":["114/6/11","20250611","2025.6.12"]}""", ["D1", "D2"]),
             ("""{"type":"fieldValue","field":"glDate","operator":"between","from":"114/6/11","to":"2025.6.12"}""", ["D1", "D2"])
         };

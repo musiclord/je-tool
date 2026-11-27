@@ -89,7 +89,7 @@ internal sealed class GlDateNoticeCollector(DateParseOptions dateOptions)
         return cut == text.Length ? text : text[..cut] + "…";
     }
 
-    private readonly Dictionary<(string Field, GlDateIssueKind Kind), Group> groups = [];
+    private readonly Dictionary<(string Field, GlDateIssueKind Kind), Group> _groups = [];
 
     /// <summary>無法辨識的總帳日期有幾列；這些列都列入 GL(未納入測試)。</summary>
     internal long UnrecognizedGlDateCount { get; private set; }
@@ -102,10 +102,10 @@ internal sealed class GlDateNoticeCollector(DateParseOptions dateOptions)
         }
 
         var key = (issue.Field, issue.Kind);
-        if (!groups.TryGetValue(key, out var group))
+        if (!_groups.TryGetValue(key, out var group))
         {
-            group = new Group(issue, groups.Count);
-            groups.Add(key, group);
+            group = new Group(issue, _groups.Count);
+            _groups.Add(key, group);
         }
 
         group.Count++;
@@ -130,7 +130,7 @@ internal sealed class GlDateNoticeCollector(DateParseOptions dateOptions)
     }
 
     /// <summary>順序是總帳日期、傳票核准日，再依攸關資料元素第一次出現的先後；同一個欄位先列無法辨識的日期。</summary>
-    internal IReadOnlyList<GlDateNotice> Notices() => groups.Values
+    internal IReadOnlyList<GlDateNotice> Notices() => _groups.Values
         .OrderBy(static group => group.First.Field switch
         {
             GlMappingKeys.GlDate => 0,

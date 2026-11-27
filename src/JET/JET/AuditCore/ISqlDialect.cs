@@ -2,7 +2,7 @@ namespace JET.AuditCore;
 
 /// <summary>
 /// 由資料庫引擎決定寫法的 SQL 片段：週末判定、不分大小寫包含、轉大寫、主單位整數商、參數命名等。
-/// 目前只有 SQLite 的實作。
+/// 實作只有 SQLite 一種。
 /// </summary>
 public interface ISqlDialect
 {

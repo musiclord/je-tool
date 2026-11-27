@@ -1,4 +1,4 @@
-namespace Jet.Harness.TaiwanSme;
+namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
 /// <summary>產生完成的合成案件：科目表與完整總帳（含期外與未過帳的匯出列）。</summary>
 internal sealed record SmeCase(IReadOnlyList<SmeAccount> Accounts, IReadOnlyList<SmeLine> Lines)
@@ -22,14 +22,14 @@ internal sealed class SmeCaseGenerator
 
     private static readonly string[] InvoiceTracks = ["UA", "UB", "UC", "UD", "UE", "UF"];
 
-    private readonly SmeRandom random = new(0x2025_0101_0114UL);
-    private readonly IReadOnlyList<SmeAccount> accounts = SmeChart.Build();
-    private readonly SmeLedger ledger;
-    private readonly Dictionary<DateOnly, List<Action<DateOnly>>> schedule = [];
-    private readonly HashSet<string> vatSettlementDescriptions = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, decimal> lastPayroll = new(StringComparer.Ordinal);
-    private int invoiceCounter;
-    private int checkCounter;
+    private readonly SmeRandom _random = new(0x2025_0101_0114UL);
+    private readonly IReadOnlyList<SmeAccount> _accounts = SmeChart.Build();
+    private readonly SmeLedger _ledger;
+    private readonly Dictionary<DateOnly, List<Action<DateOnly>>> _schedule = [];
+    private readonly HashSet<string> _vatSettlementDescriptions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, decimal> _lastPayroll = new(StringComparer.Ordinal);
+    private int _invoiceCounter;
+    private int _checkCounter;
 
     private static readonly ExpenseSpec[] RoutineExpenses =
     [
@@ -71,11 +71,11 @@ internal sealed class SmeCaseGenerator
         new("5149", 500m, 40_000m, true, ["工具耗材", "廠務雜支"], 3),
     ];
 
-    private readonly int expenseWeightTotal = RoutineExpenses.Sum(spec => spec.Weight);
+    private readonly int _expenseWeightTotal = RoutineExpenses.Sum(spec => spec.Weight);
 
     private SmeCaseGenerator()
     {
-        ledger = new SmeLedger(accounts.ToDictionary(account => account.Code, StringComparer.Ordinal));
+        _ledger = new SmeLedger(_accounts.ToDictionary(account => account.Code, StringComparer.Ordinal));
     }
 
     public static SmeCase Generate() => new SmeCaseGenerator().Run();
@@ -96,7 +96,7 @@ internal sealed class SmeCaseGenerator
                 DailyFlows(date);
             }
 
-            if (schedule.Remove(date, out var actions))
+            if (_schedule.Remove(date, out var actions))
             {
                 foreach (var action in actions)
                 {
@@ -113,12 +113,12 @@ internal sealed class SmeCaseGenerator
         YearEndAdjustments();
         UnpostedDrafts();
         OutOfPeriodClosing();
-        if (schedule.Count > 0)
+        if (_schedule.Count > 0)
         {
-            throw new InvalidOperationException("有排定的交易沒有入帳：" + string.Join("、", schedule.Keys));
+            throw new InvalidOperationException("有排定的交易沒有入帳：" + string.Join("、", _schedule.Keys));
         }
 
-        return new SmeCase(accounts, ledger.Lines);
+        return new SmeCase(_accounts, _ledger.Lines);
     }
 
     // ── 共用 ────────────────────────────────────────────────────────────────
@@ -129,10 +129,10 @@ internal sealed class SmeCaseGenerator
 
     private void At(DateOnly date, Action<DateOnly> action)
     {
-        if (!schedule.TryGetValue(date, out var list))
+        if (!_schedule.TryGetValue(date, out var list))
         {
             list = [];
-            schedule[date] = list;
+            _schedule[date] = list;
         }
 
         list.Add(action);
@@ -146,7 +146,7 @@ internal sealed class SmeCaseGenerator
         SmePeople.SalesAssistant => SmePeople.ReceivablesClerk,
         SmePeople.Purchaser => SmePeople.PayablesClerk,
         // 小公司常見：主辦會計約三分之一的傳票自己核准，其餘由財務經理核准。
-        SmePeople.ChiefAccountant => random.Chance(0.35) ? SmePeople.ChiefAccountant : SmePeople.FinanceManager,
+        SmePeople.ChiefAccountant => _random.Chance(0.35) ? SmePeople.ChiefAccountant : SmePeople.FinanceManager,
         SmePeople.FinanceManager => SmePeople.GeneralManager,
         SmePeople.Intern => SmePeople.ExpenseClerk,
         _ => SmePeople.ChiefAccountant,
@@ -165,35 +165,35 @@ internal sealed class SmeCaseGenerator
             return D(10, 10);
         }
 
-        return SmeCalendar.AddWorkingDays(post, random.Next(0, maxLag + 1));
+        return SmeCalendar.AddWorkingDays(post, _random.Next(0, maxLag + 1));
     }
 
     private SmeVoucher V(string source, DateOnly post, string createdBy, string department, int maxLag = 2) =>
-        ledger.Voucher(source, post, ApprovalFor(createdBy, post, maxLag), createdBy, ApproverFor(createdBy), department);
+        _ledger.Voucher(source, post, ApprovalFor(createdBy, post, maxLag), createdBy, ApproverFor(createdBy), department);
 
     private SmeVoucher Explicit(
         string source, DateOnly post, DateOnly? approval, string createdBy, string approvedBy, string department) =>
-        ledger.Voucher(source, post, approval, createdBy, approvedBy, department);
+        _ledger.Voucher(source, post, approval, createdBy, approvedBy, department);
 
     private string Invoice(DateOnly date)
     {
-        invoiceCounter++;
-        return InvoiceTracks[(date.Month - 1) / 2] + (10_000_000 + invoiceCounter).ToString("00000000");
+        _invoiceCounter++;
+        return InvoiceTracks[(date.Month - 1) / 2] + (10_000_000 + _invoiceCounter).ToString("00000000");
     }
 
     private string CheckNo()
     {
-        checkCounter++;
-        return "AH" + (3_400_000 + checkCounter).ToString("0000000");
+        _checkCounter++;
+        return "AH" + (3_400_000 + _checkCounter).ToString("0000000");
     }
 
-    private string DomesticCustomer() => "C" + random.Next(1, 161).ToString("0000");
+    private string DomesticCustomer() => "C" + _random.Next(1, 161).ToString("0000");
 
-    private string ExportCustomer() => "E" + random.Next(2001, 2026);
+    private string ExportCustomer() => "E" + _random.Next(2001, 2026);
 
-    private string Vendor() => "V" + random.Next(1, 121).ToString("000");
+    private string Vendor() => "V" + _random.Next(1, 121).ToString("000");
 
-    private string ImportVendor() => "F" + random.Next(301, 316);
+    private string ImportVendor() => "F" + _random.Next(301, 316);
 
     /// <summary>把總額依隨機權重拆成 n 筆整數，合計不變；總額太小時只回大於零的部分。</summary>
     private decimal[] Split(decimal total, int count)
@@ -203,7 +203,7 @@ internal sealed class SmeCaseGenerator
             return [];
         }
 
-        var weights = Enumerable.Range(0, count).Select(_ => 0.4 + random.NextDouble()).ToArray();
+        var weights = Enumerable.Range(0, count).Select(_ => 0.4 + _random.NextDouble()).ToArray();
         var sum = weights.Sum();
         var parts = weights.Select(weight => Math.Floor(total * (decimal)(weight / sum))).ToArray();
         parts[^1] += total - parts.Sum();
@@ -238,7 +238,7 @@ internal sealed class SmeCaseGenerator
             .Cr("2291", Vat(net), "銷項稅額 VA10000001")
             .Post();
         var payday = new DateOnly(2026, 1, 5);
-        var payroll = lastPayroll.GetValueOrDefault("net");
+        var payroll = _lastPayroll.GetValueOrDefault("net");
         Explicit(SmeSources.Payroll, payday, payday, SmePeople.ExpenseClerk, SmePeople.ChiefAccountant, SmeDepartments.Admin)
             .Dr("2201", payroll, "發放114年12月薪資")
             .Cr(Bank, payroll, "發放114年12月薪資")
@@ -255,17 +255,17 @@ internal sealed class SmeCaseGenerator
     {
         DomesticSales(day);
         ExportSales(day);
-        if (random.Chance(0.17))
+        if (_random.Chance(0.17))
         {
             CashSale(day);
         }
 
-        if (random.Chance(0.12))
+        if (_random.Chance(0.12))
         {
             SalesReturn(day);
         }
 
-        if (random.Chance(0.08))
+        if (_random.Chance(0.08))
         {
             SalesAllowance(day);
         }
@@ -283,17 +283,17 @@ internal sealed class SmeCaseGenerator
 
     private void DomesticSales(DateOnly day)
     {
-        var count = random.Next(7, 12);
+        var count = _random.Next(7, 12);
         for (var k = 1; k <= count; k++)
         {
             var customer = DomesticCustomer();
-            var net = random.Amount(12_000m, 480_000m);
+            var net = _random.Amount(12_000m, 480_000m);
             var vat = Vat(net);
             var order = $"SO{day:yyMMdd}-{k:000}";
             var voucher = V(SmeSources.Sales, day, SmePeople.SalesAssistant, SmeDepartments.Sales, maxLag: 1);
             // 約一成訂單先收訂金，出貨時先沖預收貨款，餘額才掛應收帳款。
-            var advance = random.Chance(0.1) && ledger.Balance("2131") < -200_000m
-                ? Math.Min(Math.Round(net * 0.3m, 0), -ledger.Balance("2131") - 100_000m)
+            var advance = _random.Chance(0.1) && _ledger.Balance("2131") < -200_000m
+                ? Math.Min(Math.Round(net * 0.3m, 0), -_ledger.Balance("2131") - 100_000m)
                 : 0m;
             if (advance > 0m)
             {
@@ -310,7 +310,7 @@ internal sealed class SmeCaseGenerator
         if (day.DayOfWeek == DayOfWeek.Wednesday)
         {
             var customer = DomesticCustomer();
-            var deposit = random.Amount(60_000m, 400_000m);
+            var deposit = _random.Amount(60_000m, 400_000m);
             V(SmeSources.Receipts, day, SmePeople.ReceivablesClerk, SmeDepartments.Sales)
                 .Dr(Bank, deposit, $"收取訂金 {customer}")
                 .Cr("2131", deposit, $"收取訂金 {customer}")
@@ -320,11 +320,11 @@ internal sealed class SmeCaseGenerator
 
     private void ExportSales(DateOnly day)
     {
-        var count = random.Next(1, 4);
+        var count = _random.Next(1, 4);
         for (var k = 1; k <= count; k++)
         {
             var customer = ExportCustomer();
-            var amount = random.Amount(60_000m, 1_200_000m);
+            var amount = _random.Amount(60_000m, 1_200_000m);
             var text = $"外銷 EX{day:yyMMdd}-{k:00} {customer}";
             V(SmeSources.Sales, day, SmePeople.SalesAssistant, SmeDepartments.Sales, maxLag: 1)
                 .Dr("1171", amount, text)
@@ -335,7 +335,7 @@ internal sealed class SmeCaseGenerator
 
     private void CashSale(DateOnly day)
     {
-        var net = random.Amount(2_000m, 30_000m);
+        var net = _random.Amount(2_000m, 30_000m);
         V(SmeSources.Sales, day, SmePeople.SalesAssistant, SmeDepartments.Sales, maxLag: 1)
             .Dr("1111", net + Vat(net), "門市現金銷貨")
             .Cr("4111", net, "門市現金銷貨")
@@ -346,7 +346,7 @@ internal sealed class SmeCaseGenerator
     private void SalesReturn(DateOnly day)
     {
         var customer = DomesticCustomer();
-        var net = random.Amount(5_000m, 120_000m);
+        var net = _random.Amount(5_000m, 120_000m);
         var text = $"銷貨退回 SR{day:yyMMdd} {customer}";
         V(SmeSources.Sales, day, SmePeople.SalesAssistant, SmeDepartments.Sales, maxLag: 1)
             .Dr("4170", net, text)
@@ -358,7 +358,7 @@ internal sealed class SmeCaseGenerator
     private void SalesAllowance(DateOnly day)
     {
         var customer = DomesticCustomer();
-        var net = random.Amount(2_000m, 60_000m);
+        var net = _random.Amount(2_000m, 60_000m);
         var text = $"銷貨折讓 {customer} 品質折讓";
         V(SmeSources.Journal, day, SmePeople.ReceivablesClerk, SmeDepartments.Sales)
             .Dr("4190", net, text)
@@ -370,14 +370,14 @@ internal sealed class SmeCaseGenerator
     private void Receipts(DateOnly day)
     {
         var lastMonth = day.AddMonths(-1).Month;
-        var domestic = Math.Round(ledger.Balance("1170") * 0.021m, 0);
-        var parts = Split(domestic, random.Next(5, 9));
+        var domestic = Math.Round(_ledger.Balance("1170") * 0.021m, 0);
+        var parts = Split(domestic, _random.Next(5, 9));
         foreach (var part in parts)
         {
             var customer = DomesticCustomer();
-            var bank = random.Pick([Bank, Bank, Bank, Bank, Bank, Bank, Bank, SecondBank, SecondBank, ThirdBank]);
+            var bank = _random.Pick([Bank, Bank, Bank, Bank, Bank, Bank, Bank, SecondBank, SecondBank, ThirdBank]);
             var voucher = V(SmeSources.Receipts, day, SmePeople.ReceivablesClerk, SmeDepartments.Sales);
-            if (random.Chance(0.3))
+            if (_random.Chance(0.3))
             {
                 voucher.Dr(bank, part - 30m, $"收款 {customer} {lastMonth}月貨款")
                     .Dr("6224", 30m, "匯費");
@@ -390,7 +390,7 @@ internal sealed class SmeCaseGenerator
             voucher.Cr("1170", part, $"收款 {customer} {lastMonth}月貨款").Post();
         }
 
-        var noteIn = Math.Round(ledger.Balance("1170") * 0.004m, 0);
+        var noteIn = Math.Round(_ledger.Balance("1170") * 0.004m, 0);
         if (noteIn > 0m)
         {
             var noteCustomer = DomesticCustomer();
@@ -401,7 +401,7 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        var noteDue = Math.Round(ledger.Balance("1150") * 0.034m, 0);
+        var noteDue = Math.Round(_ledger.Balance("1150") * 0.034m, 0);
         if (noteDue > 0m)
         {
             V(SmeSources.Receipts, day, SmePeople.Cashier, SmeDepartments.Finance)
@@ -410,13 +410,13 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        var exportTotal = Math.Round(ledger.Balance("1171") * 0.02m, 0);
-        foreach (var part in Split(exportTotal, random.Next(1, 3)))
+        var exportTotal = Math.Round(_ledger.Balance("1171") * 0.02m, 0);
+        foreach (var part in Split(exportTotal, _random.Next(1, 3)))
         {
             var customer = ExportCustomer();
             var text = $"外銷收款 {customer}";
             var voucher = V(SmeSources.Receipts, day, SmePeople.ReceivablesClerk, SmeDepartments.Sales);
-            var difference = random.Chance(0.4) ? Math.Round(part * (decimal)((random.NextDouble() - 0.5) * 0.02), 0) : 0m;
+            var difference = _random.Chance(0.4) ? Math.Round(part * (decimal)((_random.NextDouble() - 0.5) * 0.02), 0) : 0m;
             if (difference > 0m)
             {
                 voucher.Dr(UsdBank, part + difference, text).Cr("1171", part, text).Cr("7151", difference, "收款匯差");
@@ -436,13 +436,13 @@ internal sealed class SmeCaseGenerator
 
     private void Purchases(DateOnly day)
     {
-        var count = random.Next(5, 10);
+        var count = _random.Next(5, 10);
         for (var k = 1; k <= count; k++)
         {
             var vendor = Vendor();
-            var roll = random.NextDouble();
+            var roll = _random.NextDouble();
             var (account, label) = roll < 0.7 ? ("1232", "進料") : roll < 0.85 ? ("1233", "進物料") : ("1231", "進貨");
-            var net = random.Amount(8_000m, 520_000m);
+            var net = _random.Amount(8_000m, 520_000m);
             var order = $"PO{day:yyMMdd}-{k:000}";
             V(SmeSources.Purchases, day, SmePeople.Purchaser, SmeDepartments.Production, maxLag: 1)
                 .Dr(account, net, $"{label} {order} {vendor}")
@@ -451,10 +451,10 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        if (random.Chance(0.5))
+        if (_random.Chance(0.5))
         {
             var vendor = ImportVendor();
-            var amount = random.Amount(80_000m, 900_000m);
+            var amount = _random.Amount(80_000m, 900_000m);
             var text = $"進口原料 IM{day:yyMMdd} {vendor}";
             V(SmeSources.Purchases, day, SmePeople.Purchaser, SmeDepartments.Production, maxLag: 1)
                 .Dr("1232", amount, text)
@@ -466,14 +466,14 @@ internal sealed class SmeCaseGenerator
     private void Payments(DateOnly day)
     {
         var lastMonth = day.AddMonths(-1).Month;
-        var payable = Math.Round(-ledger.Balance("2170") * 0.021m, 0);
-        foreach (var part in Split(payable, random.Next(4, 8)))
+        var payable = Math.Round(-_ledger.Balance("2170") * 0.021m, 0);
+        foreach (var part in Split(payable, _random.Next(4, 8)))
         {
             var vendor = Vendor();
-            var bank = random.Chance(0.75) ? Bank : SecondBank;
+            var bank = _random.Chance(0.75) ? Bank : SecondBank;
             var voucher = V(SmeSources.Payments, day, SmePeople.PayablesClerk, SmeDepartments.Finance)
                 .Dr("2170", part, $"付款 {vendor} {lastMonth}月貨款");
-            if (random.Chance(0.2))
+            if (_random.Chance(0.2))
             {
                 voucher.Dr("6224", 30m, "匯費").Cr(bank, part + 30m, $"付款 {vendor} {lastMonth}月貨款");
             }
@@ -485,7 +485,7 @@ internal sealed class SmeCaseGenerator
             voucher.Post();
         }
 
-        var noteOut = Math.Round(-ledger.Balance("2170") * 0.004m, 0);
+        var noteOut = Math.Round(-_ledger.Balance("2170") * 0.004m, 0);
         if (noteOut > 0m)
         {
             var noteVendor = Vendor();
@@ -496,7 +496,7 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        var noteDue = Math.Round(-ledger.Balance("2150") * 0.034m, 0);
+        var noteDue = Math.Round(-_ledger.Balance("2150") * 0.034m, 0);
         if (noteDue > 0m)
         {
             V(SmeSources.Payments, day, SmePeople.Cashier, SmeDepartments.Finance)
@@ -505,8 +505,8 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        var import = Math.Round(-ledger.Balance("2171") * 0.08m, 0);
-        if (random.Chance(0.35) && import > 0m)
+        var import = Math.Round(-_ledger.Balance("2171") * 0.08m, 0);
+        if (_random.Chance(0.35) && import > 0m)
         {
             var vendor = ImportVendor();
             V(SmeSources.Payments, day, SmePeople.PayablesClerk, SmeDepartments.Finance)
@@ -518,7 +518,7 @@ internal sealed class SmeCaseGenerator
 
     private void Expenses(DateOnly day)
     {
-        var count = random.Next(4, 9);
+        var count = _random.Next(4, 9);
         for (var k = 0; k < count; k++)
         {
             Expense(day, PickExpense());
@@ -527,7 +527,7 @@ internal sealed class SmeCaseGenerator
 
     private ExpenseSpec PickExpense()
     {
-        var roll = random.Next(expenseWeightTotal);
+        var roll = _random.Next(_expenseWeightTotal);
         foreach (var spec in RoutineExpenses)
         {
             roll -= spec.Weight;
@@ -542,12 +542,12 @@ internal sealed class SmeCaseGenerator
 
     private void Expense(DateOnly day, ExpenseSpec spec)
     {
-        var net = random.Amount(spec.Min, spec.Max);
+        var net = _random.Amount(spec.Min, spec.Max);
         var vat = spec.VatDeductible ? Vat(net) : 0m;
         var vendor = Vendor();
-        var text = $"{random.Pick(spec.Descriptions)} {vendor}";
+        var text = $"{_random.Pick(spec.Descriptions)} {vendor}";
         var department = SmeDepartments.ForAccount(spec.Code);
-        if (net + vat <= 8_000m && random.Chance(0.6))
+        if (net + vat <= 8_000m && _random.Chance(0.6))
         {
             var petty = V(SmeSources.Cashier, day, SmePeople.Cashier, department).Dr(spec.Code, net, text);
             if (vat > 0m)
@@ -560,8 +560,8 @@ internal sealed class SmeCaseGenerator
         }
 
         // 費用會計約 4.5% 的傳票整張沒寫摘要，是查核人員會注意的人工分錄習慣。
-        var blank = random.Chance(0.045);
-        var credit = random.Chance(0.45) ? "2209" : Bank;
+        var blank = _random.Chance(0.045);
+        var credit = _random.Chance(0.45) ? "2209" : Bank;
         var voucher = V(SmeSources.Journal, day, SmePeople.ExpenseClerk, department)
             .Dr(spec.Code, net, blank ? string.Empty : text);
         if (vat > 0m)
@@ -574,17 +574,17 @@ internal sealed class SmeCaseGenerator
 
     private void Production(DateOnly day)
     {
-        foreach (var part in Split(Math.Round(ledger.Balance("1232") * (decimal)(0.03 + (random.NextDouble() * 0.015)), 0), random.Next(1, 3)))
+        foreach (var part in Split(Math.Round(_ledger.Balance("1232") * (decimal)(0.03 + (_random.NextDouble() * 0.015)), 0), _random.Next(1, 3)))
         {
-            var order = $"MO{day:yyMMdd}-{random.Next(1, 40):00}";
+            var order = $"MO{day:yyMMdd}-{_random.Next(1, 40):00}";
             V(SmeSources.Production, day, SmePeople.ProductionClerk, SmeDepartments.Production, maxLag: 1)
                 .Dr("1234", part, $"領料 {order}")
                 .Cr("1232", part, $"領料 {order}")
                 .Post();
         }
 
-        var finished = Math.Round(ledger.Balance("1234") * (decimal)(0.045 + (random.NextDouble() * 0.015)), 0);
-        var job = $"MO{day:yyMMdd}-{random.Next(1, 40):00}";
+        var finished = Math.Round(_ledger.Balance("1234") * (decimal)(0.045 + (_random.NextDouble() * 0.015)), 0);
+        var job = $"MO{day:yyMMdd}-{_random.Next(1, 40):00}";
         V(SmeSources.Production, day, SmePeople.ProductionClerk, SmeDepartments.Production, maxLag: 1)
             .Dr("1235", finished, $"完工入庫 {job}")
             .Cr("1234", finished, $"完工入庫 {job}")
@@ -594,7 +594,7 @@ internal sealed class SmeCaseGenerator
     /// <summary>週五的資金調度：付應付費用、補零用金、現金存入銀行、活存轉支存。</summary>
     private void WeeklyTreasury(DateOnly day)
     {
-        var accrued = Math.Round(-ledger.Balance("2209") * 0.3m, 0);
+        var accrued = Math.Round(-_ledger.Balance("2209") * 0.3m, 0);
         if (accrued > 0m)
         {
             V(SmeSources.Payments, day, SmePeople.PayablesClerk, SmeDepartments.Finance)
@@ -603,7 +603,7 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        var petty = 50_000m - ledger.Balance("1112");
+        var petty = 50_000m - _ledger.Balance("1112");
         if (petty > 10_000m)
         {
             V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance)
@@ -612,7 +612,7 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        var cash = ledger.Balance("1111") - 40_000m;
+        var cash = _ledger.Balance("1111") - 40_000m;
         if (cash > 20_000m)
         {
             V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance)
@@ -621,7 +621,7 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        if (ledger.Balance(CheckingBank) < 4_000_000m)
+        if (_ledger.Balance(CheckingBank) < 4_000_000m)
         {
             // 整數百萬的資金調撥是正常交易，但會落入「尾數連續 6 個 0」的預篩選，示範需要人工排除的命中。
             V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance)
@@ -632,8 +632,8 @@ internal sealed class SmeCaseGenerator
 
         foreach (var (bank, ceiling, keep) in new[] { (SecondBank, 16_000_000m, 12_000_000m), (ThirdBank, 5_000_000m, 3_000_000m) })
         {
-            var sweep = ledger.Balance(bank) - keep;
-            if (ledger.Balance(bank) > ceiling)
+            var sweep = _ledger.Balance(bank) - keep;
+            if (_ledger.Balance(bank) > ceiling)
             {
                 V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance)
                     .Dr(Bank, sweep, "銀行間資金調撥")
@@ -643,14 +643,14 @@ internal sealed class SmeCaseGenerator
         }
 
         // 乙銀行短期融資額度：甲銀行活存低於 600 萬就動撥 500 萬，高於 4,500 萬且有動撥餘額就償還。
-        if (ledger.Balance(Bank) < 6_000_000m)
+        if (_ledger.Balance(Bank) < 6_000_000m)
         {
             V(SmeSources.Journal, day, SmePeople.ChiefAccountant, SmeDepartments.Finance)
                 .Dr(Bank, 5_000_000m, "乙銀行融資額度動撥")
                 .Cr("2101", 5_000_000m, "乙銀行融資額度動撥")
                 .Post();
         }
-        else if (ledger.Balance(Bank) > 45_000_000m && ledger.Balance("2101") <= -15_000_000m)
+        else if (_ledger.Balance(Bank) > 45_000_000m && _ledger.Balance("2101") <= -15_000_000m)
         {
             V(SmeSources.Journal, day, SmePeople.ChiefAccountant, SmeDepartments.Finance)
                 .Dr("2101", 5_000_000m, "償還乙銀行融資額度")
@@ -658,10 +658,10 @@ internal sealed class SmeCaseGenerator
                 .Post();
         }
 
-        if (ledger.Balance(UsdBank) > 16_000_000m)
+        if (_ledger.Balance(UsdBank) > 16_000_000m)
         {
             var sold = 5_000_000m;
-            var gain = random.Amount(5_000m, 60_000m);
+            var gain = _random.Amount(5_000m, 60_000m);
             V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance)
                 .Dr(Bank, sold + gain, "結售美元")
                 .Cr(UsdBank, sold, "結售美元")
@@ -682,9 +682,9 @@ internal sealed class SmeCaseGenerator
         {
             var reversal = month == 1
                 ? new Dictionary<string, decimal> { ["6209"] = 45_000m, ["5144"] = 423_000m, ["6307"] = 18_000m }
-                : utilityAccruals;
+                : _utilityAccruals;
             var total = reversal.Values.Sum();
-            var voucher = ledger.Voucher(SmeSources.Journal, day, SmeCalendar.AddWorkingDays(day, 1),
+            var voucher = _ledger.Voucher(SmeSources.Journal, day, SmeCalendar.AddWorkingDays(day, 1),
                 SmePeople.ChiefAccountant, ApproverFor(SmePeople.ChiefAccountant), SmeDepartments.Finance)
                 .Dr("2210", total, $"迴轉{previousLabel}暫估電費");
             foreach (var (code, amount) in reversal)
@@ -697,7 +697,7 @@ internal sealed class SmeCaseGenerator
 
         AtWorkday(new DateOnly(year, month, 5), day =>
         {
-            var net = month == 1 ? 5_200_000m : lastPayroll["net"];
+            var net = month == 1 ? 5_200_000m : _lastPayroll["net"];
             V(SmeSources.Payroll, day, SmePeople.ExpenseClerk, SmeDepartments.Admin, maxLag: 0)
                 .Dr("2201", net, $"發放{previousLabel}薪資")
                 .Cr(Bank, net, $"發放{previousLabel}薪資")
@@ -714,7 +714,7 @@ internal sealed class SmeCaseGenerator
 
         AtWorkday(new DateOnly(year, month, 10), day =>
         {
-            var withholding = month == 1 ? 260_000m : lastPayroll["tax"];
+            var withholding = month == 1 ? 260_000m : _lastPayroll["tax"];
             V(SmeSources.Payroll, day, SmePeople.ExpenseClerk, SmeDepartments.Admin, maxLag: 0)
                 .Dr("2311", withholding, $"繳納{previousLabel}扣繳稅款")
                 .Cr(Bank, withholding, $"繳納{previousLabel}扣繳稅款")
@@ -735,12 +735,12 @@ internal sealed class SmeCaseGenerator
         {
             var utilities = month == 1
                 ? new Dictionary<string, decimal> { ["6209"] = 45_000m, ["5144"] = 423_000m, ["6307"] = 18_000m }
-                : utilityAccruals;
+                : _utilityAccruals;
             var voucher = V(SmeSources.Journal, day, SmePeople.ExpenseClerk, SmeDepartments.Admin);
             var total = 0m;
             foreach (var (code, accrued) in utilities)
             {
-                var actual = Math.Round(accrued * (decimal)(0.97 + (random.NextDouble() * 0.06)), 0);
+                var actual = Math.Round(accrued * (decimal)(0.97 + (_random.NextDouble() * 0.06)), 0);
                 voucher.Dr(code, actual, $"支付{previousLabel}電費");
                 total += actual;
             }
@@ -748,7 +748,7 @@ internal sealed class SmeCaseGenerator
             voucher.Dr("1268", Vat(total), "進項稅額 電力公司").Cr(Bank, total + Vat(total), $"支付{previousLabel}電費").Post();
 
             // 技術服務費直接匯入銀行，業務會計手開傳票入勞務收入，沒有掛應收帳款。
-            var service = random.Amount(80_000m, 260_000m);
+            var service = _random.Amount(80_000m, 260_000m);
             V(SmeSources.Journal, day, SmePeople.ReceivablesClerk, SmeDepartments.Sales)
                 .Dr(Bank, service + Vat(service), $"{month}月模具維修服務收款")
                 .Cr("4610", service, $"{month}月模具維修服務收入")
@@ -758,7 +758,7 @@ internal sealed class SmeCaseGenerator
 
         AtWorkday(new DateOnly(year, month, 21), day =>
         {
-            var interest = month == 1 ? 110_000m : random.Amount(98_000m, 126_000m);
+            var interest = month == 1 ? 110_000m : _random.Amount(98_000m, 126_000m);
             var voucher = V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance, maxLag: 1);
             if (month == 1)
             {
@@ -770,7 +770,7 @@ internal sealed class SmeCaseGenerator
             }
 
             voucher.Cr(Bank, interest, $"{month}月借款利息").Post();
-            var bankFee = random.Amount(300m, 2_400m);
+            var bankFee = _random.Amount(300m, 2_400m);
             V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Finance, maxLag: 1)
                 .Dr("6224", bankFee, $"{month}月銀行手續費")
                 .Cr(SecondBank, bankFee, $"{month}月銀行手續費")
@@ -779,16 +779,16 @@ internal sealed class SmeCaseGenerator
 
         AtWorkday(new DateOnly(year, month, 25), day =>
         {
-            var insurance = month == 1 ? 900_000m : lastPayroll["insurance"];
-            var employeeShare = month == 1 ? 310_000m : lastPayroll["employeeInsurance"];
-            var pension = month == 1 ? 420_000m : lastPayroll["pension"];
+            var insurance = month == 1 ? 900_000m : _lastPayroll["insurance"];
+            var employeeShare = month == 1 ? 310_000m : _lastPayroll["employeeInsurance"];
+            var pension = month == 1 ? 420_000m : _lastPayroll["pension"];
             V(SmeSources.Payroll, day, SmePeople.ExpenseClerk, SmeDepartments.Admin, maxLag: 0)
                 .Dr("2203", insurance, $"繳納{previousLabel}勞健保")
                 .Dr("2312", employeeShare, $"繳納{previousLabel}勞健保")
                 .Dr("2204", pension, $"繳納{previousLabel}勞工退休金")
                 .Cr(Bank, insurance + employeeShare + pension, $"繳納{previousLabel}勞健保及勞退")
                 .Post();
-            var commission = month == 1 ? 320_000m : lastPayroll["commission"];
+            var commission = month == 1 ? 320_000m : _lastPayroll["commission"];
             V(SmeSources.Payments, day, SmePeople.PayablesClerk, SmeDepartments.Finance)
                 .Dr("2213", commission, $"支付{previousLabel}業務佣金")
                 .Cr(Bank, commission, $"支付{previousLabel}業務佣金")
@@ -798,29 +798,29 @@ internal sealed class SmeCaseGenerator
         AtWorkday(new DateOnly(year, month, 12), day =>
         {
             // 關係人銷貨與收款、向關係人進貨與付款，各月固定一次。
-            var sale = random.Amount(300_000m, 900_000m);
+            var sale = _random.Amount(300_000m, 900_000m);
             V(SmeSources.Sales, day, SmePeople.SalesAssistant, SmeDepartments.Sales, maxLag: 1)
                 .Dr("1180", sale + Vat(sale), $"銷貨 SO{day:yyMMdd}-R01 R001")
                 .Cr("4113", sale, $"銷貨 SO{day:yyMMdd}-R01 R001")
                 .Cr("2291", Vat(sale), $"銷項稅額 {Invoice(day)}")
                 .Post();
-            var collected = Math.Round(ledger.Balance("1180") * 0.6m, 0);
+            var collected = Math.Round(_ledger.Balance("1180") * 0.6m, 0);
             V(SmeSources.Receipts, day, SmePeople.ReceivablesClerk, SmeDepartments.Sales)
                 .Dr(Bank, collected, "收款 R001 關係人貨款")
                 .Cr("1180", collected, "收款 R001 關係人貨款")
                 .Post();
-            var purchase = random.Amount(200_000m, 700_000m);
+            var purchase = _random.Amount(200_000m, 700_000m);
             V(SmeSources.Purchases, day, SmePeople.Purchaser, SmeDepartments.Production, maxLag: 1)
                 .Dr("1232", purchase, $"進料 PO{day:yyMMdd}-R01 V990")
                 .Dr("1268", Vat(purchase), "進項稅額 V990")
                 .Cr("2180", purchase + Vat(purchase), $"進料 PO{day:yyMMdd}-R01 V990")
                 .Post();
-            var paid = Math.Round(-ledger.Balance("2180") * 0.5m, 0);
+            var paid = Math.Round(-_ledger.Balance("2180") * 0.5m, 0);
             V(SmeSources.Payments, day, SmePeople.PayablesClerk, SmeDepartments.Finance)
                 .Dr("2180", paid, "付款 V990 關係人貨款")
                 .Cr(Bank, paid, "付款 V990 關係人貨款")
                 .Post();
-            var outsourced = random.Amount(150_000m, 500_000m);
+            var outsourced = _random.Amount(150_000m, 500_000m);
             V(SmeSources.Production, day, SmePeople.ProductionClerk, SmeDepartments.Production, maxLag: 1)
                 .Dr("1238", outsourced, $"委外加工發料 OS{day:yyMM}")
                 .Cr("1232", outsourced, $"委外加工發料 OS{day:yyMM}")
@@ -829,7 +829,7 @@ internal sealed class SmeCaseGenerator
 
         AtWorkday(new DateOnly(year, month, 26), day =>
         {
-            var back = ledger.Balance("1238") - 1_000_000m;
+            var back = _ledger.Balance("1238") - 1_000_000m;
             if (back > 0m)
             {
                 V(SmeSources.Production, day, SmePeople.ProductionClerk, SmeDepartments.Production, maxLag: 1)
@@ -839,21 +839,21 @@ internal sealed class SmeCaseGenerator
             }
 
             // 報紙雜誌每月一筆，全年 12 筆，剛好不屬於「使用較少的科目」（11 筆以下）。
-            var magazines = random.Amount(900m, 1_600m);
+            var magazines = _random.Amount(900m, 1_600m);
             V(SmeSources.Cashier, day, SmePeople.Cashier, SmeDepartments.Admin, maxLag: 1)
                 .Dr("6222", magazines, $"{month}月報紙雜誌")
                 .Cr("1112", magazines, $"{month}月報紙雜誌")
                 .Post();
         });
 
-        // 教育訓練 1 到 11 月各一次（11 筆，低於「使用較少的科目」的 11 筆上限）。
+        // 教育訓練 1 到 11 月各一次（11 筆，剛好在「使用較少的科目」的 11 筆上限內）。
         if (month <= 11)
         {
             AtWorkday(new DateOnly(year, month, 16), day =>
             {
-                var fee = random.Amount(6_000m, 45_000m);
+                var fee = _random.Amount(6_000m, 45_000m);
                 V(SmeSources.Journal, day, SmePeople.ExpenseClerk, SmeDepartments.Admin)
-                    .Dr("6220", fee, $"員工教育訓練-{random.Pick(["職場安全", "ERP 操作", "品質管理", "稅務法規"])}")
+                    .Dr("6220", fee, $"員工教育訓練-{_random.Pick(["職場安全", "ERP 操作", "品質管理", "稅務法規"])}")
                     .Cr(Bank, fee, "員工教育訓練費")
                     .Post();
             });
@@ -870,7 +870,7 @@ internal sealed class SmeCaseGenerator
         });
     }
 
-    private Dictionary<string, decimal> utilityAccruals = new(StringComparer.Ordinal);
+    private Dictionary<string, decimal> _utilityAccruals = new(StringComparer.Ordinal);
 
     private void VatFiling(DateOnly day, int month)
     {
@@ -887,13 +887,13 @@ internal sealed class SmeCaseGenerator
         var to = SmeCalendar.MonthEnd(day.Year, month - 1);
         var label = $"營業稅申報 {month - 2}-{month - 1}月";
         var (output, input) = VatTotals(from, to);
-        vatSettlementDescriptions.Add(label);
+        _vatSettlementDescriptions.Add(label);
         var voucher = V(SmeSources.Journal, day, SmePeople.ChiefAccountant, SmeDepartments.Finance, maxLag: 0)
             .Dr("2291", output, label);
         var net = output - input;
         if (net >= 0m)
         {
-            var carry = Math.Min(ledger.Balance("1269"), net);
+            var carry = Math.Min(_ledger.Balance("1269"), net);
             voucher.Cr("1268", input, label);
             if (carry > 0m)
             {
@@ -920,11 +920,11 @@ internal sealed class SmeCaseGenerator
         }
 
         // 外銷零稅率造成留抵稅額，超過一定金額就申請退稅，約一個月後入帳。
-        if (ledger.Balance("1269") > 1_200_000m && day.AddDays(28) <= SmeCalendar.PeriodEnd)
+        if (_ledger.Balance("1269") > 1_200_000m && day.AddDays(28) <= SmeCalendar.PeriodEnd)
         {
             AtWorkday(day.AddDays(28), refundDay =>
             {
-                var refund = ledger.Balance("1269");
+                var refund = _ledger.Balance("1269");
                 V(SmeSources.Journal, refundDay, SmePeople.ChiefAccountant, SmeDepartments.Finance, maxLag: 1)
                     .Dr(Bank, refund, "外銷零稅率退稅入帳")
                     .Cr("1269", refund, "外銷零稅率退稅入帳")
@@ -935,11 +935,11 @@ internal sealed class SmeCaseGenerator
 
     private (decimal Output, decimal Input) VatTotals(DateOnly from, DateOnly to)
     {
-        var window = ledger.Lines.Where(line =>
+        var window = _ledger.Lines.Where(line =>
             line.InPopulation
             && line.GlDate >= from
             && line.GlDate <= to
-            && !vatSettlementDescriptions.Contains(line.Description));
+            && !_vatSettlementDescriptions.Contains(line.Description));
         var output = window.Where(line => line.AccountNumber == "2291").Sum(line => line.Credit - line.Debit);
         var input = window.Where(line => line.AccountNumber == "1268").Sum(line => line.Debit - line.Credit);
         return (output, input);
@@ -952,7 +952,7 @@ internal sealed class SmeCaseGenerator
         var month = monthEnd.Month;
         Payroll(monthEnd);
         Depreciation(monthEnd);
-        var approval = SmeCalendar.AddWorkingDays(monthEnd, random.Next(1, 4));
+        var approval = SmeCalendar.AddWorkingDays(monthEnd, _random.Next(1, 4));
         Explicit(SmeSources.Journal, monthEnd, approval, SmePeople.ChiefAccountant, ApproverFor(SmePeople.ChiefAccountant), SmeDepartments.Finance)
             .Dr("6216", 25_000m, $"{month}月攤銷-電腦軟體")
             .Dr("6310", 8_000m, $"{month}月攤銷-電腦軟體")
@@ -963,30 +963,30 @@ internal sealed class SmeCaseGenerator
             .Cr("1255", 30_000m, $"{month}月保險費攤提")
             .Post();
 
-        utilityAccruals = new Dictionary<string, decimal>(StringComparer.Ordinal)
+        _utilityAccruals = new Dictionary<string, decimal>(StringComparer.Ordinal)
         {
-            ["6209"] = random.Amount(38_000m, 56_000m),
-            ["5144"] = random.Amount(380_000m, 470_000m),
-            ["6307"] = random.Amount(15_000m, 24_000m),
+            ["6209"] = _random.Amount(38_000m, 56_000m),
+            ["5144"] = _random.Amount(380_000m, 470_000m),
+            ["6307"] = _random.Amount(15_000m, 24_000m),
         };
         var accrual = Explicit(SmeSources.Journal, monthEnd, approval, SmePeople.ChiefAccountant, ApproverFor(SmePeople.ChiefAccountant), SmeDepartments.Finance);
-        foreach (var (code, amount) in utilityAccruals)
+        foreach (var (code, amount) in _utilityAccruals)
         {
             accrual.Dr(code, amount, $"暫估{month}月電費");
         }
 
-        accrual.Cr("2210", utilityAccruals.Values.Sum(), $"暫估{month}月電費").Post();
+        accrual.Cr("2210", _utilityAccruals.Values.Sum(), $"暫估{month}月電費").Post();
 
-        var commission = random.Amount(260_000m, 420_000m);
-        lastPayroll["commission"] = commission;
+        var commission = _random.Amount(260_000m, 420_000m);
+        _lastPayroll["commission"] = commission;
         Explicit(SmeSources.Journal, monthEnd, approval, SmePeople.ChiefAccountant, ApproverFor(SmePeople.ChiefAccountant), SmeDepartments.Sales)
             .Dr("6116", commission, $"{month}月業務佣金")
             .Cr("2213", commission, $"{month}月業務佣金")
             .Post();
 
-        var revaluation = random.Amount(20_000m, 180_000m);
+        var revaluation = _random.Amount(20_000m, 180_000m);
         var fx = Explicit(SmeSources.Journal, monthEnd, approval, SmePeople.ChiefAccountant, ApproverFor(SmePeople.ChiefAccountant), SmeDepartments.Finance);
-        if (random.Chance(0.5))
+        if (_random.Chance(0.5))
         {
             fx.Dr("1171", revaluation, $"{month}月外幣應收帳款評價").Cr("7151", revaluation, $"{month}月外幣評價利益");
         }
@@ -1003,7 +1003,7 @@ internal sealed class SmeCaseGenerator
     private void Payroll(DateOnly monthEnd)
     {
         var month = monthEnd.Month;
-        decimal Gross(decimal baseAmount) => Math.Round(baseAmount * (decimal)(0.97 + (random.NextDouble() * 0.06)), 0);
+        decimal Gross(decimal baseAmount) => Math.Round(baseAmount * (decimal)(0.97 + (_random.NextDouble() * 0.06)), 0);
         var gross = new Dictionary<string, decimal>(StringComparer.Ordinal)
         {
             ["6101"] = Gross(1_350_000m),
@@ -1016,9 +1016,9 @@ internal sealed class SmeCaseGenerator
         var tax = Math.Round(total * 0.04m, 0);
         var employeeInsurance = Math.Round(total * 0.035m, 0);
         var net = total - tax - employeeInsurance;
-        lastPayroll["net"] = net;
-        lastPayroll["tax"] = tax;
-        lastPayroll["employeeInsurance"] = employeeInsurance;
+        _lastPayroll["net"] = net;
+        _lastPayroll["tax"] = tax;
+        _lastPayroll["employeeInsurance"] = employeeInsurance;
 
         var approval = SmeCalendar.AddWorkingDays(monthEnd, 1);
         var voucher = Explicit(SmeSources.Payroll, monthEnd, approval, SmePeople.ExpenseClerk, SmePeople.ChiefAccountant, SmeDepartments.Admin);
@@ -1047,8 +1047,8 @@ internal sealed class SmeCaseGenerator
             ["6315"] = Math.Round(gross["6301"] * 0.06m, 0),
             ["5149"] = Math.Round((gross["5130"] + gross["5141"]) * 0.06m, 0),
         };
-        lastPayroll["insurance"] = insurance.Values.Sum();
-        lastPayroll["pension"] = pension.Values.Sum();
+        _lastPayroll["insurance"] = insurance.Values.Sum();
+        _lastPayroll["pension"] = pension.Values.Sum();
         var benefits = Explicit(SmeSources.Payroll, monthEnd, approval, SmePeople.ExpenseClerk, SmePeople.ChiefAccountant, SmeDepartments.Admin);
         foreach (var (code, amount) in insurance)
         {
@@ -1082,7 +1082,7 @@ internal sealed class SmeCaseGenerator
         var selling = Math.Round(total * 0.025m, 0);
         var admin = Math.Round(total * 0.17m, 0);
         var research = Math.Round(total * 0.10m, 0);
-        var approval = SmeCalendar.AddWorkingDays(monthEnd, random.Next(1, 4));
+        var approval = SmeCalendar.AddWorkingDays(monthEnd, _random.Next(1, 4));
         var voucher = Explicit(SmeSources.Journal, monthEnd, approval, SmePeople.ChiefAccountant, ApproverFor(SmePeople.ChiefAccountant), SmeDepartments.Finance)
             .Dr("5142", total - selling - admin - research, $"{month}月折舊")
             .Dr("6113", selling, $"{month}月折舊")
@@ -1100,8 +1100,8 @@ internal sealed class SmeCaseGenerator
     private void Costing(DateOnly monthEnd)
     {
         var month = monthEnd.Month;
-        var approval = SmeCalendar.AddWorkingDays(monthEnd, random.Next(1, 3));
-        var supplies = ledger.Balance("1233") - 2_200_000m;
+        var approval = SmeCalendar.AddWorkingDays(monthEnd, _random.Next(1, 3));
+        var supplies = _ledger.Balance("1233") - 2_200_000m;
         if (supplies > 0m)
         {
             Explicit(SmeSources.Costing, monthEnd, approval, SmePeople.ProductionClerk, SmePeople.ChiefAccountant, SmeDepartments.Production)
@@ -1111,7 +1111,7 @@ internal sealed class SmeCaseGenerator
         }
 
         var monthStart = new DateOnly(monthEnd.Year, month, 1);
-        var overhead = ledger.Lines
+        var overhead = _ledger.Lines
             .Where(line => line.InPopulation && line.GlDate >= monthStart && line.GlDate <= monthEnd
                 && line.AccountNumber.StartsWith('5') && line.AccountNumber is not ("5111" or "5150" or "5160" or "5190"))
             .Sum(line => line.Debit - line.Credit);
@@ -1120,8 +1120,8 @@ internal sealed class SmeCaseGenerator
             .Cr("5190", overhead, $"{month}月製造費用轉入在製品")
             .Post();
 
-        var finished = ledger.Balance("1235") - 15_000_000m;
-        var merchandise = ledger.Balance("1231") - 6_000_000m;
+        var finished = _ledger.Balance("1235") - 15_000_000m;
+        var merchandise = _ledger.Balance("1231") - 6_000_000m;
         var cogs = Explicit(SmeSources.Costing, monthEnd, approval, SmePeople.ProductionClerk, SmePeople.ChiefAccountant, SmeDepartments.Production)
             .Dr("5111", Math.Max(finished, 0m) + Math.Max(merchandise, 0m), $"{month}月銷貨成本結轉");
         if (finished > 0m)
@@ -1381,7 +1381,7 @@ internal sealed class SmeCaseGenerator
         {
             AtWorkday(D(month, 7), posting =>
             {
-                var net = random.Amount(90_000m, 240_000m);
+                var net = _random.Amount(90_000m, 240_000m);
                 V(SmeSources.Journal, posting, SmePeople.ReceivablesClerk, SmeDepartments.Production)
                     .Dr("1190", net + Vat(net), $"代工加工收入 {month}月")
                     .Cr("4800", net, $"代工加工收入 {month}月")
@@ -1389,7 +1389,7 @@ internal sealed class SmeCaseGenerator
             });
             AtWorkday(D(month, 27), posting =>
             {
-                var collected = ledger.Balance("1190") - 650_000m;
+                var collected = _ledger.Balance("1190") - 650_000m;
                 if (collected > 0m)
                 {
                     V(SmeSources.Receipts, posting, SmePeople.ReceivablesClerk, SmeDepartments.Production)
@@ -1403,7 +1403,7 @@ internal sealed class SmeCaseGenerator
         {
             AtWorkday(D(month, 11), posting =>
             {
-                var net = random.Amount(150_000m, 380_000m);
+                var net = _random.Amount(150_000m, 380_000m);
                 V(SmeSources.Journal, posting, SmePeople.ReceivablesClerk, SmeDepartments.Sales)
                     .Dr("1170", net + Vat(net), $"技術服務費 {month}月 C0031")
                     .Cr("4612", net, $"技術服務費 {month}月 C0031")
@@ -1490,7 +1490,7 @@ internal sealed class SmeCaseGenerator
         Adjust(jan(20), manager, v => v.Dr("6214", 360_000m, "依會計師建議調整-預期信用減損").Cr("1172", 360_000m, "依會計師建議調整-預期信用減損"));
         Adjust(jan(21), chief, v => v.Dr("4111", 620_000m, "依會計師建議調整-銷貨收入截止").Cr("2131", 620_000m, "依會計師建議調整-銷貨收入截止"));
         // 營利事業所得稅率 20%：依其他調整入帳後的稅前淨利估列，取到千元，先沖抵九月的暫繳稅款。
-        var preTax = ledger.Lines
+        var preTax = _ledger.Lines
             .Where(line => line.InPopulation && line.AccountNumber[0] is '4' or '5' or '6' or '7')
             .Sum(line => line.Credit - line.Debit);
         var incomeTax = Math.Round(preTax * 0.2m / 1_000m, 0) * 1_000m;
@@ -1504,9 +1504,9 @@ internal sealed class SmeCaseGenerator
     private void UnpostedDrafts()
     {
         var day = SmeCalendar.PeriodEnd;
-        ledger.Voucher(SmeSources.Journal, day, null, SmePeople.ExpenseClerk, string.Empty, SmeDepartments.Admin, posted: false)
+        _ledger.Voucher(SmeSources.Journal, day, null, SmePeople.ExpenseClerk, string.Empty, SmeDepartments.Admin, posted: false)
             .Dr("6204", 12_000m, "12月差旅費（草稿）").Cr("2209", 12_000m, "12月差旅費（草稿）").Post();
-        ledger.Voucher(SmeSources.Journal, day, null, SmePeople.ExpenseClerk, string.Empty, SmeDepartments.Admin, posted: false)
+        _ledger.Voucher(SmeSources.Journal, day, null, SmePeople.ExpenseClerk, string.Empty, SmeDepartments.Admin, posted: false)
             .Dr("6224", 5_000m, "待確認雜支（草稿）").Cr("2209", 4_500m, "待確認雜支（草稿）").Post(allowUnbalanced: true);
     }
 }

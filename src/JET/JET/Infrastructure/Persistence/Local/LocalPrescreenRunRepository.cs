@@ -19,7 +19,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
 {
     private readonly string _provider = database.Dialect.ProviderName;
 
-    private readonly GlRulePredicates Predicates =
+    private readonly GlRulePredicates _predicates =
         new(database.Dialect, GlPopulationScopeSql.Predicate);
 
     private readonly ILogger _log = logger ?? NullLogger<LocalPrescreenRunRepository>.Instance;
@@ -49,7 +49,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         // 計數和第四步明細、預篩選報告列出同一批分錄：未預期借貸組合算整張命中傳票，其他規則算直接命中的列。
         string Rule(string key, FilterSqlParameterPlanBuilder cmd) =>
             LocalPrescreenPageRepository.HitRowsPredicate(
-                key, PrescreenRulePredicates.Build(Predicates, key, cmd, filterContext), string.Empty);
+                key, PrescreenRulePredicates.Build(_predicates, key, cmd, filterContext), string.Empty);
 
         (long HitLines, long HitVouchers) prepPeriod = (0L, 0L);
         if (input.RunPrepPeriodApproval)

@@ -30,7 +30,7 @@ public sealed class ProjectRepositorySelectionTests
         using var host = new HandlerTestHost(projectsRootPath: root.Path);
         await host.DispatchAsync("project.create", CreatePayload(activeCase, ProjectDocument.DefaultDatabaseProvider));
 
-        // 其他程式開著 project.json、不讓 JET 換檔時，載入在取得工作鎖之後、寫回最近開啟時間時失敗。
+        // 其他程式開著 project.json、不讓 JET 換檔時，載入在取得案件鎖之後、寫回最近開啟時間時失敗。
         var projectJson = Path.Combine(root.Path, sqliteCase, JetProjectFolder.ProjectJsonFileName);
         using (new FileStream(projectJson, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
@@ -82,7 +82,7 @@ public sealed class ProjectRepositorySelectionTests
         using var host = new HandlerTestHost(projectsRootPath: root.Path);
         await host.DispatchAsync("project.create", CreatePayload(activeCase, ProjectDocument.DefaultDatabaseProvider));
 
-        // 另一個執行個體持有工作鎖時，仍先回報資料庫種類不支援，不回報案件被鎖定。
+        // 另一個執行個體持有案件鎖時，仍先回報資料庫種類不支援，不回報案件被鎖定。
         using (var external = new LocalFileLockService(new JetProjectFolder(root.Path)))
         {
             Assert.IsType<LockOutcome.Acquired>(

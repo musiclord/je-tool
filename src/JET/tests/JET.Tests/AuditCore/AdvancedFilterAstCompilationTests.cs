@@ -7,7 +7,7 @@ using Xunit;
 
 namespace JET.Tests.AuditCore;
 
-/// <summary>Provider-neutral SQL plan tests over synthetic conditions.</summary>
+/// <summary>用合成條件測試編譯出的 SQL plan。</summary>
 public sealed class AdvancedFilterAstCompilationTests
 {
     private static readonly FilterConditionContext Context =
@@ -20,9 +20,9 @@ public sealed class AdvancedFilterAstCompilationTests
         var scenario = Parse(
             """
             {"name":"synthetic","rationale":"compile","groups":[{"matchScope":"row","conditions":[
-              {"join":"AND","type":"textSet","field":"accountNumber","values":["AN CHOR"],"mode":"exact","normalization":"removeAsciiSpaces"},
-              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"textSet","field":"description","values":["EVI DENCE"],"mode":"contains","normalization":"removeAsciiSpaces"}]},
-              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"numRange","field":"amount","from":"5"}]}
+              {"join":"AND","type":"fieldValue","field":"accountNumber","operator":"in","values":[" anchor "]},
+              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":[" evidence "]}]},
+              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"5","amountBasis":"absolute"}]}
             ]}]}
             """);
 
@@ -48,7 +48,7 @@ public sealed class AdvancedFilterAstCompilationTests
         const string group =
             """
             "conditions":[
-              {"join":"AND","type":"text","field":"description","keywords":"alpha","mode":"contains"},
+              {"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["alpha"]},
               {"join":"OR","type":"manualAuto","isManual":true}
             ]
             """;
@@ -66,7 +66,7 @@ public sealed class AdvancedFilterAstCompilationTests
     public void CompiledParameterBudget_AllowsLimitAndRejectsNextValueBeforeScenarioCommandBinding()
     {
         var allowedCounts = Enumerable.Repeat(
-                FilterScenarioLimits.MaxTextSetValuesPerRule,
+                FilterScenarioLimits.MaxTypedInValuesPerRule,
                 20)
             .ToArray();
         var rejectedCounts = allowedCounts.Append(1).ToArray();
@@ -116,10 +116,9 @@ public sealed class AdvancedFilterAstCompilationTests
                     conditions = valueCounts.Select((count, ruleIndex) => new
                     {
                         join = "AND",
-                        type = "textSet",
+                        type = "fieldValue",
                         field = "description",
-                        mode = "contains",
-                        normalization = "preserve",
+                        @operator = "in",
                         values = Enumerable.Range(0, count)
                             .Select(valueIndex => $"synthetic_{ruleIndex}_{valueIndex}")
                             .ToArray()

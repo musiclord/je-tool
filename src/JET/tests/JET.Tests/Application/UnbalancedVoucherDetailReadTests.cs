@@ -123,7 +123,7 @@ public sealed class UnbalancedVoucherDetailReadTests(ITestOutputHelper testOutpu
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             new LocalPrescreenPageRepository(database),

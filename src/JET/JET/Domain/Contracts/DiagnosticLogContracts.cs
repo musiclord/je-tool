@@ -1,9 +1,10 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 診斷日誌單筆（第三層日誌:開發者、debug-only,與 result_* 審計表及 IMessageLogStore UX 訊息相互獨立）。
-/// 純資料,**不引用 Microsoft.Extensions.Logging**——由 Infrastructure 的 RingBufferLogger 從 M.E.Logging 的
-/// state＋active scopes＋exception 轉換而來。Fields 含結構化欄位（SQL、參數、duration_ms、rows_affected…）
+/// 診斷日誌單筆，只給開發者在 Debug 組建使用，和 validation_result、prescreen_result 等審計結果表，
+/// 以及 IMessageLogStore 的畫面訊息互相獨立。
+/// 純資料，不引用 Microsoft.Extensions.Logging；由 Infrastructure 的 RingBufferLogger 從 M.E.Logging 的
+/// state、active scopes 與 exception 轉換而來。Fields 含結構化欄位（SQL、參數、duration_ms、rows_affected…）
 /// 與非 id 的 scope 值（如 action）;CorrelationId/TransactionId/ProjectId 為攤平後的常用 scope 鍵。
 /// </summary>
 public sealed record DiagnosticLogEntry(

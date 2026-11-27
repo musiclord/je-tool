@@ -1,6 +1,6 @@
 'use strict';
 // 前端情境測試共用夾具的自我測試。
-// support/frontend-fixtures.cjs 是各情境測試的基礎；這裡確認它的假 DOM 能力、各夾具與改壞檢查工具本身照設計運作。
+// support/frontend-fixtures.cjs 是各情境測試的基礎；這裡確認它的假 DOM 能力與各夾具照設計運作。
 // 夾具壞了，情境測試的通過或失敗都不可信，所以這些測試和情境測試一起執行。
 // 全部使用程式生成的合成資料。
 const { test } = require('node:test');
@@ -246,23 +246,6 @@ test('message panel fixture binds the real copy button and falls back to execCom
   }
 });
 
-test('JET_FRONTEND_TEST_WWWROOT switches the fixtures to a copy and announces it on stderr', () => {
-  const script = "process.stdout.write(require(" + JSON.stringify(path.join(__dirname, 'support', 'frontend-fixtures.cjs')) + ").wwwroot)";
-  const env = { ...process.env };
-  delete env.JET_FRONTEND_TEST_WWWROOT;
-  const normal = spawnSync(process.execPath, ['-e', script], { env, encoding: 'utf8' });
-  assert.equal(normal.status, 0, normal.stderr);
-  assert.equal(normal.stdout, path.resolve(__dirname, '../../JET/wwwroot'));
-  assert.equal(normal.stderr, '');
-  const target = path.resolve(__dirname, '../../JET/wwwroot');
-  const switched = spawnSync(process.execPath, ['-e', script], { env: { ...env, JET_FRONTEND_TEST_WWWROOT: target }, encoding: 'utf8' });
-  assert.equal(switched.status, 0, switched.stderr);
-  assert.equal(switched.stdout, target);
-  assert.match(switched.stderr, /JET_FRONTEND_TEST_WWWROOT=/);
-  const missing = spawnSync(process.execPath, ['-e', script], { env: { ...env, JET_FRONTEND_TEST_WWWROOT: path.join(__dirname, 'no-such-wwwroot') }, encoding: 'utf8' });
-  assert.notEqual(missing.status, 0, 'a wrong copy path stops the run instead of silently using the working tree');
-});
-
 test('fake DOM elements keep links and computed properties out of what a failure report walks through', () => {
   // 測試失敗時，Node 的報表會逐項展開失敗值的可列舉內容。元件的父子連結、事件監聽與每次讀取都重新計算的屬性
   // 必須不可列舉，否則失敗值是元件時會沿著整個畫面展開而停不下來；這些屬性照樣能讀寫。
@@ -330,7 +313,7 @@ test('the contract wrapper hands back the request tracking members of jet-api.js
 
 test('full app fixture runs init() through the real jet-api.js and boot stops at the local case list', async () => {
   const f = await support.bootFullApp([{ projectId: '合成甲案', clientName: '合成客戶甲', databaseProvider: 'sqlite' }]);
-  // 啟動時不查 SQL Server 設定。
+  // 啟動時只讀本機案件清單。
   assert.deepEqual(f.posted.slice(0, 3).map(request => request.action), ['system.ping', 'system.whoAmI', 'project.listLocal']);
   assert.equal(f.sent('project.listLocal').length, 1, 'the first list read is the local one');
   assert.equal(f.sent('project.listOnline').length, 0);

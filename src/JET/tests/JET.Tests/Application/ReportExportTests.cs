@@ -17,8 +17,8 @@ using JET.Tests.Infrastructure;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 五份正式報告與科目配對範本工作檔的 application 驗收測試。Oracle 來自各匯出 action 的回應形狀、
-/// 六種工作簿的本地格式盤點與一個自含的兩列 GL/TB 母體；不讀取外部參考檔或真實帳務資料。
+/// 五份正式報告與科目配對範本工作檔的 application 測試。Oracle 來自各匯出 action 的回應形狀、
+/// 六種工作簿的格式與一個自含的兩列 GL/TB 母體；不讀取外部參考檔或真實帳務資料。
 /// </summary>
 public sealed partial class ReportExportTests(ReportExportFixture fixture)
     : IClassFixture<ReportExportFixture>
@@ -36,7 +36,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
     [InlineData("Pre", "-", "screeningReport.xlsx")]
     [InlineData("_Holiday", "_", "2025_TW.xlsx")]
     [InlineData("_MakeUpDay", "_", "2025_TW.xlsx")]
-    public async Task ReportTemplateCatalog_PreRenameNames_AreRejected(
+    public async Task ReportTemplateCatalog_NamesOutsideTheCatalog_AreRejected(
         string prefix,
         string separator,
         string suffix)
@@ -207,7 +207,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
             projectDirectory,
             "*.tmp",
             SearchOption.AllDirectories));
-        // 確認現行的暫存檔都沒有留下。
+        // 報告清單寫入時用的暫存報告、暫存清單與備份也都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
 
         var currentReports = await store.ListAsync(projectId, CancellationToken.None);
@@ -323,7 +323,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
     }
 
     [Fact]
-    public async Task ValidationReport_BlankGlDate_EmitsFixedSourceQualitySheetWithoutVReport7()
+    public async Task ValidationReport_BlankGlDate_EmitsFixedSourceQualitySheetWithoutAnExtraDetailSheet()
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -462,12 +462,12 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
             projectId,
             workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using var workingPaper = new XLWorkbook(workingPaperPath);
-        var step2 = workingPaper.Worksheet("step2 可靠性測試");
-        Assert.Equal("1", step2.Cell("E53").GetString());
-        Assert.Equal(100d, step2.Cell("F53").GetDouble());
-        Assert.Equal("SAP-FI", step2.Cell("J53").GetString());
-        Assert.Equal("覆核甲", step2.Cell("L53").GetString());
-        Assert.Equal("傳票核准人員", step2.Cell("L51").GetString());
+        var infSampling = workingPaper.Worksheet("step2 可靠性測試");
+        Assert.Equal("1", infSampling.Cell("E53").GetString());
+        Assert.Equal(100d, infSampling.Cell("F53").GetDouble());
+        Assert.Equal("SAP-FI", infSampling.Cell("J53").GetString());
+        Assert.Equal("覆核甲", infSampling.Cell("L53").GetString());
+        Assert.Equal("傳票核准人員", infSampling.Cell("L51").GetString());
     }
 
     [Fact]
@@ -964,7 +964,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
     }
 
     [Fact]
-    public async Task ValidationReport_WithoutApprovalDate_WritesLegacyNaAtD23AndOmitsVReport4()
+    public async Task ValidationReport_WithoutApprovalDate_WritesLegacyNaAtD23AndOmitsTheApprovalDateNotInPeriodSheet()
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -1153,7 +1153,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
     }
 
     [Fact]
-    public async Task CriteriaUsesTheConditionReadbackText_WhileWorkingPaperStep3EndsAtColumnE()
+    public async Task CriteriaUsesTheConditionReadbackText_WhileWorkingPaperHighRiskSummaryEndsAtColumnE()
     {
         using var host = new HandlerTestHost();
         // 第五步不能用 GL 沒有配對的欄位，「編製人員分錄筆數」需要傳票建立人員，
@@ -1178,7 +1178,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
                                 join = "AND",
                                 conditions = new object[]
                                 {
-                                    // 兩種舊式筆數條件已列為停用寫法，情境用等價的「科目與人員統計」，
+                                    // 兩種舊式筆數條件是停用寫法，情境用等價的「科目與人員統計」，
                                     // 預期文字是統計條件的讀回。
                                     new
                                     {
@@ -1243,13 +1243,13 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
         using var criteriaWorkbook = new XLWorkbook(criteriaPath);
         using var workingPaperWorkbook = new XLWorkbook(workingPaperPath);
         Assert.Equal(expected, criteriaWorkbook.Worksheet("Summary Inforamtion").Cell("B5").GetString());
-        var step3 = workingPaperWorkbook.Worksheet("step3 高風險條件彙總");
-        Assert.True(step3.Cell("F18").IsEmpty());
-        Assert.True(step3.Cell("F19").IsEmpty());
+        var highRiskSummary = workingPaperWorkbook.Worksheet("step3 高風險條件彙總");
+        Assert.True(highRiskSummary.Cell("F18").IsEmpty());
+        Assert.True(highRiskSummary.Cell("F19").IsEmpty());
     }
 
     [Fact]
-    public async Task WorkingPaper_UsesEmbeddedTemplateStaticContentAndFinalLegacyDetailColumns()
+    public async Task WorkingPaper_UsesEmbeddedTemplateStaticContentAndLegacyDetailColumns()
     {
         _ = await fixture.ExportCriteriaSelectionReportAsync();
         var response = await fixture.ExportWorkingPaperAsync();
@@ -1482,7 +1482,6 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
             })));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
-        // 這句的用字已定案。
         Assert.Equal(
             "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);
@@ -1540,7 +1539,7 @@ public sealed partial class ReportExportTests(ReportExportFixture fixture)
         return new LegacyReportWriter(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             new LocalPrescreenPageRepository(database),

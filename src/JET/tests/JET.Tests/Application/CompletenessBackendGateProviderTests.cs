@@ -17,7 +17,7 @@ public sealed class CompletenessBackendGateProviderTests
     private const string ReimportedGl = "reimportedGl";
 
     // 完整性差異是審計發現，不是禁止篩選的條件。
-    // 固定一個科目差額 10，沿保存、匯出、重開及重跑核對，不把差異清零來換取成功。
+    // 固定一個科目差額 10，保存、匯出、重開與重跑都帶著這個差異核對。
     [Theory]
     [InlineData("sqlite")]
     public async Task CompletenessDifference_ContinuesThroughReportsReopenAndRerun(string databaseProvider)

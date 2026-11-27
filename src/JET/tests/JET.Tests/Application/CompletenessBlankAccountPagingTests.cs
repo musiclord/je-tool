@@ -207,7 +207,7 @@ public sealed class CompletenessBlankAccountPagingTests
 
         using (var workingPaper = new XLWorkbook(PathOf("workingPaper")))
         {
-            var sheet = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step1);
+            var sheet = workingPaper.Worksheet(WorkingPaperSheetCatalog.Completeness);
             var rows = Enumerable.Range(20, sheet.LastRowUsed()!.RowNumber() - 19)
                 .Where(row => !sheet.Cell(row, 4).IsEmpty())
                 .Select(row => (Code: sheet.Cell(row, 2).GetString(), Tb: sheet.Cell(row, 4).GetDouble(),

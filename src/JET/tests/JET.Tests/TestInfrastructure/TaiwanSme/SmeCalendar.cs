@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Jet.Harness.TaiwanSme;
+namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
 /// <summary>
 /// 民國 114 年（2025）行政機關辦公日曆：16 個落在平日的放假日與 2 月 8 日補班。

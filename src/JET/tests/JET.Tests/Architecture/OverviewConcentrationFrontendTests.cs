@@ -4,8 +4,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 集中度分析（流程總覽區塊⑤）的 wire key 正本。後端回應的實際欄位集合由
-/// <c>PrescreenConcentrationTests</c> 逐層對照本表；前端鏡射則由本檔的守衛對照本表。
+/// 流程總覽集中度分析區塊的 wire key 正本。後端回應的實際欄位集合由
+/// <c>PrescreenConcentrationTests</c> 逐層對照本表；前端鏡射由本檔的守衛對照本表。
 /// 任何一邊改名或加欄位而沒有同步，就會有一條測試失敗。
 /// </summary>
 internal static class ConcentrationWireKeys
@@ -24,10 +24,10 @@ internal static class ConcentrationWireKeys
 }
 
 /// <summary>
-/// 集中度分析前端邊界的守衛。此區塊的所有審計數字（累積占比、「其他」彙總、前五佔比、
-/// 分母）一律由後端算好，前端只鏡射與格式化；「不適用」與「舊執行結果沒有此統計」都必須
-/// 以文字降級，不得以 0 冒充統計。圖表 option 只交給本地 vendored ECharts 的 SVG renderer。
-/// 這裡留下 wire key 鏡射、不在前端重算、中性用語與圖表設定來源的原始碼檢查；降級說明、檢視分頁的鍵盤操作與
+/// 集中度分析前端邊界的守衛。此區塊的所有審計數字（累積占比、「其他」彙總、前五占比、
+/// 分母）一律由後端算好，前端只鏡射與格式化；尚未執行預篩選與後端判定無法執行時，都用文字說明
+/// 取代圖表，不以 0 冒充統計。圖表 option 只交給本地 vendored ECharts 的 SVG renderer。
+/// 這裡用原始碼檢查 wire key 鏡射、前端不重算、中性用語與圖表設定來源；文字說明、檢視分頁的鍵盤操作與
 /// 只在統計就緒時顯示，由前端的行為測試核對。
 /// </summary>
 public sealed class OverviewConcentrationFrontendTests
@@ -101,7 +101,7 @@ public sealed class OverviewConcentrationFrontendTests
         }
 
         var app = ReadFrontend("js", "app.js");
-        // 「其他資訊」只留資料庫，不顯示執行識別碼與規則版本。
+        // 「其他資訊」只顯示資料庫，不顯示執行識別碼與規則版本。
         // 檢查標題，並確認兩個內部代號不上畫面。
         Assert.Contains("'<summary>其他資訊</summary>'", app, StringComparison.Ordinal);
         Assert.DoesNotContain("overviewKvRow('執行識別碼'", app, StringComparison.Ordinal);

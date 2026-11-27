@@ -1,6 +1,6 @@
 """Set print-only OOXML properties not exposed by the workbook authoring API, and neutral package metadata."""
 from pathlib import Path
-import zipfile,io,re,sys
+import zipfile,io,re,sys,json
 # An optional argument names the one workbook to set up, for example "Code Review/Code review"; the others are left as they are.
 ONLY=sys.argv[1] if len(sys.argv)>1 else None
 from lxml import etree as E
@@ -51,9 +51,33 @@ PACKAGE_DIGIT,FONT_DIGIT=8,8.5
 THEME_NAME='Office'
 # Product names that must not appear anywhere inside a delivered workbook.
 FORBIDDEN=['chatgpt','openai','codex','claude','anthropic','copilot']
-# Document properties that name a person or organisation; when the package has them they are set to the product name or left empty.
-CORE={'{http://purl.org/dc/elements/1.1/}creator':'JET','{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}lastModifiedBy':'JET'}
+# The Windows user name, computer name and profile folder of this machine must not appear either.
+import os
+LOCAL=[v.strip().lower() for v in (os.environ.get('USERNAME',''),os.environ.get('COMPUTERNAME',''),os.environ.get('USERPROFILE','')) if len(v.strip())>=2]
+# The author and "last modified by" of every delivered workbook, as the user set them in source/document-properties.json.
+# The authoring package writes no core properties, so the part is added when it is missing.
+CP='http://schemas.openxmlformats.org/package/2006/metadata/core-properties';DC='http://purl.org/dc/elements/1.1/'
+RECORDER=json.loads((Path(__file__).resolve().parent/'source'/'document-properties.json').read_text(encoding='utf-8'))
+CORE={'{'+DC+'}creator':RECORDER['creator'],'{'+CP+'}lastModifiedBy':RECORDER['lastModifiedBy']}
+CORE_TYPE='application/vnd.openxmlformats-package.core-properties+xml'
+CORE_REL='http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties'
+# Company and manager name an organisation or a person and are left empty.
 APP=['Company','Manager']
+def add_core(data,infos):
+ # Adds docProps/core.xml with its content type and package relationship.
+ core=E.Element('{'+CP+'}coreProperties',nsmap={'cp':CP,'dc':DC})
+ for tag in CORE:E.SubElement(core,tag)
+ data['docProps/core.xml']=E.tostring(core,xml_declaration=True,encoding='UTF-8',standalone=True)
+ infos.append(zipfile.ZipInfo('docProps/core.xml',date_time=infos[0].date_time))
+ infos[-1].compress_type=zipfile.ZIP_DEFLATED
+ types=E.fromstring(data['[Content_Types].xml']);T=E.QName(types).namespace
+ E.SubElement(types,'{'+T+'}Override',PartName='/docProps/core.xml',ContentType=CORE_TYPE)
+ data['[Content_Types].xml']=E.tostring(types,xml_declaration=True,encoding='UTF-8',standalone=True)
+ package=E.fromstring(data['_rels/.rels']);R=E.QName(package).namespace
+ used={r.get('Id') for r in package};number=1
+ while 'rId'+str(number) in used:number+=1
+ E.SubElement(package,'{'+R+'}Relationship',Id='rId'+str(number),Type=CORE_REL,Target='docProps/core.xml')
+ data['_rels/.rels']=E.tostring(package,xml_declaration=True,encoding='UTF-8',standalone=True)
 def column_a(root,strings):
  # Row number -> text of the cell in column A.
  found={}
@@ -214,11 +238,12 @@ for name,relative in BOOKS.items():
    if node is None:raise RuntimeError('Theme part is incomplete: '+member)
    node.set('name',THEME_NAME)
   data[member]=E.tostring(theme,xml_declaration=True,encoding='UTF-8',standalone=True)
- if 'docProps/core.xml' in data:
-  core=E.fromstring(data['docProps/core.xml'])
-  for tag,value in CORE.items():
-   for node in core.iter(tag):node.text=value
-  data['docProps/core.xml']=E.tostring(core,xml_declaration=True,encoding='UTF-8',standalone=True)
+ if 'docProps/core.xml' not in data:add_core(data,infos)
+ core=E.fromstring(data['docProps/core.xml'])
+ for tag,value in CORE.items():
+  nodes=list(core.iter(tag)) or [E.SubElement(core,tag)]
+  for node in nodes:node.text=value
+ data['docProps/core.xml']=E.tostring(core,xml_declaration=True,encoding='UTF-8',standalone=True)
  if 'docProps/app.xml' in data:
   app=E.fromstring(data['docProps/app.xml'])
   for node in app:
@@ -228,6 +253,7 @@ for name,relative in BOOKS.items():
   text=(member+'\n'+content.decode('utf-8',errors='replace')).lower()
   hits=[word for word in FORBIDDEN if word in text]
   if hits:raise RuntimeError('Product name left in '+relative+'.xlsx, '+member+': '+', '.join(hits))
+  if any(value in text for value in LOCAL):raise RuntimeError('User name, computer name or local path of this machine left in '+relative+'.xlsx, '+member)
  b=io.BytesIO()
  with zipfile.ZipFile(b,'w') as z:
   for i in infos:z.writestr(i,data[i.filename])

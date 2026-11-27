@@ -74,9 +74,9 @@ public sealed class ActiveProjectSnapshotTests
     /// <summary>記錄收到的案件編號；在放行之前停在查詢裡，用來模擬查詢進行中。</summary>
     private sealed class BlockingBlankPageRepository : IAccountMappingBlankPageRepository
     {
-        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly Lock gate = new();
-        private readonly List<string> projectIds = [];
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Lock _gate = new();
+        private readonly List<string> _projectIds = [];
 
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -84,14 +84,14 @@ public sealed class ActiveProjectSnapshotTests
         {
             get
             {
-                lock (gate)
+                lock (_gate)
                 {
-                    return [.. projectIds];
+                    return [.. _projectIds];
                 }
             }
         }
 
-        public void Release() => release.TrySetResult();
+        public void Release() => _release.TrySetResult();
 
         public async Task<PageResult<AccountMappingBlankAccount>> GetPageAsync(
             string projectId,
@@ -99,10 +99,10 @@ public sealed class ActiveProjectSnapshotTests
             CancellationToken cancellationToken)
         {
             Entered.TrySetResult();
-            await release.Task.WaitAsync(cancellationToken);
-            lock (gate)
+            await _release.Task.WaitAsync(cancellationToken);
+            lock (_gate)
             {
-                projectIds.Add(projectId);
+                _projectIds.Add(projectId);
             }
 
             return new PageResult<AccountMappingBlankAccount>(

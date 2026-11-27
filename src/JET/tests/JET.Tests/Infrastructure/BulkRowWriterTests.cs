@@ -213,7 +213,7 @@ public abstract class BulkRowWriterTests : IDisposable
     }
 }
 
-/// <summary>SQLite 臂：參數化 INSERT 封裝（行為凍結）。</summary>
+/// <summary>以 SQLite 執行上面的各項檢查，核對參數化 INSERT 的封裝。</summary>
 public sealed class SqliteBulkRowWriterTests : BulkRowWriterTests
 {
     protected override ILocalProjectDatabase CreateDatabase(JetProjectFolder folder) => new SqliteProjectDatabase(folder);

@@ -1,5 +1,5 @@
 'use strict';
-// 情境 24：連線層與共用原語。
+// 連線層與共用基本函式的情境測試。
 //
 // 審計員不會直接操作這一層，但每個步驟都會經過它：畫面重新載入時還在等的動作要明確失敗，不能一直轉圈；
 // 後端的錯誤要帶著錯誤碼、追蹤編號、欄位與條件列位置回到畫面；客戶資料插進畫面時不能跳出 HTML 屬性；
@@ -16,7 +16,7 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const { readWwwroot, plain, settle, usageJourneyFixture, savedBlankDescription } = require('./support/frontend-fixtures.cjs');
 
-// 錯誤訊息裡不能出現的英文原文。
+// 錯誤訊息裡不能出現的英文句子。
 const RETIRED_ENGLISH = ['JET bridge request failed.', 'JET host bridge is not available.', 'JET host bridge was unloaded'];
 const HAN = /[一-鿿]/;
 
@@ -176,7 +176,7 @@ test('transport: without a backend message the Error explains in Chinese and nev
     if (error) message.error = error;
     f.reply(message); await settle();
     assert.equal(box.state, 'rejected');
-    // 只比對意思，不逐字鎖住：句子是中文，不含錯誤碼，也不含 RETIRED_ENGLISH 列出的英文原文。
+    // 只比對意思，不逐字鎖住：句子是中文，不含錯誤碼，也不含 RETIRED_ENGLISH 列出的英文句子。
     assert.match(box.value.message, HAN);
     assert.ok(!box.value.message.includes('synthetic_internal_code'), 'the wire code is not shown as the message');
     for (const english of RETIRED_ENGLISH) assert.ok(!box.value.message.includes(english));
@@ -194,7 +194,7 @@ test('transport: before the host bridge is ready nothing is sent and the rejecti
   assert.equal(f.sent.length, 0);
 });
 
-// ---- 共用原語：Ui.esc、Ui.createLatestResponseGuard、Store.restoreMappingDrafts ----
+// ---- 共用基本函式：Ui.esc、Ui.createLatestResponseGuard、Store.restoreMappingDrafts ----
 
 function coreFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };

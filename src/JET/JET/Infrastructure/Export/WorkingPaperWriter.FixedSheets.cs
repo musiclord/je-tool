@@ -58,19 +58,19 @@ internal sealed partial class WorkingPaperWriter
     }
 
     /// <summary>「step5 財務報表關帳後調整之分錄」:A1 黃底橫幅(合併 A1:R1);其餘手填留空。</summary>
-    private static void EmitStep5Sheet(
+    private static void EmitPostClosingEntriesSheet(
         WorkingPaperWriteSession session, List<SheetStat> stats, WorkingPaperSheetPlan? sheetPlan,
         CancellationToken cancellationToken,
         Action<WorkingPaperProgress>? progress)
     {
-        using var sheet = session.OpenSheet(WorkingPaperSheetCatalog.Step5);
+        using var sheet = session.OpenSheet(WorkingPaperSheetCatalog.PostClosingEntries);
 
         sheet.WriteFixedRow(1,
         [
             sheet.TextCell(
                 1,
                 1,
-                sheetPlan?.AuditCondition ?? Step5Banner,
+                sheetPlan?.AuditCondition ?? PostClosingEntriesBanner,
                 WorkingPaperStyles.YellowBanner)
         ]);
         sheet.AddMerge("A1:R1");
@@ -152,7 +152,7 @@ internal sealed partial class WorkingPaperWriter
         sheet.SetColumnWidth(6, 8, 2, hidden: true);
 
         // 第一列只放隱藏的配對資料（F 到 H 欄）。A1 不寫舊版的版本字樣 V.2019，也不套藍底紅字的版本列外觀；
-        // 列號不動，配對資料的位置與還原方式照舊。
+        // 其餘各列的列號和舊版相同。
         var firstRow = new List<Cell>();
         if (metadata is not null)
         {
@@ -601,7 +601,7 @@ internal sealed partial class WorkingPaperWriter
         "此JE測試的WorkingPaper係透過JE Testing Tool產生之工作底稿，並依下列步驟分別記錄會計分錄測試" +
         "(JE Testing)所需之程序。\n(有關高風險JE測試的篩選判斷由查核團隊在該工具執行過程中完成定義。)";
 
-    private const string Step5Banner =
+    private const string PostClosingEntriesBanner =
         "若查核團隊發現受查客戶在財務報表關帳後，尚有入帳之調整分錄(Post-closing entries)，" +
         "或未入帳直接對財務報表之調整(Other adjustments)，\n則可將此類調整記錄於此處，或說明無此類情形。\n";
 

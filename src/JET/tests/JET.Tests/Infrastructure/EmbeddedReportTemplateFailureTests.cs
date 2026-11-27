@@ -149,7 +149,7 @@ public sealed class EmbeddedReportTemplateFailureTests
                 catalog,
                 ReportTemplateCatalog.Validation,
                 result,
-                ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.Step13],
+                ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.CompletenessDifference],
                 (editor, cancellationToken) =>
                 {
                     Assert.NotNull(editor);
@@ -236,7 +236,7 @@ public sealed class EmbeddedReportTemplateFailureTests
         using var document = OpenWorkingPaper(stream.ToArray());
         var sheets = WorksheetsByName(document);
         Assert.All(
-            new[] { Step1Sheet, Step12Sheet, Step3Sheet, Step4Sheet },
+            new[] { CompletenessSheet, PreparerSummarySheet, HighRiskSummarySheet, HighRiskVoucherSheet },
             name => Assert.NotNull(sheets[name].Elements<SheetProtection>().SingleOrDefault()));
     }
 
@@ -313,7 +313,7 @@ public sealed class EmbeddedReportTemplateFailureTests
             catalog,
             ReportTemplateCatalog.Validation,
             output,
-            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.Step13],
+            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.CompletenessDifference],
             static (_, _) => throw new Xunit.Sdk.XunitException(
                 "範本驗證失敗前不應啟動 direct writer。"),
             cancellationToken);

@@ -9,17 +9,17 @@ namespace JET.Infrastructure;
 public sealed class AccountMappingEditorRepository : IAccountMappingEditorRepository
 {
     public const string EditorSourceName = "JET 科目配對";
-    private readonly Func<string, CancellationToken, Task> ensure;
-    private readonly Func<string, DbConnection> connect;
-    private readonly Func<string, string> prefix;
-    private readonly ISqlDialect dialect;
+    private readonly Func<string, CancellationToken, Task> _ensure;
+    private readonly Func<string, DbConnection> _connect;
+    private readonly Func<string, string> _prefix;
+    private readonly ISqlDialect _dialect;
 
     public AccountMappingEditorRepository(ILocalProjectDatabase database)
     {
-        ensure = database.EnsureReadyAsync;
-        connect = database.CreateConnection;
-        prefix = _ => "";
-        dialect = database.Dialect;
+        _ensure = database.EnsureReadyAsync;
+        _connect = database.CreateConnection;
+        _prefix = _ => "";
+        _dialect = database.Dialect;
     }
 
     /// <param name="useTbAccountNames">名稱的取法照 <see cref="AccountMappingPopulationQuery.Cte"/> 的同名參數。</param>
@@ -77,26 +77,26 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         string projectId, PageRequest request, string? search, CancellationToken cancellationToken,
         string? categoryId = null)
     {
-        await ensure(projectId, cancellationToken);
-        await using var connection = connect(projectId);
+        await _ensure(projectId, cancellationToken);
+        await using var connection = _connect(projectId);
         await connection.OpenAsync(cancellationToken);
-        var p = prefix(projectId);
+        var p = _prefix(projectId);
         await using var command = connection.CreateCommand();
         var hasCursor = PageCursor.TryDecode(request.Cursor, out var key);
         var source = $"FROM accounts a LEFT JOIN {p}account_mapping m ON m.account_number = a.account_number WHERE 1 = 1"
-            + (!string.IsNullOrEmpty(search) ? " AND (" + dialect.ContainsIgnoreCase("a.account_number", "@search")
-                + " OR " + dialect.ContainsIgnoreCase("a.account_name", "@search") + ")" : "")
+            + (!string.IsNullOrEmpty(search) ? " AND (" + _dialect.ContainsIgnoreCase("a.account_number", "@search")
+                + " OR " + _dialect.ContainsIgnoreCase("a.account_name", "@search") + ")" : "")
             + (!string.IsNullOrEmpty(categoryId) ? $" AND EXISTS (SELECT 1 FROM {p}account_category_path tp"
                 + " WHERE tp.ancestor_id = @categoryId AND tp.descendant_id = m.category_id)" : "");
-        command.CommandText = AccountsCte(p, dialect) + " SELECT a.account_number, a.account_name, m.category_id "
+        command.CommandText = AccountsCte(p, _dialect) + " SELECT a.account_number, a.account_name, m.category_id "
             + source + (hasCursor ? " AND a.account_number > @cursor" : "")
-            + " ORDER BY a.account_number " + dialect.LimitClause("@limit") + ";";
+            + " ORDER BY a.account_number " + _dialect.LimitClause("@limit") + ";";
         if (hasCursor) command.AddWithValue("@cursor", key);
         if (!string.IsNullOrEmpty(search)) command.AddWithValue("@search", SourceText.ComparisonKey(search));
         if (!string.IsNullOrEmpty(categoryId)) command.AddWithValue("@categoryId", categoryId);
         command.AddWithValue("@limit", request.ClampedPageSize + 1);
         var totalCount = await PageTotalCount.ReadAsync(command, request,
-            AccountsCte(p, dialect) + " SELECT COUNT(*) " + source, cancellationToken);
+            AccountsCte(p, _dialect) + " SELECT COUNT(*) " + source, cancellationToken);
         var rows = new List<AccountMappingEditRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -112,11 +112,11 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
     {
         if (changes.Count is < 1 or > 500 || changes.Select(x => x.AccountNumber).Distinct(StringComparer.Ordinal).Count() != changes.Count)
             throw new JetActionException(JetErrorCodes.InvalidPayload, "科目分類筆數不符或科目重複。");
-        await ensure(projectId, cancellationToken);
-        await using var connection = connect(projectId);
+        await _ensure(projectId, cancellationToken);
+        await using var connection = _connect(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var tx = await connection.BeginTransactionAsync(cancellationToken);
-        var p = prefix(projectId);
+        var p = _prefix(projectId);
         var batchId = Guid.NewGuid().ToString("N");
         var time = DateTimeOffset.UtcNow.ToString("O");
         var accounts = new Dictionary<string, string?>(StringComparer.Ordinal);
@@ -134,8 +134,8 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
                 lookup.AddWithValue(parameter, change.AccountNumber);
                 return parameter;
             }).ToArray();
-            lookup.CommandText = AccountsCte(p, dialect, useTbAccountNames: true)
-                + " SELECT a.account_number, " + SavedNameOrPopulationName(dialect, "m.account_name", "a.account_name")
+            lookup.CommandText = AccountsCte(p, _dialect, useTbAccountNames: true)
+                + " SELECT a.account_number, " + SavedNameOrPopulationName(_dialect, "m.account_name", "a.account_name")
                 + $" FROM accounts a LEFT JOIN {p}account_mapping m ON m.account_number = a.account_number"
                 + " WHERE a.account_number IN (" + string.Join(",", parameters) + ");";
             await using var reader = await lookup.ExecuteReaderAsync(cancellationToken);

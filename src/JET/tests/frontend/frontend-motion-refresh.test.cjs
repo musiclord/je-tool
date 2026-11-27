@@ -49,7 +49,7 @@ for (const [display, direction, frozen] of [['flex', 'row', false], ['flex', 'co
 // 換步驟時，離開的那一步的內容收回它的那一列（JetMotion.leave）。那一列是可換行的橫排，展開箭頭用 order 排在最右邊。
 // 收回的內容要排在箭頭之後；否則箭頭被擠到下一行，收完拿掉的那一格，下面各列一次往上跳約 40 像素。
 // 收的期間這一列不用列距，由內容的上外距帶著同樣的距離，這是 app.css 的規則；
-// 假 DOM 算不出版面，另在瀏覽器主機逐格量，這裡只核對外距與高度都收到 0。
+// 假 DOM 算不出版面，這裡只核對外距與高度都收到 0。
 test('step body folding back into its row ends flush with the row', () => {
   const f = usageJourneyFixture();
   f.window.addEventListener = () => {};
@@ -143,7 +143,7 @@ for (const nested of [false, true]) {
 }
 
 // 目前步驟的標題連按兩次應回到展開，不能被前一次收合的完成回呼再關掉。
-// 這裡控制時間與 WAAPI 完成事件；實際高度連續性另在背景瀏覽器量測。
+// 這裡控制時間與 WAAPI 完成事件，不量實際高度。
 for (const reduced of [false, true]) {
   for (const presses of [2, 3]) test('step fold responds to ' + presses + ' rapid presses with reduced motion ' + reduced, () => {
     const f = usageJourneyFixture('filter', { clock: true });

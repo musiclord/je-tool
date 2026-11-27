@@ -165,16 +165,16 @@ public sealed class ProjectDatabaseCheckpointFailureTests
 
     private sealed class RecordingLogger<T> : ILogger<T>
     {
-        private readonly Lock gate = new();
-        private readonly List<LogEntry> entries = [];
+        private readonly Lock _gate = new();
+        private readonly List<LogEntry> _entries = [];
 
         public IReadOnlyList<LogEntry> Entries
         {
             get
             {
-                lock (gate)
+                lock (_gate)
                 {
-                    return [.. entries];
+                    return [.. _entries];
                 }
             }
         }
@@ -190,9 +190,9 @@ public sealed class ProjectDatabaseCheckpointFailureTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            lock (gate)
+            lock (_gate)
             {
-                entries.Add(new LogEntry(eventId.Id, formatter(state, exception), exception));
+                _entries.Add(new LogEntry(eventId.Id, formatter(state, exception), exception));
             }
         }
 

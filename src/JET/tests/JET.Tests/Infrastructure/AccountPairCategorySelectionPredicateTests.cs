@@ -202,7 +202,7 @@ public sealed class AccountPairCategorySelectionPredicateTests
                 [AccountCategoryBuiltIns.RevenueId]),
             ["M1|1", "M1|2", "M2|1", "M2|2", "M3|1", "M3|2", "M5|1", "M5|2"]),
 
-        // 只選自訂的零用金：它與內建 Cash 同 role，因此兩者一起參與同一商業結果。
+        // 只選自訂的零用金：它與內建 Cash 同 role，所以兩者的分錄一起參與判定。
         "exactWithSameRoleCustomCategory" => (
             Rule(
                 FilterConditionType.AccountPair,
@@ -284,11 +284,6 @@ public sealed class AccountPairCategorySelectionPredicateTests
             null,
             null,
             [],
-            TextMatchMode.Contains,
-            null,
-            null,
-            null,
-            null,
             null,
             null,
             PairMode: pairMode)

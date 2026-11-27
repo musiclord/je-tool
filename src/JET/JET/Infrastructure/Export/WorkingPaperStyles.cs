@@ -72,26 +72,26 @@ internal static class WorkingPaperStyles
 
     // step4-1 用的樣式，外觀照舊版 JET 用 ExportDatabase 匯出的明細頁。0 到 66 號樣式還有底稿其他頁面在用，
     // 所以這些樣式只能加在最後面，不能改既有的索引。
-    public const uint Step41Text =
+    public const uint HighRiskVoucherDetailText =
         GroupedNumberStyleFirst + MaximumDecimalPlaces + 1;
-    public const uint Step41Date = Step41Text + 1;
-    public const uint Step41Time = Step41Date + 1;
-    private const uint Step41NumberStyleFirst = Step41Time + 1;
-    private const uint Step41GroupedNumberStyleFirst =
-        Step41NumberStyleFirst + MaximumDecimalPlaces + 1;
+    public const uint HighRiskVoucherDetailDate = HighRiskVoucherDetailText + 1;
+    public const uint HighRiskVoucherDetailTime = HighRiskVoucherDetailDate + 1;
+    private const uint HighRiskVoucherDetailNumberStyleFirst = HighRiskVoucherDetailTime + 1;
+    private const uint HighRiskVoucherDetailGroupedNumberStyleFirst =
+        HighRiskVoucherDetailNumberStyleFirst + MaximumDecimalPlaces + 1;
 
     /// <summary>一般字、靠左靠上並自動換行。欄寬有上限的長文字用，例如欄位資訊頁的欄位名稱與 step3 的條件。</summary>
     public const uint Wrap =
-        Step41GroupedNumberStyleFirst + MaximumDecimalPlaces + 1;
+        HighRiskVoucherDetailGroupedNumberStyleFirst + MaximumDecimalPlaces + 1;
 
-    private const uint FontStep41 = 3;
+    private const uint FontHighRiskVoucherDetail = 3;
 
     private const string FontName = "微軟正黑體";
     private const double BannerFontSize = 12d;
 
-    /// <summary>底稿一般內文的字級；step4-1 用 <see cref="Step41FontSize"/>。</summary>
+    /// <summary>底稿一般內文的字級；step4-1 用 <see cref="HighRiskVoucherDetailFontSize"/>。</summary>
     internal const double RegularFontSize = 11d;
-    internal const double Step41FontSize = 12d;
+    internal const double HighRiskVoucherDetailFontSize = 12d;
     private const string YellowHex = "FFFFFF00"; // ARGB:不透明黃(#FFFF00)
 
     /// <summary>組出整份 Stylesheet。styles.xml 很小，直接在記憶體裡建好整份，不需要逐段寫出。</summary>
@@ -122,17 +122,17 @@ internal static class WorkingPaperStyles
     }
 
     /// <summary>step4-1 一般的數值型態欄位：小數位數照已確定的欄位定義，字型與對齊用 step4-1 明細頁的樣式。</summary>
-    public static uint Step41Number(int decimalPlaces)
+    public static uint HighRiskVoucherDetailNumber(int decimalPlaces)
     {
         ValidateDecimalPlaces(decimalPlaces);
-        return Step41NumberStyleFirst + checked((uint)decimalPlaces);
+        return HighRiskVoucherDetailNumberStyleFirst + checked((uint)decimalPlaces);
     }
 
     /// <summary>step4-1 帶正負號的金額：小數位數照已確定的欄位定義，並加千分位。</summary>
-    public static uint Step41GroupedNumber(int decimalPlaces)
+    public static uint HighRiskVoucherDetailGroupedNumber(int decimalPlaces)
     {
         ValidateDecimalPlaces(decimalPlaces);
-        return Step41GroupedNumberStyleFirst + checked((uint)decimalPlaces);
+        return HighRiskVoucherDetailGroupedNumberStyleFirst + checked((uint)decimalPlaces);
     }
 
     private static NumberingFormats BuildNumberingFormats()
@@ -182,10 +182,10 @@ internal static class WorkingPaperStyles
         var regular = new SpreadsheetFont(new FontSize { Val = RegularFontSize }, new FontName { Val = FontName });
         var bold = new SpreadsheetFont(new Bold(), new FontSize { Val = RegularFontSize }, new FontName { Val = FontName });
         var banner = new SpreadsheetFont(new FontSize { Val = BannerFontSize }, new FontName { Val = FontName });
-        var step41 = new SpreadsheetFont(
-            new FontSize { Val = Step41FontSize },
+        var highRiskVoucherDetail = new SpreadsheetFont(
+            new FontSize { Val = HighRiskVoucherDetailFontSize },
             new FontName { Val = FontName });
-        return new Fonts(regular, bold, banner, step41) { Count = 4 };
+        return new Fonts(regular, bold, banner, highRiskVoucherDetail) { Count = 4 };
     }
 
     private static Fills BuildFills()
@@ -263,19 +263,19 @@ internal static class WorkingPaperStyles
                 numberFormatId: GroupedNumberFormatFirstId + checked((uint)decimalPlaces)));
         }
 
-        formats.Append(Step41Aligned(49));
-        formats.Append(Step41Aligned(DateNumberFormatId));
-        formats.Append(Step41Aligned(TimeNumberFormatId));
+        formats.Append(HighRiskVoucherDetailAligned(49));
+        formats.Append(HighRiskVoucherDetailAligned(DateNumberFormatId));
+        formats.Append(HighRiskVoucherDetailAligned(TimeNumberFormatId));
 
         for (var decimalPlaces = 0; decimalPlaces <= MaximumDecimalPlaces; decimalPlaces++)
         {
-            formats.Append(Step41Aligned(
+            formats.Append(HighRiskVoucherDetailAligned(
                 NumberFormatFirstId + checked((uint)decimalPlaces)));
         }
 
         for (var decimalPlaces = 0; decimalPlaces <= MaximumDecimalPlaces; decimalPlaces++)
         {
-            formats.Append(Step41Aligned(
+            formats.Append(HighRiskVoucherDetailAligned(
                 GroupedNumberFormatFirstId + checked((uint)decimalPlaces)));
         }
 
@@ -338,12 +338,12 @@ internal static class WorkingPaperStyles
         };
     }
 
-    private static CellFormat Step41Aligned(uint numberFormatId)
+    private static CellFormat HighRiskVoucherDetailAligned(uint numberFormatId)
     {
         return new CellFormat
         {
             NumberFormatId = numberFormatId,
-            FontId = FontStep41,
+            FontId = FontHighRiskVoucherDetail,
             FillId = 0,
             BorderId = 0,
             FormatId = 0,

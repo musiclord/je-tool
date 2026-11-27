@@ -91,11 +91,6 @@ public sealed class SpecialAccountCategoryPairPredicateTests
             null,
             null,
             [],
-            TextMatchMode.Contains,
-            null,
-            null,
-            null,
-            null,
             null,
             null,
             PairMode: pairMode)

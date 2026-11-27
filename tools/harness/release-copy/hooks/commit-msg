@@ -1,0 +1,3 @@
+#!/bin/sh
+# 發布副本的提交訊息檢查，內容見同一個資料夾的 release-copy-check.ps1。
+exec pwsh -NoProfile -File "$(git rev-parse --git-path hooks)/release-copy-check.ps1" -Mode commit-msg -MessageFile "$1"

@@ -26,7 +26,7 @@ test('both views omit permanent date notes and offer one debit-credit amount mod
   }
 });
 
-// 欄位配對沿用 legacy 的金額方式名稱，名稱裡沒有「＋」，避免被讀成相加；
+// 欄位配對沿用舊版 JET 的金額方式名稱，名稱裡沒有「＋」，避免被讀成相加；
 // 選取後只有要相減或依正負號判斷的方式顯示計算說明，直接取用一欄的「設定年度變動金額」不顯示。
 test('amount modes use legacy names and explain only calculated modes in both views', () => {
   const f = fixture(), ui = f.window.JetUi;
@@ -212,7 +212,7 @@ test('free text code drafts preserve raw Unicode and do not guess equivalence be
   form.addCode('manual');
   assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy.manualValues), ['ß', '\uFEFF M\u0085']);
   assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy.automaticValues), ['SS']);
-  // 手輸代碼後立即做純文字 metadata 比較，不得因為加碼就讀取母體。
+  // 手輸代碼後立即做純文字 metadata 比較，不得因為加入代碼就讀取母體。
   assert.equal(f.pending.length, 1, 'adding once schedules one bounded metadata request');
   assert.equal(f.pending[0].payload.comparisonOnly, true);
   assert.notEqual(f.pending[0].payload.checkSourceValues, true);
@@ -938,21 +938,6 @@ test('source-existence warnings use full-source evidence rather than the truncat
   const warning = html.match(/data-bind="mapping-preflight-gl"[\s\S]*?<\/div>/)?.[0] || '';
   assert.match(warning, /TYPO/); assert.match(warning, /來源裡沒有這個值/);
   assert.ok(html.includes('data-action="commit-gl">'), 'warnings do not add a frontend gate');
-});
-
-test('unsupported-provider source checking remains explicitly unknown and does not block confirmation', async () => {
-  const f = readyGlMappingFixture();
-  f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['TAIL'], automaticValues: [], unlistedValueKind: 'automatic' } });
-  f.render().click('load-manual-profile');
-  f.pending[0].resolve({ blankCount: 0, distinctCount: 80, truncated: true, values: [{ value: 'HEAD', count: 10 }],
-    comparisonGroups: [['HEAD'], ['TAIL']], missingComparisonValues: null, sourceValueCheckStatus: 'unsupportedProvider' }); await settle();
-  const html = f.render().html;
-  // 這句的用字已定案。
-  assert.ok(html.includes('<p class="map-options__note">線上案件無法核對清單代碼是否出現在來源中，仍可確認配對。</p>'));
-  assert.doesNotMatch(html, /尚未支援來源值存在性查詢/);
-  assert.doesNotMatch(html, /來源裡沒有這個值/);
-  assert.deepEqual(copy(f.store.getState().mapping.gl.options.manualAutoPolicy.manualValues), ['TAIL']);
-  assert.ok(html.includes('data-action="commit-gl">'));
 });
 
 test('preflight names conflicts outside the display plus known blank and unclassified values without blocking', async () => {

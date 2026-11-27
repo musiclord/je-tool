@@ -25,7 +25,7 @@ public sealed class FilterSideAndMonthWorkflowTests
             .AddRow("V4", "2", "2025-02-28", "2025-03-01", "B", "合成 B", "Synthetic", 8, 0)
             .AddRow("V4", "3", "2025-02-28", "2025-03-01", "X", "合成 X", "Synthetic", 2, 0),
             databaseProvider: provider, validateForDownstream: true);
-        //  Keep fixed hits and report coverage; wording follows the explicit conditions.
+        // 核對固定的命中筆數與報告涵蓋範圍；條件說明照情境明示的條件寫。
         var pair = JsonElement.Parse("""
             {"name":"指定借貸科目","rationale":"固定答案","groups":[{"conditions":[
             {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"fieldValue","field":"accountNumber","operator":"in","values":["A"]}]},

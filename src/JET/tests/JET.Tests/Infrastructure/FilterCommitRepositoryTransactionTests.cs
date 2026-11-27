@@ -272,11 +272,6 @@ public sealed class FilterCommitRepositoryTransactionTests
                         PrescreenKey: null,
                         Field: null,
                         Keywords: [],
-                        Mode: TextMatchMode.Contains,
-                        FromDate: null,
-                        ToDate: null,
-                        FromAmountScaled: null,
-                        ToAmountScaled: null,
                         DrCr: drCr,
                         IsManual: null)
                 ])

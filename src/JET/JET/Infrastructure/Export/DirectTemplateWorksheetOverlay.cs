@@ -193,7 +193,8 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
     /// <summary>
     /// 寫一列產生端建立的列。明細大多落在範本列之後，而且每一格都由產生端決定；這種列直接寫出，
     /// 不先轉成文字再解析成 XML 物件，寫出的內容和 <see cref="WriteRow(XElement)"/> 相同。
-    /// 範本在同一列有內容、有格子不歸產生端，或樣式要和範本合併卻沒有帶樣式時，照原本的做法合併。
+    /// 範本在同一列有內容、有格子不歸產生端，或樣式要和範本合併卻沒有帶樣式時，先轉成 XML 物件，
+    /// 照 <see cref="WriteRow(XElement)"/> 的方式和範本合併。
     /// 樣式要合併時會直接改 <paramref name="sourceRow"/> 裡格子的樣式，呼叫端寫完後不再使用這一列。
     /// </summary>
     internal void WriteRow(Spreadsheet.Row sourceRow)

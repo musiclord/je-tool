@@ -127,7 +127,6 @@ public sealed class ManualAutoPolicyProjectionTests
             out var error));
         Assert.NotNull(error);
         Assert.Contains(expected, error.Reason, StringComparison.Ordinal);
-        // 這句的用字已定案。
         Assert.Equal(
             raw.Length == 0
                 ? "是空白。請在「來源空白時」選擇處理方式，或先補齊來源資料"

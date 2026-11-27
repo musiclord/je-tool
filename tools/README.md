@@ -125,8 +125,9 @@ EdgeDriver 或網路下載。這些結果不代表原生檔案對話框已驗收
 ### Excel
 
 `Excel` 固定使用 Release。它先執行產生五份合成報告與一份科目配對範本的測試
-`SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate`
-（類別名稱與 `JET_SIX_REPORT_EVIDENCE_DIR` 沿用舊名，六份工作簿只有五份進入報告清單），再由 `tools/harness/excel-driver/`
+`SixReportWorkflowJourneyTests.AccountMappingHandoff_ExportsSixWorkbooksWithManifest`。這個測試放在
+`tools/harness/development-repository-tests/`，重用測試專案裡的完整旅程，再把六份工作簿與清單寫到 `JET_SIX_REPORT_EVIDENCE_DIR`
+指定的資料夾；類別名稱與環境變數沿用舊名，六份工作簿只有五份進入報告清單。接著由 `tools/harness/excel-driver/`
 逐份用原生 Excel 以唯讀開啟、停用巨集與外部連結更新、完整重算、另存副本、重新開啟副本，並匯出第一頁 PDF。框架核對來源檔沒有改變、公式錯誤沒有增加、副本沒有外部連結、PDF 可讀，以及 V_Report 5 的表頭、
 中段與最後資料列都是 15 點。另由既有 Office 建立 .xls、.mdb 與 .accdb，在 SQLite 案件走完預覽、錯表重試、匯入、配對、
 驗證、篩選、重開與原檔不變檢查，共三例，結果在收據的 `excelFixture.nativeSourceImports`。
@@ -144,7 +145,8 @@ Public、Package、Gui 與 Excel，任何一步不通過就停止；收尾時快
 
 ### 共享鎖、記憶體上限與 Contract
 
-Restore、Build 和 Documentation 不使用共享鎖，其餘正式命令都使用。`Contract` 只檢查驗證框架本身的鎖、子程序、逾時、
+Restore、Build 和 Documentation 不使用共享鎖，其餘正式命令都使用。發布副本的同步工具整段執行期間也拿這把鎖，
+同步時別的正式命令會被擋下，結束碼是 2。`Contract` 只檢查驗證框架本身的鎖、子程序、逾時、
 輸出大小、JSON 紀錄及安全清理，通過不代表產品測試已通過。
 
 建置、發布、.NET 測試與前端測試都在本次專屬的 Windows Job 裡以較低優先權執行。整個程序樹合計的已認可記憶體超過
@@ -241,12 +243,21 @@ try {
 還在撰寫的 `*.wip.cjs` 也能檢查。前端改壞一律用這支工具，它不改工作樹裡的產品檔，輸出只是診斷紀錄；
 它和用 Stryker 改壞 C# 規則的 `Mutation` 是兩回事。
 
+## 發布副本
+
+`tools/harness/release-copy/JetReleaseCopy.ps1` 從這個儲存庫產生發布副本 je-tool-clean，也就是交給 GD 測試環境與公司 GitHub
+的程式庫。使用者說要提交推送時，這個儲存庫推送後用它同步發布副本，再提交推送發布副本。它在 `artifacts/release-copy/`
+組成發布副本、掃描，再建置並執行 C# 與前端測試，通過後才寫進 je-tool-clean。這些建置與測試檢查的是發布副本，
+不留收據，也不能代替這個儲存庫的 `Public`。參數、每一步做什麼，以及 GD 測試環境怎麼取得程式，見
+[`harness/release-copy/README.md`](harness/release-copy/README.md)。
+
 ## 名稱與目錄分工
 
 - `tools/` 第一層只分成 `harness/` 與 `tests/`。新增的驗證框架子目錄一律使用小寫英文，單字之間以連字號分隔；
   C# 驅動程式也放在 `tools/harness/` 下。
-- JSON 設定檔、公開入口、測試與一次性 probe 使用小寫與連字號。可重用的 PowerShell 模組與內部 verifier
-  使用 `Jet` 開頭的 PascalCase；C# 專案、原始碼檔、型別、namespace 和組件名稱依 .NET 慣例使用 PascalCase。
+- JSON 設定檔、公開入口、PowerShell 與 JavaScript 測試，以及一次性 probe 使用小寫與連字號。可重用的 PowerShell 模組與內部 verifier
+  使用 `Jet` 開頭的 PascalCase；C# 專案、專案裡的資料夾與原始碼檔（測試也算）、型別、namespace 和組件名稱依 .NET 慣例使用 PascalCase。
+  產品程式的取名方法見 [`../docs/naming-conventions.md`](../docs/naming-conventions.md)。
 - 驗證框架的主模組 `tools/harness/JetHarness.psm1` 只留主函式 `Invoke-JetHarness`，其餘函式依職責分在同目錄的
   `JetHarness.Foundation.ps1`、`JetHarness.Artifacts.ps1`、`JetHarness.Results.ps1`、`JetHarness.Steps.ps1`、
   `JetHarness.Lanes.ps1` 與 `JetHarness.ReleaseCandidate.ps1`，由主模組點號載入。新增或改名這類檔案時，

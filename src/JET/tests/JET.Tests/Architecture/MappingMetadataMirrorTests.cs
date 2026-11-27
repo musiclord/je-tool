@@ -7,7 +7,7 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed class MappingMetadataMirrorTests
 {
-    // 核對新入口在、撤下的舊入口沒有回來。
+    // 核對第三步有 restore-mapping-from-report 入口並呼叫 mappingRestoreDraft；畫面程式沒有 restore-mapping-draft 入口與 bindRestoreMappingDraft。
     // 入口的行為由前端測試的「bringing a mapping from a report」核對。
     [Fact]
     public void RestoreUi_IsTheReportEntryOnTheMappingStep_AndTheWithdrawnEntryStaysAway()

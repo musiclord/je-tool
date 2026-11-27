@@ -8,7 +8,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 跨前後端用語統一：畫面、條件讀回與系統端訊息使用同一組用語；這組用語只影響顯示文字，
-/// 不影響 action、識別字、wire 欄位或資料庫內容。每項鎖住現行字樣，並確認停用的字樣不出現在畫面程式。
+/// 不影響 action、識別字、wire 欄位或資料庫內容。每項鎖住畫面字樣，並確認不該用的字樣不出現在畫面程式。
 /// 程式註解不算畫面文字；檢查前先移除註解，只看字串與程式本體。
 /// </summary>
 public sealed partial class TerminologyUnificationFrontendTests
@@ -40,7 +40,6 @@ public sealed partial class TerminologyUnificationFrontendTests
     public void RelevantDataElementField_ReplacesExtraFieldWording()
     {
         var core = ReadFrontend("js", "ui-core.js");
-        Assert.Contains("quickLabel: '攸關資料元素欄位條件'", core, StringComparison.Ordinal);
         // 第五步選單不寫「攸關資料元素欄位」，只加註來源欄。
         Assert.Contains("function rdeFieldOptionLabel(field) {", core, StringComparison.Ordinal);
         Assert.DoesNotContain("withKind", core, StringComparison.Ordinal);
@@ -50,10 +49,7 @@ public sealed partial class TerminologyUnificationFrontendTests
         // 只加註來源欄（rdeFieldOptionLabel）。
         Assert.DoesNotContain("請選已配對的文字型攸關資料元素欄位", filter, StringComparison.Ordinal);
         Assert.Contains("var full = field.extra ? Ui.rdeFieldOptionLabel(field) : field.label;", filter, StringComparison.Ordinal);
-        Assert.Contains("'此攸關資料元素欄位條件沿用原設定：不納入空白值。'", filter, StringComparison.Ordinal);
-        // 提示框逐條寫出位置，
-        // 清單超過上限的句子和欄位條件同一句；用語是「攸關資料元素欄位」，不出現「額外欄位」。
-        Assert.Contains("'所用的攸關資料元素欄位已不在欄位配對中，請重新選擇欄位或刪除此條件'", filter, StringComparison.Ordinal);
+        // 提示框逐條寫出位置，清單超過上限的句子和欄位條件同一句。
         Assert.DoesNotContain("值清單每組最多", filter, StringComparison.Ordinal);
 
         var registry = StripComments(ReadSource("Application", "Support", "ResultPageColumnRegistry.cs"), js: false);
@@ -92,7 +88,7 @@ public sealed partial class TerminologyUnificationFrontendTests
         // Shares the fourth/fifth-step explanation.
         Assert.Contains("desc: Ui.prescreenConditionDescription('trailingZeros')",
             ReadFrontend("js", "steps", "validate-step.js"), StringComparison.Ordinal);
-        // 0 的個數照 IDEA 版由 GL 算出：說明寫整數部分與個數的來源，算法寫在 calculation，不寫死 6 個 0。只核對資訊。
+        // 0 的個數照 IDEA 版由 GL 算出：說明寫整數部分與個數的來源，算法寫在 calculation，不寫死 6 個 0。
         // 一條規則只有一個定義，說明文字放在 PRESCREEN_RULES。
         var uiCore = ReadFrontend("js", "ui-core.js");
         var description = FrontendConstantTextReader.ValueProperty(uiCore, "PRESCREEN_RULES", "trailingZeros", "description");
@@ -141,7 +137,7 @@ public sealed partial class TerminologyUnificationFrontendTests
         Assert.Contains("if (!imp[kind]) { return 'PBC-' + label + ' 尚未匯入'; }", mappingSummary, StringComparison.Ordinal);
         Assert.Contains("return label + ' 待確認配對';", mappingSummary, StringComparison.Ordinal);
         Assert.Contains("}).join(' / ');", mappingSummary, StringComparison.Ordinal);
-        // 不需要強調 01、02、03 這樣的數字；總覽階段卡跟中央流程列一致。
+        // 總覽階段卡和中央流程列一樣，不顯示 01、02、03 這樣的編號。
         Assert.DoesNotContain("overview-stage__num", app, StringComparison.Ordinal);
         Assert.DoesNotContain("pad2(", app, StringComparison.Ordinal);
         Assert.DoesNotContain(".overview-stage__num", ReadFrontend("css", "app.css"), StringComparison.Ordinal);
@@ -158,7 +154,7 @@ public sealed partial class TerminologyUnificationFrontendTests
         Assert.DoesNotContain("label + '·'", import, StringComparison.Ordinal);
 
         // 條件讀回與畫面一致：借方與貸方用逗號分開，收入條件寫完整句子。
-        // 舊條件未指定 categorySelection 時明說相同分類用途，保留完整固定預期。
+        // 沒有指定 categorySelection 的條件，讀回時寫明「相同分類用途」；這裡核對完整句子。
         Assert.Equal("相同分類用途：借貸科目組合：借方是 A 且貸方是 B（借方 Receivables，貸方 Revenue）",
             RenderAtom("""{"join":"AND","type":"accountPair","pairMode":"exact","debitCategoryIds":["builtin.receivables"],"creditCategoryIds":["builtin.revenue"]}"""));
         // 讀回和卡片名稱統一。
@@ -172,9 +168,8 @@ public sealed partial class TerminologyUnificationFrontendTests
     [Fact]
     public void FrontendScreenCode_NoLongerContainsRetiredWording()
     {
-        // Keep the existing locked-status icon exception, plus only the one exact sentence in its own file.
-        // 「輔助訊號」是已停用的用語，整個前端都不得出現；流程總覽的前端測試只看得到測過的畫面，
-        // 管不到其他檔新加的字樣，所以留在這份清單。
+        // 鎖定狀態圖示裡的「·」不算；另外只排除 validate-step.js 裡的一句說明。
+        // 前端不得出現「輔助訊號」；流程總覽的前端測試只看得到測過的畫面，管不到其他檔新加的字樣，所以列在這份清單。
         var retired = new[]
         {
             "所選母體", "母體", "額外欄位", "去重傳票", "主單位整數", "已保存", "保存", "已存篩選情境", "已存情境",
@@ -191,8 +186,7 @@ public sealed partial class TerminologyUnificationFrontendTests
         foreach (var file in files)
         {
             var code = StripComments(File.ReadAllText(file), js: true).Replace(lockedMark, string.Empty, StringComparison.Ordinal);
-            // Exempts only this one interpretation sentence.
-            // Do not remove the retired term globally, or exempt any other text/file containing it.
+            // 只排除這一句說明；其他文字與檔案照樣檢查不該用的字樣。
             if (Path.GetRelativePath(root, file) == Path.Combine("js", "steps", "validate-step.js"))
             {
                 // 這句寫「GL 分錄」，不寫「總帳母體」。

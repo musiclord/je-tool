@@ -134,7 +134,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
             // 這組變體只有一種失效寫法：條件指向已不存在的攸關資料元素。
             Assert.Equal("missingRdeField", variant);
             definition["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
-                """{"join":"AND","type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
+                """{"join":"AND","type":"fieldValue","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
         });
         var before = await ReadScenariosAsync(host, context.ProjectId, provider);
 
@@ -172,7 +172,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
                 if (position == 2)
                 {
                     definition["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
-                        """{"join":"AND","type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
+                        """{"join":"AND","type":"fieldValue","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
                 }
             });
         }

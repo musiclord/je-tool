@@ -46,8 +46,7 @@ public sealed partial class GlExcludedPopulationReadGuardTests
         new("JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
             "WHERE {ValidationProcedures.BlankGlDateSourceQualityPredicate};",
             "總帳日期空白是 ValidationProcedures 寫明的唯一原始列例外。"),
-        // 空值明細多讀傳票核准日，approval_date 接在旗標後面，認這句查詢的片段跟著改；
-        // 查詢的範圍條件與理由不變。
+        // 空值明細也讀傳票核准日，approval_date 接在旗標後面，所以認這句查詢的片段從 approval_date 開始。
         new("JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
             "approval_date FROM gl WHERE ({anyMatch})",
             "空值明細的旗標與條件由 BlankRecordsCategoryPredicate.Scoped 產生，已經只看納入測試的分錄。"),
@@ -517,7 +516,7 @@ public sealed partial class GlExcludedPopulationReadGuardTests
         return sqlContext ? bare.Index : -1;
     }
 
-    /// <summary>不和資料集種類值同字的專案表名；和 "gl" 寫在同一句時，表示這一句在傳表名。</summary>
+    /// <summary>不和資料集種類值同字的案件資料庫表名；和 "gl" 寫在同一句時，表示這一句在傳表名。</summary>
     private static readonly HashSet<string> OtherTableNames = JET.AuditCore.JetSchemaCatalog.All
         .Select(entry => entry.PhysicalName)
         .Except(Enum.GetValues<JET.Domain.DatasetKind>().Select(JET.Domain.DatasetKindNames.ToStorageName))

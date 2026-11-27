@@ -3,8 +3,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 前端工作流整合新增控制項的可用性守衛：每個輸入都有可讀名稱、群組選項用 fieldset 與 legend、
-/// 新區塊在窄視窗可收縮或自行捲動。這些都讀前端的程式與樣式檔核對，不實際縮放視窗。
+/// 工作流程控制項的可用性檢查：每個輸入都有可讀名稱、群組選項用 fieldset 與 legend、
+/// 區塊在窄視窗可收縮或自行捲動。這些都讀前端的程式與樣式檔核對，不實際縮放視窗。
 /// 停用的控制項要說明原因，由前端測試在畫面上核對。
 /// </summary>
 public sealed class WorkflowControlsAccessibilityFrontendTests
@@ -83,8 +83,8 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         var treeStart = core.IndexOf("function categoryTreeHtml(", StringComparison.Ordinal);
         Assert.True(treeStart >= 0 && treeStart < pickerStart);
         var tree = core[treeStart..pickerStart];
-        // 同功能的元件只留一套：展開按鈕用共用的 disclosureAttributes，名稱說是哪一類的下層分類。
-        // 仍檢查名稱及展開狀態。
+        // 同功能的元件只有一套：展開按鈕用共用的 disclosureAttributes，名稱寫出是哪一類的下層分類。
+        // 這裡檢查名稱與展開狀態。
         Assert.Contains("aria-label=\"' + esc(category.label) + '的下層分類\"' +", tree, StringComparison.Ordinal);
         Assert.Contains("disclosureAttributes(open) + '></button>'", tree, StringComparison.Ordinal);
         Assert.Contains("return ' aria-expanded=\"' + (open ? 'true' : 'false') + '\"'", core, StringComparison.Ordinal);

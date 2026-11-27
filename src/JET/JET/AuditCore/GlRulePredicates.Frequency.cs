@@ -15,7 +15,7 @@ internal sealed partial class GlRulePredicates
     /// 第四步照舊版沒有「編製分錄較少的人員」「使用較少的科目」兩條規則，
     /// 第五步欄位條件裡的同名常用查法用這個方法，預設 11 筆以下只是畫面帶入的參數。
     /// 人員（建立人員、核准人員）依去空白、不分大小寫的識別值分組，和人員清單、編製等於核准同一規則；
-    /// 科目編號只去空白，大小寫規則不變。空白的科目或人員不列入。門檻參數綁定；子查詢與外層共用母體範圍。
+    /// 科目編號只去空白，不轉換大小寫。空白的科目或人員不列入。門檻參數綁定；子查詢與外層共用母體範圍。
     /// </summary>
     public string EntityFrequency(FilterSqlParameterPlanBuilder parameters, string field, string countUnit, string countOperator,
         int countFrom, int? countTo, FilterConditionContext context, string schemaPrefix)
@@ -30,7 +30,7 @@ internal sealed partial class GlRulePredicates
         var count = countUnit switch
         {
             "entries" => "COUNT(*)",
-            // 與現有傳票清單一致：同案件同號為一張，NULL 號碼不計張。
+            // 與傳票清單一致：同案件同號為一張，NULL 號碼不計張。
             "vouchers" => "COUNT(DISTINCT f.voucher_number)",
             _ => throw new InvalidOperationException("Unknown frequency unit.")
         };

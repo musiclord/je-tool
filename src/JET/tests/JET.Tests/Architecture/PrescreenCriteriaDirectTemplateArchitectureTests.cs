@@ -117,8 +117,8 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "await EmitRawPagedSheetsAsync(",
             "ReadCriteriaVoucherRowsAsync(",
             "RawSheetAutoFitMode.LegacyFirstTwentyWhenAtMostOneMillion,");
-        // 10 點明細頁統一 15 點，列高由 LegacyReportStyles.ExportDatabaseRowHeight 提供；
-        // 守衛核對的是這一段呼叫順序。
+        // 明細頁字級 10 點、列高 15 點，列高由 LegacyReportStyles.ExportDatabaseRowHeight 提供；
+        // 這裡核對寫出明細頁時的呼叫順序。
         AssertAppearsInOrder(
             writerSource,
             "var page = await fetchPage(",
@@ -185,8 +185,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
         Assert.Matches(
             @"IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort =\s+repositories\.PrescreenReportPlanningFacts;",
             handler);
-        // AuditCore 不提供只轉手給 port 的 ExecuteAsync；中間一項是直接呼叫 planning port，
-        // 仍要求 Plan、執行、Finalize 依序出現。
+        // Plan 與 Finalize 之間直接呼叫 planning port 執行；這裡要求 Plan、執行、Finalize 依序出現。
         AssertAppearsInOrder(
             lifecycle,
             "JetAuditProgram.Plan(",

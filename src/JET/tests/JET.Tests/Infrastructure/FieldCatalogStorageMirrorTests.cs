@@ -6,9 +6,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Domain 欄位目錄的 persisted semantic targets 必須與 SQLite 真正建出的 schema 對齊。
-/// 本守衛只涵蓋 <see cref="JetFieldCatalog"/> 已登錄的 GL／TB semantic fields；
-/// batch identity、auto id 與 debit／credit／dr_cr 等衍生欄不屬本目錄，不在此測試範圍。
+/// Domain 欄位目錄登錄的 GL 與 TB 欄位，要和 SQLite 實際建出的資料表欄位一致。
+/// 這個測試只檢查 <see cref="JetFieldCatalog"/> 已登錄的欄位；批次識別、自動編號，
+/// 以及 debit、credit、dr_cr 等衍生欄不在欄位目錄裡，不在檢查範圍。
 /// </summary>
 public sealed class FieldCatalogStorageMirrorTests
 {

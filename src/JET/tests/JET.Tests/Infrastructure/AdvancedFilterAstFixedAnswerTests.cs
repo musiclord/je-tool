@@ -75,80 +75,19 @@ public sealed class AdvancedFilterAstFixedAnswerTests
             {
                 TextSetRule(
                     field: "accountNumber",
-                    mode: TextMatchMode.Exact,
-                    values: ["SV ANCHOR"],
-                    normalization: TextSetNormalization.RemoveAsciiSpaces),
+                    @operator: "in",
+                    values: [" svanchor "]),
                 TextSetRule(
                     field: "description",
-                    mode: TextMatchMode.Contains,
-                    values: ["EVI DENCE"],
-                    normalization: TextSetNormalization.RemoveAsciiSpaces),
-                NumRangeLowerBound(50_000)
+                    @operator: "contains",
+                    values: ["EVIDENCE"]),
+                NumRangeLowerBound("500")
             }
             .Select((rule, index) => index == 0 ? rule : AnyEntryInVoucher(rule))
             .ToArray()));
 
     private static readonly IReadOnlyList<ScenarioCase> Cases =
     [
-        new(
-            "text-set-contains-preserve-default",
-            Scenario(
-                "text-set-preserve-default",
-                new FilterGroupSpec(
-                    FilterJoin.And,
-                    [
-                        TextSetRule(
-                            field: "description",
-                            mode: TextMatchMode.Contains,
-                            values: ["  alpha  "])
-                    ])),
-            ExpectedIdentities: ["TXT-C-1|1"],
-            ExpectedVoucherCount: 1),
-        new(
-            "text-set-exact-preserve-explicit",
-            Scenario(
-                "text-set-preserve-explicit",
-                new FilterGroupSpec(
-                    FilterJoin.And,
-                    [
-                        TextSetRule(
-                            field: "accountNumber",
-                            mode: TextMatchMode.Exact,
-                            values: ["  acc-1  "],
-                            normalization: TextSetNormalization.Preserve)
-                    ])),
-            ExpectedIdentities: ["TXT-E-1|1", "TXT-E-5|1"],
-            ExpectedVoucherCount: 2),
-        new(
-            "text-set-contains-remove-spaces",
-            Scenario(
-                "text-set-contains",
-                new FilterGroupSpec(
-                    FilterJoin.And,
-                    [
-                        TextSetRule(
-                            field: "description",
-                            mode: TextMatchMode.Contains,
-                            values: ["AL PHA", "be ta"],
-                            normalization: TextSetNormalization.RemoveAsciiSpaces)
-                    ])),
-            ExpectedIdentities: ["TXT-C-1|1", "TXT-C-2|1"],
-            ExpectedVoucherCount: 2),
-        new(
-            "text-set-exact-remove-spaces",
-            Scenario(
-                "text-set-exact",
-                new FilterGroupSpec(
-                    FilterJoin.And,
-                    [
-                        TextSetRule(
-                            field: "accountNumber",
-                            mode: TextMatchMode.Exact,
-                            values: ["AC C-1", "B- 2"],
-                            normalization: TextSetNormalization.RemoveAsciiSpaces)
-                    ])),
-            ExpectedIdentities: ["TXT-E-1|1", "TXT-E-2|1", "TXT-E-5|1"],
-            ExpectedVoucherCount: 3),
         new(
             "same-voucher-anchor-and-independent-evidence",
             SameVoucherScenario,
@@ -239,7 +178,7 @@ public sealed class AdvancedFilterAstFixedAnswerTests
             SameVoucherScenario.Name,
             SameVoucherScenario.Rationale,
             """
-            {"name":"same-voucher-anchor","rationale":"synthetic provider parity","groups":[{"join":"AND","matchScope":"row","conditions":[{"join":"AND","type":"textSet","field":"accountNumber","values":["SV ANCHOR"],"mode":"exact","normalization":"removeAsciiSpaces"},{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"textSet","field":"description","values":["EVI DENCE"],"mode":"contains","normalization":"removeAsciiSpaces"}]},{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"numRange","field":"amount","from":"500"}]}]}]}
+            {"name":"same-voucher-anchor","rationale":"synthetic provider parity","groups":[{"join":"AND","matchScope":"row","conditions":[{"join":"AND","type":"fieldValue","field":"accountNumber","operator":"in","values":[" svanchor "]},{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["EVIDENCE"]}]},{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"500","amountBasis":"absolute"}]}]}]}
             """,
             new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero));
         await commitRepository.CommitAsync(
@@ -317,33 +256,23 @@ public sealed class AdvancedFilterAstFixedAnswerTests
     private static FilterScenarioSpec Scenario(string name, FilterGroupSpec group) =>
         new(name, "synthetic provider parity", [group]);
 
+    // 文字欄位的欄位值條件：值清單去頭尾空白、不分大小寫比對。
     private static FilterConditionSpec TextSetRule(
         string field,
-        TextMatchMode mode,
-        IReadOnlyList<string> values,
-        TextSetNormalization? normalization = null)
-    {
-        var rule = new FilterConditionSpec(
+        string @operator,
+        IReadOnlyList<string> values) =>
+        new(
             FilterJoin.And,
-            FilterConditionType.TextSet,
+            FilterConditionType.FieldValue,
             PrescreenKey: null,
             Field: field,
             Keywords: [],
-            Mode: mode,
-            FromDate: null,
-            ToDate: null,
-            FromAmountScaled: null,
-            ToAmountScaled: null,
             DrCr: null,
             IsManual: null)
         {
-            Values = values
+            TypedOperator = @operator,
+            TypedValues = values
         };
-
-        return normalization.HasValue
-            ? rule with { Normalization = normalization.Value }
-            : rule;
-    }
 
     // 整張傳票條件，量詞「至少一筆符合」，子條件只有這一條。
     private static FilterConditionSpec AnyEntryInVoucher(FilterConditionSpec rule) =>
@@ -353,11 +282,6 @@ public sealed class AdvancedFilterAstFixedAnswerTests
             PrescreenKey: null,
             Field: null,
             Keywords: [],
-            Mode: TextMatchMode.Contains,
-            FromDate: null,
-            ToDate: null,
-            FromAmountScaled: null,
-            ToAmountScaled: null,
             DrCr: null,
             IsManual: null)
         {
@@ -365,20 +289,21 @@ public sealed class AdvancedFilterAstFixedAnswerTests
             Conditions = [rule]
         };
 
-    private static FilterConditionSpec NumRangeLowerBound(long fromAmountScaled) =>
+    // 金額絕對值大於或等於指定金額的欄位值條件。
+    private static FilterConditionSpec NumRangeLowerBound(string amount) =>
         new(
             FilterJoin.And,
-            FilterConditionType.NumRange,
+            FilterConditionType.FieldValue,
             PrescreenKey: null,
             Field: "amount",
             Keywords: [],
-            Mode: TextMatchMode.Contains,
-            FromDate: null,
-            ToDate: null,
-            FromAmountScaled: fromAmountScaled,
-            ToAmountScaled: null,
             DrCr: null,
-            IsManual: null);
+            IsManual: null)
+        {
+            TypedOperator = "greaterThanOrEqual",
+            TypedValue = amount,
+            AmountBasis = "absolute"
+        };
 
     private sealed record ScenarioCase(
         string Name,

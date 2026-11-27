@@ -16,13 +16,16 @@ public sealed class FilterScenarioValidatorTests
         .Where(field => !missing.Contains(field, StringComparer.Ordinal))
         .ToArray();
 
+    // 文字欄位「包含」一個關鍵字的欄位值條件。
     private static FilterConditionSpec TextRule(string field = "description", string keyword = "調整") =>
-        new(FilterJoin.And, FilterConditionType.Text, null, field, [keyword], TextMatchMode.Contains,
-            null, null, null, null, null, null);
+        new(FilterJoin.And, FilterConditionType.FieldValue, null, field, [], null, null)
+        {
+            TypedOperator = "contains",
+            TypedValues = [keyword]
+        };
 
     private static FilterConditionSpec PrescreenRule(string key) =>
-        new(FilterJoin.And, FilterConditionType.Prescreen, key, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null);
+        new(FilterJoin.And, FilterConditionType.Prescreen, key, null, [], null, null);
 
     private static FilterScenarioSpec Scenario(
         string name = "高風險摘要",
@@ -47,14 +50,18 @@ public sealed class FilterScenarioValidatorTests
                 ]),
                 new FilterGroupSpec(FilterJoin.And,
                 [
-                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "amount", [],
-                        TextMatchMode.Contains, null, null, 100_000_000L, null, null, null),
-                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.DateRange, null, "glDate", [],
-                        TextMatchMode.Contains, "2025-01-01", "2025-12-31", null, null, null, null),
+                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.FieldValue, null, "amount", [], null, null)
+                    {
+                        TypedOperator = "greaterThanOrEqual", TypedValue = "1000000", AmountBasis = TypedAmountBasisNames.Absolute
+                    },
+                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.FieldValue, null, "glDate", [], null, null)
+                    {
+                        TypedOperator = "between", TypedFrom = "2025-01-01", TypedTo = "2025-12-31"
+                    },
                     new FilterConditionSpec(FilterJoin.And, FilterConditionType.DrCrOnly, null, null, [],
-                        TextMatchMode.Contains, null, null, null, null, "debit", null),
+                        "debit", null),
                     new FilterConditionSpec(FilterJoin.And, FilterConditionType.ManualAuto, null, null, [],
-                        TextMatchMode.Contains, null, null, null, null, null, true)
+                        null, true)
                 ])
             ]);
 
@@ -145,7 +152,7 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_MixedKnownJoins_RemainValid()
     {
-        // 決策表的合法混合代表：組內 AND→OR，組間 OR→AND；這裡只文件化，不硬化或正規化。
+        // 決策表的合法混合代表：組內 AND→OR，組間 OR→AND；這裡只記下目前的行為，不另外限制或改寫成固定形式。
         var scenario = new FilterScenarioSpec(
             "混合 join",
             "保留逐邊左折疊相容性",
@@ -174,7 +181,7 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_TextRuleWithoutKeywords_ReturnsError()
     {
-        var rule = TextRule() with { Keywords = [] };
+        var rule = TextRule() with { TypedValues = [] };
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
@@ -197,35 +204,8 @@ public sealed class FilterScenarioValidatorTests
     [InlineData("descNull")]
     public void Validate_RetiredCodeKey_ReturnsError(string retiredKey)
     {
-        // 舊代號鍵不是合法的 prescreenKey。
+        // r1、r8doc、descNull 這類代號不是合法的 prescreenKey。
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: PrescreenRule(retiredKey)), Ready));
-    }
-
-    [Fact]
-    public void Validate_NumRangeWithoutBounds_ReturnsError()
-    {
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "amount", [],
-            TextMatchMode.Contains, null, null, null, null, null, null);
-
-        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
-    }
-
-    [Fact]
-    public void Validate_NumRangeOnTextField_ReturnsError()
-    {
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "description", [],
-            TextMatchMode.Contains, null, null, 1L, null, null, null);
-
-        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
-    }
-
-    [Fact]
-    public void Validate_DateRangeWithMalformedDate_ReturnsError()
-    {
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DateRange, null, "glDate", [],
-            TextMatchMode.Contains, "2025/01/01", null, null, null, null, null);
-
-        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
 
     [Fact]
@@ -285,7 +265,7 @@ public sealed class FilterScenarioValidatorTests
     public void Validate_DrCrOnlyWithUnknownSide_ReturnsError()
     {
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DrCrOnly, null, null, [],
-            TextMatchMode.Contains, null, null, null, null, "both", null);
+            "both", null);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
@@ -303,8 +283,7 @@ public sealed class FilterScenarioValidatorTests
 
     private static FilterConditionSpec AccountPairRule(
         string? pairMode, string? debitCategory, string? creditCategory) =>
-        new(FilterJoin.And, FilterConditionType.AccountPair, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null,
+        new(FilterJoin.And, FilterConditionType.AccountPair, null, null, [], null, null,
             PairMode: pairMode)
         {
             DebitCategoryIds = CategoryIdsFor(debitCategory),
@@ -345,8 +324,7 @@ public sealed class FilterScenarioValidatorTests
 
     private static FilterConditionSpec SpecialPairRule(
         string? pairMode, string? debitCategory, string? creditCategory) =>
-        new(FilterJoin.And, FilterConditionType.SpecialAccountCategoryPair, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null,
+        new(FilterJoin.And, FilterConditionType.SpecialAccountCategoryPair, null, null, [], null, null,
             PairMode: pairMode)
         {
             DebitCategoryIds = CategoryIdsFor(debitCategory),
@@ -398,9 +376,9 @@ public sealed class FilterScenarioValidatorTests
         var errors = ValidateSpecialPair(pairMode, debit, credit, hasMapping);
 
         Assert.Equal(expectMappingError, HasError(errors, SpecialPairMappingError));
-        // 配對模式無效只會是內容損毀，改鎖原因代號。
+        // 配對模式無效只會是內容損毀，所以鎖定原因代號。
         Assert.Equal(expectModeError, FilterScenarioCorruption.ReasonsOf(errors).Any(r => r.Code == "special_pair_mode_invalid"));
-        // 分類錯誤有兩種形態：未選（空集合）與不存在於目前專案的科目分類；兩者都以側別前綴鎖定。
+        // 分類錯誤有兩種形態：未選（空集合）與不存在於目前案件的科目分類；兩者都以側別前綴鎖定。
         Assert.Equal(expectDebitError, HasError(errors, "借方分類"));
         Assert.Equal(expectCreditError, HasError(errors, "貸方分類"));
 
@@ -445,8 +423,7 @@ public sealed class FilterScenarioValidatorTests
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds) =>
         new FilterConditionSpec(
-            FilterJoin.And, type, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null,
+            FilterJoin.And, type, null, null, [], null, null,
             PairMode: pairMode)
         {
             DebitCategoryIds = debitCategoryIds,
@@ -492,7 +469,6 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping());
 
-        // 這句的用字已定案，核對整句。
         Assert.Contains("第 1 組第 1 條：尚未選擇借方分類", errors);
     }
 
@@ -509,7 +485,7 @@ public sealed class FilterScenarioValidatorTests
 
         // 分類身分是內部代號，已刪除的分類拿不到顯示名稱；訊息用不含代號的白話。
         // 同一側缺幾項都只報一則，所以訊息不寫數量。
-        // 訊息只寫原因；這句的用字已定案，核對整句。
+        // 訊息只寫原因。
         Assert.Contains("第 1 組第 1 條：所選借方分類中含有已刪除的分類", errors);
         Assert.DoesNotContain(errors, e => e.Contains(CustomPettyCashId, StringComparison.Ordinal));
     }
@@ -571,9 +547,9 @@ public sealed class FilterScenarioValidatorTests
     [InlineData(12, true)]
     [InlineData(13, false)]
     [InlineData(null, false)]
-    public void Validate_CustomTrailingZerosDigitsBoundaries(int? digits, bool expectValid)
+    public void Validate_EndsWithZeroDigitsBoundaries(int? digits, bool expectValid)
     {
-        //  The replacement keeps the original 1..12 digit boundary.
+        // endsWithDigits 條件接受 1 到 12 位數。
         var scenario = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
         {
             name = "Synthetic zeros", rationale = "Fixed boundary table", groups = new[] { new { conditions = new object[] {
@@ -611,7 +587,7 @@ public sealed class FilterScenarioValidatorTests
     public void Validate_ManualAutoWithoutValue_ReturnsError()
     {
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.ManualAuto, null, null, [],
-            TextMatchMode.Contains, null, null, null, null, null, null);
+            null, null);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
@@ -621,13 +597,12 @@ public sealed class FilterScenarioValidatorTests
     // 常用篩選條件的來源代碼是 common；名稱、輔助函式與案例用卡片代號。
 
     private static FilterConditionSpec CommonRule(FilterConditionType type, int? windowDays = null, params string[] keywords) =>
-        new(FilterJoin.And, type, null, null, keywords, TextMatchMode.Contains,
-            null, null, null, null, null, null, WindowDays: windowDays);
+        new(FilterJoin.And, type, null, null, keywords, null, null, WindowDays: windowDays);
 
     private static FilterConditionSpec CommonMappingRule(string card) => card switch
     {
         "manualRevenueEntry" => CommonRule(FilterConditionType.ManualRevenueEntry),
-        "specificPreparer" => TextRule(GlMappingKeys.CreatedBy, "特定人員") with { Mode = TextMatchMode.Exact },
+        "specificPreparer" => TextRule(GlMappingKeys.CreatedBy, "特定人員") with { TypedOperator = "in" },
         "blankDescription" => PrescreenRule(PrescreenRuleKeys.BlankDescription),
         "preparerEqualsApprover" => CommonRule(FilterConditionType.PreparerEqualsApprover),
         _ => throw new ArgumentOutOfRangeException(nameof(card), card, "未知的卡片欄位前置案例。")
@@ -637,7 +612,7 @@ public sealed class FilterScenarioValidatorTests
     {
         var scenario = Scenario(rules: CommonMappingRule(card));
 
-        // 特定人員與空白摘要重用一般 text／prescreen 型別，只有 source:common 能看出來自卡片；
+        // 特定人員與空白摘要重用欄位值比較與預篩選型別，只有 source:common 能看出來自卡片；
         // 收入之人工分錄與編製核准同一人是卡片專用型別，即使呼叫端沒送 source 也不能繞過欄位前置閘。
         return card is "specificPreparer" or "blankDescription"
             ? scenario with { Source = FilterScenarioSources.Common }
@@ -741,8 +716,7 @@ public sealed class FilterScenarioValidatorTests
         bool manualRevenueValid)
     {
         var accountPair = new FilterConditionSpec(
-            FilterJoin.And, FilterConditionType.AccountPair, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null,
+            FilterJoin.And, FilterConditionType.AccountPair, null, null, [], null, null,
             PairMode: AccountPairModes.Exact)
         {
             // 用分類身分陣列表達這一組借貸分類。
@@ -836,7 +810,7 @@ public sealed class FilterScenarioValidatorTests
     [InlineData(false)]
     public void Validate_TrailingDigits_PatternRules(bool expectValid, params string[] patterns)
     {
-        //  Keep the tail-pattern boundary table on the current field condition.
+        // 尾數樣式的邊界表用 endsWithDigits 欄位條件執行。
         var rule = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
         {
             name = "Synthetic tail", rationale = "Fixed boundary table", groups = new[] { new { conditions = new[] {

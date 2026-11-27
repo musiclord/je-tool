@@ -181,7 +181,7 @@ public sealed class SameVoucherQueryEquivalenceTests : IDisposable
         Assert.Null(secondHalf.Page.NextCursor);
     }
 
-    public static TheoryData<int[], (long EntryId, int[] Positions)[]> Step41Cases => new()
+    public static TheoryData<int[], (long EntryId, int[] Positions)[]> HighRiskVoucherDetailCases => new()
     {
         {
             [1],
@@ -205,13 +205,13 @@ public sealed class SameVoucherQueryEquivalenceTests : IDisposable
     };
 
     [Theory]
-    [MemberData(nameof(Step41Cases))]
-    public async Task WorkingPaperStep41_TagsTheSameEntriesAsExpandingEachHitAcrossItsVoucher(
+    [MemberData(nameof(HighRiskVoucherDetailCases))]
+    public async Task WorkingPaperHighRiskVoucherDetail_TagsTheSameEntriesAsExpandingEachHitAcrossItsVoucher(
         int[] wholeVoucherPositions,
         (long EntryId, int[] Positions)[] expected)
     {
-        var factory = (IWorkingPaperStep41PreparedSessionFactory)new LocalHighRiskSummaryRowPageRepository(_database);
-        var rows = new List<WorkingPaperStep41SourceRow>();
+        var factory = (IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)new LocalHighRiskSummaryRowPageRepository(_database);
+        var rows = new List<WorkingPaperHighRiskVoucherDetailSourceRow>();
         await using (var session = await factory.PrepareAsync(
                          _projectId, Population, [1, 2, 3], LegacyFieldKind.Text, CancellationToken.None, wholeVoucherPositions))
         {
@@ -221,7 +221,7 @@ public sealed class SameVoucherQueryEquivalenceTests : IDisposable
             }
         }
 
-        var scanTags = await ReadPerEntryScanStep41TagsAsync([1, 2, 3], wholeVoucherPositions);
+        var scanTags = await ReadPerEntryScanHighRiskVoucherDetailTagsAsync([1, 2, 3], wholeVoucherPositions);
 
         Assert.Equal(expected.Select(static row => row.EntryId), rows.Select(static row => row.EntryId));
         for (var index = 0; index < expected.Length; index++)
@@ -308,8 +308,7 @@ public sealed class SameVoucherQueryEquivalenceTests : IDisposable
     }
 
     private static FilterConditionSpec Rule(FilterConditionType type) =>
-        new(FilterJoin.And, type, null, null, [], TextMatchMode.Contains, null, null, null, null,
-            type == FilterConditionType.DrCrOnly ? "debit" : null, null);
+        new(FilterJoin.And, type, null, null, [], type == FilterConditionType.DrCrOnly ? "debit" : null, null);
 
     /// <summary>產品程式組出的規則條件與參數。</summary>
     private static (string Sql, IReadOnlyList<(string Name, object Value)> Parameters) ProductPredicate(string rule)
@@ -451,8 +450,8 @@ public sealed class SameVoucherQueryEquivalenceTests : IDisposable
         return rows.ToArray();
     }
 
-    /// <summary>逐筆展開的第 4-1 步標記：整張傳票的位置，每一筆命中分錄各自接回同一張傳票的全部分錄。</summary>
-    private async Task<string[]> ReadPerEntryScanStep41TagsAsync(int[] positions, int[] wholeVoucherPositions)
+    /// <summary>逐筆展開的底稿 step4-1 符合高風險條件傳票明細標記：整張傳票的位置，每一筆命中分錄各自接回同一張傳票的全部分錄。</summary>
+    private async Task<string[]> ReadPerEntryScanHighRiskVoucherDetailTagsAsync(int[] positions, int[] wholeVoucherPositions)
     {
         await using var connection = await OpenAsync();
         await using var command = connection.CreateCommand();

@@ -27,7 +27,7 @@ internal static class TestWorkbookBuilder
     }
 }
 
-/// <summary>測試專用的 SQLite pool 清理；一律限縮到指定專案，避免干擾平行測試。</summary>
+/// <summary>測試專用的 SQLite pool 清理；一律限縮到指定案件，避免干擾平行測試。</summary>
 internal static class SqliteTestPool
 {
     public static void Clear(string projectsRoot, string projectId)
@@ -197,7 +197,7 @@ internal static class ProtectedSettingEdits
     }
 }
 
-/// <summary>temp 專案根目錄；Dispose 時只清理自己根目錄下的 SQLite pools，取消案件設定檔的唯讀，再遞迴刪除。</summary>
+/// <summary>暫存的案件位置根目錄；Dispose 時只清理自己根目錄下的 SQLite pools，取消案件設定檔的唯讀，再遞迴刪除。</summary>
 internal sealed class TempProjectRoot : IDisposable
 {
     public string Path { get; } =

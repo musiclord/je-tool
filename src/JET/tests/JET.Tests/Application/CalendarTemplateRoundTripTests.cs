@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 public sealed class CalendarTemplateRoundTripTests
 {
-    // Row 1 is instructions, row 2 contains headers, and only Y rows from IS_Holiday are imported.
+    // 第 1 列是說明，第 2 列是欄名，只匯入 IS_Holiday 為 Y 的列。
     // 這裡由 ReportTemplateCatalog 直接複製隨附範本。
     [Theory]
     [InlineData("sqlite")]

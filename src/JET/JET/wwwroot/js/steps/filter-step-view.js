@@ -106,8 +106,8 @@
 
   /* ---- 欄位驗證提示（就近顯示在欄位旁，不依賴可收合的訊息欄） -------------
      錯誤訊息放在欄位旁邊，同時用紅框和紅字提示，不只靠顏色，讓使用者不必另外找訊息欄。
-     這是純呈現輔助：標紅框、在欄位（form__row）下方插一行紅字；權威驗證仍在後端。
-     原掛在 ui-core（JetUi），因全前端只有本步驟使用而搬入本檔。 */
+     這是純呈現輔助：標紅框、在欄位（form__row）下方插一行紅字；驗證以後端為準。
+     全前端只有第五步使用，所以放在本檔。 */
 
   // 在欄位上加紅框並在其所在 form__row 下方顯示一行訊息。message 省略時沿用既有文字。
   function setFieldError(input, message) {
@@ -144,14 +144,15 @@
 
   /* ============================================================================
      檢視狀態（module 層；絕不進 draft、絕不進 wire）。
-     草稿的每次結構變更都走 setFilterDraft → bump 全重繪；展開狀態若只活在 DOM，使用者每加一條
-     條件，挑選區就收回、已存情境詳情就收合並丟掉已載入的預覽——操作連續性全毀。因此把這些
-     純檢視狀態放到重繪之外。放 module 層而非 Store：比照匯入精靈「模組區域狀態」的既有慣例
+     草稿的每次結構變更都走 setFilterDraft，再 bump 全部重繪；展開狀態若只存在 DOM，審計員每加一條
+     條件，挑選區就收回、已存情境詳情就收合並丟掉已載入的預覽，每改一次都要重新打開。因此把這些
+     純檢視狀態放到重繪之外。放 module 層而非 Store：比照匯入精靈「模組區域狀態」的慣例
      （見 state.js touch() 的註解），Store 不需要知道單一步驟的展開細節；生命週期由本模組在每次
      render 時自行對齊（syncViewState）。
        examplePick      —— 正在選欄位的範例（範例需要文字型攸關資料元素欄位且有兩個以上可選時）。
        openScenarios    —— 已存情境詳情展開狀態（index → true）。
-       scenarioPreviews —— 已存情境惰性命中預覽快取（index → filter.preview 回傳的 scenario 物件）。
+       scenarioPreviews —— 已存情境命中預覽的快取（index 對到第一頁傳票與符合的傳票數、分錄筆數）；
+                           只有可用的已儲存版本才快取。
                            草稿編輯不影響已存情境的命中（已存定義只在 commit 時變），跨草稿編輯保留
                            快取是安全的。
        highRiskSummaryOpen / highRiskSummaryData —— 高風險條件彙總展開狀態與情境摘要（highRiskSummaryScenarios）快取。
@@ -161,7 +162,7 @@
        saveNotice       —— 儲存鈕上方提示框現在寫的那一則提示，沒有時是 null。
                            這兩項跟著草稿走：換成另一份草稿就清掉。畫到畫面上與各自收起的時機見 filter-step.js。
      重置時機（四個訊號、範圍遞減）：
-       1. 專案切換或同案重新載入（project 參照變）→ 全重置。
+       1. 案件切換或同案重新載入（project 參照變）→ 全重置。
        2. 已存清單被替換（savedScenarios 參照變＝commit 成功、移除情境、resume、resetWorkflow）
           → 重置詳情與彙總——index 對位與命中都可能已變。
        3. 已保存 resultRef 換版（revision／scope 變）→ 只作廢資料快取，保留展開狀態。
@@ -308,7 +309,7 @@
     }
   }
 
-  // 一組條件還缺什麼前置條件，沒有缺項時是空字串。判斷與句子都在 ui-core.js 的規則需求表，它逐項鏡像後端（權威驗證在後端）；
+  // 一組條件還缺什麼前置條件，沒有缺項時是空字串。判斷與句子都在 ui-core.js 的規則需求表，它逐項鏡像後端（驗證以後端為準）；
   // 欄位條件的欄位與常用查法、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式。第五步不能用 GL 沒有配對的欄位。
   function requirementNote(rules) {
     return Ui.ruleRequirementNote(Store.getState(), rules);
@@ -354,7 +355,7 @@
     var statusClass = needsResave
       ? 'population-scope__status population-scope__status--pending'
       : 'population-scope__status';
-    // 「尚無可用版本」改說已儲存的情境尚未套用目前規則。
+    // 還沒有可用的已儲存版本時，寫已儲存的篩選情境尚未套用目前規則。
     var statusText = committed ? '在 GL 中篩選分錄。已儲存版本：查核期間內的分錄。' : '已儲存的篩選情境尚未套用目前規則。';
 
 
@@ -362,7 +363,7 @@
       '<section class="population-scope" aria-labelledby="population-scope-heading">' +
         '<div class="population-scope__head">' +
           '<div>' +
-            // GL 的定義收進標題的提示，常駐的只有狀態與下一步，常駐說明不再多寫。
+            // GL 的定義放在標題的提示；常駐的只有狀態與下一步。
             '<h3 class="population-scope__title" id="population-scope-heading" title="' + Ui.esc(POPULATION_SCOPE_DEFINITION) + '">GL：查核期間內的分錄</h3>' +
           '</div>' +
         '</div>' +

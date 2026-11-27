@@ -7,7 +7,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 完整性「全科目」keyset 分頁(<see cref="ICompletenessAccountPageRepository"/>,匯出底稿 step1 資料源)。
-/// 與既有 <see cref="ICompletenessDiffPageRepository"/> 共用科目集合；全科目表不過濾差異。
+/// 與 <see cref="ICompletenessDiffPageRepository"/> 共用科目集合；全科目表不過濾差異。
 /// 全科目表與差異表的名稱都先取 TB，TB 沒有名稱時取 GL。
 ///
 /// oracle:獨立 SQL recount(<see cref="DemoProjectPipeline.QueryScalarAsync"/>),

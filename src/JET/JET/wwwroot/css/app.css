@@ -55,7 +55,6 @@
      托盤上的一般文字、說明文字與藍字仍至少 4.5:1。 */
   --color-tray: #e9e6de;
   --color-surface-lit: #f7f5f0;      /* 滑鼠移上去的紙面卡片：只比工作面暗一點，不像停用 */
-  --color-skeleton: #e7e2d6;
 
   /* 邊線 */
   --color-border: #e5e2d8;
@@ -74,7 +73,7 @@
   --color-placeholder: #716e64;
   --color-disabled: #8a877c;
 
-  /* 重點色：主要按鈕、目前步驟、頁籤、進度、選取與焦點框。混合二的石板藍。 */
+  /* 重點色：主要按鈕、目前步驟、頁籤、進度、選取與焦點框，用石板藍。 */
   --color-accent: #1f6c9f;
   --color-accent-hover: #185a86;
   --color-accent-pressed: #134b70;   /* 主要按鈕按下時，比滑鼠移上去再深一階 */
@@ -102,7 +101,7 @@
   --chart-bar-manual: #a9c7e1;
   --chart-line: #183348;
 
-  /* 材質與光：整個 JE Tool 要帶有 Liquid Glass 的質感，通透、有自然的光澤，不用漸層填色。
+  /* 材質與光：整個 JE Tool 用 Liquid Glass 的質感，通透、有自然的光澤，不用漸層填色。
      畫面分兩層：
      - 內容層是不透明的實物：畫布、工作面、表格與托盤是紙，按鈕是實體按鍵，輸入框與底槽往下凹。
      - 功能層是玻璃，浮在內容上方：標題列、表格固定的表頭、選單、對話框，以及滑動中的選取。
@@ -205,7 +204,7 @@
      所以 duration 比 Apple 預設的 0.5 秒短。數值和 app.js 的 SPRINGS 是同一組參數算出來的，兩邊要一起改。
      CSS 轉場被打斷時會從零速重來，所以會被連續操作打斷的動態由 app.js 用同一組彈簧接著原本的速度播。按下時的變化不用轉場，立刻出現。
      單純的淡入淡出用 --motion-fade 與 --motion-fade-out，不跟著彈簧拖到最後；大小與位置的變化仍走彈簧。
-     選取、長出來、收起來與選單的時間取得較短，進階條件篩選的操作才不會被動態拖累；曲線形狀不變。
+     選取、長出來、收起來與選單的時間取得較短，進階條件篩選的操作才不會被動態拖累。
      依 Apple 的 Liquid Glass，動態分成兩種性格：內容層的版面改變用不回彈的 --ease-spring；
      玻璃層被操作的東西，也就是選單與對話框浮現、按鍵放開，用 bounce 0.15 的 --ease-glass，接近 Apple 的 snappy，
      早一點到、收尾俐落，看不出在彈。bounce 0.15 的彈簧停下來的時間約是 duration 的 1.41 倍。 */
@@ -232,9 +231,9 @@
   box-sizing: border-box;
 }
 
-/* 視圖切換的單一事實來源：JS 以 hidden 屬性切換 picker / app-body / dev-panel，
-   author 樣式的 display（如 .app-body 的 grid）不得蓋過 UA 的 [hidden] 規則，
-   否則兩個視圖會同時可見、互擠 100vh（picker 被裁切＋訊息欄外露）。 */
+/* 切換視圖只靠 hidden 屬性：JS 用 hidden 切換 picker、app-body 與 dev-panel，
+   元件樣式的 display（例如 .app-body 的 grid）不能蓋過瀏覽器內建的 [hidden] 規則，
+   否則兩個視圖會同時出現、互相擠壓 100vh，案件清單被裁切，訊息欄露出來。 */
 [hidden] {
   display: none !important;
 }
@@ -271,17 +270,16 @@ button, input, select, textarea {
 }
 
 /* ---- 頂部：一條橫跨整個視窗的標題列 -----------------------------------------------------------------
-   標誌與帳號併進左側流程欄、案件摘要浮在畫布上、操作組獨自在右上角的排法，會讓各區塊彼此割裂、沒有一致性。
-   所以頂部是一條橫跨整個視窗的標題列，流程欄、中欄與資料預覽都從它下面開始：
+   頂部是一條橫跨整個視窗的標題列，各區塊才有一致性，不會彼此割裂；流程欄、中欄與資料預覽都從它下面開始：
    - 左邊是標誌、名稱與目前帳號，三者對齊同一條左緣。
    - 開啟案件且視窗夠寬時只有一列：案件摘要是這一頁的標題，從中欄的左緣排到操作組前面；右邊是操作組。
    - 案件清單畫面或視窗不夠寬時，第一列是標誌與操作組；開啟案件後，案件摘要在第二列，和標誌同一條左緣。
-   整個 JE Tool 要帶有 Liquid Glass 的質感，所以標題列是一片玻璃：流程欄、中欄與資料預覽都從視窗頂端開始，
+   整個 JE Tool 用 Liquid Glass 的質感，所以標題列是一片玻璃：流程欄、中欄與資料預覽都從視窗頂端開始，
    上緣藏在標題列下面。靜止時透出底下各欄的明暗，內容捲上來時從它下面經過，只剩柔和的色塊；內容在下面時影子加深。
    玻璃是 .app-shell__glass 這一整片，兩列時也不會在案件摘要那裡斷開；標誌、案件摘要與操作組是貼在上面的字。
    它是 index.html 裡一個 aria-hidden 的空元素，不畫在 .app-shell::before。WebView2 維護無障礙樹時，掛著虛擬元素的元素
    只要樣式一改，就會把底下整棵子樹重送一遍；.app-shell 包著整個畫面，捲動時 data-under-chrome 一切換，
-   實測欄位配對每次卡 100 毫秒以上。
+   欄位配對畫面每次會卡 100 毫秒以上。
    大型版面容器不掛虛擬元素。 */
 .app-shell__glass {
   position: absolute;
@@ -335,9 +333,8 @@ button, input, select, textarea {
   min-width: 0;
 }
 
-/* 字標：名稱裡的 JE 放進石板藍的圓角方形，Tool 接在後面。JE 就是 Journal Entry，審計員一看就知道這是分錄測試的工具。
-   圖形標誌看不出意思：勾記號像勾選框，一頁分錄加光帶又像一般的清單圖示；
-   T 字帳戶在實際大小下又像中文字「示」。所以用字標，不用圖形。字標只出現在這裡一次。 */
+/* 字標：名稱裡的 JE 放進石板藍的圓角方形，Tool 接在後面。JE 是 Journal Entry 的縮寫，審計員一看就知道這是分錄測試的工具；
+   圖形標誌在實際大小下看不出意思，所以用字標。字標只出現在這裡一次。 */
 .app-header__title {
   display: flex;
   align-items: center;
@@ -882,7 +879,7 @@ button, input, select, textarea {
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   transform: rotate(-45deg);
-  /* 原地打開與收起時箭頭跟著轉過去，不是一下子翻過來；展開與收合都要有動態。 */
+  /* 原地打開與收起時箭頭跟著轉過去，不是一下子翻過來。 */
   transition: transform var(--motion-pop) var(--ease-spring);
 }
 
@@ -975,18 +972,6 @@ button, input, select, textarea {
 
 .stepflow-item--collapsed > .stepflow-item__mark--current { top: 11px; }
 
-.stepflow-item__num {
-  font-family: var(--font-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--color-placeholder);
-}
-
-.stepflow-item__num--current { color: var(--color-accent); }
-.stepflow-item__num--available { color: var(--color-muted); }
-.stepflow-item__num--locked { color: var(--color-disabled); }
-
 /* 收合列：名稱與摘要在同一行。 */
 .stepflow-item__name {
   flex: none;
@@ -1015,15 +1000,6 @@ button, input, select, textarea {
   line-height: 22px;
   color: var(--color-muted);
   overflow-wrap: anywhere;
-}
-
-/* 可開始列尾的行動提示，用重點色。 */
-.stepflow-item__cta {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-accent);
-  white-space: normal;
 }
 
 .stepflow-item__reason {
@@ -1093,15 +1069,13 @@ button, input, select, textarea {
   white-space: normal;
 }
 
-.stepflow-item__cond--ok { color: var(--color-success); }
-
 /* 操作失敗或被阻擋時，目前步驟標題下方的提示框。和標題、內容的距離照工作面的間距，
    紅色與琥珀色沿用 .form-notice。 */
 .stepflow-item__failure {
   margin: var(--space-4) 0 0;
 }
 
-/* 展開步驟的 body：既有步驟渲染器的輸出注入於此。 */
+/* 展開步驟的 body：各步驟渲染器的輸出放在這裡。 */
 .stepflow-item__body {
   margin-top: var(--space-5);
   min-width: 0;
@@ -1115,7 +1089,7 @@ button, input, select, textarea {
 .stepflow-item > .stepflow-item__body[data-motion-leaving] { margin-top: calc(var(--space-5) + var(--space-3)); }
 
 /* 步驟名已在文件流標題列呈現，隱藏渲染器內重複的 panel 標題，
-   避免同名雙標題；其餘既有 panel 內容（hint／卡片／頁尾）照常顯示。 */
+   避免同名雙標題；其餘 panel 內容（說明、卡片與頁尾）照常顯示。 */
 .stepflow-item__body .panel__title {
   display: none;
 }
@@ -1160,15 +1134,6 @@ button, input, select, textarea {
   max-width: 84ch;
 }
 
-.panel__slot {
-  padding: 40px;
-  text-align: center;
-  color: var(--color-muted);
-  background: var(--color-surface-sunken);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-control);
-}
-
 .panel__actions {
   display: flex;
   flex-wrap: wrap;
@@ -1179,7 +1144,7 @@ button, input, select, textarea {
 .panel__actions--start { justify-content: flex-start; }
 .panel__action--start { margin-inline-end: auto; }
 
-/* ---- 專案內報告產物／Step 5 情境範圍 -------------------------------- */
+/* ---- 第六步的情境選擇與預篩選選項 -------------------------------- */
 /* 第六步的情境選擇與預篩選選項是工作面；產出的報告區另有外觀，見本檔「產出」一節。 */
 .scenario-export-selection,
 .prescreen-export {
@@ -1369,7 +1334,7 @@ button, input, select, textarea {
 
 /* ---- Buttons：主要按鈕是重點色實心，次要按鈕是細框，控制項 6px 圓角 ----
    一般按鈕 32px 高；.btn--tiny 是表格、清單與工具列裡的緊湊按鈕，28px 高。
-   按下時的回應寫在最後一節「材質、光與動態」。 */
+   按下時的回應寫在「材質、光與動態」一節的「按鍵與按下的回應」。 */
 .btn {
   min-height: var(--control-height);
   padding: 5px var(--space-3);
@@ -1455,21 +1420,6 @@ button, input, select, textarea {
 .jet-menu__item:disabled {
   color: var(--color-disabled);
   cursor: not-allowed;
-}
-
-/* Physical-key affordance, ready for any shortcut hints. */
-kbd {
-  display: inline-block;
-  min-width: 18px;
-  padding: 2px 6px;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  text-align: center;
-  color: var(--color-text);
-  background: var(--color-surface-sunken);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
 }
 
 /* ---- 狀態 / 訊息區（左欄底部可收合）----------------------------------- */
@@ -1724,7 +1674,7 @@ kbd {
   overflow-wrap: anywhere;
 }
 
-/* ---- 專案選擇畫面 ------------------------------------------------------ */
+/* ---- 案件清單畫面 ------------------------------------------------------ */
 /* app-main 的彈性子元素；外距由 app-main 提供（與 workflow 的 app-body 一致）。 */
 .project-picker {
   flex: 1;
@@ -1739,7 +1689,7 @@ kbd {
   width: 100%;
   min-width: 0;
   max-width: 640px;
-  /* 隨視窗高度調整上緣留白：小視窗不浪費空間、大視窗保有編輯式留白 */
+  /* 隨視窗高度調整上緣留白：小視窗不浪費空間，大視窗留出較寬的上緣。 */
   margin: clamp(24px, 8vh, 72px) auto 40px;
   padding: clamp(20px, 3vw, 32px);
   background: var(--color-surface);
@@ -1998,7 +1948,7 @@ kbd {
   background: var(--color-danger-subtle);
 }
 
-/* 刪除確認 modal：浮動層，8px 圓角與浮動陰影。 */
+/* 刪除確認對話框：浮動層，12px 圓角與浮動陰影。 */
 .modal {
   position: fixed;
   inset: 0;
@@ -2186,8 +2136,7 @@ input[type="radio"] {
   accent-color: var(--color-accent);
 }
 
-/* 表格、表頭、句中與工具列的緊湊控制項：28px 高、13px 字。 */
-.inline-select,
+/* 表格、表頭與工具列的緊湊控制項：28px 高、13px 字。 */
 .page-search__input,
 .pending-row__detail select,
 .map-grid__select,
@@ -2198,7 +2147,6 @@ input[type="radio"] {
   font-size: var(--text-sm);
 }
 
-select.inline-select,
 .pending-row__detail select,
 select.map-grid__select,
 .account-editor__table select,
@@ -2279,7 +2227,7 @@ select.map-grid__select,
   flex: 0 0 auto;
 }
 
-/* 小而清楚的警示徽章（純 CSS 字符，非 emoji；與既有 ✓ / + 字符 UI 一致）。 */
+/* 小而清楚的警示徽章（純 CSS 字符，非 emoji；和畫面上的 ✓、+ 字符一致）。 */
 .field-error::before,
 .form-notice::before {
   content: "!";
@@ -2491,9 +2439,9 @@ dl.kv-list .kv-list__row:last-child {
 
 /* ---- 匯入任務清單（步驟展開時的四列：GL／TB／授權清單／日期維度）------------
    逐列＝狀態符號＋名稱(＋必要/選用標)＋單一關鍵數字＋單一動作鈕；點動作鈕就地
-   展開該列既有匯入卡完整 UI（.import-task__panel）。列與列以細線分隔，名稱欄固定 210px，動作鈕是每列相同的低調按鈕
+   展開該列匯入卡的完整畫面（.import-task__panel）。列與列以細線分隔，名稱欄固定 210px，動作鈕是每列相同的低調按鈕
    （樣式見下方「中間工作區的按鈕只有兩種」那一段），展開中的那一列保留淡藍底。
-   清單和上方說明對齊同一條左緣，不再另外縮排。 */
+   清單和上方說明對齊同一條左緣，不另外縮排。 */
 .import-tasklist {
   margin: 0;
   padding: 0 var(--space-4);
@@ -2594,8 +2542,8 @@ dl.kv-list .kv-list__row:last-child {
   background: var(--color-surface-sunken);
 }
 
-/* 就地展開面板：嵌入既有匯入卡完整 UI。卡片的外框、內距、底色、圓角與陰影在此一併中性化，
-   讓它讀作該列的就地延伸，而非重複的方框卡片（DOM 不變，純樣式收斂）。陰影沒有一起中性化的話，
+/* 就地展開面板：放進該列匯入卡的完整畫面。卡片的外框、內距、底色、圓角與陰影在這裡一律拿掉，
+   看起來是該列往下展開的內容，不像另一張卡片。陰影沒有一起拿掉的話，
    展開後內容下緣會多出一條淡線與圓角邊。 */
 .import-task__panel {
   padding: 0 0 var(--space-4) 26px;
@@ -2635,7 +2583,7 @@ dl.kv-list .kv-list__row:last-child {
 /* ---- 分段切換：全介面同一種畫法 -------------------------------------------
    淺灰底槽，選中的一格白底細框加粗，沿用第五步條件來源分頁的樣式。
    簡易清單與對照表格、金額格式、彙總切換與總覽圖表切換都用這一種；整組 32px 高。
-   金額格式保留原生單選鈕，桌面測試會直接點它。 */
+   金額格式保留原生單選鈕。 */
 .seg-toggle,
 .filter-source-tabs,
 .filter-high-risk-summary-tabs,
@@ -3117,7 +3065,6 @@ dl.kv-list .kv-list__row:last-child {
 .map-grid__data.num { text-align: right; font-variant-numeric: tabular-nums; }
 .map-grid__data.is-null { color: var(--color-placeholder); }
 .map-grid__loading { padding: var(--space-4); color: var(--color-muted); text-align: center; }
-.map-grid__note { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--color-muted); }
 .map-grid__unassigned {
   color: var(--color-placeholder);
   font-weight: 400;
@@ -3170,17 +3117,6 @@ dl.kv-list .kv-list__row:last-child {
   font-size: var(--text-xs);
   color: var(--color-muted);
   word-break: break-all;
-}
-
-.dev-panel__log {
-  width: 100%;
-  box-sizing: border-box;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  resize: vertical;
-  white-space: pre;
-  overflow: auto;
 }
 
 .dev-panel__grid {
@@ -3372,7 +3308,7 @@ dl.kv-list .kv-list__row:last-child {
   box-shadow: var(--shadow-surface);
 }
 
-/* 工作面標題 16px；工作面裡的分區標題 14px，見各分區的規則。 */
+/* 工作面標題 18px；工作面裡的分區標題 14px，見各分區的規則。 */
 .rule-card__title {
   display: flex;
   align-items: center;
@@ -3409,14 +3345,13 @@ dl.kv-list .kv-list__row:last-child {
   white-space: nowrap;
 }
 
-/* ---- 進階條件篩選（Step 4）------------------------------------------------
-   兩階段流程：先在兩個「選取區塊」（.condition-picker）挑條件——常用篩選條件的卡片可複選
-   toggle、自訂條件可重複加入——再到下方「建立篩選情境」彙總區（.scenario-builder）
-   設定數值並保存。選取與調整刻意以 macro whitespace 分隔，視覺上分屬兩階段。
+/* ---- 進階條件篩選（第五步）------------------------------------------------
+   先在選取區塊（.condition-picker）挑條件，再到下方「建立篩選情境」彙總區（.scenario-builder）
+   設定數值並保存。選取與調整之間留較大的間距，看得出是兩個階段。
    外框用 1px 細線，只有選取狀態使用重點色。 */
 
-/* 選取區塊外殼：兩塊（常用篩選條件／自訂）共用同一基底，差異只用修飾類表達（消重，Linus）。
-   不用較強外框或頂條——讓裡面的清單自己成為視覺主體，區塊本身保持平面。 */
+/* 選取區塊外殼：常用篩選條件、欄位條件與預篩選共用同一基底，差異只用修飾類表達。
+   不用較強外框或頂條，讓裡面的清單成為視覺主體，區塊本身保持平面。 */
 .condition-picker {
   margin-bottom: 14px;
   padding: 14px 18px;
@@ -3427,8 +3362,8 @@ dl.kv-list .kv-list__row:last-child {
 
 
 /* ---- 建立篩選情境（彙總調整區）------------------------------------------
-   套在既有 .rule-card 上的修飾：與上方兩個選取區塊間留足夠 macro whitespace，
-   讓「選取 vs 調整」兩階段在視覺上明確分段。 */
+   套在 .rule-card 上的修飾：和上方的選取區塊之間留較大的間距，
+   讓選取與調整兩個階段在畫面上分得開。 */
 .scenario-builder {
   margin-top: 22px;
 }
@@ -3453,10 +3388,6 @@ dl.kv-list .kv-list__row:last-child {
   margin: 0;
   font-size: var(--text-lg);
   color: var(--color-ink);
-}
-
-.population-scope__toggle {
-  margin: 0;
 }
 
 .population-scope__status {
@@ -3502,8 +3433,8 @@ dl.kv-list .kv-list__row:last-child {
   margin-bottom: 0;
 }
 
-/* 彙總區扁平檢視：條件清單放進一個淡色 well（common region），組合器是 well 的標題、下接清單，
-   消除孤兒感（不另加邊框，避免與外層 rule-card 形成巢狀框）。 */
+/* 彙總區扁平檢視：條件清單放進一塊淡色底，組合器是這塊底的標題，下面接清單，看得出條件屬於同一組；
+   不另加邊框，避免和外層 rule-card 形成框中框。 */
 .scenario-flat {
   margin-bottom: 12px;
   padding: 12px 14px;
@@ -3511,82 +3442,15 @@ dl.kv-list .kv-list__row:last-child {
   border-radius: var(--radius-control);
 }
 
-/* 組標頭裡的小下拉（全部／任一、同一分錄／同一傳票、組與組之間）：跟旁邊的字排成一句話。 */
-.inline-select {
-  margin: 0 var(--space-1);
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.scenario-set__sentence {
-  display: inline-flex;
-  align-items: center;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-ink);
-  white-space: nowrap;
-}
-
-/* 比對範圍：組標頭上「條件在 [同一分錄/同一傳票]」，只有同一傳票時多一行說明。 */
-.match-scope {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  font-size: var(--text-sm);
-}
-
-.match-scope__legend {
-  float: left;
-  padding: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-/* 說明是組標頭的最後一個成員，獨占一行，不把「移除這組」擠到下一行。 */
-.match-scope__help {
-  order: 99;
-  flex: 1 1 100%;
-  margin: 0;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--color-muted);
-}
-
-/* well 內第一個條件列不畫頂線：組標頭的底線已經分隔，不留孤線。 */
+/* 條件清單的第一列不畫頂線，不留孤線。 */
 .scenario-flat__list > :first-child {
   border-top: none;
 }
 
-/* 多組時的組殼（modifier）：加邊與標頭，與單組的純 well 區分（單組無邊、最乾淨）。 */
+/* 多組時的組殼（modifier）：加邊框，與單組的純 well 區分（單組無邊、最乾淨）。 */
 .scenario-set {
   position: relative;
   border: 1px solid var(--color-border);
-}
-
-/* 組標頭：單組也顯示（一句話「符合以下 全部 條件 · 條件在 同一分錄」），與條件清單之間一條 hairline。 */
-.scenario-set__head {
-  display: flex;
-  flex-wrap: wrap; /* 標頭成員皆 nowrap；窄幅時整項換行，不溢出、不截字 */
-  align-items: center;
-  gap: 8px 14px;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.scenario-set__title {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.scenario-set__remove {
-  margin-left: auto;
 }
 
 /* 非作用中組：可點切換、hover 邊框轉強，提示使用者「可點選此組」。 */
@@ -3601,26 +3465,6 @@ dl.kv-list .kv-list__row:last-child {
 /* 作用中（active）條件組：藍色外框標示「新條件會加到這組」，不填底色。 */
 .scenario-set--active {
   border-color: var(--color-accent);
-}
-
-
-/* 作用中徽章：落在組標頭。 */
-.scenario-set__badge {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 2px 8px;
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-  border-radius: var(--radius-control);
-  white-space: nowrap;
-}
-
-/* 全域提示（≥2 組）：說明作用中模型，淡灰一行、不另上色以免與 read-back 的藍底搶眼。 */
-.scenario-active-hint {
-  margin: 0 0 10px;
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  color: var(--color-muted);
 }
 
 /* 條件組之間的連接器：一條橫線，AND、OR 的分段切換接在線上，和「第 N 組」同一條左緣，和組內兩條條件之間的分隔線同一種畫法；
@@ -3684,13 +3528,6 @@ dl.kv-list .kv-list__row:last-child {
   font-weight: 600;
 }
 
-/* 4 拍流程輕提示（挑訊號 → 設定數值 → 組合 → 命名保存）。 */
-.scenario-builder__flow {
-  margin: 0 0 14px;
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
 .empty-state {
   margin: 0 0 12px;
   padding: 16px;
@@ -3701,7 +3538,7 @@ dl.kv-list .kv-list__row:last-child {
   border-radius: var(--radius-control);
 }
 
-/* 一條條件＝一句話：左邊家族小標、中間對象、比較方式、值，右邊一顆「×」。每列同一種形狀。 */
+/* 一條條件＝一句話：對象、比較方式、值，右邊一顆「×」。每列同一種形狀。 */
 .rule-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -3709,30 +3546,6 @@ dl.kv-list .kv-list__row:last-child {
   gap: 8px 10px;
   padding: 8px 0;
   border-top: 1px solid var(--color-border);
-}
-
-.rule-row__family {
-  align-self: center;
-  min-width: 2.5em;
-  padding: 2px 8px;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  text-align: center;
-  color: var(--color-muted);
-  background: var(--color-surface-sunken);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  white-space: nowrap;
-}
-
-.rule-row--legacy .rule-row__family {
-  color: var(--color-danger);
-  background: var(--color-danger-subtle);
-}
-
-.rule-row__op {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
 }
 
 .rule-row__remove {
@@ -3867,19 +3680,6 @@ dl.kv-list .kv-list__row:last-child {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-control);
   border-radius: var(--radius-control);
-}
-
-.scenario-pill--group {
-  color: var(--color-text);
-  background: var(--color-surface-sunken);
-  border-color: transparent;
-}
-
-.scenario-pill--join {
-  font-family: var(--font-sans);
-  color: var(--color-warning);
-  background: var(--color-warning-subtle);
-  border-color: transparent;
 }
 
 .preview-table__wrap {
@@ -4139,8 +3939,8 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 }
 
 /* ---- 統一步驟頁尾 ----------------------------------------------------------
-   workflow-centric：每個步驟同位置、同語彙的前進導引；
-   hint 是 state-oriented 的閘門狀態（已備齊／還缺什麼）。 */
+   每個步驟在同一個位置、用同樣的說法引導下一步；
+   hint 寫這一步的條件是否備齊、還缺什麼。 */
 .step-footer {
   display: flex;
   flex-wrap: wrap;
@@ -4157,10 +3957,6 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   max-width: 48ch;
   font-size: var(--text-sm);
   color: var(--color-muted);
-}
-
-.step-footer__hint--ok {
-  color: var(--color-success);
 }
 
 .step-footer__nav {
@@ -4290,8 +4086,8 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   border: 1px dashed var(--color-border-rule);
 }
 
-/* 第四步的預篩選卡片：兩條 Aggregate 是主要母體判讀面；RowTag 與資料缺漏
-   放進次要 disclosure。維持平面、hairline 與既有狀態色，不加入裝飾性陰影。 */
+/* 第四步的預篩選卡片：兩條 Aggregate 規則是主要的判讀區；RowTag 與資料缺漏
+   放進次要的展開區。外觀平面，用細線與共用的狀態色，不加裝飾性陰影。 */
 .rule-card--prescreen {
   background: var(--color-surface);
 }
@@ -4479,9 +4275,8 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 /* 展開的詳情面板：淺灰底，表示這是從上一列展開的內容；裡面的表格保持白底。 */
 .rule-detail {
   flex-basis: 100%;
-  /* flex item 預設 min-width:auto，會被內部不換行的寬表撐開、把整列推出卡片右緣
-     （連續零尾數只是其中一例，所有寬表詳情都會發生）。歸零後本列縮回 100%，
-     寬表改由內層 .preview-table__wrap 自行水平捲動。 */
+  /* flex item 預設 min-width:auto，會被內部不換行的寬表撐開，把整列推出卡片右緣；
+     設成 0 之後本列維持 100% 寬，寬表由內層 .preview-table__wrap 自行水平捲動。 */
   min-width: 0;
   box-sizing: border-box;
   margin-top: var(--space-3);
@@ -4560,7 +4355,7 @@ body.is-busy {
   cursor: progress;
 }
 
-/* 作業進行中的整介面阻斷遮罩（縱深防禦；後端才是權威閘）。可見層延遲約 200ms 才顯示（app.js）。
+/* 作業進行中的整介面阻斷遮罩（縱深防禦；能不能執行以後端為準）。可見層延遲約 200ms 才顯示（app.js）。
    z-index 高於流程總覽 modal(60) 與刪除 modal(50)，覆蓋全部介面；pointer-events 吞掉漏網點擊
    （<main> 已由 app.js 設 inert 為主防線，此為雙保險）。 */
 .busy-overlay {
@@ -4574,7 +4369,7 @@ body.is-busy {
   pointer-events: auto;
 }
 
-/* 暖紙半透明壓底：以既有 canvas 調 72% 不透明（非純黑、無漸層）。
+/* 暖紙半透明壓底：用畫布色（--color-canvas）調成 72% 不透明（非純黑、無漸層）。
    壓底畫在 ::before：遮罩本身淡入時如果整層半透明，裡面的玻璃盒只模糊得到遮罩，淡入結束才突然變成模糊後的畫面。 */
 .busy-overlay::before {
   content: "";
@@ -4584,12 +4379,12 @@ body.is-busy {
   background: color-mix(in srgb, var(--color-canvas) 72%, transparent);
 }
 
-/* 沿用既有 .overview-modal[hidden] 模式；全域 [hidden]{display:none!important} 亦保其隱藏。 */
+/* 和 .overview-modal[hidden] 同樣的寫法；全域 [hidden]{display:none!important} 也會把它隱藏。 */
 .busy-overlay[hidden] {
   display: none;
 }
 
-/* 置中浮動盒：8px 圓角、細框與浮動陰影。 */
+/* 置中浮動盒：12px 圓角、細框與浮動陰影。 */
 .busy-overlay__box {
   display: flex;
   align-items: center;
@@ -4914,8 +4709,8 @@ body.is-busy {
 /* ---- 資料預覽（右欄常駐面板：標題＋頁籤＋橫向捲動表格＋底部註記）------------
    是 app-body 的常駐右欄，預設寬 436px。
    .data-preview 為右欄容器；.data-preview__body 為表格捲動區（保留 data-bind）。
-   注意：.data-preview__table 基底樣式（見本區塊末）另供 import-step 內嵌表格沿用，
-   右欄專用外觀以 .data-preview__body .data-preview__table 加權覆寫，不動基底、不改名。 */
+   注意：.data-preview__table 基底樣式（見本區塊末）也給 import-step 內嵌的表格使用，
+   右欄專用外觀用 .data-preview__body .data-preview__table 提高權重覆寫，基底樣式留給兩邊共用。 */
 
 .data-preview {
   font-family: var(--font-sans);
@@ -5489,7 +5284,7 @@ body.is-resizing-preview .data-preview {
   color: var(--color-disabled); /* 空值「—」 */
 }
 
-/* ---- 流程總覽（modal overlay）：補充視窗，純檢視、不改變流程狀態（導航除外）。浮動層：8px 圓角、細框與浮動陰影。 */
+/* ---- 流程總覽（modal overlay）：補充視窗，純檢視、不改變流程狀態（導航除外）。浮動層：12px 圓角、細框與浮動陰影。 */
 
 /* 標題列「總覽」：和其他頂列按鈕同樣是 32px 的次要按鈕，前面加 6 點點陣圖示（第 5 點重點色）。 */
 .overview-btn {
@@ -5538,7 +5333,7 @@ body.is-resizing-preview .data-preview {
   cursor: pointer;
 }
 
-/* 面板本體：內容寬 ~1060px、暖白工作面、細框、浮動陰影、8px 圓角。 */
+/* 面板本體：內容寬約 1060px、暖白工作面、細框、浮動陰影、12px 圓角。 */
 .overview-modal__card {
   position: relative;
   align-self: flex-start;
@@ -5814,7 +5609,7 @@ body.is-resizing-preview .data-preview {
   color: var(--color-faint);
 }
 
-/* 「尚待完成」是灰區裡的一列，不再另包一個黃框；黃色只留在標籤與前面的圓點。 */
+/* 「尚待完成」是灰區裡的一列，不另外包框；黃色只用在標籤與前面的圓點。 */
 .overview-step-detail__attention {
   display: grid;
   grid-template-columns: 100px minmax(0, 1fr);
@@ -5860,10 +5655,6 @@ body.is-resizing-preview .data-preview {
 }
 
 /* 案件檔案：鍵值列。標籤欄固定 78px，值統一用 Noto Sans TC。 */
-.overview__kv-list {
-  margin-top: 6px;
-}
-
 .overview-kv {
   display: flex;
   gap: 14px;
@@ -5896,7 +5687,7 @@ body.is-resizing-preview .data-preview {
 }
 
 /* ---- 流程總覽：執行識別基準行、母體概況、唯讀聲明 -------------------------
-   基準行與母體 KPI 全為既有 state 的直接鏡射；此區不做任何前端聚合或判定。 */
+   基準行與母體 KPI 都直接取自 state；此區不做任何前端聚合或判定。 */
 .overview__baseline {
   display: block;
   margin-top: 7px;
@@ -6027,22 +5818,6 @@ body.is-resizing-preview .data-preview {
   color: var(--color-faint);
 }
 
-.overview-pop__skeletons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 4px;
-}
-
-.overview-pop__skeleton {
-  padding: 4px 11px;
-  background: var(--color-skeleton);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--color-placeholder);
-}
-
 .overview__disclaimer {
   margin: 0;
   padding: 14px 26px 16px;
@@ -6125,26 +5900,6 @@ body.is-resizing-preview .data-preview {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 24px;
   padding: 0 clamp(16px, 2.4vw, 24px) 18px;
-}
-
-.overview-bi__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  min-width: 0;
-  max-width: 100%;
-  margin-bottom: 12px;
-}
-
-.overview-bi__title {
-  margin: 5px 0 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--color-ink);
 }
 
 /* 圖表切換沿用共用的分段切換畫法（見「分段切換」），這裡只處理寬度與捲動。 */
@@ -6324,8 +6079,8 @@ body.is-resizing-preview .data-preview {
   color: var(--color-muted);
 }
 
-/* 高倍率（等效窄 viewport）下改為單欄資訊流；所有變更只調整容器，
-   不重寫 BI 語意或圖表資料。 */
+/* 高倍率（等效窄 viewport）下改為單欄資訊流；這裡的規則只調整容器，
+   不改圖表內容與資料。 */
 @media (max-width: 720px) {
   /* 高倍率把 layout viewport 壓到 720px 以下時，右欄改由 viewport 上限控制。
      此時沒有可供 300px 拖曳下限使用的餘裕，故暫時隱藏 resize handle；
@@ -6518,7 +6273,7 @@ body.is-resizing-preview .data-preview {
 
 /* ---------------------------------------------------------------------------
    標準化政策編輯器（欄位配對步驟的 GL 專屬區塊）、科目分類編輯器、
-   母體分區摘要與分類多選。皆沿用既有 hairline／暖紙色語言，不加陰影或裝飾。
+   母體分區摘要與分類多選。都用 hairline 細線與暖紙色，不加陰影或裝飾。
    寬度一律可收縮：內部清單自行換行，長中文與長來源欄名不推寬中央文件流。
    --------------------------------------------------------------------------- */
 
@@ -6526,8 +6281,7 @@ body.is-resizing-preview .data-preview {
    「靜態位置」，而它的 containing block 是 .app-shell（唯一 positioned 祖先），
    中間 .app-main／.app-body 的 overflow:hidden 又不會裁切這種 absolutely
    positioned 後代——結果是這顆 1px 元素可能落在視窗之外並撐大整份文件的捲動
-   範圍，讓標題列被捲出視窗。clip 只影響繪製，clip-path 才真正移出 hit-test。
-   （兩者都由桌面測試實測到。） */
+   範圍，讓標題列被捲出視窗。clip 只影響繪製，clip-path 才真正移出 hit-test。 */
 .visually-hidden {
   position: absolute;
   left: 0;
@@ -6550,7 +6304,6 @@ body.is-resizing-preview .data-preview {
   min-width: 0;
 }
 
-.map-options__hint,
 .map-options__note {
   margin: var(--space-1) 0 0;
   max-width: 68ch;
@@ -6812,7 +6565,7 @@ body.is-resizing-preview .data-preview {
 .category-guide dd { margin: var(--space-1) 0 0; color: var(--color-muted); }
 
 /* 「用 Excel 配對」：整區是往下凹的托盤，上面一排操作依做事的順序排，下面一張白紙列出匯入的結果；
-   外觀要有設計感，但不華麗、不複雜、不分心。分頁下方已有底線，托盤不再加第二條。 */
+   分頁下方已有底線，托盤不另加第二條。 */
 .excel-mapping {
   min-width: 0;
   padding: var(--space-3);
@@ -6910,7 +6663,7 @@ body.is-resizing-preview .data-preview {
 }
 
 .account-editor { margin-top: var(--space-5); }
-.account-editor__footer, .account-tools {
+.account-editor__footer {
   display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3);
 }
 .category-tree { flex: 1 1 100%; min-width: 0; }
@@ -6936,12 +6689,9 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .account-editor__table td { vertical-align: middle; }
 .account-editor__footer { justify-content: space-between; align-items: center; }
 .account-editor__footer > .panel__actions { margin-inline-start: auto; }
-.account-editor__pager { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2); }
-.account-editor__page { min-width: 4.5em; text-align: center; font-variant-numeric: tabular-nums; }
 /* 尚未儲存的筆數提示：沒有內容時不佔高度（仍留在畫面結構裡，讓報讀器能讀到之後的更新）。 */
 .account-editor__notice { margin: var(--space-3) 0 0; font-size: var(--text-xs); color: var(--color-muted); }
 .account-editor__notice:empty { margin: 0; }
-.account-tools { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
 .account-classification:not(.is-advanced) .category-row { grid-template-columns: minmax(160px, 1fr) auto; }
 .account-classification:not(.is-advanced) .category-row__field:has(> .category-row__label) { grid-column: 1; }
 .account-classification:not(.is-advanced) .category-row__actions { grid-column: 2; }
@@ -7044,9 +6794,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .value-editor .value-editor__list { flex: 1 1 16em; min-height: 2.4em; resize: vertical; }
 .value-editor .value-blank { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .value-editor .rule-field__hint { flex-basis: 100%; margin-top: 0; }
-.value-period-end { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.value-period-end label { display: inline-flex; align-items: center; gap: 4px; }
-.value-period-end input { width: 4.5em; }
 .selected-dates { display: flex; flex-wrap: wrap; gap: .4rem; max-height: 12rem; overflow: auto; }
 .selected-dates:empty { display: none; }
 .selected-dates .scenario-pill { cursor: pointer; color: var(--color-ink); }
@@ -7125,7 +6872,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-builder-heading--composition { padding: 0 0 16px; border-bottom: 1px solid var(--color-border); align-items: center; flex-wrap: wrap; }
 .filter-builder-heading--composition > div:first-child { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; }
 .filter-builder-heading--composition .filter-entry-title { font-size: var(--text-lg); font-weight: 600; margin: 0; }
-.filter-builder-count { color: var(--color-muted); font-size: var(--text-xs); }
 .filter-workspace .filter-builder-heading--composition .btn { font-weight: 600; white-space: nowrap; }
 /* 條件組合與預覽結果各自一個工作面，中間 24px。欄寬可以縮到 0，寬表在自己的框內水平捲動，不把工作面撐出中欄。 */
 .filter-workspace .filter-current { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; border: 0; background: transparent; }
@@ -7141,9 +6887,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .scenario-flat__list { border: 0; padding: 0; }
 .filter-workspace .rule-row { background: transparent; border: 0; border-top: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 12px; margin: 0; }
 .filter-workspace .rule-row--invalid { border: 1px solid var(--color-danger); background: var(--color-danger-subtle); }
-.filter-workspace .rule-row__body, .filter-workspace .value-editor { min-width: 0; }
+.filter-workspace .value-editor { min-width: 0; }
 .filter-workspace .scenario-readback { background: var(--color-surface-sunken); border: 0; border-radius: var(--radius-control); padding: 8px 12px; font-size: var(--text-sm); }
-.filter-workspace .filter-more { margin-top: 12px; border-top: 1px solid var(--color-border-row); font-size: var(--text-xs); }
 .filter-workspace .filter-primary-actions { position: relative; z-index: 4; margin: 16px 0 0; padding: 12px 0 0; border-top: 1px solid var(--filter-border); background: var(--color-surface); }
 .filter-save-panel { margin-top: var(--space-4); }
 /* 已儲存情境是清單列；見 .saved-scenario。 */
@@ -7173,7 +6918,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 @media (min-width: 901px) and (min-height: 600px) {
   .filter-workspace .filter-entry { position: static; max-height: none; }
 }
-/* 左欄 240px 扣掉左右內距後剩 216px，放得下條件來源三格的完整名稱（量到需要 212px）；
+/* 左欄 240px 扣掉左右內距後剩 216px，放得下條件來源三格的完整名稱（需要 212px）；
    220px 只剩 196px，第三格會擠到第二行。 */
 @media (min-width: 901px) and (max-width: 1100px) {
   .filter-workbench { grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-4); }
@@ -7183,7 +6928,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-group-tools { display: flex; align-items: center; }
 .filter-unavailable { margin-top: var(--space-4); border-top: 1px solid var(--filter-border); }
 .filter-unavailable > summary { font-size: var(--text-sm); }
-.filter-draft-note { color: var(--color-muted); font-size: var(--text-xs); margin: 0 0 var(--space-3); }
 .filter-workspace .population-scope { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-5); padding: var(--space-3) 0; margin-bottom: var(--space-2); }
 .filter-workspace .population-scope__head { margin: 0; }
 .filter-workspace .population-scope__title { font-size: var(--text-sm); margin: 0; }
@@ -7203,9 +6947,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .value-editor__aux { display: grid; gap: var(--space-2); padding: var(--space-2) 0 2px; }
 .filter-workspace .value-editor__aux > label { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .filter-workspace .value-editor__aux .value-editor__list { flex-basis: 100%; }
-.filter-workspace .value-period-end { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.filter-workspace .value-period-end label { display: inline-flex; gap: 6px; align-items: center; }
-.filter-workspace .value-period-end input { width: 64px; }
 .filter-group-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .filter-group-heading > button:last-child { margin-left: auto; }
 .filter-readback { margin-top: 8px; font-size: var(--text-xs); }
@@ -7231,7 +6972,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .rule-row--selected:not(.rule-row--invalid) { background: var(--color-accent-subtle); border-top-color: transparent; }
 .filter-workspace .rule-row :is(input, select, textarea, button, summary):focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .filter-workspace .filter-rule-selected { display: inline-flex; align-items: center; flex: none; min-height: 20px; font-family: var(--font-sans); font-size: var(--text-xs); line-height: 18px; color: var(--color-on-accent); background: var(--color-accent); padding: 0 var(--space-2); border-radius: var(--radius-control); }
-.filter-workspace .scenario-set__badge { flex: none; font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 400; color: var(--color-muted); background: transparent; padding: 3px 0; border-radius: 0; }
 .filter-workspace .rule-row__controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .filter-workspace:has(.rule-row--compound) .filter-primary-actions { position: relative; }
 .filter-workspace .rule-row__controls > label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -7267,8 +7007,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   margin: 4px 0;
 }
 
-/* 操作說明共用一個字級與行高，原有類別只保留各自的版面間距。 */
-.help-text, .rule-field__hint, .map-options__hint, .map-options__note, .mode-group__note, .rule-explanation,
+/* 操作說明共用一個字級與行高，各類別只各自設定版面間距。 */
+.help-text, .rule-field__hint, .map-options__note, .mode-group__note, .rule-explanation,
 .rule-card__gate, .rule-card__sub, .scenario-export-selection__hint, .filter-check__note {
   color: var(--color-muted);
   font-size: var(--text-sm);
@@ -7322,7 +7062,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 預篩選的「篩選結果」下緣已有細線，接著的報告區不再畫第二條。 */
 .filter-entry .form__row { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); }
 .filter-entry .form__row select { width: 100%; min-width: 0; max-width: 100%; }
-/* 常用篩選條件分頁的區塊。分頁只放十個常用條件，不寫小標，也沒有第二個區塊；和預篩選分頁一樣是一張白紙清單。 */
+/* 常用篩選條件分頁的區塊。分頁只放十個常用條件，不寫小標；和預篩選分頁一樣是一張白紙清單。 */
 .filter-source-block { padding: var(--space-1) 0 var(--space-4); }
 /* 情境範例選欄位時的欄位按鈕：28px 的緊湊次要按鈕；攸關資料元素欄位用虛線框和核心欄位區分。 */
 .filter-chip { min-height: var(--control-height-sm); padding: 3px 10px; border: 1px solid var(--color-border-control); border-bottom-color: var(--color-border-control-strong); border-radius: var(--radius-control); background: var(--color-surface-raised); color: var(--color-text); font: inherit; font-size: var(--text-xs); line-height: 20px; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
@@ -7430,7 +7170,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .account-editor__selection { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-height: var(--control-height); font-size: var(--text-sm); }
 .account-editor__selection .account-editor__clear { margin: 0; }
 .filter-workspace .filter-group-actions { flex-wrap: wrap; }
-.filter-workspace .filter-group-scope { display: inline-block; margin-left: var(--space-2); color: var(--color-muted); font-size: var(--text-sm); font-weight: 400; }
 .filter-workspace .filter-rule-help { margin-top: var(--space-3); padding-top: var(--space-1); border-top: 1px solid var(--color-border); font-size: var(--text-sm); }
 .filter-workspace .filter-rule-help p { margin: var(--space-2) 0 0; }
 .filter-workspace .rule-row--compound > label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: var(--space-2) var(--space-2) 0 0; }
@@ -7443,8 +7182,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
    組內兩條條件之間是一條分隔線，AND、OR 寫在線上、靠左和條件標題對齊；
    第一條分隔線上的切換有可報讀的名稱，後面分隔線上的字不給螢幕報讀。
    子條件組往內縮，左側一條括號線。選取的組仍是藍框加「已選取」。 */
-/* 上下的間距用外距、不用 row-gap：「組內條件」那一列和條件會增減，格線的間距收不掉，收完拿掉時會一次跳 8px
-   （清除條件時看得到的晃動之一）；外距由 app.js 的 JetMotion 跟著收放。 */
+/* 上下的間距用外距、不用 row-gap：「組內條件」那一列和條件會增減，用格線間距的話收不掉，收完拿掉時會一次跳 8px；
+   外距由 app.js 的 JetMotion 跟著收放。 */
 .filter-workspace .scenario-set {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -7457,7 +7196,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   border: 0;
   border-radius: var(--radius-card);
   background: var(--color-surface-sunken);
-  /* 沒選取時藍框是透明的同一圈：換選取的組時藍框淡入淡出，不一下子跳到別組；出現與消失都要有動態。 */
+  /* 沒選取時藍框是透明的同一圈：換選取的組時藍框淡入淡出，不一下子跳到別組。 */
   box-shadow: 0 0 0 2px transparent, var(--recess);
   transition: box-shadow var(--motion-fade) var(--ease-soft), background-color var(--motion-fade) var(--ease-soft);
 }
@@ -7469,8 +7208,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .scenario-set > .filter-group-heading > .filter-group-actions { grid-column: 3; grid-row: 1; }
 .filter-workspace .scenario-set > :not(.filter-group-heading) { grid-column: 1 / -1; min-width: 0; }
 /* 窄的時候標題列固定排成兩行：「第 N 組」一行，操作按鈕在下一行靠右，高度不隨選取改變。
-   按鈕欄先取滿寬度的排法會把標題欄壓到約 44px，1440px 寬時「已選取」壓在「加入子條件組」上。
-   放不下才換行也不行：809px 寬時只有選取中的組多了「已選取」而換成兩行，換選取的組時下面的條件跟著上下跳。 */
+   放不下才換行的話，只有選取中的組會多出「已選取」而換行，換選取的組時下面的條件會上下跳。 */
 @container composer (max-width: 520px) {
   .filter-workspace .scenario-set { grid-template-columns: minmax(0, 1fr); }
   .filter-workspace .scenario-set > .filter-group-heading { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: var(--space-2); grid-column: 1; grid-row: 1; margin: 0; }
@@ -7540,7 +7278,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 子條件組：標題與說明在上面，其餘內容（子條件、子條件之間寫著 AND 或 OR 的分隔線與「加入子條件」）
    排在一條連續的括號線右側，表示它們屬於同一組。 */
 /* 第二欄最多用到整列寬度減去「加入」一顆按鈕：資料預覽打開、中欄變窄時，選單若吃掉整列，
-   「加入」會被壓成直排並超出右緣（在 1536×864 量到）。放不下一行時「加入子條件」換到選單上方，
+   「加入」會被壓成直排並超出右緣。放不下一行時「加入子條件」換到選單上方，
    選單撐滿這一欄，「加入」和選單同一行。 */
 .filter-workspace .rule-row--compound {
   display: grid;
@@ -7600,8 +7338,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   .case-summary__details { flex-direction: column; gap: var(--space-1); }
 }
 
-.account-editor__range { display: block; margin-top: var(--space-1); color: var(--color-muted); font-size: var(--text-xs); }
-
 
 /* ---- 各步驟的對齊與按鈕外觀調整 --------------------------------- */
 
@@ -7614,8 +7350,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 中間工作區的按鈕只有兩種：每個工作面唯一的主要動作是藍色實心，其他按鈕一律是白底深字的按鍵，
    細框、下緣略深，停用時灰底灰字。形狀本身就看得出可以按，
-   所以列內的「移除」「檢視」「操作」等不用藍字。灰字的「加入」像一般文字；
-   強調色用在左側流程很好，中間操作區不需要到處用。 */
+   所以列內的「移除」「檢視」「操作」等不用藍字；強調色留給左側流程與主要按鈕。 */
 .btn--tiny,
 .btn--ghost.btn--tiny {
   font-weight: 500;
@@ -7651,7 +7386,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 已完成的必要來源只改呈現：「必要」改成灰字，紅字只留給還沒完成的必要項目。 */
 .import-task__row:has(.import-task__mark--done) .import-task__tag--req { color: var(--color-muted); }
 
-/* 左欄只用圖示、名稱與完成勾表示狀態；可開始與未開始不再另加符號，靠字色區分。 */
+/* 左欄只用圖示、名稱與完成勾表示狀態；可開始與未開始不加符號，靠字色區分。 */
 .toc-item__mark--available,
 .toc-item__mark--locked { visibility: hidden; }
 
@@ -7673,7 +7408,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   box-shadow: var(--shadow-surface);
 }
 
-/* 低 15：核取方塊和文字之間留一點距離。 */
+/* 核取方塊和文字之間留一點距離。 */
 .filter-workspace .value-editor__main > label:has(> input[type="checkbox"]) { display: inline-flex; align-items: center; gap: 6px; }
 
 /* 分類清單為了焦點框留 4px 內距，往外借出同樣距離，輸入框左緣對齊工作面標題。 */
@@ -7685,20 +7420,18 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 
 /* ==== 材質、光與動態 ====================================================================================
-   整個 JE Tool 要帶有 Liquid Glass 的質感：通透、有自然的光澤，也帶一點擬物的做法。
-   Liquid Glass 表達的是設計理念和自然，不是單純增加立體感，所以不用漸層填色、漸層框帶與立體高光。
-   這一節依 Apple 從 1987 年的介面原則到 2026 年 Mac 介面調整一貫的想法：
+   畫面採 Liquid Glass 的質感：通透、有自然的光澤，也帶一點擬物的做法；不用漸層填色、漸層框帶與立體高光。
    每個光影、材質或動態，都要回答「這是哪一層、能不能按、目前選中什麼、剛才的動作有沒有生效」其中一個問題，
    答不出來就不做。
    - 材質分兩層：內容層是不透明的實物，畫布、流程欄、工作面與表格是紙，按鈕是按鍵，輸入框與底槽往下凹；
      功能層是玻璃，標題列、表格固定的表頭、選單、對話框與滑動中的選取，底下真的有內容經過。
-     玻璃上不再疊玻璃，也不用漸層填色或上半部的亮面；光只在 1px 的邊上，從左上方來。
+     玻璃上不另外疊玻璃，也不用漸層填色或上半部的亮面；光只在 1px 的邊上，從左上方來。
    - 光與影：浮得越高影子越長；按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉。
    - 動態：選取浮起來變成玻璃滑到新的位置，選單從按鈕長出來，對話框浮現；都用可以隨時被打斷的彈簧，玻璃層用 bounce 0.15 的 --ease-glass。
      按下時立刻變深並稍微鼓起，只放大不縮小，按在邊緣的點擊也還在按鈕上。
-   - 退路：關閉透明效果、高對比、高對比佈景與減少動態都有對應的畫法，見本節最後。 */
+   - 退路：關閉透明效果、高對比、高對比佈景與減少動態都有對應的畫法，見檔案最後的「系統設定的退路」。 */
 
-/* 表格固定的表頭是一條玻璃，因為整個 JE Tool 要帶有 Liquid Glass 的質感：
+/* 表格固定的表頭是一條玻璃：
    表格列捲到它下面時看得到，只剩柔和的色塊，不會和表頭的字疊在一起；Apple 在 Mac 上對固定的表頭用界線清楚、比較不透明的捲動邊緣。
    整列表頭一起固定、一起是一片玻璃，每個表格只模糊一次，格與格之間不會斷開；玻璃帶一點托盤的灰，和表格列分得出來。
    下緣是玻璃的邊：內側一道光、外側一條細線；列捲到它下面時，影子加深，表示內容從它下面經過。
@@ -7725,7 +7458,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   border-bottom-color: transparent;
 }
 
-/* 捲到表格裡的某一列時讓開表頭的高度：鍵盤移動焦點與 Gui 測試驅動程式都不會把那一列停在表頭下面。 */
+/* 捲到表格裡的某一列時讓開表頭的高度：用鍵盤移動焦點或用程式捲到那一列時，那一列都不會停在表頭下面。 */
 .preview-table__wrap,
 .data-preview__body {
   scroll-padding-top: 36px;
@@ -7739,7 +7472,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
    換選取時，選取底從原本的位置滑到新的位置，讓人看到選取移到哪裡（Apple 的空間一致性）。
    app.js 量出目前選中的那一格，寫入 --glide-x、--glide-y、--glide-w、--glide-h，並在組上加 .has-glide；
    選取底由組自己的 ::before 畫。沒有 .has-glide 時，各格畫自己的選取樣式。
-   整個 JE Tool 要帶有 Liquid Glass 的質感，所以滑動照 Apple 控制項的做法：
+   整個 JE Tool 用 Liquid Glass 的質感，所以滑動照 Apple 控制項的做法：
    選取平時是實心的一片，屬於內容層；換選取時浮起來變成玻璃（組的 ::after），在字的上面、字透得過來，
    朝目的地拉長，前緣先到、後緣跟上，到位後落回原本的一片。底線頁籤只有底線滑過去，也是前緣先到。
    流程欄是導覽，不是控制項：換步驟時放大縮小過於醒目，所以那一片照原樣、同樣大小平移，不浮起成玻璃。
@@ -7864,11 +7597,11 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* ---- 按鍵與按下的回應 ---------------------------------------------------------------------------
-   整個 JE Tool 要帶有 Liquid Glass 的質感，也帶一點擬物的做法。按鈕是內容層的實體按鍵：
+   按鍵帶一點擬物的做法，按鈕是內容層的實體按鍵：
    - 實心的藍色與紅色按鈕上緣接到一道光、底部有厚度，影子帶一點同色；白色的次要按鈕上緣一道光，底下貼著淺影；
      會新增東西的按鈕也是白色按鍵。光只在 1px 的邊上，不做上半部的亮面，也不用漸層填色。停用的按鈕是平的。
    - 按下時立刻再深一階並稍微鼓起，放開後彈回原本的大小（macOS 27 替玻璃控制項加的回饋，Apple 提醒一點點就夠）。
-     只放大不縮小，按在邊緣的點擊也仍然落在按鈕上。每列重複的低調按鈕只是字，不鼓起。
+     只放大不縮小，按在邊緣的點擊也仍然落在按鈕上。每列重複的緊湊按鈕（.btn--tiny）按下時只換底色，不鼓起。
    - 藍色主要按鈕被按下時，光從按下的位置亮起來，放開後淡掉（Liquid Glass 的回饋：材質從裡面亮起來）。
      亮光的位置由 app.js 在按下時寫入 --press-x、--press-y；鍵盤按下時從中央亮起。 */
 .btn:not(.btn--ghost):not(.btn--tiny):not(.btn--danger):not(:disabled) {
@@ -7962,7 +7695,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* ---- 浮在內容上的玻璃：選單與對話框 ------------------------------------------------------------
    選單與對話框底下有內容，所以是玻璃：不透明度八成，模糊背後的內容並提高一點飽和度，文字仍清楚。
    邊緣左上最亮、右下淡一點，外面一圈很細的暗邊和底下的內容分開，影子最長，因為它們浮得最高。
-   選單從打開它的按鈕長出來，原點對準按鈕；關閉時很快淡掉、稍微縮回按鈕；展開與收合都要有動態。
+   選單從打開它的按鈕長出來，原點對準按鈕；關閉時很快淡掉、稍微縮回按鈕。
    四角和裡面的項目同心：選單 10px、內距 4px、項目 6px。
    外觀寫在不分開關的選擇器上：關閉的那一段仍是同一個玻璃選單，只有透明度與大小在變。
    選單和對話框用同一種浮現：大小走玻璃的彈簧（--ease-glass），同時從稍霧變清楚。
@@ -8050,7 +7783,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   animation: jet-dim var(--motion-fade) var(--ease-soft) both;
 }
 
-/* 關閉時也不是一瞬間消失：整個對話框連同背後變暗的部分一起淡出；移除與關閉也要有動態。
+/* 關閉時也不是一瞬間消失：整個對話框連同背後變暗的部分一起淡出。
    加上 hidden 的對話框在淡出期間仍顯示，播完才收起；這段時間不接收滑鼠。直接從畫面移除的對話框由 JetMotion.dismiss 淡出。
    流程總覽整片本身要淡入淡出，所以用轉場而不是浮現動畫：動畫會一直把透明度定在最後一格，關閉時就淡不出去。
    長作業的「處理中」遮罩也一樣，作業結束時淡出，不是一下子不見。 */
@@ -8074,7 +7807,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 
-/* 浮現：不是單純淡入，而是從稍小、稍霧變成清楚，像玻璃聚焦成形。大小走玻璃的彈簧（--ease-glass）；
+/* 浮現：從稍小、稍霧變成清楚。大小走玻璃的彈簧（--ease-glass）；
    清晰度走不回彈的彈簧，模糊才不會超過目標變成負值；透明度另外用 jet-dim 很快淡入。選單用同樣的做法。 */
 @keyframes jet-materialize {
   from { transform: scale(0.97); }
@@ -8097,7 +7830,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
    做法是用實物之間的關係表達層級，不加漸層、光澤或立體高光：
    - 產出是做完之後拿到的文件：工作面底部一塊低一階的托盤，每份檔案是一張文件卡，和上面的測試項目分開。
    - 分類的上下層用連續的線接起來，像在紙上畫的樹；內建分類標出「內建」，說明它為什麼沒有「移除分類」。
-   - 會新增東西的按鈕是淡藍底、藍字加號；每列重複的低調按鈕用藍字。看得出能按，又不搶實心的主要按鈕。
+   - 會新增東西的按鈕是白底深字的按鍵，名稱前一個灰色加號；每列重複的按鈕也是白底深字。看得出能按，又不搶實心的主要按鈕。
    - 第五步：條件總覽是一個凹下去的托盤，三個分頁的條件都寫在托盤上的白紙清單裡，已加入的鍵往下凹；
      條件組也是托盤，組裡的條件寫在一張白紙上；條件從總覽飛進條件組，見 app.js 的 bindArrival。 */
 
@@ -8301,7 +8034,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* ---- 會新增東西的按鈕 ---------------------------------------------------------------------------
    「加入」「新增條件組」「新增分類」「新增案件」：和其他次要按鈕同樣是白底深字的按鍵，名稱前一個灰色加號，
-   滑鼠移上時加號轉深。中間工作區不要到處用強調色，所以不用淡藍底藍字。
+   滑鼠移上時加號轉深；中間工作區只有主要按鈕用強調色。
    標記上一律同時有 btn--ghost，按鍵的材質與按下的回饋和其他白色按鍵相同。
    樣式掛在 .btn--add 上，不掛在 data-action：JetMotion 收起或淡掉的舊複本會拿掉 data-action，
    掛在屬性上時複本會露出原形，例如切換第五步頁籤時的「新增條件組」。 */
@@ -8441,8 +8174,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 沒有條件時，白紙換成虛線框。虛線框畫在提示那一段上，所以清除條件時，白紙跟著收起來的條件留到最後，才淡成虛線框，
    不會一按就先變樣（收起來的條件仍是 .rule-row，見 app.js 的 JetMotion）。
-   白紙左右的內距不跟著變：沒有條件時內距若是 0，清除時收起來的條件會被撐開 12px、收完又縮回去，看起來像晃了一下
-   （清除條件時看得到的那一下）。所以內距固定，虛線框用負的左右外距撐滿整個寬度。 */
+   白紙左右的內距不跟著變：沒有條件時內距若是 0，清除時收起來的條件會被撐開 12px、收完又縮回去，看起來像晃了一下。
+   所以內距固定，虛線框用負的左右外距撐滿整個寬度。 */
 .filter-workspace .scenario-set > .scenario-flat__list:not(:has(> .rule-row)) {
   background: transparent;
   box-shadow: none;
@@ -8617,8 +8350,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* 寬度要真的從 0 長出來。flex 子項預設的最小寬度（min-width: auto）會把按鈕撐在字的寬度，上層卻照 0 算寬度，
-   「全部取消」因此在展開途中擠到第二行，整排先變高再變回來（在第四步科目清單量到）。
-   用 :where() 不加權重，徽章這類自己設了最小寬度的元素照舊。 */
+   「全部取消」就會在展開途中擠到第二行，整排先變高再變回來。
+   用 :where() 不加權重，徽章這類自己設了最小寬度的元素不受影響。 */
 :where([data-collapsible-inline]) {
   min-width: 0;
 }
@@ -8676,8 +8409,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* ---- 原生展開區從標題長出來 ----------------------------------------------------------------------
    details 打開與收起時，內容的高度跟著變，而不是一瞬間出現或消失；收起時也收回標題。
    只用在內容區的展開說明，不用在「⋯」「操作」這類選單（選單見「浮在內容上的玻璃」）。
-   展開與收合都要有動態，所以流程總覽裡的分析區與 DEV 面板也一樣；
-   第五步右側的「從情境範例開始」托盤也一樣。 */
+   流程總覽裡的分析區、DEV 面板與第五步右側的「從情境範例開始」托盤也這樣展開與收起。 */
 :is(.prescreen-signals, .filter-unavailable, .value-editor__options, .filter-rule-help, .overview__technical, .overview__analysis, .dev-panel, .filter-template-tray) {
   interpolate-size: allow-keywords;
 }
@@ -8736,7 +8468,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 視窗不在前景時（使用者切到 Excel 等其他程式），玻璃退到後面：標題列、表頭、選單與對話框改成不透明，也不模糊背景。
    Apple 人機介面指引 Windows：不在作用中的視窗不使用 vibrancy，看起來比較收斂、離得比較遠。
    app.js 的 bindWindowFocus 依視窗的 blur 與 focus 加上或拿掉這個 class。模糊一拿掉就沒了，
-   所以變成不透明時背景色也直接換，不沿 240ms 轉場，免得背景還半透明時先露出一下清楚的內容；回到前景時照原本的轉場恢復。 */
+   所以變成不透明時背景色也直接換，不沿 240ms 轉場，免得背景還半透明時先露出一下清楚的內容；回到前景時照平常的轉場恢復。 */
 html.window-inactive {
   --glass-bar: var(--color-surface);
   --glass-bar-blur: none;
@@ -8842,7 +8574,7 @@ html.window-inactive .messages {
     background: CanvasText;
   }
 
-  /* 文件卡、條件組裡的白紙與欄位條件、預篩選分頁的清單原本用影子畫邊，高對比佈景會拿掉影子，改用系統色的細框。 */
+  /* 文件卡、條件組裡的白紙與欄位條件、預篩選分頁的清單平常用影子畫邊，高對比佈景會拿掉影子，改用系統色的細框。 */
   .report-output .report-item,
   .report-output:not(.rule-card > .report-output),
   .filter-workspace .scenario-set,
@@ -8862,7 +8594,7 @@ html.window-inactive .messages {
     border: 1px solid ButtonText;
   }
 
-  /* 選取的條件組原本用影子畫藍框，改用系統的反白色外框；「已選取」三個字照舊。 */
+  /* 選取的條件組平常用影子畫藍框，這裡改用系統的反白色外框；「已選取」三個字一樣顯示。 */
   .filter-workspace .scenario-set--active {
     outline: 2px solid Highlight;
     outline-offset: -2px;
@@ -8898,13 +8630,13 @@ html.window-inactive .messages {
     border: 1px solid CanvasText;
   }
 
-  /* 訊息的等級符號與未讀徽章原本靠底色，高對比佈景會拿掉底色，改用系統色的細框；「!」與 aria-label 照舊。 */
+  /* 訊息的等級符號與未讀徽章平常靠底色，高對比佈景會拿掉底色，改用系統色的細框；「!」與 aria-label 不變。 */
   .messages__mark,
   .messages__badge {
     border: 1px solid CanvasText;
   }
 
-  /* 高對比佈景只把顏色換成系統色，透明度與模糊照舊，所以玻璃一律改成不透明的系統底色、不模糊。 */
+  /* 高對比佈景只把顏色換成系統色，不改透明度與模糊，所以玻璃一律改成不透明的系統底色、不模糊。 */
   :root {
     --glass-bar: Canvas;
     --glass-bar-blur: none;
@@ -8918,7 +8650,7 @@ html.window-inactive .messages {
     --glass-lens-blur: none;
   }
 
-  /* 玻璃的邊原本是影子，高對比佈景會拿掉影子：標題列、表格固定的表頭、選單與對話框改用系統色的細線或細框。 */
+  /* 玻璃的邊平常是影子，高對比佈景會拿掉影子：標題列、表格固定的表頭、選單與對話框改用系統色的細線或細框。 */
   .app-shell__glass {
     border-bottom: 1px solid CanvasText;
   }

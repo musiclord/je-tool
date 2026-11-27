@@ -6,9 +6,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 批量列寫入吞吐量量測：N 萬合成 GL 列走「匯入 staging → 落地投影」的實路徑，
-/// 於 SQLite 計時，以 <see cref="ITestOutputHelper"/> 記錄——**不設硬性 wall-clock 斷言**
-/// （執行時間不穩定，會讓測試偶發失敗）。唯一守恆斷言：投影列數 = 母體列數（正確性，非速度）。
+/// 批量列寫入吞吐量量測：N 萬列合成 GL 走匯入 staging 再落地投影的正式路徑，
+/// 在 SQLite 計時，用 <see cref="ITestOutputHelper"/> 記錄。執行時間不穩定，所以不檢查耗時；
+/// 唯一的硬斷言是投影列數等於母體列數。
 /// </summary>
 public sealed class BulkWriterThroughputTests(ITestOutputHelper output)
 {

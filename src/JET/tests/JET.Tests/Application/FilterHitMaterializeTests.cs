@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// filter.commit 命中落地驗收：filter.commit 保存情境後，
+/// filter.commit 命中落地測試：filter.commit 保存情境後，
 /// 必須把每個情境的命中 entry_id 落地到 filter_hit，且筆數等於獨立 SQL recount；
 /// 任何重投影（GL re-commit）使該表隨結果失效集一併清空。
 ///

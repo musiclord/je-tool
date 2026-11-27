@@ -7,8 +7,8 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 借貸組合雙側多選的編譯契約：查核員選取的分類身分只用來 lookup semantic role、一律綁定為參數，
-/// 商業比較仍只看 role；同一組分類的任何排列或重複都編譯出逐字相同的 SQL 與參數序列。
+/// 借貸組合雙側多選的編譯規則：審計員選取的分類身分只用來查出 semantic role，一律綁定為參數，
+/// 比對只看 role；同一組分類的任何排列或重複都編譯出逐字相同的 SQL 與參數序列。
 /// 單側只選一個分類時就是單元素集合，不另走一條 SQL。
 /// 空集合必須 fail closed——否定模式的 NOT EXISTS 遇到空集合會反轉成全命中。
 /// </summary>
@@ -56,8 +56,8 @@ public sealed class AccountPairCategorySelectionCompilationTests
     [Fact]
     public void AccountPair_SelectedCategoryIdentitiesResolveToSemanticRoles()
     {
-        // 自訂分類同樣只以身分 lookup role；SQL 永遠不把身分或顯示 label 當成比較對象，
-        // 因此改名不改命中，而相同 role 的分類會得到同一個商業結果。
+        // 自訂分類同樣只用身分查出 role；SQL 不把身分或顯示 label 當成比較對象，
+        // 因此改名不影響命中，相同 role 的分類命中結果也相同。
         var plan = Compile(PairRule(
             FilterConditionType.AccountPair,
             AccountPairModes.DebitAnchor,
@@ -186,11 +186,6 @@ public sealed class AccountPairCategorySelectionCompilationTests
             null,
             null,
             [],
-            TextMatchMode.Contains,
-            null,
-            null,
-            null,
-            null,
             null,
             null,
             PairMode: pairMode)

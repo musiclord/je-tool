@@ -37,7 +37,7 @@
     overviewOpen: false,       // 流程總覽 modal 是否開啟（純 UI；notify 不 bump、不持久化、不進 resetWorkflow、不進任何後端 payload）
     busy: false,
     busyLabel: null,           // 進行中作業的顯示標籤（取自 Ui.run 的 label；純 UI，不 bump、不持久化、不進後端 payload）
-    busyDetail: null,          // 長作業進度事件的輕量顯示文字；不承載權威結果
+    busyDetail: null,          // 長作業進度事件的簡短顯示文字；只用來提示畫面，作業結果以回應為準
     activeRequestId: null,     // 取消鈕對準的 bridge requestId：正在進行、可以取消的那個請求；它結束後是 null，只供 operation.cancel
     cancellationRequested: false, // 這項作業已按過取消；對準的請求換成另一個時重設，作業結束時清掉
     projects: [],              // picker 最近接受的本機清單 snapshot
@@ -45,13 +45,13 @@
     pickerFeedbackContext: null, // { projectId, errorCode, correlationId, devExportedPath }；只供 Debug 組建的 DEV 診斷日誌匯出
     // 案件清單操作列「輸出支援日誌」最近一次輸出的檔案位置（純 picker 呈現；不持久化、不進後端 payload）。
     pickerSupportLogPath: null,
-    // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色提示，不寫「無法完成操作」（訊息分三級）。
+    // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色的「需要注意」提示，不寫「無法完成操作」。
     pickerFeedbackLevel: 'error',
     // 審計員自己按的操作失敗或被阻擋、而且那個操作沒有自己的就地錯誤框時，在目前步驟標題下方顯示一次
     // { id, label, message, level: 'error' | 'warn', stepIndex }。純畫面狀態：
     // 不持久化、不進後端 payload；任何 Ui.run 開始、換步驟、開案、換案與回案件清單時清掉。
     operationFailure: null,
-    project: null,             // 當前專案 metadata（project.load / create 回傳）
+    project: null,             // 當前案件 metadata（project.load / create 回傳）
     // project.load 回傳的抽樣筆數預設值與上限 infSampling { defaultSampleSize, maximumSampleSize }，
     // 以及摘要的預設關鍵字 suspiciousKeywordDefaults；還沒收到 project.load 之前是 null，畫面不另存一份。
     ruleDefaults: { infSampling: null, suspiciousKeywordDefaults: null },
@@ -60,7 +60,7 @@
       tb: null,
       accountMapping: null,    // { batchId, rowCount, fileName, importedUtc, hasAnyCategory, hasRevenue, hasCounterpart }
       // 匯入與 project.load 都含有效人數、原始列數、空白與重複數及 GL 比對人數。
-      // 舊名單的原始統計可為 null；matchedPreparerCount 為 null 表示 GL 尚未確認建立人員配對。
+      // 名單沒有保存原始統計時，這些統計是 null；matchedPreparerCount 為 null 表示 GL 尚未確認建立人員配對。
       authorizedPreparer: null,
       calendar: null           // { holidayCount, makeupDayCount, calendarImported, nonWorkingDays, nonWorkingDaysConfigured }
     },
@@ -78,7 +78,7 @@
       },
       tb: { draft: {}, changeMode: 'debitCredit', committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: [] }
     },
-    // 專案科目分類（project.load.accountCategory）：{ revision, categories }；尚未載入時為 null。
+    // 案件科目分類（project.load.accountCategory）：{ revision, categories }；尚未載入時為 null。
     accountCategory: null,
     // 後端判定的結果失效狀態（project.load.staleState）：三個獨立布林，
     // 不得以 validationResult、prescreenResult 是 null 或報告的 stale 代算。
@@ -87,7 +87,7 @@
     mappingUiMode: 'classic',
     // 最近一次 validate.run / prescreen.run 的 response（resume 自 project.load 的 validationResult、prescreenResult）。
     results: { validate: null, prescreen: null },
-    // 篩選結果版本與專案內報告索引（resume 自 project.load）。
+    // 篩選結果版本與案件內報告索引（resume 自 project.load）。
     // 報告只保留 wire metadata，不存絕對路徑或報告內容。
     filterResultRef: null,
     // 開案時用目前規則檢查已儲存情境的結果（project.load.filterScenarioCheck）；
@@ -105,11 +105,10 @@
     },
     // 資料變動版本號：app.js 以此判斷是否需要重建中央面板。
     contentVersion: 0,
-    // 底層資料世代訊號：只在「後端已寫入、且改變某個可預覽資料集」的成功回應後遞增
-    // （匯入落地、配對提交、科目配對／授權清單／行事曆匯入）。與 contentVersion 不同——
-    // contentVersion 對每次 UI 資料變動（切模式、指派欄、編草稿…）都會跳，過於嘈雜，
-    // 不適合當「資料是否真的變了」的判準；dataGeneration 只對真正的資料落地事件跳，
-    // 供資料預覽面板據此精準作廢快取並重抓（避免每個 action 都盲目重抓大母體）。
+    // 底層資料的世代：只在後端寫入成功、而且改變某個可預覽資料集時加一，例如匯入、配對提交，
+    // 以及科目配對、授權清單與行事曆的匯入。contentVersion 在切模式、指派欄、編草稿這類畫面資料變動時都會加一，
+    // 看不出資料是否真的變了；dataGeneration 只在資料真的寫入時加一，資料預覽面板依它決定要不要丟掉快取重新讀取，
+    // 不必每個 action 都重讀大量資料。
     dataGeneration: 0,
     // 後端回報篩選命中失效的次數。第五步據此清掉已載入的命中；修改案件資料不會換掉 project 物件，
     // 所以不能靠「換了案件」順便清掉。
@@ -265,7 +264,7 @@
 
   // 篩選草稿版本號：草稿內容每變動一次就遞增。預覽請求送出前擷取當時版本，
   // 回應抵達時比對版本；母體固定為 auditPeriod（filter-step 的預覽回呼守衛）。
-  // 單調遞增、跨 resetWorkflow 不歸零：歸零會讓「舊專案的在途請求＋新專案」出現版本撞號的窗口。
+  // 單調遞增、跨 resetWorkflow 不歸零：歸零會讓舊案件還在途中的請求和新案件的請求撞到同一個版本號。
   var filterDraftRev = 0;
 
   // 通知慣例（整個前端唯一）：凡是會改變任何衍生畫面輸出的寫入，一律 bump()（contentVersion
@@ -273,7 +272,7 @@
   // 的連續文字輸入（input 事件），且必須在 blur 邊界配一次延遲 bump 收斂，讓按鈕可用性、清單與
   // 提示等衍生畫面在互動結束時對齊。select／radio／checkbox 是離散提交，永遠直接 bump。
   // 重建後的輸入焦點與捲動由 app.js renderContent 依焦點識別屬性與 data-preserve-scroll 統一
-  // 還原，步驟模組不得各自發明保留機制。已文件化的例外：filter-step 規則值編輯
+  // 還原，步驟模組不得各自發明保留機制。例外有兩處：filter-step 規則值編輯
   // （patchFilterCondition＋softRefreshReadback／softExpirePreviewPane，連續輸入且重建成本高）；
   // 欄位配對的借方代碼與攸關資料元素顯示名稱（setMappingLiteralQuiet、patchGlMappingOptionsQuiet）。
   // 後者每次 input 就地更新表格上方的必填欄位那一行、提示與「確認配對」可用性，失焦時不重建：滑鼠按下確認鈕會先讓
@@ -302,7 +301,7 @@
     return !!filter && ((filter.savedScenarios || []).length > 0 || ((filter.draft && filter.draft.groups) || []).length > 0);
   }
 
-  // 後端明示本次修改影響哪些畫面快取；此處不保存另一份審計依賴表或推算報告過期狀態。
+  // 後端回傳案件資料變更影響的畫面快取，前端依回應更新快取與報告狀態。
   function invalidateDerivedResults(options) {
     if (options && options.accountMapping) {
       state.importState.accountMapping = null;
@@ -334,7 +333,7 @@
       state.filterResultRef = null;
       state.filterScenarioCheck = null;
       filterDraftRev++;
-      // 審計員要回第五步重做，屬於「需要注意」（訊息分三級）。
+      // 審計員要回第五步重做，訊息屬於「需要注意」這一級。
       if (hadScenarios) { Store.addMessage('前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。', 'warn'); }
     }
   }
@@ -469,7 +468,7 @@
 
     setProject: function (project) {
       state.project = project;
-      // 案件名稱是唯一必要識別；案件編號已是選填，不能再拿空白案件編號當頂部主識別。
+      // 案件名稱是唯一必要的識別；案件編號是選填、可能空白，頂部不用它當主要識別。
       state.caseId = project ? project.projectId : null;
       state.caseClient = project ? project.clientName : null;
       bump();
@@ -506,7 +505,7 @@
       if (invalidated.validation || invalidated.prescreen || invalidated.filter) { bumpData(); } else { bump(); }
     },
 
-    // 離開專案（回 picker / 建立新案件）時清空 workflow 狀態，
+    // 離開案件（回 picker / 建立新案件）時清空 workflow 狀態，
     // 避免上一個案件的資料殘留在建立案件等步驟。
     resetWorkflow: function () {
       state.project = null;
@@ -715,7 +714,7 @@
       state.filter.savedScenarios = data.scenarios || [];
       state.filterResultRef = state.filter.savedScenarios.length ? data.resultRef || null : null;
       // 一次只存或刪一個情境時，後端回傳寫入後的待修正清單與結果狀態；還有情境要修改時 resultRef 是 null，
-      // 高風險條件彙總、報告與第六步照樣鎖住。舊的整批儲存回應沒有這兩項，視為全部已通過。
+      // 高風險條件彙總、報告與第六步照樣鎖住。回應沒有這兩項時，視為全部情境都通過檢查、篩選結果沒有過期。
       // staleState 是 null 表示變更已儲存、但讀不回結果狀態，保留原旗標並顯示後端提醒。
       state.filterScenarioCheck = data.filterScenarioCheck || null;
       if (data.staleState) { state.staleState.filter = !!data.staleState.filter; }
@@ -936,7 +935,7 @@
     },
 
     // 訊息分三級：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
-    // 其他值與空白文字照舊不加入。
+    // 其他等級值、不是文字或只有空白的內容不加入。
     addMessage: function (text, level) {
       if (level === undefined) { level = 'info'; }
       if (MESSAGE_LEVELS.indexOf(level) < 0 || typeof text !== 'string' || !text.trim()) { return; }
@@ -946,7 +945,7 @@
         level: level,
         time: new Date().toLocaleTimeString('zh-Hant', { hour12: false })
       });
-      // 僅保留最近數則訊息，避免無上限累積（完整歷史持久化於專案資料庫 message_log）。
+      // 僅保留最近數則訊息，避免無上限累積（完整歷史持久化於案件資料庫 message_log）。
       state.messages = state.messages.slice(0, 30);
 
       if (!state.messagesPanelOpen) {

@@ -27,7 +27,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 - 本機私人資料目錄（`data/test-case/`、`data/temporary-test-case/`、`data/legacy-parity-work/` 等）可以在這台電腦讀取，
   用來核對業務邏輯；不得寫入、不得複製進儲存庫，也不得把內容送進聊天或外部服務。
   驗證命令與測試不讀取真實案件，只用合成資料；平常工作也不順便搜尋這些目錄。
-- 證據與文件不寫私人絕對路徑、公司名稱、工作表、欄位、科目、傳票、人員或金額。測試優先使用程式生成的合成資料；
+- 證據與文件不寫私人絕對路徑、公司名稱、工作表、欄位、科目、傳票、人員或金額。送審 Word 與 Excel 的作者與上次儲存者例外，照使用者指定的值（裁定 2026-11-25-05）。測試優先使用程式生成的合成資料；
   發現疑似機敏內容時停止擴大讀取，只回報檔案與風險類型，等使用者裁定。
 - 這台電腦是主要工作環境，不是專案必要的內容只留在本機，不同步到 GitHub（裁定 2026-11-16-06）。詳細的工作過程、為了續接而留的細節紀錄，
   以及對真實案件的任何觀察，寫在 Git 忽略的 `local/`；去識別化之後也一樣，例如某個案件驗到哪些規則、缺哪些資料情形。
@@ -38,6 +38,10 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 - 沒有使用者明確指令時，不執行也不主動提議 reset、checkout、clean、stash、stage、commit、push 或變更 remote。
   計畫完成、測試通過或工作樹可提交，都不是授權。來回修改的過程不各自提交，Git 歷史只留使用者把關過的提交（裁定 2026-11-16-12）。
 - 使用者說要提交時，提交後一併推送，不分成多次提交再一起推送。
+- 使用者說要提交推送時，這個儲存庫推送後，接著用 `tools/harness/release-copy/JetReleaseCopy.ps1` 同步發布副本，
+  再提交推送發布副本（裁定 2026-11-26-03）。
+  發布副本是交給 GD 測試環境與公司 GitHub 的 je-tool-clean，不帶 AI 工具的設定與開發紀錄；步驟見
+  `tools/harness/release-copy/README.md`。不直接改發布副本的檔案，下次同步會蓋掉。
 - 禁止 `git add -A`、`git add --all`、`git add -u`、`git add .` 與 `git write-tree`；獲准 stage 時也只加入使用者確認的
   明確路徑，避免忽略規則改變時把私人資料寫進 Git。
 - Commit 訊息用繁體中文並保持精簡：標題一行說清楚改了什麼，內文只寫主要變更與必要原因，保留足以追溯變更目的的資訊即可。
@@ -152,6 +156,7 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 | 系統規格與資料流（單一事實來源） | `docs/jet-guide.md` |
 | 使用者的裁定、原話與出處 | `docs/rulings.md` |
 | 業務概念在畫面、程式與資料庫各用的名稱 | `docs/glossary.md` |
+| 取名的方法、審計邏輯的四層與程式結構的對應 | `docs/naming-conventions.md` |
 | 架構圖表與 agent 分析流程 | [圖表入口](docs/architecture/README.md)、[繪圖流程](.agents/harness/architecture-documentation.md) |
 | 前端與 C# 的 action 契約 | `docs/action-contract-manifest.md` |
 | 畫面結構、操作步驟與畫面用語 | `docs/jet-frontend-description.md` |
@@ -161,6 +166,7 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 | 各 AI 工具如何載入規則、平台設定與 hook | `.agents/harness/agent-compatibility.md` |
 | 前端設計模式與瀏覽器預覽 | `.agents/harness/frontend-design-mode.md` |
 | SAT 送審文件的標準、寫作界線與交接 | `.agents/harness/sat-documents.md` |
+| 發布副本怎麼產生、同步，以及怎麼交給 GD 測試環境 | `tools/harness/release-copy/README.md` |
 | `data/` 工作簿、`legacy/` 與來源專案 | `docs/data-and-legacy.md` |
 | 讀寫 Excel 的規則、官方依據與檢查清單 | `docs/excel-conventions.md`，核對表在 `docs/excel-conventions-reference.md` |
 | 文件寫作規範與收尾檢查 | `docs/README.md` |

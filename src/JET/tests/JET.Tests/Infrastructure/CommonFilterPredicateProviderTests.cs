@@ -97,11 +97,6 @@ public sealed class CommonFilterPredicateProviderTests
             null,
             null,
             [],
-            TextMatchMode.Contains,
-            null,
-            null,
-            null,
-            null,
             null,
             null);
 
@@ -110,10 +105,10 @@ public sealed class CommonFilterPredicateProviderTests
             ManualRevenue => empty with { Type = FilterConditionType.ManualRevenueEntry },
             SpecificPreparer => empty with
             {
-                Type = FilterConditionType.Text,
+                Type = FilterConditionType.FieldValue,
                 Field = "createdBy",
-                Keywords = ["target"],
-                Mode = TextMatchMode.Exact
+                TypedOperator = "in",
+                TypedValues = ["target"]
             },
             BlankDescription => empty with
             {

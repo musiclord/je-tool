@@ -3,7 +3,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite 案件的跨程序工作鎖。鎖檔位於 projects root、而非案件資料夾內，因此持鎖時仍可在
+/// SQLite 案件的跨程序案件鎖。鎖檔位於 projects root、而非案件資料夾內，因此持鎖時仍可在
 /// project.delete 成功後移除整個案件資料夾。鎖檔名用案件資料夾名，命名規則見 <see cref="JetProjectFolder.GetLockPathBesideProject"/>。
 /// </summary>
 public sealed class LocalFileLockService : ILockService, IProjectDeletionLockService, IDisposable

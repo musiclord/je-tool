@@ -97,7 +97,7 @@
           try {
             handler(message.data);
           } catch (error) {
-            // 單一訂閱者出錯不得打斷其他訂閱者；事件是 UX 提示，不承載權威
+            // 單一訂閱者出錯不得打斷其他訂閱者；進度事件只用來提示畫面，作業結果以請求的回應為準。
             if (global.console) { global.console.error('JET event handler failed:', error); }
           }
         });

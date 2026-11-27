@@ -315,7 +315,7 @@ public sealed class FilterHitPerScenarioTests
         Assert.Contains(error.Code, new[] { JetErrorCodes.StaleResult, JetErrorCodes.NoSavedScenario });
     }
 
-    // ── 上游修改照舊清掉全部 ─────────────────────────────────────────────────────
+    // ── 上游修改清掉全部情境與結果 ─────────────────────────────────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -361,7 +361,7 @@ public sealed class FilterHitPerScenarioTests
             JsonSerializer.Serialize(new { validationResultId, scenarioRevision = revision, scenarioPositions = new[] { 1 } }));
         Assert.Equal(stored, await ScalarAsync(host, context, provider, "SELECT COUNT(*) FROM filter_hit;"));
 
-        // 情境清單已經改了，畫面還拿舊版本來產生，照舊擋下並寫明原因。
+        // 情境清單已經改了，畫面還拿舊版本來產生時，擋下並寫明原因。
         await SaveNewAsync(host, Scenario("貸方分錄", DrCr("credit")));
         var stale = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("export.criteriaSelectionReport",
             JsonSerializer.Serialize(new { validationResultId, revision })));
@@ -399,9 +399,9 @@ public sealed class FilterHitPerScenarioTests
         })
     };
 
-    /// <summary>金額不是負數而且是薪資或租金科目：同一張傳票的對方分錄只符合第一條，用來核對參考分錄的說明。</summary>
+    /// <summary>金額絕對值大於或等於 0 而且是薪資或租金科目：同一張傳票的對方分錄只符合第一條，用來核對參考分錄的說明。</summary>
     private static JsonObject AndScenario(string name) => Scenario(name,
-        new JsonObject { ["type"] = "numRange", ["field"] = "amount", ["from"] = "0" },
+        new JsonObject { ["type"] = "fieldValue", ["field"] = "amount", ["operator"] = "greaterThanOrEqual", ["value"] = "0", ["amountBasis"] = "absolute" },
         Account("6101", "6111"));
 
     private static JsonObject Account(params string[] accounts) => new()

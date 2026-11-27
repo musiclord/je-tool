@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// dev.log.exportFile 的 Application 層驗收：輸出檔每行都是可被 System.Text.Json 解析的完整 JSON。
+/// dev.log.exportFile 的 Application 層測試：輸出檔每行都是可被 System.Text.Json 解析的完整 JSON。
 /// 原始診斷日誌為 dev-only；檔案匯出只接受一個既有案件並直接寫入該案件目錄。
 /// </summary>
 public sealed class DevLogHandlersTests

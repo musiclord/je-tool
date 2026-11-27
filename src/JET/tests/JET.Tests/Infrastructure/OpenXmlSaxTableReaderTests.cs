@@ -697,7 +697,7 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task LeadingRowsToSkip_DefaultZero_TreatsFirstContentRowAsHeader()
     {
-        // 回歸:預設 0 與現狀位元等價(GL/TB/科目配對熱路徑不受影響)。
+        // 略過列數預設是 0：第一個有內容的列就是標頭，GL、TB 與科目配對的一般匯入讀法不受影響。
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
             ws.Cell(1, 1).Value = "h1";

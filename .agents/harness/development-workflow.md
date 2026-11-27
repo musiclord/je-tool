@@ -198,7 +198,8 @@ Task／thread、memory、compaction 摘要與 ignored receipt 可以協助找回
 4. 計畫標為「待使用者驗收」；只有使用者確認成果或計畫明定的客觀驗收已完成後，才標為「已完成」。
 5. 將 `development-status.md` 的目前計畫改回「無」，並保留一段短的完成摘要。詳細過程不搬進現況入口，
    「已知但延後的事項」仍繼續保留。
-6. 是否 stage、commit 或 push 仍由使用者另外授權，計畫完成本身不是 Git 授權。
+6. 是否 stage、commit 或 push 仍由使用者另外授權，計畫完成本身不是 Git 授權。使用者說要提交推送時，
+   這個儲存庫推送後一併同步並提交推送發布副本 je-tool-clean，步驟見 `tools/harness/release-copy/README.md`。
 
 ## 不同 Agent 的共同做法
 

@@ -29,28 +29,22 @@ public sealed class FilterCommitMaterializerHitSetParityTests
                 [
                     new FilterConditionSpec(
                         FilterJoin.And,
-                        FilterConditionType.Text,
+                        FilterConditionType.FieldValue,
                         PrescreenKey: null,
                         Field: "description",
-                        Keywords: ["needle"],
-                        Mode: TextMatchMode.Contains,
-                        FromDate: null,
-                        ToDate: null,
-                        FromAmountScaled: null,
-                        ToAmountScaled: null,
+                        Keywords: [],
                         DrCr: null,
-                        IsManual: null),
+                        IsManual: null)
+                    {
+                        TypedOperator = "contains",
+                        TypedValues = ["needle"]
+                    },
                     new FilterConditionSpec(
                         FilterJoin.And,
                         FilterConditionType.DrCrOnly,
                         PrescreenKey: null,
                         Field: null,
                         Keywords: [],
-                        Mode: TextMatchMode.Contains,
-                        FromDate: null,
-                        ToDate: null,
-                        FromAmountScaled: null,
-                        ToAmountScaled: null,
                         DrCr: "debit",
                         IsManual: null)
                 ])
@@ -92,7 +86,7 @@ public sealed class FilterCommitMaterializerHitSetParityTests
             Scenario.Name,
             Scenario.Rationale,
             """
-            {"name":"hit-set-parity","rationale":"commit and lazy materialization must agree","groups":[{"join":"AND","conditions":[{"join":"AND","type":"text","field":"description","keywords":["needle"],"mode":"contains"},{"join":"AND","type":"drCrOnly","drCr":"debit"}]}]}
+            {"name":"hit-set-parity","rationale":"commit and lazy materialization must agree","groups":[{"join":"AND","conditions":[{"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["needle"]},{"join":"AND","type":"drCrOnly","drCr":"debit"}]}]}
             """,
             new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero));
         await commitRepository.CommitAsync(

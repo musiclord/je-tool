@@ -8,8 +8,7 @@ namespace JET.Tests.Architecture;
 /// Filter AST frontend contract guards. The backend renderer and validator remain
 /// authoritative; the runtime frontend only mirrors labels, edits wire data, and provides
 /// accessible form guidance. All examples are synthetic.
-/// 這裡的方法核對欄位值條件的標籤鏡像，以及第五步畫面固定的操作掛點。文字值清單的編輯與上限由前端測試核對；
-/// 上限與後端一致的鏡像在 <c>FilterBackendRuleMirrorFrontendTests.TextSetMaxValues_MatchesBackendTextSetLimit</c>。
+/// 這裡的方法核對欄位值條件的標籤鏡像，以及第五步畫面固定的操作掛點。
 /// 比對範圍（同一分錄列、同一傳票）的畫面行為與條件讀回句子，由前端測試與共用夾具
 /// <c>tests/JET.Tests/Fixtures/filter-readback-sentences.json</c> 核對；後端同一份夾具由 <c>FilterReadbackSentenceTests</c> 核對。
 /// </summary>

@@ -96,8 +96,8 @@ public sealed record GlRdeFieldMetadata(
     string ValueType);
 
 /// <summary>
-/// GL mapping v2 的正準投影設定。posting、approval、manual/automatic、RDE 與往下填補的欄位
-/// 均由同一份 options 驗證、投影並保存，避免 provider 或 metadata reader 各自解讀。
+/// GL mapping v2 的投影設定。posting、approval、manual/automatic、RDE 與往下填補的欄位
+/// 都由這一份 options 驗證、投影並保存，避免 provider 或 metadata reader 各自解讀。
 /// </summary>
 public sealed record GlMappingOptions(
     string ApprovalDateMode,
@@ -107,13 +107,13 @@ public sealed record GlMappingOptions(
 {
     /// <summary>
     /// 確認配對時要「往下填補空白」的 GL 欄位（mapping key），照欄位目錄的順序、不重複，只能是有來源欄的非字面值欄位。
-    /// 投影時把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 不動；舊配對沒有這份設定時是空清單。
+    /// 投影時把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 不動；配對沒有這份設定時是空清單。
     /// </summary>
     public IReadOnlyList<string> FillDownFields { get; init; } = [];
 
     /// <summary>
     /// 確認配對時往下填補了幾格。由投影算出，跟著配對保存，重開案件時第三步摘要與報告的配對資訊寫得出來，
-    /// 審計員據此記在 CAATs 文件。請求不帶這個數字；舊配對沒有這個數字時是 0。
+    /// 審計員據此記在 CAATs 文件。請求不帶這個數字；配對沒有這個數字時是 0。
     /// </summary>
     public long FillDownCount { get; init; }
 
@@ -340,7 +340,7 @@ public sealed record GlMappingDraftMetadata(
     GlManualAutoPolicy ManualAutoPolicy,
     IReadOnlyList<GlRdeFieldMetadata> RdeFields)
 {
-    /// <summary>往下填補的欄位；報告裡沒有這一項的舊配對是空清單。</summary>
+    /// <summary>往下填補的欄位；報告裡沒有這一項時是空清單。</summary>
     public IReadOnlyList<string> FillDownFields { get; init; } = [];
 
     public GlMappingOptions ToOptions() => new(

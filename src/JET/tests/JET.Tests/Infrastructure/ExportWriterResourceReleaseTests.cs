@@ -132,14 +132,14 @@ public sealed class ExportWriterResourceReleaseTests
         using var template = await OpenedWorkingPaperTemplate.OpenAsync();
         using var cancellation = new CancellationTokenSource();
         var cancelled = false;
-        Exception? startedWhileStep4Open = null;
+        Exception? startedWhileHighRiskVoucherOpen = null;
 
         void OnProgress(WorkingPaperProgress update)
         {
-            if (update.SheetName == Step4Sheet && update.RowsWritten == 1)
+            if (update.SheetName == HighRiskVoucherSheet && update.RowsWritten == 1)
             {
                 cancelled = true;
-                startedWhileStep4Open = template.TryStartNextSheet();
+                startedWhileHighRiskVoucherOpen = template.TryStartNextSheet();
                 cancellation.Cancel();
             }
         }
@@ -150,7 +150,7 @@ public sealed class ExportWriterResourceReleaseTests
 
         // step4 寫完第一列時還開著，壓縮檔不讓下一張開始寫；取消之後馬上就可以。
         Assert.True(cancelled, "step4 沒有寫到第一列，測不到這個情形。");
-        Assert.IsType<InvalidOperationException>(startedWhileStep4Open);
+        Assert.IsType<InvalidOperationException>(startedWhileHighRiskVoucherOpen);
         Assert.Null(template.TryStartNextSheet());
     }
 
@@ -162,10 +162,10 @@ public sealed class ExportWriterResourceReleaseTests
         var context = await CurrentContextForAsync(host, projectId);
         var plan = await CurrentPlanForAsync(host, context);
         // step1 的固定列要用計畫裡的說明文字。拿掉之後，工作表已經開啟、前幾列固定列也寫了，才在建立分頁的途中失敗。
-        var planWithoutStep1Texts = plan with
+        var planWithoutCompletenessTexts = plan with
         {
             Sheets = plan.Sheets
-                .Select(sheet => sheet.SheetName == Step1Sheet ? sheet with { Methodology = [] } : sheet)
+                .Select(sheet => sheet.SheetName == CompletenessSheet ? sheet with { Methodology = [] } : sheet)
                 .ToArray()
         };
         using var template = await OpenedWorkingPaperTemplate.OpenAsync();
@@ -175,7 +175,7 @@ public sealed class ExportWriterResourceReleaseTests
             BuildWriter(host).FillTemplateAsync(
                 template.Editor,
                 context,
-                planWithoutStep1Texts,
+                planWithoutCompletenessTexts,
                 CancellationToken.None,
                 update => finishedSheets.Add(update.SheetName)));
 
@@ -184,8 +184,8 @@ public sealed class ExportWriterResourceReleaseTests
         Assert.Null(template.TryStartNextSheet());
         // 失敗發生時 step1 開著：它前面的封面寫完了，step1 沒有寫完，但表頭的固定列已經寫進它在輸出裡的項目。
         Assert.Contains(CoverSheet, finishedSheets);
-        Assert.DoesNotContain(Step1Sheet, finishedSheets);
-        Assert.Contains(context.CompanyName, template.CloseAndReadSheet(Step1Sheet));
+        Assert.DoesNotContain(CompletenessSheet, finishedSheets);
+        Assert.Contains(context.CompanyName, template.CloseAndReadSheet(CompletenessSheet));
     }
 
     [Fact]

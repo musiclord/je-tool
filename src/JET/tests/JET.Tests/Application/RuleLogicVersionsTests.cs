@@ -8,113 +8,63 @@ namespace JET.Tests.Application;
 public sealed class RuleLogicVersionsTests
 {
     [Fact]
-    public void BeforeUnicodeCaseFix_SavedFilterAndPrescreenResultsAreStale()
+    public void CurrentVersions_MatchPinnedLiterals()
     {
-        var saved = new SavedFilterScenario(1, "舊文字條件", "合成測試", """
-            {"populationScope":"auditPeriod","logicVersion":"filter-2026-09-07-v12","groups":[]}
-            """, DateTimeOffset.UnixEpoch);
-        Assert.False(RuleLogicVersions.IsCurrent(saved));
-        var summary = """{"resultRef":{"logicVersion":"prescreen-2026-08-14-v6"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Prescreen, DateTimeOffset.UnixEpoch, summary)));
-    }
-
-    [Fact]
-    public void BlankVoucherAndDateReuseDecisions_AdvanceAllAffectedVersions()
-    {
-        // 整張傳票條件排除空白傳票號碼，舊預篩選與篩選結果必須重算。
-        // 空白號碼計數與同號多日期摘要讓 validation 升到 v5；這裡鎖定三個完整字面值。
-        // 傳票核准日不可用時「核准日不在期間」是無法執行，不寫 0 筆，validation 因此升到 v6。
+        // 鎖定驗證、預篩選與篩選三個規則邏輯版本的完整字面值；規則的判斷改變時版本跟著推進，版本較舊的結果與情境就會判成過期。
         Assert.Equal("validation-2026-10-23-v6", RuleLogicVersions.Validation);
-        // 傳票日期與回溯過帳不在規則內，預篩選因此升到 v10、篩選升到 v19。
         Assert.Equal("prescreen-2026-10-08-v10", RuleLogicVersions.Prescreen);
-        // 停用重複寫法，推進 v20；
         Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
     }
 
-    [Fact]
-    public void BeforeApprovalDateNaDecision_ValidationResultIsStale()
+    [Theory]
+    [InlineData(ResultKind.Validation, "validation-2026-10-04-v5")]
+    [InlineData(ResultKind.Validation, "validation-2026-08-14-v3")]
+    [InlineData(ResultKind.Validation, "validation-2026-07-13-v2")]
+    [InlineData(ResultKind.Prescreen, "prescreen-2026-10-04-v9")]
+    [InlineData(ResultKind.Prescreen, "prescreen-2026-09-17-v8")]
+    [InlineData(ResultKind.Prescreen, "prescreen-2026-08-14-v6")]
+    [InlineData(ResultKind.Prescreen, "prescreen-2026-08-14-v5")]
+    [InlineData(ResultKind.Prescreen, "prescreen-2026-07-11-v2")]
+    public void IsCurrent_OlderResultLogicVersion_ReturnsFalse(ResultKind kind, string logicVersion)
     {
-        // 規則邏輯版本較舊的驗證結果在傳票核准日沒有配對時寫 0 筆，畫面顯示「通過」，不能當成目前結果。
-        var summary = """{"resultRef":{"logicVersion":"validation-2026-10-04-v5"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Validation, DateTimeOffset.UnixEpoch, summary)));
-    }
-
-    [Fact]
-    public void BeforeVoucherDateRemoval_SavedFilterAndPrescreenResultsAreStale()
-    {
-        // 含回溯過帳的舊預篩選摘要與舊情境都不能當成目前結果。
-        var saved = new SavedFilterScenario(1, "舊回溯條件", "合成測試", """
-            {"populationScope":"auditPeriod","logicVersion":"filter-2026-10-06-v18","groups":[]}
-            """, DateTimeOffset.UnixEpoch);
-        Assert.False(RuleLogicVersions.IsCurrent(saved));
-        var summary = """{"resultRef":{"logicVersion":"prescreen-2026-10-04-v9"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Prescreen, DateTimeOffset.UnixEpoch, summary)));
-    }
-
-    [Fact]
-    public void BeforeBlankVoucherDecisions_SavedFilterAndPrescreenResultsAreStale()
-    {
-        var saved = new SavedFilterScenario(1, "舊傳票條件", "合成測試", """
-            {"populationScope":"auditPeriod","logicVersion":"filter-2026-09-18-v16","groups":[]}
-            """, DateTimeOffset.UnixEpoch);
-        Assert.False(RuleLogicVersions.IsCurrent(saved));
-        var summary = """{"resultRef":{"logicVersion":"prescreen-2026-09-17-v8"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Prescreen, DateTimeOffset.UnixEpoch, summary)));
-    }
-
-    [Fact]
-    public void IsCurrent_PreFormalMetadataPrescreenResultVersion_ReturnsFalse()
-    {
+        // 規則邏輯版本較舊的驗證與預篩選結果不能當成目前結果，要重新執行。
         var summary = JsonSerializer.Serialize(new
         {
-            resultRef = new
-            {
-                resultId = "pre-metadata-run",
-                generatedUtc = "2026-08-14T00:00:00.0000000Z",
-                logicVersion = "prescreen-2026-08-14-v5"
-            }
+            resultRef = new { resultId = "old-run", generatedUtc = "2026-08-13T00:00:00.0000000Z", logicVersion }
         });
 
-        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord(
-            "pre-metadata-run",
-            ResultKind.Prescreen,
-            DateTimeOffset.UtcNow,
-            summary)));
+        Assert.False(RuleLogicVersions.IsCurrent(
+            new ResultRecord("old-run", kind, DateTimeOffset.UtcNow, summary)));
     }
 
-    [Fact]
-    public void IsCurrent_PreDynamicResultColumnFilterVersion_ReturnsFalse()
+    [Theory]
+    [InlineData("filter-2026-07-14-v4")]
+    [InlineData("filter-2026-08-04-v6")]
+    [InlineData("filter-2026-08-14-v7")]
+    [InlineData("filter-2026-08-14-v8")]
+    [InlineData("filter-2026-08-14-v9")]
+    [InlineData("filter-2026-09-07-v12")]
+    [InlineData("filter-2026-09-08-v13")]
+    [InlineData("filter-2026-09-17-v14")]
+    [InlineData("filter-2026-09-18-v15")]
+    [InlineData("filter-2026-09-18-v16")]
+    [InlineData("filter-2026-10-04-v17")]
+    [InlineData("filter-2026-10-06-v18")]
+    [InlineData("filter-2026-10-08-v19")]
+    public void IsCurrent_OlderFilterLogicVersion_ReturnsFalse(string logicVersion)
     {
+        // 較舊版本保存的情境不是目前版本，不得沿用舊的篩選結果。開案時整批仍符合目前規則的情境會改成目前版本再重算；
+        // 不符合時整批維持舊版本，查詢與匯出仍會擋下。
         var definitionJson = JsonSerializer.Serialize(new
         {
             populationScope = GlPopulationScopeValues.AuditPeriod,
-            logicVersion = "filter-2026-08-14-v9",
+            logicVersion,
             groups = Array.Empty<object>()
         });
         var saved = new SavedFilterScenario(
-            1, "pair 多選情境", "需重新保存", definitionJson, DateTimeOffset.UtcNow);
+            1, "舊版情境", "需重新保存", definitionJson, DateTimeOffset.UtcNow);
 
         Assert.False(RuleLogicVersions.IsCurrent(saved));
-    }
-
-    [Fact]
-    public void IsCurrent_PreEffectiveStoredTotalsValidationVersion_ReturnsFalse()
-    {
-        var summary = JsonSerializer.Serialize(new
-        {
-            resultRef = new
-            {
-                resultId = "pre-effective-stored-totals",
-                generatedUtc = "2026-08-14T00:00:00.0000000Z",
-                logicVersion = "validation-2026-08-14-v3"
-            }
-        });
-
-        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord(
-            "pre-effective-stored-totals",
-            ResultKind.Validation,
-            DateTimeOffset.UtcNow,
-            summary)));
     }
 
     [Theory]
@@ -129,27 +79,6 @@ public sealed class RuleLogicVersionsTests
 
         Assert.True(RuleLogicVersions.IsCurrent(
             new ResultRecord("run", kind, DateTimeOffset.UtcNow, summary)));
-    }
-
-    [Theory]
-    [InlineData(ResultKind.Validation, "validation-2026-07-13-v2")]
-    [InlineData(ResultKind.Prescreen, "prescreen-2026-07-11-v2")]
-    public void IsCurrent_PreGlRunVersion_ReturnsFalse(
-        ResultKind kind,
-        string previousLogicVersion)
-    {
-        var summary = JsonSerializer.Serialize(new
-        {
-            resultRef = new
-            {
-                resultId = "old-run",
-                generatedUtc = "2026-08-13T00:00:00.0000000Z",
-                logicVersion = previousLogicVersion
-            }
-        });
-
-        Assert.False(RuleLogicVersions.IsCurrent(
-            new ResultRecord("old-run", kind, DateTimeOffset.UtcNow, summary)));
     }
 
     [Theory]
@@ -235,37 +164,7 @@ public sealed class RuleLogicVersionsTests
     }
 
     [Fact]
-    public void IsCurrent_PreCardPrerequisiteFilterVersion_ReturnsFalse()
-    {
-        var definitionJson = JsonSerializer.Serialize(new
-        {
-            populationScope = GlPopulationScopeValues.AuditPeriod,
-            logicVersion = "filter-2026-07-14-v4",
-            groups = Array.Empty<object>()
-        });
-        var saved = new SavedFilterScenario(
-            1, "舊版卡片情境", "需重新保存", definitionJson, DateTimeOffset.UtcNow);
-
-        Assert.False(RuleLogicVersions.IsCurrent(saved));
-    }
-
-    [Fact]
-    public void IsCurrent_PreGlFilterVersion_ReturnsFalse()
-    {
-        var definitionJson = JsonSerializer.Serialize(new
-        {
-            populationScope = GlPopulationScopeValues.AuditPeriod,
-            logicVersion = "filter-2026-08-04-v6",
-            groups = Array.Empty<object>()
-        });
-        var saved = new SavedFilterScenario(
-            1, "舊有效母體情境", "需重新保存", definitionJson, DateTimeOffset.UtcNow);
-
-        Assert.False(RuleLogicVersions.IsCurrent(saved));
-    }
-
-    [Fact]
-    public void IsCurrent_FilterDefinitionWithLegacyAllProjectedScope_ReturnsFalse()
+    public void IsCurrent_FilterDefinitionWithUnsupportedAllProjectedScope_ReturnsFalse()
     {
         var definitionJson = JsonSerializer.Serialize(new
         {

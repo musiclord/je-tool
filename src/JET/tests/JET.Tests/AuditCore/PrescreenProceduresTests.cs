@@ -66,7 +66,7 @@ public sealed class PrescreenProceduresTests
     [Fact]
     public void Plan_WithoutCreatedByMapping_MarksPreparerSummaryNotApplicable()
     {
-        // 只改確認配對用語，以下 N/A 事實與狀態仍逐項核對。
+        // 逐項核對 N/A 的判定與狀態。
         var verdict = Verdict(Plan(Snapshot(hasCreatedBy: false)), "preparer_summary");
 
         Assert.False(verdict.IsApplicable);
@@ -85,7 +85,7 @@ public sealed class PrescreenProceduresTests
     [Fact]
     public void Plan_WithoutApprovalDate_PreservesBothExistingReasons()
     {
-        // 兩個不同用途的原因都保留。
+        // 缺傳票核准日時，兩個不同用途的原因都會寫出。
         // 原因由規則需求表產生，核准側規則本身只寫缺什麼；「只檢查了總帳日期」由週末與假日卡合併原因時附上，
         // 所以第二個用途查卡片的核准側說明。
         var snapshot = Snapshot(hasApprovalDate: false, prepStartDate: null);
@@ -120,7 +120,7 @@ public sealed class PrescreenProceduresTests
         var verdict = Verdict(Plan(Snapshot(prepStartDate: null)), "prep_period_approval");
 
         Assert.False(verdict.IsApplicable);
-        // 新增修改入口後，仍以完整固定文字核對補救指示。
+        // 以完整固定文字核對補救指示。
         Assert.Equal(PrepStartDateMissing, verdict.NaReason);
     }
 

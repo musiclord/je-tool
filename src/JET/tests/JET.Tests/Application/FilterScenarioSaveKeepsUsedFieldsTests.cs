@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class FilterScenarioSaveKeepsUsedFieldsTests
 {
-    // 畫面照 newFilterCondition 帶上的用不到屬性。
+    // 借貸科目組合條件帶上的用不到屬性；欄位值條件用得到的值與比較方式另外寫在那兩條，不放進這裡。
     private const string Unused =
         "\"prescreenKey\":\"suspiciousKeywords\",\"values\":[],\"normalization\":\"preserve\",\"drCr\":\"debit\",\"isManual\":\"true\","
         + "\"fieldId\":\"\",\"operator\":\"\",\"amountBasis\":\"absolute\",\"value\":\"\",\"windowDays\":\"\"";
@@ -20,10 +20,10 @@ public sealed class FilterScenarioSaveKeepsUsedFieldsTests
     private const string FullScenario =
         "{\"name\":\"合成整理\",\"rationale\":\"B1 固定答案\",\"groups\":["
         + "{\"join\":\"AND\",\"matchScope\":\"row\",\"conditions\":["
-        + "{\"join\":\"AND\",\"type\":\"text\",\"field\":\"description\",\"keywords\":\"synthetic\",\"mode\":\"contains\",\"from\":\"\",\"to\":\"\","
-        + "\"pairMode\":\"exact\",\"debitCategoryIds\":[\"builtin.receivables\"],\"creditCategoryIds\":[\"builtin.revenue\"]," + Unused + "},"
-        + "{\"join\":\"AND\",\"type\":\"numRange\",\"field\":\"amount\",\"keywords\":\"\",\"mode\":\"contains\",\"from\":\"5\",\"to\":\"20\","
-        + "\"pairMode\":\"exact\",\"debitCategoryIds\":[\"builtin.receivables\"],\"creditCategoryIds\":[\"builtin.revenue\"]," + Unused + "}]},"
+        + "{\"join\":\"AND\",\"type\":\"fieldValue\",\"field\":\"description\",\"operator\":\"contains\",\"values\":[\"synthetic\"],"
+        + "\"keywords\":\"\",\"mode\":\"contains\",\"pairMode\":\"exact\",\"debitCategoryIds\":[\"builtin.receivables\"],\"creditCategoryIds\":[\"builtin.revenue\"],\"prescreenKey\":\"suspiciousKeywords\",\"normalization\":\"preserve\",\"isManual\":\"true\",\"windowDays\":\"\"},"
+        + "{\"join\":\"AND\",\"type\":\"fieldValue\",\"field\":\"amount\",\"operator\":\"between\",\"from\":\"5\",\"to\":\"20\",\"amountBasis\":\"absolute\","
+        + "\"keywords\":\"\",\"mode\":\"contains\",\"pairMode\":\"exact\",\"debitCategoryIds\":[\"builtin.receivables\"],\"creditCategoryIds\":[\"builtin.revenue\"],\"prescreenKey\":\"suspiciousKeywords\",\"normalization\":\"preserve\",\"isManual\":\"true\",\"windowDays\":\"\"}]},"
         + "{\"join\":\"OR\",\"matchScope\":\"row\",\"conditions\":["
         + "{\"join\":\"AND\",\"type\":\"accountPair\",\"field\":\"description\",\"keywords\":\"\",\"mode\":\"contains\",\"from\":\"\",\"to\":\"\","
         + "\"pairMode\":\"exact\",\"categorySelection\":\"subtree\",\"debitCategoryIds\":[\"builtin.cash\"],\"creditCategoryIds\":[\"builtin.revenue\"]," + Unused + "}]}]}";
@@ -31,8 +31,8 @@ public sealed class FilterScenarioSaveKeepsUsedFieldsTests
     private const string TrimmedScenario =
         "{\"name\":\"合成整理\",\"rationale\":\"B1 固定答案\",\"groups\":["
         + "{\"join\":\"AND\",\"matchScope\":\"row\",\"conditions\":["
-        + "{\"join\":\"AND\",\"type\":\"text\",\"field\":\"description\",\"keywords\":\"synthetic\",\"mode\":\"contains\"},"
-        + "{\"join\":\"AND\",\"type\":\"numRange\",\"field\":\"amount\",\"from\":\"5\",\"to\":\"20\"}]},"
+        + "{\"join\":\"AND\",\"type\":\"fieldValue\",\"field\":\"description\",\"operator\":\"contains\",\"values\":[\"synthetic\"]},"
+        + "{\"join\":\"AND\",\"type\":\"fieldValue\",\"field\":\"amount\",\"operator\":\"between\",\"from\":\"5\",\"to\":\"20\",\"amountBasis\":\"absolute\"}]},"
         + "{\"join\":\"OR\",\"matchScope\":\"row\",\"conditions\":["
         + "{\"join\":\"AND\",\"type\":\"accountPair\",\"pairMode\":\"exact\",\"categorySelection\":\"subtree\","
         + "\"debitCategoryIds\":[\"builtin.cash\"],\"creditCategoryIds\":[\"builtin.revenue\"]}]}]}";

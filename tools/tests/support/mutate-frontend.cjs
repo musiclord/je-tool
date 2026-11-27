@@ -37,7 +37,7 @@
 //   copy.tap              副本改壞之前的對照執行；這裡已經失敗的測試（例如讀了副本沒有的 docs/ 或 C# 檔）不算改壞抓到的
 //   mutant.tap            副本改壞之後的執行，必須失敗
 //   result.json           三次執行的摘要與判定
-// 副本上的執行另外設定 JET_FRONTEND_TEST_WWWROOT 指向副本；工作樹上的對照執行會清掉這個變數。
+// 副本照工作樹的相對位置複製前端、前端測試與夾具，副本上的執行讀的是副本裡的前端。
 // 任何一次執行碰到時間、輸出量或記憶體上限，判定都是 inconclusive-resource-limit：要查出是產品還是測試在無限執行或增長，
 // 測試或夾具的問題要修，不能重跑了事。
 const assert = require('node:assert/strict');
@@ -193,13 +193,11 @@ async function runMutation(spec, mutation) {
   const original = fs.readFileSync(target, 'utf8');
   const mutated = applyMutation(original, mutation.find, mutation.replace, mutation.count ?? 1);
 
-  const cleanEnv = { ...process.env };
-  delete cleanEnv.JET_FRONTEND_TEST_WWWROOT;
-  const copyEnv = { ...cleanEnv, JET_FRONTEND_TEST_WWWROOT: wwwroot };
-  const tree = await runNodeTests(REPOSITORY_ROOT, tests, mutation.namePattern, cleanEnv, timeoutSeconds);
-  const copy = await runNodeTests(work, tests, mutation.namePattern, copyEnv, timeoutSeconds);
+  const env = { ...process.env };
+  const tree = await runNodeTests(REPOSITORY_ROOT, tests, mutation.namePattern, env, timeoutSeconds);
+  const copy = await runNodeTests(work, tests, mutation.namePattern, env, timeoutSeconds);
   fs.writeFileSync(target, mutated);
-  const mutant = await runNodeTests(work, tests, mutation.namePattern, copyEnv, timeoutSeconds);
+  const mutant = await runNodeTests(work, tests, mutation.namePattern, env, timeoutSeconds);
   fs.writeFileSync(path.join(work, 'tree.tap'), tree.text);
   fs.writeFileSync(path.join(work, 'copy.tap'), copy.text);
   fs.writeFileSync(path.join(work, 'mutant.tap'), mutant.text);

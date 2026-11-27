@@ -1,0 +1,60 @@
+{
+  "scope": "JET 應用程式的 23 個直接與間接 NuGet 套件，以套件還原清單為準；測試專案另行查詢。",
+  "checkedDate": "2026-11-24",
+  "tool": "在 JET/ 資料夾執行 .NET 10 SDK 的 dotnet package list，參數 --project JET/JET.csproj --no-restore --include-transitive --format json --output-version 1；測試專案改用 --project tests/JET.Tests/JET.Tests.csproj",
+  "sources": [
+    "https://api.nuget.org/v3/index.json",
+    "本機 SDK 套件來源"
+  ],
+  "outputVersion": 1,
+  "vulnerable": {
+    "parameters": "--vulnerable --include-transitive",
+    "projects": [
+      {
+        "path": "JET/JET/JET.csproj",
+        "result": "未列出弱點"
+      },
+      {
+        "path": "JET/tests/JET.Tests/JET.Tests.csproj",
+        "result": "未列出弱點"
+      }
+    ]
+  },
+  "deprecated": {
+    "parameters": "--deprecated --include-transitive",
+    "projects": [
+      {
+        "path": "JET/JET/JET.csproj",
+        "result": "未列出停止維護的套件"
+      },
+      {
+        "path": "JET/tests/JET.Tests/JET.Tests.csproj",
+        "result": "間接引用的 Microsoft.Testing.Extensions.Telemetry 標示為停止維護",
+        "packages": [
+          {
+            "id": "Microsoft.Testing.Extensions.Telemetry",
+            "resolvedVersion": "2.5.2",
+            "relation": "間接",
+            "reasons": [
+              "Legacy"
+            ],
+            "alternative": null,
+            "inPublishOutput": false
+          }
+        ]
+      }
+    ]
+  },
+  "frontend": [
+    {
+      "component": "Apache ECharts",
+      "version": "5.5.0",
+      "advisory": "CVE-2026-45249",
+      "source": "https://security.apache.org/projects/echarts/CVE-2026-45249.osv.json",
+      "affected": "6.1.0 以前的版本",
+      "condition": "Lines series 搭配 tooltip、未自訂 tooltip.formatter，且 series.data[i].name 有值時，name 內的 HTML 經 innerHTML 寫入 tooltip。",
+      "assessment": "不符合影響條件：JET/JET/wwwroot/js/overview-bi.js 只使用 bar、line 與 scatter series，四個 tooltip 皆自訂 formatter，顯示的文字經 HTML 跳脫。",
+      "checkedDate": "2026-11-24"
+    }
+  ]
+}

@@ -18,7 +18,7 @@ internal static class SqlWhitespaceList
 /// </summary>
 public interface IProviderSqlDialect : ISqlDialect
 {
-    /// <summary>診斷日誌裡的資料庫名稱，寫在 sql.executed 與 tx.* 事件的 provider 欄位。目前只有 sqlite。</summary>
+    /// <summary>診斷日誌裡的資料庫名稱，寫在 sql.executed 與 tx.* 事件的 provider 欄位；SQLite 方言回 sqlite。</summary>
     string ProviderName { get; }
 }
 

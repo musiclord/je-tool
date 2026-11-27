@@ -1,4 +1,4 @@
-namespace Jet.Harness.TaiwanSme;
+namespace JET.Tests.TestInfrastructure.TaiwanSme;
 
 /// <summary>
 /// 依產生器自己的資料與規則文字，獨立算出 JET 應該選到哪些分錄。只用 LINQ 逐筆判斷，
@@ -23,37 +23,37 @@ internal sealed class SmeOracle
         [SmeChart.Others] = (null, "others"),
     };
 
-    private readonly Dictionary<string, (string? Parent, string Role)> categories;
-    private readonly Dictionary<string, string> categoryOfAccount;
-    private readonly ILookup<string, SmeLine> vouchers;
+    private readonly Dictionary<string, (string? Parent, string Role)> _categories;
+    private readonly Dictionary<string, string> _categoryOfAccount;
+    private readonly ILookup<string, SmeLine> _vouchers;
 
     public SmeOracle(SmeCase smeCase)
     {
         Population = smeCase.Population.ToList();
-        categories = new Dictionary<string, (string? Parent, string Role)>(BuiltIns, StringComparer.Ordinal);
+        _categories = new Dictionary<string, (string? Parent, string Role)>(BuiltIns, StringComparer.Ordinal);
         foreach (var category in SmeChart.CustomCategories)
         {
-            categories[category.Label] = (category.Parent, category.Role);
+            _categories[category.Label] = (category.Parent, category.Role);
         }
 
         // 分類留白的科目視為 Others。
-        categoryOfAccount = smeCase.Accounts.ToDictionary(
+        _categoryOfAccount = smeCase.Accounts.ToDictionary(
             account => account.Code,
             account => string.IsNullOrEmpty(account.Category) ? SmeChart.Others : account.Category,
             StringComparer.Ordinal);
-        vouchers = Population.ToLookup(line => line.VoucherNo, StringComparer.Ordinal);
+        _vouchers = Population.ToLookup(line => line.VoucherNo, StringComparer.Ordinal);
     }
 
     public IReadOnlyList<SmeLine> Population { get; }
 
     public static string Key(SmeLine line) => $"{line.VoucherNo}|{line.LineNo}";
 
-    public string Role(SmeLine line) => categories[categoryOfAccount[line.AccountNumber]].Role;
+    public string Role(SmeLine line) => _categories[_categoryOfAccount[line.AccountNumber]].Role;
 
     /// <summary>科目的分類是否為指定分類本身或其下層（「包含下層」）。</summary>
     public bool InSubtree(SmeLine line, params string[] roots)
     {
-        string? current = categoryOfAccount[line.AccountNumber];
+        string? current = _categoryOfAccount[line.AccountNumber];
         while (current is not null)
         {
             if (roots.Contains(current, StringComparer.Ordinal))
@@ -61,13 +61,13 @@ internal sealed class SmeOracle
                 return true;
             }
 
-            current = categories[current].Parent;
+            current = _categories[current].Parent;
         }
 
         return false;
     }
 
-    public IEnumerable<SmeLine> VoucherOf(SmeLine line) => vouchers[line.VoucherNo];
+    public IEnumerable<SmeLine> VoucherOf(SmeLine line) => _vouchers[line.VoucherNo];
 
     public static long WholeAmount(SmeLine line) => (long)decimal.Truncate(line.Amount);
 

@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 資料預覽 GL 與 GL(未納入測試) 的欄位、欄序、SQL 與讀值轉換只定義一次，資料預覽倉儲呼叫共用定義。
-/// 資料預覽依配對列欄位，欄位清單收成一份欄位計畫：
+/// 資料預覽依配對列欄位，欄位清單只有一份欄位計畫：
 /// 這裡檢查本機實作呼叫共用的查詢，而且不自己寫欄位識別。
 /// </summary>
 public sealed class DataPreviewColumnOwnershipTests

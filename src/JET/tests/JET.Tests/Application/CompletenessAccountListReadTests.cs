@@ -51,7 +51,7 @@ public sealed class CompletenessAccountListReadTests(ITestOutputHelper testOutpu
     }
 
     [Fact]
-    public async Task WorkingPaper_StepOneAndStepOneThree_ComputeGlTotalsOncePerSheet_AndReadWorkGrowsWithTheAccounts()
+    public async Task WorkingPaper_CompletenessAndCompletenessDifference_ComputeGlTotalsOncePerSheet_AndReadWorkGrowsWithTheAccounts()
     {
         var small = await WriteWorkingPaperAsync(600);
         var large = await WriteWorkingPaperAsync(1_200);
@@ -113,7 +113,7 @@ public sealed class CompletenessAccountListReadTests(ITestOutputHelper testOutpu
             ExpectedAccounts(accounts).Append(ClearingAccount).ToArray(),
             Enumerable.Range(2, accounts + 1).Select(row => accountSheet.Cell(row, 1).GetString()).ToArray());
         // 差異說明頁從第 17 列起列出有差異的科目。
-        var differenceSheet = workbook.Worksheet(WorkingPaperSheetCatalog.Step13);
+        var differenceSheet = workbook.Worksheet(WorkingPaperSheetCatalog.CompletenessDifference);
         Assert.Equal(
             ExpectedAccounts(accounts).ToArray(),
             Enumerable.Range(17, accounts).Select(row => differenceSheet.Cell(row, 2).GetString()).ToArray());
@@ -137,18 +137,18 @@ public sealed class CompletenessAccountListReadTests(ITestOutputHelper testOutpu
             plan,
             CancellationToken.None);
 
-        Assert.Equal(accounts + 1, stats.SheetStats.Single(sheet => sheet.SheetName == WorkingPaperSheetCatalog.Step1).RowsWritten);
-        Assert.Equal(accounts, stats.SheetStats.Single(sheet => sheet.SheetName == WorkingPaperSheetCatalog.Step13).RowsWritten);
+        Assert.Equal(accounts + 1, stats.SheetStats.Single(sheet => sheet.SheetName == WorkingPaperSheetCatalog.Completeness).RowsWritten);
+        Assert.Equal(accounts, stats.SheetStats.Single(sheet => sheet.SheetName == WorkingPaperSheetCatalog.CompletenessDifference).RowsWritten);
         using var workbook = new XLWorkbook(new MemoryStream(output.ToArray(), writable: false));
         // Step 1 從第 20 列、Step 1-3 從第 17 列起，B 欄是科目編號。
-        var step1 = workbook.Worksheet(WorkingPaperSheetCatalog.Step1);
+        var completeness = workbook.Worksheet(WorkingPaperSheetCatalog.Completeness);
         Assert.Equal(
             ExpectedAccounts(accounts).Append(ClearingAccount).ToArray(),
-            Enumerable.Range(20, accounts + 1).Select(row => step1.Cell(row, 2).GetString()).ToArray());
-        var step13 = workbook.Worksheet(WorkingPaperSheetCatalog.Step13);
+            Enumerable.Range(20, accounts + 1).Select(row => completeness.Cell(row, 2).GetString()).ToArray());
+        var completenessDifference = workbook.Worksheet(WorkingPaperSheetCatalog.CompletenessDifference);
         Assert.Equal(
             ExpectedAccounts(accounts).ToArray(),
-            Enumerable.Range(17, accounts).Select(row => step13.Cell(row, 2).GetString()).ToArray());
+            Enumerable.Range(17, accounts).Select(row => completenessDifference.Cell(row, 2).GetString()).ToArray());
         return ListReadWork.From(meter);
     }
 
@@ -196,7 +196,7 @@ public sealed class CompletenessAccountListReadTests(ITestOutputHelper testOutpu
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalUnbalancedVoucherEntryStreamRepository(database),
             new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             new LocalPrescreenPageRepository(database),

@@ -10,7 +10,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 結果失效驗收：規則執行結果(validation_result、prescreen_result 與抽樣)是衍生資料,
+/// 結果失效測試：規則執行結果(validation_result、prescreen_result 與抽樣)是衍生資料,
 /// 一旦其實際上游被改寫，project.load 的 validationResult 或 prescreenResult 必須回 null（要求重跑），
 /// GL 與 TB 同層級修改，影響兩種 run，
 /// 科目配對／行事曆／授權清單只影響 prescreen。
@@ -573,7 +573,7 @@ public static class ResultInvalidationTestSupport
                             join = "AND",
                             conditions = new[]
                             {
-                                new { join = "AND", type = "numRange", field = "amount", from = "0" }
+                                new { join = "AND", type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "0", amountBasis = "absolute" }
                             }
                         }
                     }

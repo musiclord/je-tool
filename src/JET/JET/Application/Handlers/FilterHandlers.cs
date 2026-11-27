@@ -11,29 +11,29 @@ namespace JET.Application;
 /// </summary>
 public sealed class FilterPreviewHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
 
     internal FilterPreviewHandler(
         IProjectStore projectStore,
         ProjectSession session)
     {
-        this.projectStore = projectStore;
-        this.session = session;
+        this._projectStore = projectStore;
+        this._session = session;
     }
 
     public string Action => "filter.preview";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
 
         var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.GlMappingNotConfirmed,
                 "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
 
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("scenario", out var scenarioElement))
@@ -124,34 +124,34 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 {
     private const int MaxScenarios = FilterScenarioLimits.MaxSavedScenarios;
 
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
-    private readonly ILogger? logger;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
+    private readonly ILogger? _logger;
 
     internal FilterCommitHandler(
         IProjectStore projectStore,
         ProjectSession session, ILogger? logger = null)
     {
-        this.projectStore = projectStore;
-        this.session = session;
-        this.logger = logger;
+        this._projectStore = projectStore;
+        this._session = session;
+        this._logger = logger;
     }
 
     public string Action => "filter.commit";
 
-    /// <summary>存下情境後，案件至少推進到第五步。</summary>
-    internal const int WorkflowStep = 5;
+    /// <summary>存下篩選結果後，案件至少推進到匯出底稿這一步。</summary>
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Export;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         SupportOperationStage.Enter("state_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
             repositories.Results,
             projectId,
             cancellationToken);
 
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
@@ -269,10 +269,10 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
         if (result.MaterializedScenarioCount > 0)
         {
             await MappingCommitShared.AdvanceStepAsync(
-                projectStore,
+                _projectStore,
                 document,
-                WorkflowStep,
-                CancellationToken.None, logger);
+                AdvancesTo,
+                CancellationToken.None, _logger);
         }
 
         return new

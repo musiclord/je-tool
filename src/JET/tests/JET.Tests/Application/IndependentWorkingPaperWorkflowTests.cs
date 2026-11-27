@@ -55,7 +55,7 @@ public sealed class IndependentWorkingPaperWorkflowTests
         Assert.Empty(Directory.GetFiles(folder, "*CriteriaSelectionReport*.xlsx"));
         Assert.Empty(Directory.GetFiles(folder, "*Pre-screeningReport*.xlsx"));
         using var book = new XLWorkbook(Path.Combine(folder, report.GetProperty("fileName").GetString()!));
-        Assert.True(book.Worksheet(WorkingPaperSheetCatalog.Step41).RowsUsed().Count() > 1);
+        Assert.True(book.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucherDetail).RowsUsed().Count() > 1);
         var after = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = setup.ProjectId }));
         // 報告清單也沒有這兩種報告；這一項不看檔名。
         Assert.DoesNotContain(

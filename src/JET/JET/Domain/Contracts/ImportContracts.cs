@@ -59,7 +59,7 @@ public sealed record ImportSourceDescriptor(
     int? HeaderRow = null);
 
 /// <summary>
-/// 將 host 提供的顯示名稱收斂為單一 leaf name。呼叫端傳入的 fileName 不是路徑權威；
+/// 將 host 提供的顯示名稱收斂為單一 leaf name。呼叫端傳入的 fileName 不能用來決定路徑；
 /// 它即使帶目錄也只能貢獻最後一段，無效時回退實際讀檔路徑的最後一段。
 /// </summary>
 internal static class ImportSourceFileName
@@ -127,7 +127,7 @@ public sealed record ImportSourceInfo(
 
 /// <summary>
 /// 匯入批次。一個 GL/TB 資料集對應一個批次，可由多個來源組成。
-/// SourceFileName = 第一個來源檔名（顯示用）；權威來源清單在 Sources。
+/// SourceFileName = 第一個來源檔名（顯示用）；完整的來源清單以 Sources 為準。
 /// </summary>
 public sealed record ImportBatchInfo(
     string BatchId,
@@ -308,7 +308,7 @@ public interface IProjectDatabaseInitializer
 
     /// <summary>
     /// 開啟既有案件時呼叫：資料庫一定要已經建好而且是現行版本，不建立新的資料庫。
-    /// 沒有另外實作的資料庫照舊用 <see cref="EnsureCreatedAsync(string, CancellationToken)"/>。
+    /// 實作沒有覆寫時，預設呼叫 <see cref="EnsureCreatedAsync(string, CancellationToken)"/>。
     /// </summary>
     Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
         EnsureCreatedAsync(projectId, cancellationToken);
@@ -334,7 +334,7 @@ public interface IProjectSettingStore
 }
 
 /// <summary>
-/// 永久刪除某專案的資料庫（鏡射 <see cref="IProjectDatabaseInitializer"/>）。SQLite 刪案件資料夾裡的資料庫檔。
+/// 永久刪除某個案件的資料庫（鏡射 <see cref="IProjectDatabaseInitializer"/>）。SQLite 刪案件資料夾裡的資料庫檔。
 /// project.delete 依被刪案件的資料庫種類取對應資料庫組裡的實作。
 /// </summary>
 public interface IProjectDatabaseDeleter

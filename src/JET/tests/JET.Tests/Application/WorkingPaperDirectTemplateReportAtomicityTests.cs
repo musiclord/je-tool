@@ -9,11 +9,11 @@ namespace JET.Tests.Application;
 public sealed class WorkingPaperDirectTemplateReportAtomicityTests
 {
     [Fact]
-    public async Task DirectWriter_CancelDuringStep41_PreservesPriorReportAndManifest()
+    public async Task DirectWriter_CancelDuringHighRiskVoucherDetail_PreservesPriorReportAndManifest()
     {
         using var prepared = await PrepareAsync();
         using var cancellation = new CancellationTokenSource();
-        var reachedStep41 = false;
+        var reachedHighRiskVoucherDetail = false;
         var capturingRows = new CapturePreparedSessionRepository(
             new LocalHighRiskSummaryRowPageRepository(prepared.Database));
         var writer = (IWorkingPaperPlanWriter)CreateWriter(
@@ -28,11 +28,11 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
             {
                 if (string.Equals(
                         progress.SheetName,
-                        WorkingPaperSheetCatalog.Step41,
+                        WorkingPaperSheetCatalog.HighRiskVoucherDetail,
                         StringComparison.Ordinal)
                     && progress.RowsWritten == 1)
                 {
-                    reachedStep41 = true;
+                    reachedHighRiskVoucherDetail = true;
                     cancellation.Cancel();
                 }
             });
@@ -43,7 +43,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                 replacement,
                 cancellation.Token));
 
-        Assert.True(reachedStep41);
+        Assert.True(reachedHighRiskVoucherDetail);
         Assert.NotNull(capturingRows.Metrics);
         Assert.Equal(1, capturingRows.Metrics!.CleanupCommands);
         Assert.True(capturingRows.Metrics.Disposed);
@@ -103,9 +103,8 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                 replacement,
                 cancellation.Token));
 
-        var metrics = Assert.IsType<WorkingPaperStep41PreparedSessionMetrics>(
+        var metrics = Assert.IsType<WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics>(
             cancellingRows.Metrics);
-        Assert.Equal(1, metrics.SchemaReadinessCommands);
         Assert.Equal(1, metrics.TemporaryTableInitializationCommands);
         Assert.Equal(1, metrics.HitVoucherMaterializationCommands);
         Assert.Equal(1, metrics.RowTagMaterializationCommands);
@@ -166,7 +165,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
     public async Task DirectWriter_OrderedPreparedReaderThrowsAfterFirstRow_PreservesPriorReportAndManifest()
     {
         using var prepared = await PrepareAsync();
-        var throwingRows = new ThrowAfterFirstStep41RowRepository(
+        var throwingRows = new ThrowAfterFirstHighRiskVoucherDetailRowRepository(
             new LocalHighRiskSummaryRowPageRepository(prepared.Database));
         var writer = (IWorkingPaperPlanWriter)CreateWriter(
             prepared.Database,
@@ -176,7 +175,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
             ReplacementContext(prepared.Context),
             prepared.Plan);
 
-        await Assert.ThrowsAsync<InjectedStep41ReaderException>(() =>
+        await Assert.ThrowsAsync<InjectedHighRiskVoucherDetailReaderException>(() =>
             prepared.Store.WriteAsync(
                 prepared.ProjectId,
                 replacement,
@@ -376,7 +375,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
 
     private static WorkingPaperWriter CreateWriter(
         SqliteProjectDatabase database,
-        IWorkingPaperStep41PreparedSessionFactory highRiskSummaryRows,
+        IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory highRiskSummaryRows,
         int progressRowInterval = 10_000) =>
         new(
             new LocalCompletenessAccountPageRepository(database),
@@ -483,7 +482,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
             projectDirectory,
             "*.tmp",
             SearchOption.AllDirectories));
-        // 確認現行的暫存檔都沒有留下。
+        // 報告清單寫入時用的暫存報告、暫存清單與備份也都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
     }
 
@@ -529,13 +528,13 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
         }
     }
 
-    private sealed class ThrowAfterFirstStep41RowRepository(
+    private sealed class ThrowAfterFirstHighRiskVoucherDetailRowRepository(
         LocalHighRiskSummaryRowPageRepository inner)
-        : IHighRiskSummaryRowPageRepository, IWorkingPaperStep41PreparedSessionFactory
+        : IHighRiskSummaryRowPageRepository, IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory
     {
         internal int RowsRead { get; private set; }
 
-        internal WorkingPaperStep41PreparedSessionMetrics? Metrics { get; private set; }
+        internal WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics? Metrics { get; private set; }
 
         public Task<(
             PageResult<RowTagRow> Page,
@@ -554,15 +553,15 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                 scenarioPositions,
                 cancellationToken);
 
-        async Task<IWorkingPaperStep41PreparedSession>
-            IWorkingPaperStep41PreparedSessionFactory.PrepareAsync(
+        async Task<IWorkingPaperHighRiskVoucherDetailPreparedSession>
+            IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory.PrepareAsync(
                 string projectId,
                 GlPopulationContext context,
                 IReadOnlyList<int> scenarioPositions,
                 LegacyFieldKind lineItemKind,
                 CancellationToken cancellationToken)
         {
-            var session = await ((IWorkingPaperStep41PreparedSessionFactory)inner)
+            var session = await ((IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)inner)
                 .PrepareAsync(
                     projectId,
                     context,
@@ -574,13 +573,13 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
         }
 
         private sealed class ThrowAfterFirstRowSession(
-            IWorkingPaperStep41PreparedSession inner,
-            ThrowAfterFirstStep41RowRepository owner)
-            : IWorkingPaperStep41PreparedSession
+            IWorkingPaperHighRiskVoucherDetailPreparedSession inner,
+            ThrowAfterFirstHighRiskVoucherDetailRowRepository owner)
+            : IWorkingPaperHighRiskVoucherDetailPreparedSession
         {
-            public WorkingPaperStep41PreparedSessionMetrics Metrics => inner.Metrics;
+            public WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics Metrics => inner.Metrics;
 
-            public async IAsyncEnumerable<WorkingPaperStep41SourceRow> ReadRowsAsync(
+            public async IAsyncEnumerable<WorkingPaperHighRiskVoucherDetailSourceRow> ReadRowsAsync(
                 [System.Runtime.CompilerServices.EnumeratorCancellation]
                 CancellationToken cancellationToken)
             {
@@ -589,7 +588,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                     owner.RowsRead++;
                     if (owner.RowsRead > 1)
                     {
-                        throw new InjectedStep41ReaderException();
+                        throw new InjectedHighRiskVoucherDetailReaderException();
                     }
                     yield return row;
                 }
@@ -599,14 +598,14 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
         }
     }
 
-    private sealed class InjectedStep41ReaderException()
+    private sealed class InjectedHighRiskVoucherDetailReaderException()
         : Exception("Injected failure after the first WorkingPaper Step4-1 prepared row.");
 
     private sealed class CapturePreparedSessionRepository(
         LocalHighRiskSummaryRowPageRepository inner)
-        : IHighRiskSummaryRowPageRepository, IWorkingPaperStep41PreparedSessionFactory
+        : IHighRiskSummaryRowPageRepository, IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory
     {
-        internal WorkingPaperStep41PreparedSessionMetrics? Metrics { get; private set; }
+        internal WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics? Metrics { get; private set; }
 
         public Task<(
             PageResult<RowTagRow> Page,
@@ -625,14 +624,14 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                 scenarioPositions,
                 cancellationToken);
 
-        public async Task<IWorkingPaperStep41PreparedSession> PrepareAsync(
+        public async Task<IWorkingPaperHighRiskVoucherDetailPreparedSession> PrepareAsync(
             string projectId,
             GlPopulationContext context,
             IReadOnlyList<int> scenarioPositions,
             LegacyFieldKind lineItemKind,
             CancellationToken cancellationToken)
         {
-            var session = await ((IWorkingPaperStep41PreparedSessionFactory)inner)
+            var session = await ((IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)inner)
                 .PrepareAsync(
                     projectId,
                     context,
@@ -647,9 +646,9 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
     private sealed class CancelAfterPreparedMaterializationRepository(
         LocalHighRiskSummaryRowPageRepository inner,
         CancellationTokenSource cancellation)
-        : IHighRiskSummaryRowPageRepository, IWorkingPaperStep41PreparedSessionFactory
+        : IHighRiskSummaryRowPageRepository, IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory
     {
-        internal WorkingPaperStep41PreparedSessionMetrics? Metrics { get; private set; }
+        internal WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics? Metrics { get; private set; }
 
         public Task<(
             PageResult<RowTagRow> Page,
@@ -668,14 +667,14 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                 scenarioPositions,
                 cancellationToken);
 
-        public async Task<IWorkingPaperStep41PreparedSession> PrepareAsync(
+        public async Task<IWorkingPaperHighRiskVoucherDetailPreparedSession> PrepareAsync(
             string projectId,
             GlPopulationContext context,
             IReadOnlyList<int> scenarioPositions,
             LegacyFieldKind lineItemKind,
             CancellationToken cancellationToken)
         {
-            var session = await ((IWorkingPaperStep41PreparedSessionFactory)inner)
+            var session = await ((IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)inner)
                 .PrepareAsync(
                     projectId,
                     context,
@@ -691,11 +690,11 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
     private sealed class CancelAfterFirstPreparedRowRepository(
         LocalHighRiskSummaryRowPageRepository inner,
         CancellationTokenSource cancellation)
-        : IHighRiskSummaryRowPageRepository, IWorkingPaperStep41PreparedSessionFactory
+        : IHighRiskSummaryRowPageRepository, IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory
     {
         internal int RowsRead { get; private set; }
 
-        internal WorkingPaperStep41PreparedSessionMetrics? Metrics { get; private set; }
+        internal WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics? Metrics { get; private set; }
 
         public Task<(
             PageResult<RowTagRow> Page,
@@ -714,14 +713,14 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
                 scenarioPositions,
                 cancellationToken);
 
-        public async Task<IWorkingPaperStep41PreparedSession> PrepareAsync(
+        public async Task<IWorkingPaperHighRiskVoucherDetailPreparedSession> PrepareAsync(
             string projectId,
             GlPopulationContext context,
             IReadOnlyList<int> scenarioPositions,
             LegacyFieldKind lineItemKind,
             CancellationToken cancellationToken)
         {
-            var session = await ((IWorkingPaperStep41PreparedSessionFactory)inner)
+            var session = await ((IWorkingPaperHighRiskVoucherDetailPreparedSessionFactory)inner)
                 .PrepareAsync(
                     projectId,
                     context,
@@ -733,14 +732,14 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
         }
 
         private sealed class CancelAfterFirstRowSession(
-            IWorkingPaperStep41PreparedSession inner,
+            IWorkingPaperHighRiskVoucherDetailPreparedSession inner,
             CancelAfterFirstPreparedRowRepository owner,
             CancellationTokenSource cancellation)
-            : IWorkingPaperStep41PreparedSession
+            : IWorkingPaperHighRiskVoucherDetailPreparedSession
         {
-            public WorkingPaperStep41PreparedSessionMetrics Metrics => inner.Metrics;
+            public WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics Metrics => inner.Metrics;
 
-            public async IAsyncEnumerable<WorkingPaperStep41SourceRow> ReadRowsAsync(
+            public async IAsyncEnumerable<WorkingPaperHighRiskVoucherDetailSourceRow> ReadRowsAsync(
                 [System.Runtime.CompilerServices.EnumeratorCancellation]
                 CancellationToken cancellationToken)
             {

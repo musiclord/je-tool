@@ -42,7 +42,7 @@ public sealed class QueryFilterHitsPageHandler(
                 "篩選情境已更新，請重新開啟第五步進階條件篩選。");
         }
 
-        // 搜尋無結果和零筆命中都是有效答案；只有持久化失效旗標要求重算。
+        // 搜尋無結果和零筆命中都是有效答案；只有案件資料庫記下的命中結果過期旗標，才會要求重算。
         if (cursor is null)
         {
             var refreshed = await repositories.FilterHitMaterializeService.MaterializeForConcurrentQueryAsync(

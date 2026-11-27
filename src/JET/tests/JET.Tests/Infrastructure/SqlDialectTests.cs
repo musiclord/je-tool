@@ -21,7 +21,7 @@ public sealed class SqlDialectTests
         Assert.Equal(expected, actual);
     }
 
-    // 週末述詞:非工作日以 .NET DayOfWeek 編碼(週日=0…週六=6)。預設 {0,6} 須完全重現舊行為(golden-master)。
+    // 週末述詞:非工作日以 .NET DayOfWeek 編碼(週日=0…週六=6)。預設 {0,6} 時，週六與週日算週末(golden-master 固定答案)。
     [Fact]
     public void WeekendPredicate_SqliteDefaultSatSun_ReturnsStrftimeInZeroSix()
     {

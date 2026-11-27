@@ -2,7 +2,7 @@ namespace JET;
 
 internal sealed record ProjectStorageConfiguration(string ProjectsRootPath);
 
-/// <summary>專案根目錄的單一解析點；不使用 process working directory。</summary>
+/// <summary>案件位置根目錄的單一解析點；不使用 process working directory。</summary>
 internal static class ProjectStoragePathResolver
 {
     internal const string ProjectsRootEnvironmentVariable = "JET_PROJECTS_ROOT";
@@ -31,7 +31,7 @@ internal static class ProjectStoragePathResolver
         {
             if (string.IsNullOrWhiteSpace(userProfileDirectory))
             {
-                throw new InvalidOperationException("無法取得使用者設定檔目錄，不能建立正式專案根目錄。");
+                throw new InvalidOperationException("無法取得使用者設定檔目錄，不能建立正式的案件位置根目錄。");
             }
 
             var userProfileRoot = NormalizeLocalPath(

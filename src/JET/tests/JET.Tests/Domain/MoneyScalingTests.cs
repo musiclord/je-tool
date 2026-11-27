@@ -81,7 +81,7 @@ public sealed class MoneyScalingTests
     [Fact]
     public void TryParseAmount_SignedZeroAndNegativeUnaffectedByAccountingZeroRule()
     {
-        // 鎖定既有行為："-0" 走 decimal 解析（非會計零路徑）仍為 0、負數照常。
+        // "-0" 走 decimal 解析（不是會計零的路徑），結果是 0；負數照常解析。
         Assert.True(MoneyScaling.TryParseAmount("-0", out var negZero));
         Assert.Equal(0m, negZero);
 
@@ -90,7 +90,7 @@ public sealed class MoneyScalingTests
     }
 
     // 會計零的拒絕等價類（僅半形連字號單獨成立）：
-    // 連字號變體（全形、em-dash）、多字元組合一律維持拒絕。
+    // 連字號變體（全形、em-dash）與多字元組合一律拒絕。
     [Theory]
     [InlineData("--")]
     [InlineData("-.")]
@@ -104,7 +104,7 @@ public sealed class MoneyScalingTests
 
     // 千分位、會計括號與尾端正負號的合法格式。預期值以不含千分位的純數字文字寫死，
     // 涵蓋首組 1 到 3 位、其後每組 3 位、有無小數點、前後正負號，以及正負號前有空白。
-    // 尾端正負號前有空白時，有無千分位都要讀成同一個值（"1234 -" 本來就接受）。
+    // 尾端正負號前有空白時，有無千分位都要讀成同一個值，"1234 -" 也一樣。
     [Theory]
     [InlineData("(123)", "-123")]
     [InlineData("(1,234.50)", "-1234.50")]

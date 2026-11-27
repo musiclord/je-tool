@@ -65,7 +65,6 @@ public sealed class TestEvidencePolicyTests
         Assert.Matches(
             new Regex(@"\[Fact\]\s+public async Task GlProjection_Sqlite_", RegexOptions.CultureInvariant),
             logging);
-        // 只要求 SQLite 的這兩個測試。
     }
 }
 

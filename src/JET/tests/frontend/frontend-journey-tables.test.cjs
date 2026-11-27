@@ -4,15 +4,15 @@
 //
 // 本檔分兩部分，每個測試都載入正式的 wwwroot 腳本，操作畫面後看送出的請求、畫出的節點與 Store 狀態。
 //
-// 第一部分　情境 20「明細表：翻頁、排序、查號碼與金額」
+// 第一部分　「明細表：翻頁、排序、查號碼與金額」
 //   審計員在第四步與第五步的各種明細表點表頭排序、輸入號碼查看、按清除；讀取中又按了兩次「搜尋」；讀取失敗；
 //   看各處的金額；看各處一頁讀幾筆。
 //
-// 第二部分　情境 21「右側資料預覽」
+// 第二部分　「右側資料預覽」
 //   審計員切換資料表；讀取失敗後重試；讀取途中切到別的資料表；重新匯入或換案件時舊請求晚到；
 //   視窗縮窄再拉寬，期間自己收合或展開；用鍵盤操作「其他資料」選單。
 //
-// 斷言原則：只有定案的畫面用字逐字比對；其他畫面文字只比對意思。
+// 斷言原則：只有固定的畫面用字逐字比對；其他畫面文字只比對意思。
 // 預期值一律寫字面值（例如明細每頁 200 筆），不讀正式常數；action payload 精確比對。
 // 全部用合成資料。這個檔不碰訊息面板的句子、後端原因句子與第五步的儲存、移除、重新檢查流程。
 // 測試程序的記憶體與時間上限，見 support/resource-guard.cjs。
@@ -44,7 +44,7 @@ function validationJourney(mutate = () => {}) {
   f.store.setResult('prescreen', Object.assign(F.remapPrescreen('p1'), { weekendActivity: { postingCount: 2, approvalCount: 0 } }));
   const root = f.draw();
   const detailOf = id => { const body = root.querySelector('[data-page-query="' + id + '"]'); assert.ok(body, id + ' paged table rendered'); return body.closest('.rule-detail'); };
-  // 找出內含某個節點的明細面板，再找控制它的「檢視」按鈕。
+  // 找出內含某個節點的明細面板，再找控制它的展開開關（data-action="toggle-detail"）。
   function toggleFor(selector) {
     const inner = root.querySelector(selector); assert.ok(inner, selector + ' rendered');
     const panel = inner.closest('.rule-detail'); assert.ok(panel, selector + ' sits in a detail panel');
@@ -88,7 +88,7 @@ async function draftVoucherList(f, rows = [{ voucherNumber: 'SYN-B', glDate: '20
 }
 
 // ===========================================================================
-// 第一部分　情境 20：明細表
+// 第一部分　明細表
 // ===========================================================================
 
 // 第四步的分頁明細表：點表頭排序、輸入號碼查看，都把排序與搜尋送給後端並從第一頁重讀。
@@ -448,7 +448,7 @@ test('the high-risk summary retains the full long scenario title and has no entr
 });
 
 // 讀取中按「搜尋」或「清除」不會被忽略：只記住最後一次，讀完後接著做。
-// 狀態列的說明句用字沒有定案，只比對意思（讀完後接著查看或清除）。
+// 狀態列的說明句只比對意思（讀完後接著查看或清除）。
 test('searching while a table is reading waits for the current read and keeps only the last text, even after a failure', async () => {
   const f = validationJourney(), detail = f.detailOf('voucherBalance');
   const status = () => detail.querySelector('[data-page-status]');
@@ -577,7 +577,7 @@ test('money shows two decimals on step five voucher lists, entry details and the
   assert.match(totals, /1,234\.50/); assert.match(totals, /-10\.00/);
 
   host.querySelector('[data-voucher-row="0"]').onclick();
-  // 正式後端的分錄金額一定有值；第二列刻意給 null，確認畫面寫「—」而不是 0.00，所以這筆不核對。
+  // 正式後端的分錄金額一定有值；第二列刻意給 null，確認畫面寫「—」而不是 0.00，所以這份假回應不和 action 契約核對。
   f.request('queryFilterVoucherRowsPage').resolve(unchecked('分錄金額刻意給 null，確認缺值的寫法', { columns,
     rows: [{ lineItem: '1', isHit: true, amount: -10, customValues: { 'rde.extra': 1234.5 } }, { lineItem: '2', isHit: false, amount: null, customValues: { 'rde.extra': null } }], nextCursor: null }));
   await settle();
@@ -589,10 +589,11 @@ test('money shows two decimals on step five voucher lists, entry details and the
 
   // 已儲存情境：條件讀回保留審計員輸入的值，不加千分位、不補小數；高風險條件彙總的金額照畫面格式。
   const s = F.savedBlankDescription('合成金額'); s.source = 'custom'; delete s.editorOrigins;
-  s.groups = [{ join: 'AND', matchScope: 'row', conditions: [{ type: 'numRange', join: 'AND', from: '1234.5', to: '' }] }];
+  s.groups = [{ join: 'AND', matchScope: 'row', conditions: [{ type: 'fieldValue', join: 'AND', field: 'amount', operator: 'greaterThanOrEqual',
+    value: '1234.5', amountBasis: 'absolute' }] }];
   const g = filterJourney({ saved: [s] });
   const readback = g.dom.content.textContent;
-  assert.match(readback, /≥ 1234\.5/); assert.doesNotMatch(readback, /1,234\.5/);
+  assert.match(readback, /大於或等於「1234\.5」/); assert.doesNotMatch(readback, /1,234\.5/);
   g.click('[data-action="toggle-high-risk-summary"]');
   g.request('queryHighRiskSummaryScenarios').resolve({ scenarios: [{ position: 1, name: '合成金額', voucherHitCount: 1, rowHitCount: 1, summaryRowCount: 1 }] }); await settle();
   g.click('[data-high-risk-summary-view="vouchers"]'); await settle();
@@ -625,7 +626,7 @@ test('report history shows fifty files per page and the mapping value sample rea
 });
 
 // ===========================================================================
-// 第二部分　情境 21：右側資料預覽
+// 第二部分　右側資料預覽
 // ===========================================================================
 
 async function previewOpened(options) {
@@ -757,7 +758,7 @@ test('TB, account mapping and both PBC pages take names and alignment from the c
   assert.deepEqual(f.body().querySelectorAll('tbody tr')[0].querySelectorAll('td').map(cell => cell.classList.contains('num')), [false, false]);
 });
 
-// 人工或自動分錄沒有判定時顯示「—」，這裡鎖住畫面實際的寫法。
+// 人工或自動分錄沒有判定時顯示「—」。
 test('the GL pages show an undetermined manual or automatic entry as a dash', async () => {
   const f = await previewOpened();
   f.request('queryDataPreview').resolve({ columns: ['voucherNumber'], rows: [['FIRST']], totalCount: 1 }); await settle();
@@ -1036,7 +1037,7 @@ test('the other-data menu works from the keyboard on the same toggle with matchi
   for (const main of tabs.querySelectorAll('[role="tab"]')) assert.equal(main.getAttribute('aria-selected'), 'false');
 });
 
-// 同功能的元件只留一套，資料預覽的主要資料表用共用頁籤，外層是 role="tablist"，
+// 同功能的元件只有一套，資料預覽的主要資料表用共用頁籤，外層是 role="tablist"，
 // 只有選中的頁籤留在 Tab 鍵順序裡，方向鍵左右、Home、End 直接換資料表；「其他資料」是頁籤後面的共用選單，不在方向鍵裡。
 test('data preview tabs switch datasets with arrow keys, Home and End, keep one tab in the Tab order, and leave the other-data menu out of the arrows', async () => {
   const f = await previewOpened();

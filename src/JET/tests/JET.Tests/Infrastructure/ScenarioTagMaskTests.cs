@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 底稿第 4 與 4-1 頁共用的情境位置遮罩：SQL 片段與解碼都是固定答案，位置上限跟著已存情境上限。
+/// 底稿 step4 符合高風險條件傳票與 step4-1 符合高風險條件傳票明細共用的情境位置遮罩：SQL 片段與解碼都是固定答案，位置上限跟著已存情境上限。
 /// </summary>
 public sealed class ScenarioTagMaskTests
 {

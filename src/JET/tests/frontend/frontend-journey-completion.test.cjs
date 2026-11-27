@@ -1,12 +1,12 @@
 'use strict';
-// 情境 17：第六步完成狀態、版本紀錄與三處進度。
+// 第六步完成狀態、版本紀錄與三處進度的情境測試。
 //
 // 審計員的操作：只有過期底稿時看第六步；匯出成功；上游重跑資料驗證；情境刪光後進第六步看紀錄；新增一般報告與新底稿；看條件儲存時間。
 // 夾具：support/frontend-fixtures.cjs 的 usageJourneyFixture（第六步重繪）與 remapAppFixture（左側目錄、步驟文件流與流程總覽）。
 // 刪光情境用 Store.setSavedScenarios([]) 直接設定，不經第五步移除操作。
 //
 // 斷言的失敗值一律不是假 DOM 節點（節點只用 === 轉成布林），避免報表展開整棵假 DOM。
-// 逐字比對的只有已定案的用字，其餘只比對意思。預期值一律寫死。
+// 預期值使用固定文字，依案例逐字核對或比對意思。
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
@@ -222,7 +222,6 @@ test('the scenario save time reads as a local date and time in step six and the 
   f.store.setFilterResultRef({ revision: iso, populationScope: 'auditPeriod' });
   f.store.setReports([paper('current', { scenarioRevision: iso, generatedUtc: iso })]);
   const hint = () => f.draw('export').querySelectorAll('.scenario-export-selection__hint').map(node => node.textContent).find(text => text.includes('條件儲存時間：'));
-  // 「條件儲存時間：」與「儲存」的用字已定案。
   const text = hint();
   assert.ok(text && text.startsWith('條件儲存時間：'), 'the line starts with the save-time label');
   const shown = text.slice('條件儲存時間：'.length).match(LOCAL_TIME);

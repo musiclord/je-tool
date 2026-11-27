@@ -249,7 +249,7 @@ public sealed class ExportProgressEventTests
             Assert.Equal("publishingReport", updates[^1].GetProperty("phase").GetString());
         }
 
-        // 事件沒有成功旗標；只有 awaited action response 的 ok 與 publishedReport、publishedReports 是完成權威。
+        // 事件沒有成功旗標；是否完成以 awaited action response 的 ok 與 publishedReport、publishedReports 為準。
         Assert.True(export.Response.GetProperty("ok").GetBoolean());
     }
 

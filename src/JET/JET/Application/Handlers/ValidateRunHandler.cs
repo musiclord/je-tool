@@ -13,27 +13,27 @@ namespace JET.Application;
 /// </summary>
 public sealed class ValidateRunHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
-    private readonly ILogger? logger;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
+    private readonly ILogger? _logger;
 
     internal ValidateRunHandler(
         IProjectStore projectStore,
         ProjectSession session, ILogger? logger = null)
     {
-        this.projectStore = projectStore;
-        this.session = session;
-        this.logger = logger;
+        this._projectStore = projectStore;
+        this._session = session;
+        this._logger = logger;
     }
 
     public string Action => "validate.run";
 
-    /// <summary>驗證跑完後，案件至少推進到第四步。</summary>
-    internal const int WorkflowStep = 4;
+    /// <summary>驗證跑完後，案件至少推進到進階條件篩選這一步。</summary>
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Filter;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var sampleSize = InfSampling.DefaultSampleSize;
         if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("sampleSize", out var size))
         {
@@ -55,7 +55,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         var tbMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Tb, cancellationToken);
         var tbBatch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken);
 
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         var resultId = Guid.NewGuid().ToString("N");
@@ -94,8 +94,8 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         var record = await repositories.ValidationFacts.ExecuteAsync(
             plan, facts => CreateRecord(plan, facts, document), cancellationToken);
         SupportOperationStage.Enter("after_commit");
-        await MappingCommitShared.AdvanceStepAsync(projectStore, document,
-            WorkflowStep, CancellationToken.None, logger);
+        await MappingCommitShared.AdvanceStepAsync(_projectStore, document,
+            AdvancesTo, CancellationToken.None, _logger);
         using var parsed = JsonDocument.Parse(record.SummaryJson);
         return parsed.RootElement.Clone();
     }

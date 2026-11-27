@@ -1,7 +1,7 @@
 {
   "description": [
     "前後端共用的金額固定答案。",
-    "C# 的 MoneyScalingTests、TypedFieldRuleValidationTests 與前端 frontend-shared-controls 的金額條件測試都讀這一份；一邊改了規則，另一邊的測試就會失敗。",
+    "C# 的 MoneyScalingTests、FieldValueOperandValidationTests 與前端 frontend-shared-controls 的金額條件測試都讀這一份；一邊改了規則，另一邊的測試就會失敗。",
     "scaled 是金額存放倍率為 moneyScale 時 MoneyScaling.TryParseScaled 的結果，寫成字串，因為超過 JavaScript 能精確表示的整數；null 表示不是有效金額，畫面與後端都寫「金額「原文」不是數字」。",
     "ranges 是金額區間；result 為 ok、reversed（下限金額大於上限金額）、invalidFrom、invalidTo 或 invalidBoth。畫面寫第一個讀不成的值，後端每個讀不成的值各寫一句。",
     "空白不列在這裡：畫面寫「請填好條件值」，匯入時空白當成 0，各有自己的測試。",
@@ -47,9 +47,9 @@
     { "group": "空白字元", "raw": " 12 ", "scaled": "120000" },
     { "group": "空白字元", "raw": "\t12\t", "scaled": "120000" },
     { "group": "空白字元", "raw": "　12　", "scaled": "120000", "note": "全形空白" },
-    { "group": "空白字元", "raw": " 12", "scaled": "120000", "note": "不換行空白" },
+    { "group": "空白字元", "raw": "\u00a012", "scaled": "120000", "note": "不換行空白" },
     { "group": "空白字元", "raw": "\u008512", "scaled": "120000", "note": ".NET 去頭尾空白包含 U+0085，JavaScript 的 trim 不含" },
-    { "group": "空白字元", "raw": "﻿12", "scaled": null, "note": ".NET 不把 U+FEFF 當空白，JavaScript 的 trim 會去掉" },
+    { "group": "空白字元", "raw": "\ufeff12", "scaled": null, "note": ".NET 不把 U+FEFF 當空白，JavaScript 的 trim 會去掉" },
     { "group": "小數與進位", "raw": ".5", "scaled": "5000" },
     { "group": "小數與進位", "raw": "5.", "scaled": "50000" },
     { "group": "小數與進位", "raw": "0.00005", "scaled": "1", "note": "剛好一半往遠離零的方向進位" },

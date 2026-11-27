@@ -279,7 +279,8 @@ DuckDB 與 SQL Server 的最後完整版本是提交 `7e88b7b`。短期目標上
 
 - 約五十個測試類別的說明仍寫「SQLite 與 DuckDB 各跑一次」這類句子，類別名稱也還帶 `ProviderParity`。目前只跑 SQLite；
   恢復 DuckDB 時這些說明會重新成立，這次不改。
-- `mapping-step.js` 的 `unsupportedProvider` 句子照裁定 2026-10-14-01 保留；只有 SQLite 時不會出現。
+- `mapping-step.js` 的 `unsupportedProvider` 句子原本照裁定 2026-10-14-01 保留，2026-11-26 依裁定 2026-11-26-11 連同後端回 null 的路徑刪掉；
+  接回 SQL Server 時，從提交 `7e88b7b` 一起還原。
 - SAT 文件的套件清單與架構圖要回頭同步（裁定 2026-11-06-10），由 SAT 文件計畫處理。
 - 開著檔案的提醒還沒用真的 Excel 與 OneDrive 實測；測試是用和 Excel 相同的開檔方式模擬。獨立複審另外指出幾個沒處理的邊界，
   都只看過程式、沒有實測：任何持有寫入權限的程式都算開著，提醒句仍寫「例如 Excel」；不一直開著檔案的程式不會提醒；

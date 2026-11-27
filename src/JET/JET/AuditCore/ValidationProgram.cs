@@ -165,7 +165,7 @@ internal sealed record ValidationControlTotalsFacts(
     long EligibleSourceCreditScaled);
 
 /// <summary>
-/// 資料庫交易執行完後交回 AuditCore 的原始數字與明細。明細沿用原有的列型別，筆數有上限。
+/// 資料庫交易執行完後交回 AuditCore 的原始數字與明細。明細用 UnbalancedVoucher、BlankRecordRow 這些列型別，筆數有上限。
 /// status、N/A，以及存入筆數與合計是否相符，都不在 Infrastructure 決定。
 /// </summary>
 internal sealed record ValidationFacts(

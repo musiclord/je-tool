@@ -9,7 +9,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 第三步「讀取來源值」的值概況與來源值核對，產品程式用一句 SQL 掃一次來源算出。
-/// 測試裡保留改寫前分開執行的兩句 SQL 當對照，兩句各掃一次來源。同一份合成資料、同一組參數，
+/// 測試另外寫兩句分開執行的 SQL 當對照，兩句各掃一次來源。同一份合成資料、同一組參數，
 /// 兩種寫法的空白數、不同值數、常見值與次數、截斷旗標，以及缺少的值與它們的順序都要相同；往下填補空白開與關都比。
 /// 合成資料用 JET 的匯入程式寫進案件資料庫，分成三份來源，有特殊欄名、重複值、空字串、只有空白、
 /// 只差大小寫或空白的值、.NET 認得的各種空白、整欄空白、只有第一份來源有的欄，以及每一列都沒有的欄。
@@ -55,7 +55,7 @@ public sealed class MappingValueProfileQueryEquivalenceTests
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
-    public async Task ProfileAndCheck_AreTheSameAsTheTwoQueriesBeforeTheRewrite(int seed)
+    public async Task ProfileAndCheck_MatchTheTwoSeparateReferenceQueries(int seed)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -189,7 +189,7 @@ public sealed class MappingValueProfileQueryEquivalenceTests
         Assert.True(await command.ExecuteNonQueryAsync() > 0);
     }
 
-    // 改寫前的值概況：每一列都展開全部欄位挑出這一欄，每一列都算一次比對鍵；勾往下填補時用兩個視窗函式逐列填補。
+    // 對照用的值概況：每一列都展開全部欄位挑出這一欄，每一列都算一次比對鍵；勾往下填補時用兩個視窗函式逐列填補。
     private static string OracleProfileSql(bool fillDown) =>
         $"""
         WITH extracted AS (
@@ -239,7 +239,7 @@ public sealed class MappingValueProfileQueryEquivalenceTests
         ),
         """;
 
-    // 改寫前的核對：另掃一次來源，用沒有去空白的原始值算比對鍵。
+    // 對照用的核對：另掃一次來源，用沒有去空白的原始值算比對鍵。
     private const string OracleCheckSql = """
         WITH available AS MATERIALIZED (
             SELECT DISTINCT jet_mapping_ordinal_key(CAST(j.value AS TEXT)) AS comparison_key

@@ -32,7 +32,7 @@
       "*ProjectReportStoreTests*",
       "*EmbeddedReportTemplateFailureTests*"
     ],
-    "guiFixtureMinimumExpectedTests": 31,
+    "guiFixtureMinimumExpectedTests": 30,
     "guiFixtureMethodPatterns": [
       "*.AgentGuiTestFixtureBehaviorTests.*",
       "*.DevToolsGatingTests.*",
@@ -48,21 +48,14 @@
       "JET.Tests.Architecture"
     ],
     "environmentVariablesToRemove": [
-      "JET_ACCOUNT_MAPPING_EVIDENCE_PATH",
       "JET_AGENT_GUI_CHILD",
       "JET_AGENT_GUI_ROOT",
-      "JET_PRESCREEN_MONTHLY_BENCHMARK",
-      "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
-      "JET_PRESCREEN_POSTPERIOD_PROBE",
-      "JET_PRESCREEN_POSTPERIOD_PROBE_OUTPUT",
       "JET_PROJECTS_ROOT",
       "JET_SCALE_JOURNEY",
       "JET_SCALE_JOURNEY_OUTPUT",
       "JET_SCALE_JOURNEY_PROVIDER",
       "JET_SCALE_JOURNEY_ROWS",
       "JET_SIX_REPORT_EVIDENCE_DIR",
-      "JET_STEP41_BASELINE_ROOT",
-      "JET_STEP41_PARITY_EVIDENCE_ROOT",
       "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
       "WEBVIEW2_USER_DATA_FOLDER"
     ]
@@ -239,7 +232,7 @@
     "driverProject": "tools/harness/excel-driver/ExcelDriver.csproj",
     "driverAssembly": "tools/harness/excel-driver/bin/Release/net10.0-windows/Jet.ExcelDriver.dll",
     "configuration": "Release",
-    "fixtureMethodPattern": "*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate*",
+    "fixtureMethodPattern": "*SixReportWorkflowJourneyTests.AccountMappingHandoff_ExportsSixWorkbooksWithManifest*",
     "fixtureEnvironmentVariable": "JET_SIX_REPORT_EVIDENCE_DIR",
     "scenario": "synthetic-report-roundtrip",
     "timeoutSeconds": 180,

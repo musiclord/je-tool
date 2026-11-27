@@ -44,17 +44,15 @@ public sealed record AccountMappingTemplateRow(
 }
 
 /// <summary>
-/// 科目配對的唯讀全列匯出查詢(匯出底稿 sheet 15)。回 <c>account_mapping</c> 每一列
-/// 並附上 not-in-tb 旗標(以 <c>JET.AuditCore.ValidationProcedures.CompletenessDiffCte</c> 的
-/// not_in_tb 為單一事實來源:GL 有 TB 無 = 1)。科目數有界(實務數百),故回完整清單、不分頁
-/// (對有界基數加分頁是過度工程化;鏡射 <see cref="IPreparerSummaryExportRepository"/>)。
+/// 科目配對的唯讀全列匯出查詢（匯出底稿 sheet 15）。回 <c>account_mapping</c> 每一列，並附上 not-in-tb 旗標，
+/// 取自 <c>JET.AuditCore.ValidationProcedures.CompletenessDiffCte</c> 的 not_in_tb：GL 有、TB 無時是 1。
+/// 科目數有上限，實務上數百，所以一次回完整清單，不分頁，做法和 <see cref="IPreparerSummaryExportRepository"/> 相同。
 ///
-/// 為什麼新立唯讀 repo 而非擴充 <see cref="IAccountMappingStore"/>:後者是匯入(replace-only)專用,
-/// 匯出走 WorkingPaperWriter 既有的「唯讀 repo 注入」管線,兩者關注點不同。
+/// <see cref="IAccountMappingStore"/> 只做 replace-only 匯入；匯出經 WorkingPaperWriter 注入的唯讀 repo 讀取，所以另用這個介面。
 /// </summary>
 public interface IAccountMappingExportRepository
 {
-    /// <summary>periodStart/periodEnd 界定完整性 not-in-tb 判定的 GL 母體本期口徑（與 CTE 8 消費端一致）。</summary>
+    /// <summary>periodStart/periodEnd 界定完整性 not-in-tb 判定的 GL 母體本期範圍，和完整性差異查詢用的期間相同。</summary>
     Task<IReadOnlyList<AccountMappingExportRow>> FetchAllAsync(
         string projectId,
         string periodStart,
@@ -81,8 +79,8 @@ public interface IAccountMappingExportRepository
 /// 用於匯出底稿「自動化工具-假期假日資訊」sheet 14 的假日表與補班段。日數有界(一年百列上下),
 /// 故回完整清單、不分頁。day_type 由 <see cref="CalendarDayType"/> 指定,日期升冪。
 ///
-/// 為什麼新立唯讀 repo 而非擴充 <see cref="ICalendarStore"/>:後者是匯入(replace 語意)+ 計數專用,
-/// 缺逐日讀回 API;匯出需逐日列出,走 WorkingPaperWriter 既有唯讀 repo 注入管線。
+/// <see cref="ICalendarStore"/> 只做匯入（replace 語意）與計數，沒有逐日讀回；匯出要逐日列出，
+/// 所以經 WorkingPaperWriter 注入這個唯讀 repo。
 /// </summary>
 public interface ICalendarExportRepository
 {

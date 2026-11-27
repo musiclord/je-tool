@@ -100,11 +100,11 @@ public sealed class PrescreenRulePeriodTests
     }
 
     [Fact]
-    public async Task ProjectLoad_OldPrescreenSummary_ReplaysWithoutFabricatingRulePeriod()
+    public async Task ProjectLoad_SummaryWithoutRulePeriod_ReplaysWithoutFabricatingIt()
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, BuildFourRowGl);
-        await SaveLegacyPrescreenSummaryAsync(host, projectId);
+        await SavePrescreenSummaryWithoutRulePeriodAsync(host, projectId);
 
         var loaded = await host.DispatchAsync(
             "project.load",
@@ -219,7 +219,7 @@ public sealed class PrescreenRulePeriodTests
         }
 
         // 第四步與第五步要對同一條規則給同一個原因，句子寫出缺什麼、到哪裡補，
-        // 預期值換成規則需求表的句子。
+        // 預期值用規則需求表的句子。
         AssertNotApplicable(
             rules["unexpectedAccountPair"],
             "科目配對中尚無任何科目設定分類，請先在第四步設定。");
@@ -264,7 +264,7 @@ public sealed class PrescreenRulePeriodTests
                 .ToArray());
     }
 
-    private static async Task SaveLegacyPrescreenSummaryAsync(
+    private static async Task SavePrescreenSummaryWithoutRulePeriodAsync(
         HandlerTestHost host,
         string projectId)
     {

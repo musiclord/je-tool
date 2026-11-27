@@ -14,7 +14,7 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class WorkingPaperFieldProvenanceJourneyTests
 {
-    private const string Step41SheetName = WorkingPaperSheetCatalog.Step41;
+    private const string HighRiskVoucherDetailSheetName = WorkingPaperSheetCatalog.HighRiskVoucherDetail;
 
     // 要防止的錯誤：匯出底稿時 step4-1 的欄位名稱「傳票金額_JE」重複，整份底稿產生失敗。
     [Theory]
@@ -36,10 +36,10 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
             var generated = Assert.Single(fieldInfo, row => row.After == "傳票金額_JE");
             Assert.StartsWith("傳票金額_JE 由系統產生", generated.Before, StringComparison.Ordinal);
 
-            var step41 = ReadStep41(workbook);
-            Assert.Single(step41.Headers, header => header == "傳票金額_JE");
-            Assert.DoesNotContain("傳票金額_JE（來源）", step41.Headers);
-            Assert.Equal(2, step41.Rows.Count);
+            var highRiskVoucherDetail = ReadHighRiskVoucherDetail(workbook);
+            Assert.Single(highRiskVoucherDetail.Headers, header => header == "傳票金額_JE");
+            Assert.DoesNotContain("傳票金額_JE（來源）", highRiskVoucherDetail.Headers);
+            Assert.Equal(2, highRiskVoucherDetail.Rows.Count);
         });
     }
 
@@ -59,15 +59,15 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
             var unmapped = Assert.Single(fieldInfo, row => row.Before == "COST_CENTER_JE");
             Assert.Equal(string.Empty, unmapped.After);
 
-            var step41 = ReadStep41(workbook);
-            Assert.DoesNotContain("COST_CENTER_JE", step41.Headers);
+            var highRiskVoucherDetail = ReadHighRiskVoucherDetail(workbook);
+            Assert.DoesNotContain("COST_CENTER_JE", highRiskVoucherDetail.Headers);
         });
     }
 
     // 要防止的錯誤：step4-1 的「傳票核准日_JE」整欄空白。
     [Theory]
     [InlineData("sqlite")]
-    public async Task ApprovalDateSameAsGlDate_Step41WritesTheGlDate(string provider)
+    public async Task ApprovalDateSameAsGlDate_HighRiskVoucherDetailWritesTheGlDate(string provider)
     {
         var builder = new InlineGlWorkbookBuilder()
             .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
@@ -84,13 +84,13 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
             var approval = Assert.Single(fieldInfo, row => row.After == "傳票核准日_JE");
             Assert.Equal("傳票核准日_JE 由系統產生 : 同總帳日期_JE來源", approval.Before);
 
-            var step41 = ReadStep41(workbook);
-            var approvalIndex = step41.Headers.IndexOf("傳票核准日_JE");
-            var glDateIndex = step41.Headers.IndexOf("總帳日期_JE");
+            var highRiskVoucherDetail = ReadHighRiskVoucherDetail(workbook);
+            var approvalIndex = highRiskVoucherDetail.Headers.IndexOf("傳票核准日_JE");
+            var glDateIndex = highRiskVoucherDetail.Headers.IndexOf("總帳日期_JE");
             Assert.True(approvalIndex >= 0);
             Assert.True(glDateIndex >= 0);
-            Assert.Equal(4, step41.Rows.Count);
-            Assert.All(step41.Rows, row =>
+            Assert.Equal(4, highRiskVoucherDetail.Rows.Count);
+            Assert.All(highRiskVoucherDetail.Rows, row =>
             {
                 Assert.False(string.IsNullOrEmpty(row[glDateIndex]));
                 Assert.Equal(row[glDateIndex], row[approvalIndex]);
@@ -101,7 +101,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
     // 勾了往下填補的欄位，step4-1 寫填補後的值。
     [Theory]
     [InlineData("sqlite")]
-    public async Task FillDownField_Step41WritesTheFilledValue(string provider)
+    public async Task FillDownField_HighRiskVoucherDetailWritesTheFilledValue(string provider)
     {
         var builder = new InlineGlWorkbookBuilder()
             .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
@@ -112,10 +112,10 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
 
         await ExportAsync(provider, builder, commit, workbook =>
         {
-            var step41 = ReadStep41(workbook);
-            var voucherIndex = step41.Headers.IndexOf("傳票號碼_JE");
-            Assert.Equal(2, step41.Rows.Count);
-            Assert.All(step41.Rows, row => Assert.Equal("JV-001", row[voucherIndex]));
+            var highRiskVoucherDetail = ReadHighRiskVoucherDetail(workbook);
+            var voucherIndex = highRiskVoucherDetail.Headers.IndexOf("傳票號碼_JE");
+            Assert.Equal(2, highRiskVoucherDetail.Rows.Count);
+            Assert.All(highRiskVoucherDetail.Rows, row => Assert.Equal("JV-001", row[voucherIndex]));
         });
     }
 
@@ -148,15 +148,15 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
                 var postingSource = Assert.Single(fieldInfo, row => row.Before == "過帳");
                 Assert.Equal(string.Empty, postingSource.After);
 
-                var step41 = ReadStep41(workbook);
-                var postingIndex = step41.Headers.IndexOf("過帳碼_JE");
-                var rdeIndex = step41.Headers.IndexOf("成本中心_JE");
+                var highRiskVoucherDetail = ReadHighRiskVoucherDetail(workbook);
+                var postingIndex = highRiskVoucherDetail.Headers.IndexOf("過帳碼_JE");
+                var rdeIndex = highRiskVoucherDetail.Headers.IndexOf("成本中心_JE");
                 Assert.True(postingIndex >= 0);
                 Assert.True(rdeIndex >= 0);
-                Assert.DoesNotContain("成本中心", step41.Headers);
-                Assert.Equal(2, step41.Rows.Count);
-                Assert.All(step41.Rows, row => Assert.Equal("Y", row[postingIndex]));
-                Assert.Equal(new[] { "CC-1", "CC-2" }, step41.Rows.Select(row => row[rdeIndex]).ToArray());
+                Assert.DoesNotContain("成本中心", highRiskVoucherDetail.Headers);
+                Assert.Equal(2, highRiskVoucherDetail.Rows.Count);
+                Assert.All(highRiskVoucherDetail.Rows, row => Assert.Equal("Y", row[postingIndex]));
+                Assert.Equal(new[] { "CC-1", "CC-2" }, highRiskVoucherDetail.Rows.Select(row => row[rdeIndex]).ToArray());
             },
             committed =>
             {
@@ -176,7 +176,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
                                     join = "AND",
                                     conditions = new object[]
                                     {
-                                        new { join = "AND", type = "typed", fieldId, @operator = "isNotBlank" }
+                                        new { join = "AND", type = "fieldValue", fieldId, @operator = "isNotBlank" }
                                     }
                                 }
                             }
@@ -279,12 +279,12 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
         return rows;
     }
 
-    private sealed record Step41Sheet(List<string> Headers, IReadOnlyList<IReadOnlyList<string>> Rows);
+    private sealed record HighRiskVoucherDetailSheet(List<string> Headers, IReadOnlyList<IReadOnlyList<string>> Rows);
 
     /// <summary>step4-1 的表頭在第 5 列，資料從第 6 列開始。</summary>
-    private static Step41Sheet ReadStep41(XLWorkbook workbook)
+    private static HighRiskVoucherDetailSheet ReadHighRiskVoucherDetail(XLWorkbook workbook)
     {
-        var sheet = workbook.Worksheet(Step41SheetName);
+        var sheet = workbook.Worksheet(HighRiskVoucherDetailSheetName);
         var lastColumn = sheet.Row(5).LastCellUsed()!.Address.ColumnNumber;
         var headers = Enumerable.Range(1, lastColumn)
             .Select(column => sheet.Cell(5, column).GetString())
@@ -303,6 +303,6 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
             rows.Add(cells);
         }
 
-        return new Step41Sheet(headers, rows);
+        return new HighRiskVoucherDetailSheet(headers, rows);
     }
 }

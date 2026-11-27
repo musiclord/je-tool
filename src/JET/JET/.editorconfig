@@ -1,13 +1,5 @@
-# JET 主專案設定，作用於這個專案資料夾與子資料夾，涵蓋 Application、Domain、Infrastructure、Bridge 四層。
-#
-# 各層把檔案分進子資料夾（Application：Ports/Contracts/Support/Handlers；
-# Domain：Abstractions/Contracts/Rules/Primitives；Infrastructure：Persistence/{Local,Sqlite}、
-# Sql/FileIO/Export/Diagnostics），但 namespace 刻意維持單層（JET.Application、JET.Domain、JET.Infrastructure）：
-# 資料夾只做人為分類，不決定 namespace。
-#
-# 因此關閉「namespace 需與資料夾結構相符」的分析建議（IDE0130），避免 Visual Studio 對子資料夾內的
-# 檔案顯示誤導性提示。此設定不改變任何編譯行為（IDE0130 預設僅為建議級、不進 build 警告），
-# 只是把「分資料夾但不分 namespace」這個決定寫成白紙黑字，一次涵蓋四層。
+# 子資料夾用於分類，namespace 維持所屬層級，例如 JET.Application 與 JET.Infrastructure。
+# 停用要求 namespace 配合子資料夾名稱的 IDE0130 建議。
 [*.cs]
 dotnet_style_namespace_match_folder = false
 dotnet_diagnostic.IDE0130.severity = none

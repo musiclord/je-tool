@@ -26,8 +26,8 @@ public sealed class InfSamplingPrfTests
     [Fact]
     public void StableOrderingKey_FixedSyntheticPopulationPassesBucketChiSquareSanity()
     {
-        // 固定 oracle 實測 χ² = 31.54368（df=31）；60 是寬鬆的迴歸上界，
-        // 用來抓回線性／集中排序，不把這項 sanity guard 誤當正式統計證明。
+        // 固定的合成母體實測 χ² = 31.54368（df=31）；上界 60 用來抓出排序退化成線性或集中，
+        // 這項檢查不是正式的統計檢定。
         const int populationSize = 100_000;
         const int bucketCount = 32;
         const double chiSquareUpperBound = 60.0;

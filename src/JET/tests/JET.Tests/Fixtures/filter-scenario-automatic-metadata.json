@@ -75,20 +75,6 @@
     "rationale": "檢視符合以下條件的分錄：傳票摘要 包含任一文字「合成」。"
   },
   {
-    "id": "legacy-text-keywords",
-    "existingNames": [],
-    "scenario": {
-      "groups": [
-        { "join": "AND", "matchScope": "row", "conditions": [
-          { "type": "text", "join": "AND", "field": "description", "mode": "contains", "keywords": "合成、調整\n沖銷,合成" }
-        ] }
-      ],
-      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": [null] } ] }
-    },
-    "name": "傳票摘要 包含「合成,調整,沖銷」",
-    "rationale": "檢視符合以下條件的分錄：傳票摘要 包含「合成,調整,沖銷」。"
-  },
-  {
     "id": "mixed-joins-in-one-group",
     "existingNames": [],
     "scenario": {

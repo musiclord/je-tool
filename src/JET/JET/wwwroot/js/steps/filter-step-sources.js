@@ -41,17 +41,6 @@
   // 下拉選單裡停用的欄位寫在選項後面的說明，和欄位按鈕下方那句同一個意思。
   var UNMAPPED_OPTION_SUFFIX = '（' + Ui.GL_FIELD_UNMAPPED + Ui.GL_FIELD_NEXT_STEP + '）';
 
-  // 目前案件已提交的攸關資料元素欄位；沒有時 typed 條件卡停用並說明原因。
-  function rdeFieldOptions() {
-    return Ui.FilterValues.fields(Store.getState()).filter(function (field) { return field.extra; })
-      .map(function (field) { return { id: field.id, fieldId: field.id, valueType: field.type, optionLabel: field.optionLabel }; });
-  }
-
-  function rdeFieldValueType(fieldId) {
-    var hit = rdeFieldOptions().filter(function (f) { return f.fieldId === fieldId; })[0];
-    return hit ? hit.valueType : null;
-  }
-
   function availablePrescreenKeys() {
     return Ui.PRESCREEN_RULES.filter(function (o) {
       return !prescreenRequirementNote(o.value);
@@ -71,11 +60,9 @@
      一張卡 = 一份「rule 規格」陣列（commonRuleSpecs）。加入 = 把這些規格化成真 rule、
      在每條 rule 上打一個穩定的身分標記（__commonCard = 卡片代號）併進草稿；已選偵測 =
      草稿中是否存在帶該卡標記的 rule；移除 = 把所有帶該卡標記的 rule 挑掉。
-     為何用標記而非結構簽章（取捨顯式）：若以 type(+field/mode/prescreenKey) 的結構簽章
-     猜「這條 rule 是不是這張卡帶進來的」，卡片的簽章會與查核員「自訂」的同型別條件
-     重疊——例如特定摘要卡會被任何手動加入的同型別關鍵字條件誤判為「已選」，且移除
-     時只刪「第一條」同簽章 rule，可能誤刪使用者手動加入的條件。用精確身分標記就沒有這一整類
-     誤判／誤刪的 edge case：自訂的同型別條件不帶標記，永遠不會被當成卡片帶入的條件。
+     用標記而不用結構簽章判斷：如果用 type(+field/mode/prescreenKey) 的結構簽章猜「這條 rule 是不是這張卡帶進來的」，
+     卡片的簽章會和審計員自訂的同型別條件重疊，例如手動加入的同型別關鍵字條件會讓特定摘要卡被當成已選；
+     移除時只刪第一條同簽章的 rule，也可能刪到審計員自己加的條件。自訂條件不帶標記，就不會被當成卡片帶入的條件。
      __commonCard 是 UI-only 標記（鍵名以雙底線開頭、明示「內部用途、不屬 wire 契約」），絕不可
      送進後端。所有送出點一律經 toWireScenario() 深拷貝並遞迴剝除；有卡片標記或已存
      source:'common' 時另送根層 source:'common'，groups 內每條 rule 不含任何 UI-only 鍵。
@@ -97,7 +84,7 @@
   }
 
   // Wire source 的單一推導點：草稿讀標記；project.load 的 saved summary 已沒有標記，故保留 canonical source。
-  // 較早儲存的情境記的是另一個來源代碼，這一版不認得，一律當成審計員自訂的情境（見 filter-step-saved 的 editScenario）。
+  // 來源代碼不是 common 的情境，一律當成審計員自訂的情境（見 filter-step-saved 的 editScenario）。
   function scenarioSource(scenario) {
     return hasCommonMarker(scenario) || (scenario.source === COMMON_SOURCE && !scenario.__restoredOrigins) ? COMMON_SOURCE : null;
   }
@@ -142,7 +129,7 @@
     return !!active && active.conditions.some(function (r) { return r[COMMON_CARD_KEY] === item.key; });
   }
 
-  // 卡片是否「用於其他（非作用中）條件組」——給卡片加淡標記「也在其他組」，維持全局意識。
+  // 卡片是否用在其他（非作用中）條件組：用在別組時，名稱下一行寫「也在其他組」。
   function isCommonUsedElsewhere(draft, item) {
     var active = activeEditableGroup(draft);
     return draft.groups.some(function (g) {
@@ -151,8 +138,8 @@
   }
 
   // 卡片視覺狀態（給 commonCardsHtml）：
-  //   'selected'  = 在作用中組（藍色高亮）。
-  //   'elsewhere' = 只在別的（非作用中）組（藍邊「也在其他組」）。
+  //   'selected'  = 在作用中組（鍵往下凹、寫「已加入」）。
+  //   'elsewhere' = 只在別的（非作用中）組（名稱下一行寫「也在其他組」）。
   //   'none'      = 未加入。
   function commonCardState(draft, item) {
     if (isCommonSelectedActive(draft, item)) { return 'selected'; }
@@ -162,7 +149,7 @@
 
   // 加入：把該卡的規格落地成帶標記的 rule 併進草稿（就地修改傳入 draft）。
   // 每張卡都累積進「作用中」群組（activeEditableGroup）；沒有條件組就新建
-  // 一組、組合器預設「全部(AND)」並設為作用中。新規則 join 取該群組現有組合器以維持群組內一致。
+  // 一組、組內連接預設 AND 並設為作用中。新規則 join 取該群組現有組合器以維持群組內一致。
   function addCommonToDraft(draft, item) {
     var specs = commonRuleSpecs(item);
     if (specs.length === 0) { return; }
@@ -217,7 +204,6 @@
 
   // 有卡片時的動機只列評估說明：依卡片順序每張一行，沒有評估說明的卡片寫卡片名稱。
   // 另有自訂條件時，每條自訂條件多一行「自訂：」加上畫面讀回的條件說明。
-  // 每行不以卡片字母開頭。
   function commonScenarioRationale(draft) {
     var lines = Ui.FILTER_COMMON_CONDITIONS
       .filter(function (item) { return isCommonSelected(draft, item); })
@@ -247,8 +233,8 @@
     return true;
   }
 
-  // 卡片認得的條件種類：現在加入的規格，加上已儲存情境裡的舊寫法（FILTER_COMMON_PRESETS 的 legacyOverrides）。
-  // 舊寫法照舊認得是這張卡；重新按卡片時加入的是現在的規格。
+  // 卡片認得的條件種類：卡片的規格，加上 FILTER_COMMON_PRESETS 的 legacyOverrides 列出的寫法；
+  // 已儲存情境用這些寫法時也認得是這張卡，重新按卡片時加入的是卡片的規格。
   function commonRuleKinds(card) {
     var specs = commonRuleSpecs(card).slice(0, 1);
     if (!specs.length || card.kind !== 'preset') { return specs; }
@@ -316,7 +302,7 @@
   function commonCardsHtml(draft) {
     var available = [], unavailable = [];
     Ui.FILTER_COMMON_CONDITIONS.forEach(function (item) {
-      // 暫不提供的條件優先；其次依要加入的條件查規則需求表。
+      // 停用的卡片（item.disabled）寫卡片自己的說明；其他卡片依要加入的條件查規則需求表。
       var requirement = item.disabled ? '' : requirementNote(commonRuleSpecs(item));
       var disabled = item.disabled || !!requirement;
       var note = item.disabled ? item.note : requirement;
@@ -881,7 +867,7 @@
           refreshAutomaticMetadata(draft, true);
           Store.setFilterDraft(draft);
         } else {
-          addCommonToDraft(draft, item); // 每個條件（含非營業日的子條件組）都加入作用中組
+          addCommonToDraft(draft, item); // 每個條件都加入作用中組
           var targetGroup = activeEditableGroup(draft);
           var addedRule = targetGroup && targetGroup.conditions.find(function (rule) { return rule[COMMON_CARD_KEY] === item.key; });
           if (addedRule) { revealAddedRule(addedRule); }
@@ -916,8 +902,6 @@
   FilterStep.isPatternMenuCommonType = isPatternMenuCommonType;
   FilterStep.availableCommonTypes = availableCommonTypes;
   FilterStep.UNMAPPED_OPTION_SUFFIX = UNMAPPED_OPTION_SUFFIX;
-  FilterStep.rdeFieldOptions = rdeFieldOptions;
-  FilterStep.rdeFieldValueType = rdeFieldValueType;
   FilterStep.availablePrescreenKeys = availablePrescreenKeys;
   FilterStep.RETIRED_TYPE_NOTE = RETIRED_TYPE_NOTE;
   FilterStep.prescreenRequirementNote = prescreenRequirementNote;

@@ -39,7 +39,7 @@ public sealed record GlProjectedRdeValue(
 /// <summary>
 /// 一列投影錯誤。SourceRowNumber = 來源檔內的實際列號。
 /// SourceLabel 由 repository 在多來源批次補上（如「JE-q2.csv [Q2]」），
-/// 單來源批次保持 null（訊息與單檔時代一致）；投影純函式本身不知道來源概念。
+/// 單來源批次是 null，訊息不帶來源名稱；投影純函式本身不知道來源概念。
 /// </summary>
 public sealed record RowProjectionError(
     int SourceRowNumber,

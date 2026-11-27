@@ -35,8 +35,10 @@ public sealed class RocCalendarCultureTests
     [Fact]
     public void FilterDateRange_LeapDayBound_IsAValidDate()
     {
-        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DateRange, null, "glDate", [],
-            TextMatchMode.Contains, "2024-02-29", "2024-12-31", null, null, null, null);
+        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.FieldValue, null, "glDate", [], null, null)
+        {
+            TypedOperator = "between", TypedFrom = "2024-02-29", TypedTo = "2024-12-31"
+        };
         var scenario = new FilterScenarioSpec("閏日起算", "期間從閏日開始",
             [new FilterGroupSpec(FilterJoin.And, [rule])]);
         var context = new FilterValidationContext(HasPrepStartDate: true, HasAccountMapping: false, HasAuthorizedPreparers: false);

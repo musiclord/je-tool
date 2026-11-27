@@ -13,27 +13,27 @@ namespace JET.Application;
 /// </summary>
 public sealed class PrescreenRunHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
-    private readonly ILogger? logger;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
+    private readonly ILogger? _logger;
 
     internal PrescreenRunHandler(
         IProjectStore projectStore,
         ProjectSession session, ILogger? logger = null)
     {
-        this.projectStore = projectStore;
-        this.session = session;
-        this.logger = logger;
+        this._projectStore = projectStore;
+        this._session = session;
+        this._logger = logger;
     }
 
     public string Action => "prescreen.run";
 
-    /// <summary>預篩選跑完後，案件至少推進到第四步。</summary>
-    internal const int WorkflowStep = 4;
+    /// <summary>預篩選跑完後，案件至少推進到進階條件篩選這一步。</summary>
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Filter;
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         SupportOperationStage.Enter("state_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
             repositories.Results,
@@ -43,7 +43,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         JetAuditProgram.RequireGlMapping(glMapping is not null);
 
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         // 能使用的欄位和第五步、前端停用說明讀同一份欄位目錄的答案。
@@ -180,17 +180,17 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
 
         SupportOperationStage.Enter("after_commit");
         await MappingCommitShared.AdvanceStepAsync(
-            projectStore,
+            _projectStore,
             document,
-            WorkflowStep,
-            CancellationToken.None, logger);
+            AdvancesTo,
+            CancellationToken.None, _logger);
 
         using var parsed = JsonDocument.Parse(summaryJson);
         return parsed.RootElement.Clone();
     }
 
     /// <summary>
-    /// 集中度分析（總覽區塊⑤）。顯示用的彙總都已經由 AuditCore 算好，這裡只換成回應的欄位名稱。
+    /// 集中度分析。顯示用的彙總都已經由 AuditCore 算好，這裡只換成回應的欄位名稱。
     /// 不適用時 preparers、rareAccounts 與 distinctAccountCount 都是 null，不用 0 代替。
     /// </summary>
     private static object ConcentrationWire(PrescreenConcentration concentration) => new

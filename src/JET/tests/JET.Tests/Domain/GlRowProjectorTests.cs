@@ -231,7 +231,6 @@ public sealed class GlRowProjectorTests
         Assert.Equal(423, error.SourceRowNumber);
         Assert.Equal("借方金額", error.Field);
         Assert.Equal("12..3", error.RawValue);
-        // 這句的用字已定案。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -431,7 +430,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(88, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("922337203685477.5808", error.RawValue);
-        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
+        // 訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
@@ -455,7 +454,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(89, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("-922337203685477.5808", error.RawValue);
-        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
+        // 訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
@@ -662,7 +661,6 @@ public sealed class GlRowProjectorTests
         else
         {
             Assert.Equal("custom", error!.Field);
-            // 這句的用字已定案。
             Assert.Equal("文字超過 450 個字。請縮短來源資料，或取消保留此欄位", error.Reason);
         }
     }

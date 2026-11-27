@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 專案內報告檔的窄儲存介面。實作只做三件事：把內容寫成同目錄暫存檔、完整後改名、在 manifest
+/// 案件內報告檔的窄儲存介面。實作只做三件事：把內容寫成同目錄暫存檔、完整後改名、在 manifest
 /// 記下 JET 寫了什麼。它不核對檔案內容，也不因為檔案在 JET 之外被改而拒絕任何操作；
 /// Application 只提供報告內容，不得指定任意檔案系統路徑。
 /// </summary>
@@ -27,7 +27,7 @@ public interface IReportStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// 只供本機 host 使用。回傳值是位於指定專案資料夾內的絕對路徑，不得寫入 manifest 或 wire response。
+    /// 只供本機 host 使用。回傳值是位於指定案件資料夾內的絕對路徑，不得寫入 manifest 或 wire response。
     /// 檔案已不在時回 <see cref="JetErrorCodes.FileNotFound"/>，訊息告訴使用者重新匯出即可。
     /// </summary>
     Task<string> ResolvePathAsync(

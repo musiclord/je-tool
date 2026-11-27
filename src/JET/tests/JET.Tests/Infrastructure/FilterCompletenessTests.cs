@@ -59,10 +59,9 @@ public sealed class FilterCompletenessTests
             ("""{"type":"fieldValue","field":"description","operator":"notIn","values":["café"]}""", ["U3"]),
             ("""{"type":"fieldValue","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"equals","value":"café"}""", ["U1","U2"]),
             ("""{"type":"fieldValue","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"notContains","value":"café"}""", ["U3"]),
-            ("""{"type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"in","values":["café"]}""", ["U1","U2"]),
-            ("""{"type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"notEquals","value":"café"}""", ["U3"]),
-            ("""{"type":"text","field":"description","mode":"exact","keywords":"café"}""", ["U1","U2"]),
-            ("""{"type":"textSet","field":"description","mode":"notContains","values":["café"]}""", ["U3"]),
+            ("""{"type":"fieldValue","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"in","values":["café"]}""", ["U1","U2"]),
+            ("""{"type":"fieldValue","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"notEquals","value":"café"}""", ["U3"]),
+            ("""{"type":"fieldValue","field":"description","operator":"notContains","values":["café"]}""", ["U3"]),
             // 「傳票摘要」的「包含任一文字」。
             ("""{"type":"fieldValue","field":"description","operator":"contains","values":["café"]}""", ["U1","U2"]),
             ("""{"type":"preparerEqualsApprover"}""", ["U1","U2"])
@@ -150,7 +149,6 @@ public sealed class FilterCompletenessTests
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
             // 整數部分的特定數字：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
-            // （運算子清單多了這兩個，表格還沒有答案）。
             ("containsDigits", "\"value\":\"1,2\"", [1,2,4,5,6]),
             ("notContainsDigits", "\"value\":\"1,2\"", [3]),
             // 尾數連續多個 0：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
@@ -169,7 +167,6 @@ public sealed class FilterCompletenessTests
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
             // 整數部分的特定數字：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
-            // （運算子清單多了這兩個，表格還沒有答案）。
             ("containsDigits", "\"value\":\"1,2\"", [1,2,4,5,6]),
             ("notContainsDigits", "\"value\":\"1,2\"", [3]),
             // 尾數連續多個 0：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。

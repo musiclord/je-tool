@@ -46,7 +46,7 @@ public sealed class JetFieldCatalogTests
     }
 
     [Fact]
-    public void GlDefinitions_MatchV2ContractMatrix()
+    public void GlDefinitions_MatchTheExpectedFieldList()
     {
         // 矩陣倒數第二欄是輸出欄名 LegacyFieldName，傳票核准日、分錄來源模組與人工/自動分錄也有值。
         var expected = new[]
@@ -59,7 +59,7 @@ public sealed class JetFieldCatalogTests
                 "glDate", JetFieldValueKind.Date, "gl_date", true, "總帳日期_JE", true),
             Slot("approvalDate", "傳票核准日", 3, false, [], false, true,
                 "approvalDate", JetFieldValueKind.Date, "approval_date", true, "傳票核准日_JE", true),
-            // 順序值 4 空著不用，其餘順序值不重排。
+            // 順序值只用來排序，4 不使用也沒有影響。
             Slot("accountNumber", "會計科目編號", 5, true, [], false, true,
                 "accountNumber", JetFieldValueKind.Text, "account_number", true, "會計科目編號_JE", true),
             Slot("accountName", "會計科目名稱", 6, true, [], false, true,
@@ -84,10 +84,10 @@ public sealed class JetFieldCatalogTests
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("drCrDebitCode", "借方代碼", 16, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            // 必填的貸方代碼；這個 slot 不改任何既有欄位的儲存語意。
+            // 貸方代碼；GL 金額方式是 side 與 flag 時會用到。
             Slot("drCrCreditCode", "貸方代碼", 17, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            // 過帳碼_JE 照舊版補回，過帳狀態欄因此有輸出欄名。
+            // 過帳碼_JE 照舊版列為過帳狀態的輸出欄名。
             Slot("postingStatus", "過帳狀態", 18, false, [], false, false,
                 "postingStatus", JetFieldValueKind.Text, "posting_status", true, "過帳碼_JE", false)
         };
@@ -96,7 +96,7 @@ public sealed class JetFieldCatalogTests
     }
 
     [Fact]
-    public void TbDefinitions_MatchPreCutoverContractMatrix()
+    public void TbDefinitions_MatchTheExpectedFieldList()
     {
         var expected = new[]
         {
@@ -233,8 +233,8 @@ public sealed class JetFieldCatalogTests
         var slot = GlSlot(GlMappingKeys.PostingStatus);
         var field = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.PostingStatus);
 
-        // 前端已接上過帳狀態的配對控制項與 posting policy 編輯器，
-        // 故它不是 contract-only slot；欄位語意（SQL target、nullability、非通用篩選欄）不變。
+        // 前端有過帳狀態的配對控制項與 posting policy 編輯器，所以它不是只出現在契約裡的 slot；
+        // SQL target、nullability 與非通用篩選欄照下面的斷言核對。
         Assert.True(slot.IncludeInMappingUi);
         Assert.Contains(slot, JetFieldCatalog.GlMappingUiSlots);
         Assert.Equal(

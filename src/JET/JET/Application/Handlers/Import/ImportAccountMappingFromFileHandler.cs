@@ -13,24 +13,24 @@ namespace JET.Application;
 /// </summary>
 public sealed partial class ImportAccountMappingFromFileHandler : IApplicationActionHandler
 {
-    private readonly ITabularFileReader reader;
-    private readonly ProjectSession session;
-    private readonly ILogger? logger;
+    private readonly ITabularFileReader _reader;
+    private readonly ProjectSession _session;
+    private readonly ILogger? _logger;
 
     internal ImportAccountMappingFromFileHandler(
         ITabularFileReader reader,
         ProjectSession session, ILogger? logger = null)
     {
-        this.reader = reader;
-        this.session = session;
-        this.logger = logger;
+        this._reader = reader;
+        this._session = session;
+        this._logger = logger;
     }
 
     public string Action => "import.accountMapping.fromFile";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var categorySnapshot = await repositories.AccountCategories.ReadAsync(projectId, cancellationToken);
 
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
@@ -49,7 +49,7 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
                 mode));
 
         // Excel 檔有多個工作表時，畫面請審計員選科目配對所在的工作表，例如工作底稿的「自動化工具-科目配對資訊」；
-        // 沒有指定時照舊讀第一個工作表。
+        // 沒有指定時讀第一個工作表。
         var sheetName = PayloadReader.GetOptionalString(payload, "sheetName");
         if (sheetName is not null && extension != ".xlsx")
         {
@@ -65,13 +65,13 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
         // 引號內換行的提醒也適用科目配對檔。
         var lineBreaks = new QuotedLineBreakTally();
         // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒。
-        var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
+        var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(_reader, [(filePath, fileName)]);
 
         var facts = await Task.Run(
             async () =>
             {
                 var effectiveRequest = request;
-                var columns = await reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
+                var columns = await _reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
                 AccountMappingProjection projection;
                 try
                 {
@@ -83,11 +83,11 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
                     // 標頭在第 1 列的檔案（例如工作底稿的「自動化工具-科目配對資訊」工作表、一般 CSV）照第 1 列讀。只在第 1 列無法辨識時回退兩列。
                     // 這兩列是舊範本固定的版面，不是審計員指定的欄名列。
                     effectiveRequest = request with { LeadingRowsToSkip = 2, FixedLeadingRows = true };
-                    columns = await reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
+                    columns = await _reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
                     projection = JetAuditProgram.PrepareAccountMappingProjection(columns, categorySnapshot);
                 }
 
-                var rows = lineBreaks.Tally(reader.ReadRowsAsync(effectiveRequest, cancellationToken), cancellationToken);
+                var rows = lineBreaks.Tally(_reader.ReadRowsAsync(effectiveRequest, cancellationToken), cancellationToken);
                 return await repositories.ReferenceDataFacts.ExecuteAsync(
                     plan,
                     source,
@@ -98,7 +98,7 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
             },
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
-        var lineBreakWarning = lineBreaks.Warning(fileName, sourceNo: 1, logger);
+        var lineBreakWarning = lineBreaks.Warning(fileName, sourceNo: 1, _logger);
         string[] warnings =
         [
             .. openElsewhereWarnings,
@@ -106,7 +106,7 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
             .. ImportMessages.FormulaWithoutResult(fileName, request.FormulasWithoutResult)
         ];
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, _logger);
         AccountMappingDifferenceCounts? differences = null;
         try
         {
@@ -115,7 +115,7 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
         catch (Exception error)
         {
             // 寫入已完成。摘要可從清單重算，不能讓畫面誤以為匯入失敗。
-            if (logger is not null) DifferenceSummaryFailed(logger, error.GetType().Name);
+            if (_logger is not null) DifferenceSummaryFailed(_logger, error.GetType().Name);
         }
         return new
         {
@@ -137,7 +137,7 @@ public sealed partial class ImportAccountMappingFromFileHandler : IApplicationAc
             mappingOnlyCount = differences?.MappingOnlyCount,
             unmappedCount = differences?.UnmappedCount,
             columnMappingWarning = result.ColumnMappingWarning,
-            // 開著的檔案那則另外列一份，畫面放在「用 Excel 配對」的結果旁；warnings 照舊是全部提醒。
+            // warnings 收全部的提醒；開著的檔案那則另外列一份，畫面放在「用 Excel 配對」的結果旁。
             warnings,
             openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,

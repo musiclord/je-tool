@@ -65,7 +65,7 @@ internal static class CompletenessEligibility
         }
 
         var warnings = new List<string>();
-        // 新案件確認 GL 欄位配對時一定會算出存入筆數與合計；萬一資料異常缺了這組數字，提醒和核對未通過相同，
+        // 確認 GL 欄位配對時一定會算出存入筆數與合計；萬一資料異常缺了這組數字，提醒和核對未通過相同，
         // 請審計員重新確認 GL 欄位配對。
         if (facts.StoredRowCountMatch is not true || facts.StoredAmountMatch is not true)
         {

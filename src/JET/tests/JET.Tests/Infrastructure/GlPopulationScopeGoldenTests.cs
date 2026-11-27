@@ -193,11 +193,14 @@ public abstract class GlPopulationScopeGoldenTests
         new(scope, "2025-01-01", "2025-12-31");
 
     private static FilterConditionSpec Rule(FilterConditionType type) =>
-        new(FilterJoin.And, type, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null);
+        new(FilterJoin.And, type, null, null, [], null, null);
 
-    private static FilterConditionSpec TextRule(string field, string value, TextMatchMode mode = TextMatchMode.Exact) =>
-        Rule(FilterConditionType.Text) with { Field = field, Keywords = [value], Mode = mode };
+    // 文字欄位的欄位值條件，預設是「符合清單」；比較方式與空白是否列入可以另外指定。
+    private static FilterConditionSpec TextRule(string field, string value, string @operator = "in", bool? includeBlank = null) =>
+        Rule(FilterConditionType.FieldValue) with
+        {
+            Field = field, TypedOperator = @operator, TypedValues = [value], IncludeBlank = includeBlank
+        };
 
     // 用畫面送出的條件寫法建立規則，走正式的解析。
     private static FilterConditionSpec Parsed(string rule) => FilterScenarioPayloadParser.Parse(
@@ -248,7 +251,8 @@ public abstract class GlPopulationScopeGoldenTests
         GlPopulationScope scope,
         string[] expectedIdentities)
     {
-        var matchEverything = Scenario(TextRule("description", "__fixture_never_contains__", TextMatchMode.NotContains));
+        // 摘要空白的分錄也列入，才會選出範圍內的每一筆分錄。
+        var matchEverything = Scenario(TextRule("description", "__fixture_never_contains__", "notContains", includeBlank: true));
 
         Assert.Equal(expectedIdentities, await HitIdentitiesAsync(matchEverything, scope));
     }
@@ -309,7 +313,7 @@ public abstract class GlPopulationScopeGoldenTests
     }
 
     [Fact]
-    public async Task CustomTrailingZeros_DecimalAndNegativeAmounts_UsesMajorUnitInteger()
+    public async Task EndsWithZeroDigits_DecimalAndNegativeAmounts_UsesMajorUnitInteger()
     {
         // Legacy @int oracle：±1,000.99 的主單位整數都是 1,000，故命中 3 個尾零；0.99 與零值不命中。
         // 條件寫成同一個子條件組裡的「整數尾數符合 000」與「大於或等於 1」。

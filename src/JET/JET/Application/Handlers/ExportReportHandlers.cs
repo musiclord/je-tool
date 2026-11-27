@@ -328,7 +328,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
             static category => category.Label,
             StringComparer.Ordinal);
 
-        // 攸關資料元素條件（type 是 typed）的讀回文字，用目前已確認配對裡攸關資料元素欄位的顯示名稱：
+        // 用到攸關資料元素欄位的欄位值條件，讀回文字用目前已確認配對裡這個欄位的顯示名稱：
         // 欄位只改了顯示名稱時，讀回文字跟著寫新名稱；欄位已不存在時寫 FilterConditionLabels.MissingRdeField，不印 fieldId。
         var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var rdeFieldLabels = (glMapping?.GlOptions?.RdeFields ?? []).ToDictionary(

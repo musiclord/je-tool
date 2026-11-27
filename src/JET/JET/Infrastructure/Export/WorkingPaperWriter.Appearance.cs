@@ -38,7 +38,7 @@ internal sealed partial class WorkingPaperWriter
         Func<uint, uint, WorkbookStylePatch?> PatchForCell);
 
     // step1：有差異時，B15 到 B17 的警示用紅字。
-    private static WorkingPaperAppearanceProfile? Step1Appearance(bool hasDifferences) =>
+    private static WorkingPaperAppearanceProfile? CompletenessAppearance(bool hasDifferences) =>
         hasDifferences
             ? new((row, column) =>
                 column == 2 && row is >= 15 and <= 17
@@ -47,7 +47,7 @@ internal sealed partial class WorkingPaperWriter
             : null;
 
     // step1-1：有借貸不平的傳票時，B12 到 F16 這一塊的外觀。第 16 列是藍底白字的表頭，其他列 B 欄紅字、其餘粗體。
-    private static WorkingPaperAppearanceProfile? Step11Appearance(bool hasUnbalancedVouchers) =>
+    private static WorkingPaperAppearanceProfile? VoucherBalanceAppearance(bool hasUnbalancedVouchers) =>
         hasUnbalancedVouchers
             ? new((row, column) =>
             {
@@ -66,7 +66,7 @@ internal sealed partial class WorkingPaperWriter
             : null;
 
     // step1-2：沒有配對傳票建立人員時，B13 的提示句用紅字。
-    private static WorkingPaperAppearanceProfile? Step12Appearance(bool missingCreatedByMapping) =>
+    private static WorkingPaperAppearanceProfile? PreparerSummaryAppearance(bool missingCreatedByMapping) =>
         missingCreatedByMapping
             ? new((row, column) =>
                 row == 13 && column == 2
@@ -75,7 +75,7 @@ internal sealed partial class WorkingPaperWriter
             : null;
 
     // step4-1 整張工作表都沒有框線，包含資料範圍以外、範本留下來的預留格子。
-    private static WorkingPaperAppearanceProfile Step41Appearance() =>
+    private static WorkingPaperAppearanceProfile HighRiskVoucherDetailAppearance() =>
         new(static (_, _) => Borderless);
 
     // 欄位資訊頁 TB 與 GL 的表頭格。整欄自動調整欄寬由寫出工作表的程式另外處理。

@@ -30,7 +30,7 @@ Codex、Claude Code 與 VS Code 共用根目錄 `AGENTS.md`、現行規格和 `t
 | `.github/copilot-instructions.md` | 不讀 | 不讀 | Copilot 讀；Local 依 `github.copilot.chat.codeGeneration.useInstructionFiles` 讀取 |
 | `.agents/skills/` | 讀 | 不讀 | 讀 |
 | `.claude/skills/` | 不讀 | 讀 | 讀 |
-| `.claude/settings.json` | 不讀 | 讀 permissions 與 hooks | 只有開啟 `chat.useClaudeHooks` 才讀 hooks，預設關閉 |
+| `.claude/settings.json` | 不讀 | 讀 attribution、permissions 與 hooks | 只有開啟 `chat.useClaudeHooks` 才讀 hooks，預設關閉 |
 | `.codex/hooks.json` 與 `.codex/rules/` | 只在信任本專案時讀 | 不讀 | 不讀 |
 
 Claude Code v2.1.277 起可以在沒有 `CLAUDE.md` 時直接讀 `AGENTS.md`；有 `CLAUDE.md` 時預設只讀 `CLAUDE.md`。
@@ -90,6 +90,11 @@ Codex 的專案指示預設合計上限為 32 KiB，包含其他目錄層，不�
 這一層只擋 Claude Code 自己發出的命令與同名工具：Edit 的路徑規則不擋經由 shell 寫檔，子程序自行開檔也不受影響。
 私人目錄的讀取不攔截，由 `AGENTS.md` 的「可讀不可寫、不送出」約束
 （使用者 2026-10-02 裁定改為常設的本機唯讀授權）。被 Git 忽略的 `.claude/settings.local.json` 可另加 allow，屬於個人設定。
+
+`.claude/settings.json` 另把 `attribution` 的 `commit` 與 `pr` 設成空字串，Claude Code 就不在提交訊息與 PR 內文自動加上署名，
+對應 `AGENTS.md` 的「不加 `Co-Authored-By`、`Generated with` 等 AI 署名」（裁定 2026-11-26-17）。
+Codex 的設定說明查不到署名設定；Copilot coding agent 的提交作者是 Copilot，說明沒寫能不能關掉。這兩個平台仍只靠 `AGENTS.md`。
+依據：[Claude Code settings](https://code.claude.com/docs/en/settings-reference)。
 
 ### Codex
 

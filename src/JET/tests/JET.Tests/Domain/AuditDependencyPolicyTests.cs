@@ -42,7 +42,7 @@ public sealed class AuditDependencyPolicyTests
         Assert.Equal(validation, impact.InvalidateValidation);
         Assert.Equal(prescreen, impact.InvalidatePrescreen);
         Assert.Equal(filterHits, impact.InvalidateFilterHits);
-        // 上游修改會清除下游：情境定義與命中同進退，不是保留例外。
+        // 上游修改會清除下游：情境定義與命中一起清除。
         Assert.Equal(filterHits, impact.InvalidateFilterScenarioDefinitions);
         Assert.False(impact.ClearGlControlTotal);
     }

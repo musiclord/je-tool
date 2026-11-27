@@ -111,7 +111,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             catch (JetActionException exception) when (
                 exception.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
             {
-                // 以前建立的 DuckDB 與 SQL Server 案件讀不通時同樣不列出。
+                // DuckDB 與 SQL Server 的案件讀不通時同樣不列出。
                 if (await IsRetiredProviderCaseAsync(projectId, cancellationToken))
                 {
                     continue;
@@ -198,7 +198,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         return Task.CompletedTask;
     }
 
-    /// <summary>以前的 DuckDB 案件資料夾裡的資料庫檔名。只用來辨認舊案件，JET 不讀也不改它。</summary>
+    /// <summary>DuckDB 案件資料夾裡的資料庫檔名。只用來辨認這種案件，JET 不讀也不改它。</summary>
     private const string RetiredDuckDbDatabaseFileName = "jet.duckdb";
 
     public async Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
@@ -214,15 +214,15 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             return recorded == ProjectDocument.DefaultDatabaseProvider ? recorded : null;
         }
 
-        // 沒有記錄種類：資料夾裡只有 jet.db、沒有以前的 DuckDB 資料庫檔時才算 SQLite 案件；其他情形判斷不出來。
+        // 沒有記錄種類：資料夾裡只有 jet.db、沒有 DuckDB 的資料庫檔時，才算 SQLite 案件；其他情形判斷不出來。
         var hasSqlite = File.Exists(folder.GetDatabasePath(projectId));
         return hasSqlite && !HasRetiredDuckDbDatabase(projectId) ? ProjectDocument.DefaultDatabaseProvider : null;
     }
 
     /// <summary>
-    /// 這個資料夾是否確定是以前建立的 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
-    /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。案件清單用它藏起讀不通的舊案件，
-    /// 建案用它說明名稱被舊案件佔用。判斷不出來或沒有這個資料夾時回 false。
+    /// 這個資料夾是否確定是 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
+    /// 或沒有記錄種類、資料夾裡只有 DuckDB 的資料庫檔。案件清單用它藏起讀不通的這種案件，
+    /// 建案用它說明名稱已被這種案件佔用。判斷不出來或沒有這個資料夾時回 false。
     /// </summary>
     public async Task<bool> IsRetiredProviderCaseAsync(string projectId, CancellationToken cancellationToken)
     {
@@ -333,8 +333,8 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // 寫不進 project.json 是環境問題（唯讀、被其他程式開啟、磁碟滿），給使用者出路而不是裸例外
-            // （不寫檔名與例外型別）。
+            // 寫不進 project.json 是環境問題（唯讀、被其他程式開啟、磁碟滿），轉成告訴使用者接下來能做什麼的訊息，
+            // 不寫檔名與例外型別。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $"案件「{document.ProjectId}」的設定未能儲存。請確認案件資料夾不是唯讀、設定檔沒有被其他程式開啟，再試一次。",
@@ -579,7 +579,6 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 
     private static JetActionException ProjectReadError(string projectId, Exception? innerException = null) => new(
         JetErrorCodes.FileReadError,
-        // 這句的用字已定案。
         $"案件「{projectId}」的設定檔無法讀取。請確認設定檔沒有被其他程式開啟；檔案已損壞時，請從備份還原案件資料夾，或另建案件重新匯入。",
         innerException: innerException);
 }

@@ -3,7 +3,7 @@ namespace JET.Domain;
 /// <summary>
 /// 通用值條件（type:"fieldValue"）：核心文字、日期、金額欄位與已配對的攸關資料元素欄位共用同一份比較方式選單。
 /// 日期另有「每月幾日屬於」與「每月幾日不屬於」（值為 1 到 31）；文字的「包含任一文字」
-/// 與「不包含任何文字」接受多個關鍵字（對齊 legacy 的包含就排除），開頭符合與結尾符合也一樣。舊 typed 型別不變。
+/// 與「不包含任何文字」接受多個關鍵字（對齊 legacy 的包含就排除），開頭符合與結尾符合也一樣。
 /// </summary>
 public static class FieldValueConditions
 {
@@ -109,7 +109,7 @@ public static class FieldValueConditions
     public static IReadOnlyList<string> TailPatterns(FilterConditionSpec rule) => rule.TypedValues is { Count: > 0 }
         ? rule.TypedValues : SplitInputList(rule.TypedValue);
 
-    /// <summary>文字的包含比對接受多個關鍵字；舊 wire 只帶單一 value 時視為一個關鍵字。</summary>
+    /// <summary>文字的包含比對接受多個關鍵字；只帶單一 value 時視為一個關鍵字。</summary>
     public static bool IsContains(string? op) => op is "contains" or "notContains";
 
     public static IReadOnlyList<string> ContainsKeywords(FilterConditionSpec rule) =>
@@ -171,8 +171,8 @@ public static partial class FilterScenarioValidator
     private static void ValidateFieldValue(FilterConditionSpec rule, string label,
         FilterValidationContext context, List<string> errors, bool fieldUnavailable)
     {
-        // 分錄方向與核心金額的「含正負號」是已拿掉的舊寫法，讀到時當成無法讀取的內容；
-        // 已儲存情境的舊寫法不讀回。攸關資料元素的金額欄位仍可選含正負號。
+        // 分錄方向與核心金額不接受「含正負號」，讀到時當成無法讀取的內容，已儲存情境裡的這種寫法也不讀回；
+        // 攸關資料元素的金額欄位可以選含正負號。
         if (rule.DrCr is not null)
             FilterScenarioCorruption.Add(errors, label, "field_value_side_invalid");
         if (rule.FieldId is null && rule.Field == JetFieldCatalog.GlAmount && rule.AmountBasis == TypedAmountBasisNames.Signed)

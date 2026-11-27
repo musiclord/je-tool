@@ -15,7 +15,7 @@ public sealed class FilterReadbackSentenceTests
         foreach (var item in file.RootElement.EnumerateArray())
             data.Add(item.GetProperty("id").GetString()!, item.GetProperty("scenario").GetRawText(),
                 item.GetProperty("rdeFields").GetRawText(), item.GetProperty("expected").GetString()!,
-                // 有些句子要帶案件裡一定有值的欄位才寫得出來；沒有這一項的句子照舊不帶。
+                // 有些句子要帶案件裡一定有值的欄位才寫得出來；夾具沒有這一項時傳 null。
                 item.TryGetProperty("neverBlankGlFields", out var neverBlank) ? neverBlank.GetRawText() : null);
         return data;
     }

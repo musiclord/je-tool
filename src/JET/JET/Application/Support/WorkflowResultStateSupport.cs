@@ -11,7 +11,7 @@ namespace JET.Application;
 internal static partial class WorkflowResultStateSupport
 {
     /// <summary>
-    /// 本次修改依失效政策作廢的結果。FilterScenarios 表示已存篩選情境也一併清除
+    /// 案件資料變更後依失效政策作廢的結果。FilterScenarios 表示已存篩選情境也一併清除
     /// （上游修改清除下游），JSON 名稱為 filterScenarios。
     /// </summary>
     internal sealed record Invalidation(bool Validation, bool Prescreen, bool Filter, bool FilterScenarios, bool AccountMapping);
@@ -30,7 +30,6 @@ internal static partial class WorkflowResultStateSupport
         object[]? Reports,
         string? ReportWarning);
 
-    // 這句的用字已定案。
     private const string MutationCatalogWarning =
         "變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。";
 

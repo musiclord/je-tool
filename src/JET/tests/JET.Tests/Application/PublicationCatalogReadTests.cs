@@ -9,7 +9,6 @@ namespace JET.Tests.Application;
 /// <summary>發布已成功之後，清單讀取失敗只能影響清單，不能把已完成的匯出改報失敗。</summary>
 public sealed class PublicationCatalogReadTests
 {
-    // 這句的用字已定案。
     private const string Warning = "檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。";
 
     [Theory]
@@ -78,7 +77,7 @@ public sealed class PublicationCatalogReadTests
         });
         try
         {
-            // 此測試自身的 deadline 只防止未修正的程式無限等待；產品應在獨立的 20ms 期限內回覆。
+            // 此測試自身的 1 秒 deadline 只防止產品沒有自行逾時時測試無限等待；產品應在獨立的 20ms 期限內回覆。
             var result = await ReportExportSupport.ReadReportCatalogAfterPublicationAsync(store, "synthetic-project", TimeSpan.FromMilliseconds(20))
                 .WaitAsync(TimeSpan.FromSeconds(1));
             var wire = JsonSerializer.SerializeToElement(result, new JsonSerializerOptions(JsonSerializerDefaults.Web));

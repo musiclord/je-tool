@@ -7,11 +7,11 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// demo 測試案件的規則 oracle:完整建置 demo 專案後跑 prescreen.run /
+/// demo 測試案件的規則 oracle:完整建置 demo 案件後跑 prescreen.run /
 /// validate.run,斷言每條規則的精確命中數 == DemoDataFactory seed 常數;並以「直接查 DB 的
 /// 獨立 set-based SQL」交叉重算(與述詞同義但獨立書寫,避免自證)。
 ///
-/// 此測試即「跑測試案件 → 驗收每條規則」的固定程序:每條規則一列 oracle 斷言,命中數以
+/// 固定程序是跑 demo 測試案件,再逐條核對規則:每條規則一列 oracle 斷言,命中數以
 /// gl 的「列」計(每張傳票固定 2 行,1 借 1 貸)。
 ///
 /// wire 形狀已逐項核對 PrescreenRunHandler / ValidateRunHandler(計數皆 long → GetInt64):
@@ -73,7 +73,7 @@ public sealed class DemoRuleOracleTests
 
         // descNull 摘要空白:僅借方行空白(張數 = 列數)。
         Assert.Equal((long)DemoDataFactory.BlankDescriptionVouchers, Count(p, "blankDescription"));
-        // 預篩選結果沒有 backdatedPosting。
+        // 回溯過帳（backdatedPosting）是已停用的條件，預篩選結果沒有這一項。
         Assert.False(p.TryGetProperty("backdatedPosting", out _));
         // 非授權編製人員:兩行同 created_by 皆命中。
         Assert.Equal(Lines(DemoDataFactory.NonAuthorizedVouchers), Count(p, "nonAuthorizedPreparer"));
@@ -115,7 +115,7 @@ public sealed class DemoRuleOracleTests
         using var host = new HandlerTestHost();
         var (p, ctx) = await RunPrescreenAsync(host);
 
-        // 權威述詞先取得主單位整數再取模；此處用整數商回乘表達「主單位整數為 10^6 倍數」，
+        // 正式述詞先取得主單位整數再取模；此處用整數商回乘表達「主單位整數為 10^6 倍數」，
         // 寫法獨立且刻意不要求小數尾數為 0。0 排除，母體固定查核期間。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             host, ctx.ProjectId,

@@ -1,17 +1,17 @@
 'use strict';
-// 流程總覽的情境測試：情境 18、19。
+// 流程總覽與總覽分析圖表的情境測試。
 //
 // 審計員的操作：
-//   情境 18：還沒驗證時打開流程總覽；走完流程後打開；展開分析區後背景資料更新、總覽整張重畫；用鍵盤查看六個階段；
+//   流程總覽：還沒驗證時打開流程總覽；走完流程後打開；展開分析區後背景資料更新、總覽整張重畫；用鍵盤查看六個階段；
 //            案件有填與沒填客戶名稱。
-//   情境 19：在不同結果狀態下展開「預篩選」「分錄金額級距與累積分布」「預篩選結果分布」；切換集中度分頁；
+//   總覽分析圖表：在不同結果狀態下展開「預篩選」「分錄金額級距與累積分布」「預篩選結果分布」；切換集中度分頁；
 //            收合、資料更新重畫、關閉總覽。
 // 全部執行正式的 index.html 總覽標記、app.js 與 overview-bi.js，資料都是程式生成的合成資料。
 //
 // 總覽用共用的焦點圈限；焦點圈限與 Escape 由 frontend-workflow.test.cjs 的「overview opened from the header button…」
 // 與「overview Escape and Tab use the shared document trap…」涵蓋，本檔不重複測試。
 //
-// 斷言原則：只有定案的畫面用字逐字比對；其他畫面文字只比對意思（關鍵詞、項目、順序）。
+// 斷言原則：只有固定的畫面用字逐字比對；其他畫面文字只比對意思（關鍵詞、項目、順序）。
 // 預期值都寫死在測試裡，不讀正式程式的常數。總覽不送後端請求，所以「沒有送出請求」用 f.requests 精確比對為空。
 // 比對兩個假 DOM 節點一律用 assert.ok(a === b)：assert.equal 失敗時會序列化整棵循環的假 DOM。
 const { test } = require('node:test');
@@ -113,12 +113,12 @@ function completeCase(f, { clientName = '合成客戶股份有限公司' } = {})
 const elementChildren = node => node.children.filter(child => child.tagName !== 'JET-TEXT');
 
 // =====================================================================================================
-// 情境 18　流程總覽
+// 流程總覽
 // =====================================================================================================
 
 test('before validation the overview shows one empty statistics state; afterwards it mirrors validation statistics in a summary-first layout with collapsed analyses', () => {
   const f = setup();
-  // usageJourneyFixture 的合成案件已有一次驗證結果，但沒有統計（舊結果或尚未驗證）。
+  // usageJourneyFixture 的合成案件已有一次驗證結果，但結果裡沒有統計。
   f.open();
   const empty = f.card().querySelector('.overview__population');
   assert.ok(empty, 'the statistics area is shown');
@@ -287,7 +287,7 @@ test('the overview title is the client name, or the case name when no client is 
 });
 
 // =====================================================================================================
-// 情境 19　總覽分析圖表
+// 總覽分析圖表
 // =====================================================================================================
 
 test('analyses appear only with validation statistics, after the statistics, in the order concentration, amount, prescreen result distribution', () => {

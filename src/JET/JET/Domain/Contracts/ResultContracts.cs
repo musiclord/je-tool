@@ -58,8 +58,8 @@ public interface IResultStaleStateStore
 /// <summary>
 /// 已保存的篩選情境定義（filter_scenario；上限 10）。
 /// DefinitionJson 為 scenario JSON（含 name/rationale/groups），resume 時原樣回放。
-/// 情境儲存時，那一個情境的每條條件只留該類型用得到的欄位（FilterConditionWireFields）；情境層、條件組層，
-/// 以及尚未重新儲存的舊情境照原內容保留。
+/// 情境儲存時，那一個情境的每條條件只留該類型用得到的欄位（FilterConditionWireFields）；情境層與條件組層照原內容保留，
+/// 其他情境存下的內容不動。
 /// Position 是畫面上的順序（從 1 起算）；<see cref="ScenarioId"/> 是這個情境不變的編號，結果依它存放，
 /// 移除別的情境時不會改變。沒有指定時等於 Position，所以一次寫入整批的新清單就是 1 到 n。
 /// </summary>

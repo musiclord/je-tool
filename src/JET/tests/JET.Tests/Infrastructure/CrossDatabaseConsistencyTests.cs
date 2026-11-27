@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 審計結果不因資料庫而異的固定答案：同一份合成資料經正式查詢路徑要得到相同結果；
+/// 審計結果的固定答案：同一份合成資料經正式查詢路徑要得到下面的結果；
 /// 預期值依 SQLite 與 .NET 的共用定義手算。
 /// </summary>
 public sealed class CrossDatabaseConsistencyTests
@@ -80,7 +80,7 @@ public sealed class CrossDatabaseConsistencyTests
         { """{"type":"fieldValue","field":"description","operator":"equals","value":"TIMIȘOARA"}""", "COMMA-EQUALS", ["COMMA"] }
     };
 
-    // ı 這類罕用字元的大寫轉換，不同資料庫的結果可能和 .NET 不同，所以這兩個案例分開列。
+    // ı 這類罕用字元的大寫轉換，資料庫的結果可能和 .NET 不同，所以這兩個案例分開列。
     public static TheoryData<string, string, string[]> DotlessIUpperCases => new()
     {
         { """{"type":"fieldValue","field":"description","operator":"equals","value":"kırmızı"}""", "DOTLESS-EQUALS", ["DOTLESS"] },

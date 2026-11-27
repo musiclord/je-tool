@@ -46,7 +46,6 @@ JE Tool（以下簡稱 JET）的 UX 依下列原則設計：
 
 - 顏色與字級定義於樣式表的變數，其他樣式規則引用變數。
 - 錯誤、通過與警告等狀態的用色，在各畫面代表相同的意義。
-- 畫面以繁體中文為主，GL、TB、Excel 等通用的英文名稱維持英文。
 
 ## 3. 專案與模組
 
@@ -62,7 +61,7 @@ JET 編譯為單一 assembly，以資料夾與命名空間劃分模組。JET 資
 
 - 查核邏輯只定義於 AuditCore 與 Domain，畫面、報告與工作底稿採用同一份判定。其他模組的查詢需要這些邏輯時，引用 AuditCore 產生的條件，不另行撰寫。
 - Domain 與 AuditCore 不相依畫面、資料庫與檔案的實作。
-- Application 經 Domain 與 Application 定義的介面使用資料庫與檔案的功能，實作置於 Infrastructure。各模組的物件由 JET 資料夾最上層的 AppCompositionRoot 建立並組裝。
+- Application 經 Domain 與 AuditCore 定義的介面使用資料庫與檔案的功能，實作置於 Infrastructure。各模組的物件由 JET 資料夾最上層的 AppCompositionRoot 建立並組裝。
 - AuditCore 的入口為 JetAuditProgram；公開的型別不任意增加。
 
 ## 4. 程式撰寫
@@ -71,10 +70,13 @@ JET 編譯為單一 assembly，以資料夾與命名空間劃分模組。JET 資
 
 | 對象 | 規則 | 範例 |
 |---|---|---|
-| 後端型別與方法 | PascalCase；介面以 I 開頭 | IApplicationActionHandler、HandleAsync |
+| 後端型別與方法 | PascalCase；介面以 I 開頭；名稱說明用途，不以數字字尾區分版本 | IApplicationActionHandler、HandleAsync |
+| 縮寫 | GL、TB、RDE、INF 於識別字中只大寫第一個字母 | GlDate、InfSampling |
 | action 名稱 | camelCase，以句點分段，第一段為功能領域 | validate.run、mapping.commit.gl |
 | Handler | 每種請求一個類別；類別名稱為請求名稱各段首字大寫後相連，再加上 Handler | ValidateRunHandler |
 | 錯誤碼 | 小寫英文與底線，集中定義於 JetErrorCodes | invalid_payload |
+| 支援日誌事件 | 小寫英文，以句點分為範圍與事件兩段，段內以底線連接 | action.payload_rejected |
+| 資料表與欄位 | 小寫英文與底線；表名為單數名詞，不加分層字首；同一概念在各層使用同一英文詞 | gl、account_mapping、gl_date |
 | 前端檔案 | 小寫與連字號；各步驟的主要程式置於 js/steps | validate-step.js |
 | CSS 類別 | 採 BEM 命名：block__element，變體寫成 block--modifier；狀態另以 is- 與 has- 開頭的類別表示 | modal__actions、toc-item--current、is-missing |
 
@@ -136,6 +138,6 @@ JET 編譯為單一 assembly，以資料夾與命名空間劃分模組。JET 資
 
 - JET 以發布設定檔 JET/Properties/PublishProfiles/FolderProfile.pubxml 發布為 Release 組態、win-x64 的 self-contained single-file，部署時複製發布資料夾。
 - NuGet 套件於 JET/JET.csproj 指定固定版本；更新套件後重新查詢弱點，並更新元件清冊。
-- 案件資料庫與案件設定檔各自記錄格式版本。資料庫結構變更時版本加一，建表程式改為新的結構，並新增一個將前一版升至新版的升版步驟；1.0.0.0 起建立的案件，後續版本均須能開啟。
+- 開啟案件時不讀取案件資料庫記錄的結構版本，改為比對資料庫與建表程式的資料表、欄位、索引與 trigger，缺少的索引與 trigger 於單一交易內補建。1.0.0.0 之後新增的資料表或欄位登錄於新增清單，欄位另附 ALTER TABLE，開啟較早建立的案件時於同一交易內補上。案件設定檔記錄格式版本。1.0.0.0 起建立的案件，後續版本均須能開啟。
 - 新增 Excel 範本時，列入 JET/JET.csproj 的 Content 項目；建置與發布依此項目將範本複製至輸出的資料夾。
 - 問題依使用者回報的錯誤訊息、「訊息」區的紀錄與支援日誌診斷。修正後先以合成測試資料確認，再依第 7 節的版本規則發布新版本。

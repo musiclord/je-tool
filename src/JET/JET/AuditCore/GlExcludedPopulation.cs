@@ -37,20 +37,20 @@ internal readonly record struct GlExcludedPopulationClassification(GlExclusionRe
 /// <summary>判斷過帳狀態值是否在接受的清單裡。整理分錄時每一列都要查，所以只建立一次，之後每列查一次雜湊表。</summary>
 internal sealed class GlExcludedPopulationMatcher
 {
-    private readonly HashSet<string> acceptedValues;
+    private readonly HashSet<string> _acceptedValues;
 
     internal GlExcludedPopulationMatcher(GlPostingStatusPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(policy);
         IncludeBlank = policy.IncludeBlank;
-        acceptedValues = new HashSet<string>(
+        _acceptedValues = new HashSet<string>(
             policy.AcceptedValues,
             StringComparer.OrdinalIgnoreCase);
     }
 
     internal bool IncludeBlank { get; }
 
-    internal bool Accepts(string normalizedStatus) => acceptedValues.Contains(normalizedStatus);
+    internal bool Accepts(string normalizedStatus) => _acceptedValues.Contains(normalizedStatus);
 }
 
 /// <summary>

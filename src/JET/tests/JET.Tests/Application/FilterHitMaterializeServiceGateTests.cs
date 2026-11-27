@@ -121,7 +121,7 @@ public sealed class FilterHitMaterializeServiceGateTests
     }
 
     [Fact]
-    public async Task ConcurrentMaterialization_PreGlScenario_FailsStaleWithoutWritingHits()
+    public async Task ConcurrentMaterialization_OutdatedScenarioVersion_FailsStaleWithoutWritingHits()
     {
         var projectStore = new StubProjectStore(Document());
         var materializer = new RecordingMaterializer();

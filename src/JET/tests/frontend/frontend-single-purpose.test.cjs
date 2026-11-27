@@ -28,7 +28,7 @@ test('classification has two modes and no entry-side menu', () => {
 });
 
 // 「包含下層分類」只有一種寫法，下拉選項和讀回、報告用同一個詞。
-// 「選取依據」暫時隱藏，開關 Ui.FEATURES.categoryHierarchy 預設關著；先核對開關關著時沒有這個下拉，再打開開關重畫。
+// 「選取依據」預設隱藏，開關 Ui.FEATURES.categoryHierarchy 預設關著；先核對開關關著時沒有這個下拉，再打開開關重畫。
 test('the subtree selection option reads 包含下層分類', () => {
   const f = draftFixture({ type: 'accountSide', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' });
   assert.equal(f.$('[data-rule-bind="categorySelection"]'), null, 'with the switch off there is no selection menu');
@@ -59,7 +59,7 @@ test('only additional money fields offer a signed comparison', () => {
 
 // 「借方與貸方科目編號組合」是情境範例，套用後替換整份條件；借方與貸方各一個明示方向的子條件。
 test('common account combinations use explicit side children and keep their original defaults', () => {
-  // 情境範例在這個版本隱藏，這裡先把開關打開，托盤與範例才會畫出來。
+  // 情境範例預設隱藏，這裡先把開關打開，托盤與範例才會畫出來。
   const f = filterOperationFixture({ features: { scenarioTemplates: true } });
   f.click('[data-template-key="accountNumberPair"]');
   const rules = f.draft().groups[0].conditions[0].conditions;

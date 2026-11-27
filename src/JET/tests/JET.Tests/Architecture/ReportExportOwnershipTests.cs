@@ -24,8 +24,7 @@ public sealed class ReportExportOwnershipTests
     {
         var handler = ReadTypeSource(handlerName, relativePath);
 
-        // AuditCore 不提供只轉手給 port 的 ExecuteAsync，handler 直接呼叫
-        // ReportExecutionPort.ExecuteAsync。這裡檢查這個呼叫，
+        // handler 直接呼叫 ReportExecutionPort.ExecuteAsync。這裡檢查這個呼叫，
         // 並要求 Plan、建立 port、執行與 Finalize 依序出現，守住同一個 AuditCore 生命週期。
         AssertAppearsInOrder(
             handler,
@@ -107,8 +106,8 @@ public sealed class ReportExportOwnershipTests
     public void OpenXmlWriterCreate_IsCalledOnlyByWorkingPaperWriter()
     {
         // 報告的工作表經 FormalWorkbookArchive.OpenWorksheetWriter 寫出，寫法和 Excel 存檔時相同。
-        // OpenXmlWriter.Create 寫出的 XML 帶 BOM、主要命名空間一律加前綴 x，所以產品程式不直接用它。
-        // 工作底稿的輸出維持原本的寫法，續頁與改寫封面這兩處照舊使用。
+        // OpenXmlWriter.Create 寫出的 XML 帶 BOM、主要命名空間一律加前綴 x，所以報告不用它；
+        // 只有工作底稿的續頁與改寫封面這兩處直接使用。
         var product = ProductSources.ProductRoot;
         var callers = Directory
             .EnumerateFiles(product, "*.cs", SearchOption.AllDirectories)
@@ -133,7 +132,7 @@ public sealed class ReportExportOwnershipTests
     {
         // FormalWorkbookArchive.OpenWorksheetContent 回傳工作表內容的原始串流，寫進去的 XML 不經過 SpreadsheetXmlWriter：
         // 不會數共用字串的格數，也不保證沒有 BOM 與前綴。報告的工作表一律用 OpenWorksheetWriter，
-        // 只有維持原本寫法的工作底稿直接開這個串流：續頁，以及在範本工作表上加列的 overlay。
+        // 只有工作底稿直接開這個串流：續頁，以及在範本工作表上加列的 overlay。
         // 一般的 XmlWriter.Create 也一樣，只有 SpreadsheetXmlWriter 本身與底稿的 overlay 使用。
         var product = ProductSources.ProductRoot;
         var sources = Directory
@@ -172,7 +171,7 @@ public sealed class ReportExportOwnershipTests
     [Fact]
     public void AuditCoreReportPort_DoesNotCarryContentWriterDelegates()
     {
-        var source = ReadProduct("AuditCore", "ReportExportProgram.cs");
+        var source = ReadProduct("AuditCore", "JetAuditProgram.ReportExport.cs");
 
         Assert.DoesNotContain("ReportWriteRequest", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ReportContentWriter", source, StringComparison.Ordinal);

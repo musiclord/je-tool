@@ -212,8 +212,8 @@ JET 與範本寫出的公式：沒有任何儲存格公式。只有資料驗證�
 | 寫文字格子與跳脫 | `Export/ExcelText.cs` 第 12 到 255 行、第 384 到 422 行 | 來源含控制字元也能產生報告（裁定 2026-10-21-10）；超過每格上限的文字寫到上限並註明，匯出不失敗 |
 | 寫數值格子 | `Export/ReportSheetWriter.cs` 第 197 行、`Export/WorkingPaperWriter.cs` 第 991 行 | 未寫 |
 | 日期寫成文字 | 例如 `Export/LegacyReportWriter.Validation.cs` 第 274 行 | 裁定 2026-11-16-07 |
-| 日期與時間寫成序列值 | `FileIO/ExcelSerialDate.cs` 第 84 到 102 行；`Export/WorkingPaperWriter.Step2To41.cs` 第 902 到 953 行、第 1616 到 1641 行 | 只把存成 yyyy-MM-dd、1900-03-01 以後的日期寫成序列值，PBC 的值不被改掉（裁定 2026-11-20-02） |
-| 布林寫成 1 或 0 | `Export/WorkingPaperWriter.Step2To41.cs` 第 860 到 867 行 | 舊版明細是數值 1 或 0 |
+| 日期與時間寫成序列值 | `FileIO/ExcelSerialDate.cs` 第 84 到 102 行；`Export/WorkingPaperWriter.InfSamplingAndHighRisk.cs` 第 902 到 953 行、第 1616 到 1641 行 | 只把存成 yyyy-MM-dd、1900-03-01 以後的日期寫成序列值，PBC 的值不被改掉（裁定 2026-11-20-02） |
+| 布林寫成 1 或 0 | `Export/WorkingPaperWriter.InfSamplingAndHighRisk.cs` 第 860 到 867 行 | 舊版明細是數值 1 或 0 |
 | 建樣式表 | `Export/LegacyReportStyles.cs`、`Export/WorkingPaperStyles.cs`、`Export/FormalFieldInfoAppearance.cs` | 照舊版 JET 的樣式 |
 | 修補範本樣式與數字格式 | `Export/ReportTemplatePackage.cs` 第 346 到 431 行、第 538 行起 | 同一組修改只追加一次，數量有上限 |
 | 鎖定與不鎖定樣式 | `Export/DirectTemplateWorkbookEditor.cs` 第 79 到 88 行 | 照舊版的鎖定範圍 |

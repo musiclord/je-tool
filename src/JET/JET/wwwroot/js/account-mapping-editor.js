@@ -39,7 +39,7 @@
   function load(m) {
     if (m.loading) { return Promise.resolve(); }
     // 換頁或搜尋不清掉勾選與待儲存的分類；只重設以本頁列號計算的連選起點。
-    // 第一次讀取時畫面已經寫著正在載入，不再要求整個中欄重建：進入第四步時這次重建讓換步驟多頓七、八十毫秒。
+    // 第一次讀取時畫面已經寫著正在載入，所以不要求整個中欄重建；重建會讓進入第四步時多頓七、八十毫秒。
     var showingLoading = !m.rows && !m.error;
     m.loading = true; m.error = ''; m.rows = null; m.nextCursor = null; m.anchor = null;
     if (!showingLoading) { Store.touch(); }

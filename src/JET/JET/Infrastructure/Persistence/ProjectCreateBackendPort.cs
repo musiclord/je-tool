@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// project.create 的資料庫建立流程。設定檔發布、取得工作鎖之後才建立案件資料庫；
-/// 建案失敗時回滾刪除資料庫，設定檔保留到回滾完成。目前只建立 SQLite 案件。
+/// project.create 的資料庫建立流程。設定檔發布、取得案件鎖之後才建立案件資料庫；
+/// 建案失敗時回滾刪除資料庫，設定檔保留到回滾完成。只建立 SQLite 案件。
 /// </summary>
 internal sealed class ProjectCreateBackendPort(ILocalProjectDatabase sqlite) : IProjectCreateBackendPort
 {
@@ -37,39 +37,39 @@ internal sealed class ProjectCreateBackendPort(ILocalProjectDatabase sqlite) : I
         string projectId,
         ProtectedProjectSettings settings) : IProjectCreateBackendAttempt
     {
-        private bool prepared;
-        private bool completed;
+        private bool _prepared;
+        private bool _completed;
 
         public async Task PrepareAsync(CancellationToken cancellationToken)
         {
-            if (prepared || completed)
+            if (_prepared || _completed)
             {
                 throw new InvalidOperationException("Local project.create attempt 不在可準備狀態。");
             }
 
             // 建表與寫入以案件資料庫為準的案件設定在同一個交易裡完成。
             await database.EnsureCreatedAsync(projectId, settings, cancellationToken);
-            prepared = true;
+            _prepared = true;
         }
 
         public Task CommitAsync(CancellationToken cancellationToken)
         {
-            if (!prepared || completed)
+            if (!_prepared || _completed)
             {
                 throw new InvalidOperationException("Local project.create attempt 尚未準備或已結算。");
             }
 
-            completed = true;
+            _completed = true;
             return Task.CompletedTask;
         }
 
         public async Task RollbackAsync(CancellationToken cancellationToken)
         {
-            if (completed)
+            if (_completed)
             {
                 return;
             }
-            completed = true;
+            _completed = true;
             await database.DeleteAsync(projectId, cancellationToken);
         }
     }

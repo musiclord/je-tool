@@ -3,9 +3,9 @@ namespace JET.Domain;
 /// <summary>
 /// GL 投影的退化母體檢查（金額模式選錯時的資料品質防線）。
 ///
-/// 背景：GL 金額投影成功（無列級錯誤）、母體也非空，但整個母體的借方總額與貸方總額**皆為 0**——
-/// 這幾乎一定是金額欄配對錯誤。最常見於把借/貸金額配到了「傳票總額」欄：同一張傳票每一列都填一樣的
-/// 總借＝總貸，<see cref="GlAmountMode.DualAmount"/> 逐列算「借 − 貸」便恆為 0；或把金額配到了空欄。
+/// GL 金額投影成功（沒有列級錯誤）、母體也不是空的，但整個母體的借方總額與貸方總額都是 0，
+/// 這幾乎一定是金額欄配對錯誤。最常見的是把借貸金額配到「傳票總額」欄：同一張傳票每一列都填一樣的
+/// 總借與總貸，<see cref="GlAmountMode.DualAmount"/> 逐列算借減貸就一定是 0；或是把金額配到空欄。
 /// 這種母體借貸淨額全 0，無法做完整性測試（逐科目 GL 加總全 0、與 TB 全不符）與後續所有規則，
 /// 而且症狀只會在兩步之後以「完整性全科目不符」這種看不出原因的形式浮現。
 /// 守門在 <c>mapping.commit.gl</c> 投影提交前攔下、整批 rollback，並回可行動的錯誤訊息。
@@ -13,8 +13,8 @@ namespace JET.Domain;
 public static class GlProjectionGuard
 {
     /// <summary>
-    /// 母體非空，但借方總額與貸方總額皆為 0 → 退化（金額欄誤配）。
-    /// 空母體（projectedRowCount == 0）不屬此守門範圍，由既有路徑處理。
+    /// 母體不是空的，但借方總額與貸方總額都是 0，表示金額欄很可能配錯。
+    /// 空母體（projectedRowCount == 0）不在這個檢查範圍，由 GL 投影另外回報 <see cref="EmptyGlMessage"/>。
     /// </summary>
     public static bool IsDegenerateAmountPopulation(
         long projectedRowCount,
@@ -22,7 +22,6 @@ public static class GlProjectionGuard
         long totalCreditScaled) =>
         projectedRowCount > 0 && totalDebitScaled == 0 && totalCreditScaled == 0;
 
-    // 這句的用字已定案。
     public const string DegenerateAmountMessage =
         "GL 借方與貸方總額皆為 0，請確認所選金額欄是每列的分錄金額，而非傳票總額或空白欄。";
 

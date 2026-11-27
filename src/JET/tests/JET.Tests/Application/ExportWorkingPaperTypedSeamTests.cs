@@ -7,9 +7,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 正式工作底稿的唯一 constructor 必須走完整 typed lifecycle，沒有
-/// rollback fallback；底稿只經由依計畫寫出的正式入口寫出，沒有公開的相容入口。此測試同時鎖定惰性
-/// stale refresh 的既有 predicate 路徑。
+/// 正式工作底稿只有一個 constructor，一律走完整的 typed lifecycle，失敗時不改走其他寫法；
+/// 底稿只經由依計畫寫出的正式入口寫出。此測試也核對寫出前後惰性重判過期狀態（stale refresh）的順序。
 /// </summary>
 public sealed class ExportWorkingPaperTypedSeamTests
 {
@@ -91,7 +90,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.True(cancellation.IsCancellationRequested);
 
         Assert.Equal(1, writer.TypedCalls);
-        // 公開入口不存在，由 CompatibilityPathOwnershipTests 斷言。
+        // 底稿只依計畫寫出。
         Assert.Equal(1, factsPort.Calls);
         Assert.False(factsPort.InitialPlan?.IsFinalized);
         Assert.True(writer.Plan?.IsFinalized);
@@ -124,7 +123,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.Null(typeof(WorkingPaperContext).GetProperty("PrescreenResultId"));
         Assert.Equal(revision, writer.Context?.ScenarioRevision);
         Assert.Equal(new[] { 1 }, writer.Context?.ScenarioPositions);
-        // ScenarioConditionLogic 屬性不存在，由 CompatibilityPathOwnershipTests 斷言。
+        // WorkingPaperContext 不帶條件說明，條件說明在底稿計畫的情境裡。
 
         var plan = Assert.IsType<WorkingPaperPlan>(writer.Plan);
         Assert.Equal(validationResultId, plan.Request.ValidationResultId);
@@ -137,7 +136,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.Equal("未預期借貸組合", selected.Name);
         Assert.Equal("驗證舊 IDEA 工作底稿標記範圍", selected.Rationale);
         Assert.Equal(WorkingPaperScenarioTagScope.HitVoucherRows, selected.TagScope);
-        // Every saved rule now carries its full explanation into the WorkingPaper, including prescreen rules.
+        // 每條已儲存的條件都把完整說明帶進工作底稿，預篩選條件也一樣。
         Assert.Equal("預篩選：未預期借貸組合", selected.ConditionLogic);
         Assert.Equal(7, selected.VoucherHitCount);
         Assert.Equal(3, selected.RowHitCount);
@@ -151,13 +150,13 @@ public sealed class ExportWorkingPaperTypedSeamTests
             fieldInfo.GlRows);
         Assert.Equal(
             new[] { 1 },
-            Sheet(plan, WorkingPaperSheetCatalog.Step4).ScenarioPositions);
+            Sheet(plan, WorkingPaperSheetCatalog.HighRiskVoucher).ScenarioPositions);
         Assert.Equal(
             new[] { 1 },
-            Sheet(plan, WorkingPaperSheetCatalog.Step41).ScenarioPositions);
+            Sheet(plan, WorkingPaperSheetCatalog.HighRiskVoucherDetail).ScenarioPositions);
         Assert.Equal(
             "基於上述程序，查核團隊對於JE測試母體之完整性，尚需於Step1-3說明以取得足夠的查核證據。",
-            Sheet(plan, WorkingPaperSheetCatalog.Step1).Conclusion);
+            Sheet(plan, WorkingPaperSheetCatalog.Completeness).Conclusion);
 
         var source = Assert.IsType<ReportSourceRefs>(
             reportStore.WorkingPaperRequest?.SourceRef);
@@ -301,7 +300,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
                 },
                 TargetTbDefinitions:
                 [
-                    // 欄位事實多了來歷與對應的 JET 欄位，手工建的事實照投影器的寫法補上。
+                    // 欄位事實帶有來歷與對應的 JET 欄位，手工建的事實照投影器的寫法填入。
                     new FieldInfo(
                         1,
                         "會計科目編號_TB",
@@ -442,7 +441,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
         CancellationTokenSource operationCancellation,
         bool rejectUnusedPrepublicationCatalog) : IReportStore
     {
-        private Report[] reports = [criteria, oldWorkingPaper];
+        private Report[] _reports = [criteria, oldWorkingPaper];
 
         public int MarkStaleCalls { get; private set; }
 
@@ -477,7 +476,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
                 output.Length,
                 LastWriteUtc: null,
                 Stale: false);
-            reports = [.. reports, report];
+            _reports = [.. _reports, report];
             _published = true;
             CatalogOrder.Add("published");
             operationCancellation.Cancel();
@@ -519,8 +518,8 @@ public sealed class ExportWorkingPaperTypedSeamTests
                 Assert.Equal(new[] { "published" }, CatalogOrder);
                 CatalogOrder.Add("response-catalog");
             }
-            CatalogReportIds.Add(reports.Select(report => report.ReportId).ToArray());
-            return Task.FromResult<IReadOnlyList<Report>>(reports.ToArray());
+            CatalogReportIds.Add(_reports.Select(report => report.ReportId).ToArray());
+            return Task.FromResult<IReadOnlyList<Report>>(_reports.ToArray());
         }
 
         public Task<string> ResolvePathAsync(
@@ -547,7 +546,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
             MarkStaleCalls++;
             CriteriaWasMarkedStale = predicate(criteria);
             OldWorkingPaperWasMarkedStale = predicate(oldWorkingPaper);
-            reports = reports
+            _reports = _reports
                 .Select(report =>
                     !report.Stale && predicate(report)
                         ? report with { Stale = true }

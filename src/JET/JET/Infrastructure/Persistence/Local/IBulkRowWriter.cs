@@ -2,8 +2,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 把很多列寫進同一張資料表的寫入器，由 <see cref="ILocalProjectDatabase"/> 建立，用來加快大量匯入。
-/// 用在列數最多的兩處：匯入時寫匯入暫存表，以及確認配對時寫 GL 與 TB。目前只有 SQLite 的實作
-/// （<c>SqliteBulkRowWriter</c>），裡面是一句重複執行的參數化 INSERT。呼叫端每一列呼叫一次
+/// 用在列數最多的兩處：匯入時寫匯入暫存表，以及確認配對時寫 GL 與 TB。實作是 SQLite 的
+/// <c>SqliteBulkRowWriter</c>，裡面是一句重複執行的參數化 INSERT。呼叫端每一列呼叫一次
 /// <see cref="AppendAsync"/>，全部寫完再呼叫一次 <see cref="CompleteAsync"/>。
 /// </summary>
 /// <remarks>

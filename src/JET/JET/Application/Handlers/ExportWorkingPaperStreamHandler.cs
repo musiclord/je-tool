@@ -11,18 +11,18 @@ namespace JET.Application;
 /// </summary>
 public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
-    private readonly IJetEventPublisher eventPublisher;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
+    private readonly IJetEventPublisher _eventPublisher;
 
     internal ExportWorkingPaperStreamHandler(
         IProjectStore projectStore,
         ProjectSession session,
         IJetEventPublisher eventPublisher)
     {
-        this.projectStore = projectStore;
-        this.session = session;
-        this.eventPublisher = eventPublisher;
+        this._projectStore = projectStore;
+        this._session = session;
+        this._eventPublisher = eventPublisher;
     }
 
     public string Action => "export.workingPaperStream";
@@ -43,7 +43,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
             ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "validation_result_id_missing");
         // 還沒有儲存篩選情境時，畫面送 null 或不送篩選版本。
         var scenarioRevision = PayloadReader.GetOptionalString(payload, "scenarioRevision");
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var planWriter = repositories.WorkingPaperPlanWriter;
         var planningFactsPort = repositories.WorkingPaperPlanningFacts;
         var scenarioStore = repositories.FilterScenarios;
@@ -59,7 +59,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
             projectId,
             cancellationToken);
         ReportExportSupport.RequireRequestedValidationResult(validationResult, validationResultId);
-        var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
+        var progressSession = new ExportProgressSession(_eventPublisher, cancellationToken);
         var reportProgress = progressSession.Start(ReportKind.WorkingPaper);
 
         SupportOperationStage.Enter("scenario_read");
@@ -89,7 +89,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
             cancellationToken,
             filterDataRevision);
         SupportOperationStage.Enter("metadata_read");
-        var document = await projectStore.FindAsync(projectId, cancellationToken)
+        var document = await _projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         // 儲存情境時已經存下每個情境的結果，底稿直接用存好的結果，不重算；只照重算前的同一套檢查確認選定的情境仍能套用。

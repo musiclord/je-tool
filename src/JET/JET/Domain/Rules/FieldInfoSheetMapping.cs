@@ -894,13 +894,13 @@ internal static class FieldInfoSheetMapping
     /// </summary>
     private sealed class ImportedColumnNames
     {
-        private readonly HashSet<string> exact;
-        private readonly Dictionary<string, string?> byKey = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _exact;
+        private readonly Dictionary<string, string?> _byKey = new(StringComparer.Ordinal);
 
         internal ImportedColumnNames(IReadOnlyList<string> columns)
         {
-            exact = columns.ToHashSet(StringComparer.Ordinal);
-            foreach (var column in exact)
+            _exact = columns.ToHashSet(StringComparer.Ordinal);
+            foreach (var column in _exact)
             {
                 var key = ComparisonKey(column);
                 if (key.Length == 0)
@@ -909,22 +909,22 @@ internal static class FieldInfoSheetMapping
                 }
 
                 // 兩個目前的欄位正規化後相同時，這個寫法不唯一，記成 null。
-                byKey[key] = byKey.ContainsKey(key) ? null : column;
+                _byKey[key] = _byKey.ContainsKey(key) ? null : column;
             }
         }
 
-        internal bool ContainsExactly(string name) => exact.Contains(name);
+        internal bool ContainsExactly(string name) => _exact.Contains(name);
 
         internal bool TryResolve(string name, out string? column)
         {
-            if (exact.Contains(name))
+            if (_exact.Contains(name))
             {
                 column = name;
                 return true;
             }
 
             var key = ComparisonKey(name);
-            column = key.Length > 0 && byKey.TryGetValue(key, out var unique) ? unique : null;
+            column = key.Length > 0 && _byKey.TryGetValue(key, out var unique) ? unique : null;
             return column is not null;
         }
 

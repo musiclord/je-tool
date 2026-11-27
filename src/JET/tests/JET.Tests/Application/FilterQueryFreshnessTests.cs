@@ -106,7 +106,7 @@ public sealed class FilterQueryFreshnessTests
             name = "查詢結果狀態", rationale = "合成零筆與搜尋測試",
             groups = new[] { new { conditions = new[] { new
             {
-                type = "numRange", field = "amount", from = minimumAmount
+                type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = minimumAmount, amountBasis = "absolute"
             } } } }
         } }
     });

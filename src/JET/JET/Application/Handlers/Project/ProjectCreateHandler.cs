@@ -7,13 +7,13 @@ namespace JET.Application;
 
 public sealed class ProjectCreateHandler : IApplicationActionHandler
 {
-    private readonly IProjectStore projectStore;
-    private readonly ProjectRepositoryCatalog repositoryCatalog;
-    private readonly CurrentPrincipal principal;
-    private readonly IProjectSessionPublisher session;
-    private readonly ISupportCaseHistory? supportHistory;
-    private readonly ILogger? logger;
-    private readonly ProjectSessionDeparture? sessionDeparture;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectRepositoryCatalog _repositoryCatalog;
+    private readonly CurrentPrincipal _principal;
+    private readonly IProjectSessionPublisher _session;
+    private readonly ISupportCaseHistory? _supportHistory;
+    private readonly ILogger? _logger;
+    private readonly ProjectSessionDeparture? _sessionDeparture;
 
     internal ProjectCreateHandler(
         IProjectStore projectStore,
@@ -24,20 +24,20 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         ILogger<ProjectCreateHandler>? logger = null,
         ProjectSessionDeparture? sessionDeparture = null)
     {
-        this.projectStore = projectStore;
-        this.repositoryCatalog = repositoryCatalog;
-        this.principal = principal;
-        this.session = session;
-        this.supportHistory = supportHistory;
-        this.logger = logger;
-        this.sessionDeparture = sessionDeparture;
+        this._projectStore = projectStore;
+        this._repositoryCatalog = repositoryCatalog;
+        this._principal = principal;
+        this._session = session;
+        this._supportHistory = supportHistory;
+        this._logger = logger;
+        this._sessionDeparture = sessionDeparture;
     }
 
     public string Action => "project.create";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        // 目前只建立 SQLite 案件；畫面不送 databaseProvider，送了也只接受 sqlite。
+        // 只建立 SQLite 案件；畫面不送 databaseProvider，送了也只接受 sqlite。
         var databaseProvider = PayloadReader.GetOptionalString(payload, "databaseProvider")
             ?? ProjectDocument.DefaultDatabaseProvider;
         if (databaseProvider != ProjectDocument.DefaultDatabaseProvider)
@@ -46,7 +46,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         }
 
         // 案件的資料庫組在建案時就選定：建案過程與成功後的 session 都用這一組，不另外回頭讀 project.json。
-        var repositories = repositoryCatalog.For(databaseProvider);
+        var repositories = _repositoryCatalog.For(databaseProvider);
         var projectCreateFactsPort = repositories.ProjectCreateFacts;
 
         // projectName 選填。有值時先驗證名稱、確認沒有重複，再拿它當 projectId 與資料夾名稱；
@@ -70,10 +70,10 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                     JetErrorFields.ProjectName);
             }
 
-            // 同名資料夾即視為重複。以前建立的 DuckDB 或 SQL Server 案件不列在案件清單，
+            // 同名資料夾即視為重複。DuckDB 或 SQL Server 的案件不列在案件清單，
             // 撞到它時先說清楚是哪一種資料夾、審計員能怎麼做；它的設定檔讀不通時也不報那個看不到的案件的錯誤。
             SupportOperationStage.Enter("name_check");
-            if (await projectStore.IsRetiredProviderCaseAsync(projectName, cancellationToken))
+            if (await _projectStore.IsRetiredProviderCaseAsync(projectName, cancellationToken))
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidPayload,
@@ -81,7 +81,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                     JetErrorFields.ProjectName);
             }
 
-            if (await projectStore.FindAsync(projectName, cancellationToken) is not null)
+            if (await _projectStore.FindAsync(projectName, cancellationToken) is not null)
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidPayload,
@@ -103,7 +103,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
 
         // 建案者只能是程式啟動時注入的目前 Windows 身分：照舊版 JET 記 Windows 帳號的使用者全名，
         // 取不到時記帳號短名。payload 即使帶了 operatorId 也不採用，避免前端欄位或其他呼叫端冒名寫進案件設定。
-        var operatorId = await principal.ResolveCreatorNameAsync(cancellationToken);
+        var operatorId = await _principal.ResolveCreatorNameAsync(cancellationToken);
         var periodStart = PayloadReader.GetRequiredDate(payload, "periodStart");
         var periodEnd = PayloadReader.GetRequiredDate(payload, "periodEnd");
         var prepStartDate = PayloadReader.GetOptionalDate(payload, "prepStartDate");
@@ -126,7 +126,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             new ProjectCreateRequest(
                 document,
                 HasUserSuppliedProjectName: !string.IsNullOrWhiteSpace(projectNameRaw),
-                principal.Name));
+                _principal.Name));
 
         ProjectCreateFacts facts;
         SupportOperationStage.Enter("case_create");
@@ -162,18 +162,18 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             // 回應物件要在進入 session 之前建好；這一行之後不再做任何可能失敗的回應組裝工作。
             var response = new { projectId = document.ProjectId, ok = true,
                 warnings = ProjectMetadataRules.GetWarnings(periodStart, periodEnd, prepStartDate) };
-            // 新的案件建好之後、進入 session 之前，才離開目前還開著的另一個案件，放掉它的工作鎖並關閉它的資料庫。
+            // 新的案件建好之後、進入 session 之前，才離開目前還開著的另一個案件，放掉它的案件鎖並關閉它的資料庫。
             // 名稱、查核期間或建立案件資料夾失敗時，目前的案件照樣開著。
-            if (sessionDeparture is not null)
+            if (_sessionDeparture is not null)
             {
-                await sessionDeparture.LeaveOtherProjectAsync(document.ProjectId);
+                await _sessionDeparture.LeaveOtherProjectAsync(document.ProjectId);
             }
-            session.Enter(document.ProjectId, repositories);
+            _session.Enter(document.ProjectId, repositories);
             // finalize 與 session 都完成後才結算建案；結算不理會請求取消，只做一次。
             await projectCreateFactsPort.CompleteAsync(facts, CancellationToken.None);
             // 建案確定之後才建立支援紀錄資料夾並記下這次開啟；之前失敗時，回復刪除案件資料夾不受紀錄檔影響。
             SupportCaseDiagnostics.CaseOpened(
-                supportHistory, logger, document.ProjectId, document.DatabaseProvider, createdNow: true);
+                _supportHistory, _logger, document.ProjectId, document.DatabaseProvider, createdNow: true);
             return response;
         }
         catch
@@ -182,7 +182,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             {
                 // 不論失敗在哪一步都要離開 session：session.Enter 可能已經把這個案件設成目前案件才丟出例外。
                 // Leave 只在目前案件仍是這一個時才清除。
-                _ = session.Leave(document.ProjectId);
+                _ = _session.Leave(document.ProjectId);
             }
             catch (Exception)
             {
@@ -190,7 +190,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             }
 
             // 完成建案、建立回應、進入 session、結算這四步任何一步失敗，都走同一個回復流程，而且不理會請求取消：
-            // 先釋放這次取得的工作鎖，再回復資料庫，兩者都成功才刪除案件資料夾。
+            // 先釋放這次取得的案件鎖，再回復資料庫，兩者都成功才刪除案件資料夾。
             await projectCreateFactsPort.RollbackAsync(facts, CancellationToken.None);
             throw;
         }

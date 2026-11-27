@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// import.accountMapping.fromFile 黑箱驗收：
+/// import.accountMapping.fromFile 黑箱測試：
 /// 匯入即投影、replace-only、分類欄的新名稱新增成自訂分類、解鎖未預期借貸組合。
 /// oracle：demo 科目配對派生規格 + 獨立參數化 SQL recount。
 /// </summary>
@@ -83,7 +83,7 @@ public sealed class ImportAccountMappingFromFileHandlerTests
             Assert.Equal(2, imported.GetProperty("mappingOnlyCount").GetInt64());
             Assert.Equal(3, imported.GetProperty("unmappedCount").GetInt64());
             Assert.Equal(1, imported.GetProperty("blankCategoryCount").GetInt32());
-            Assert.True(imported.GetProperty("hasRevenue").GetBoolean()); // 額外科目對前置條件的影響保留。
+            Assert.True(imported.GetProperty("hasRevenue").GetBoolean()); // 只出現在科目配對檔的科目也算進前置條件：X 歸為 Revenue，所以 hasRevenue 為 true。
             Assert.Equal(4, imported.GetProperty("rowCount").GetInt32());
             foreach (var (kind, expected) in new[]
             {
@@ -262,7 +262,6 @@ public sealed class ImportAccountMappingFromFileHandlerTests
 
         Assert.Equal("projection_failed", ex.Code);
         Assert.Equal(
-                        // 這句的用字已定案。
                         // 一律寫「科目配對範本」。
                         "科目配對範本有 1 列無法讀取，本次匯入未儲存："
             + "第 3 列：分類「NotACategory」不在本案件的科目分類中"

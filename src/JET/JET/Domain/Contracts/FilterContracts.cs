@@ -6,7 +6,7 @@ public enum GlPopulationScope
     AuditPeriod
 }
 
-/// <summary>wire／持久化使用的正準 populationScope 值與人類可讀標籤。</summary>
+/// <summary>wire 與持久化使用的 populationScope 值，以及畫面顯示的名稱。</summary>
 public static class GlPopulationScopeValues
 {
     public const string AuditPeriod = "auditPeriod";
@@ -45,10 +45,9 @@ public sealed record GlPopulationContext(
     string PeriodEnd);
 
 /// <summary>
-/// filter.preview 的執行上下文與結果。本版為無狀態查詢
-/// （COUNT + COUNT DISTINCT + LIMIT 50 預覽），不落地結果
-/// （命中落地由 filter.commit 寫入 filter_hit）。
-/// PeriodStart/PeriodEnd 固定界定查核期間母體（專案必填欄位）。
+/// filter.preview 的執行上下文與結果。filter.preview 是無狀態查詢
+/// （COUNT + COUNT DISTINCT + LIMIT 50 預覽），不寫入結果；命中由儲存情境的 action 寫入 filter_hit。
+/// PeriodStart/PeriodEnd 固定界定查核期間母體（案件必填欄位）。
 /// </summary>
 public sealed record FilterConditionContext(
     int MoneyScale,
@@ -61,9 +60,9 @@ public sealed record FilterConditionContext(
     public DateParseOptions DateParseOptions { get; init; } = DateParseOptions.Default;
 
     /// <summary>
-    /// typed 條件（type:"typed"）編譯所需的 RDE 欄位 registry（fieldId → value type）。
-    /// 預設空集合＝任何 typed 條件在編譯前即 fail loud，不會靜默編出錯誤 SQL。
-    /// 來源是目前案件 committed GL mapping 的 RDE definitions（單一權威，不另建第二份目錄）。
+    /// 欄位值條件用到攸關資料元素欄位時，編譯所需的欄位清單，fieldId 對應值的種類。
+    /// 預設是空集合，用到這類欄位的條件在編譯前就失敗，不會默默編出錯誤的 SQL。
+    /// 來源是目前案件已確認 GL 配對的 RDE 欄位定義，只有這一份，不另建目錄。
     /// </summary>
     public IReadOnlyList<GlRdeFieldMetadata> RdeFields { get; init; } = [];
 

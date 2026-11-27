@@ -45,6 +45,7 @@ alternative text and the caption under it.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,6 +63,8 @@ from lxml import etree
 
 SAT = Path(__file__).resolve().parents[3] / "docs" / "SAT"
 SOURCE = Path(__file__).resolve().parent / "source"
+# The author and "last modified by" of every delivered document, as the user set them.
+RECORDER = json.loads((SOURCE / "document-properties.json").read_text(encoding="utf-8"))
 # Source name under source/ -> output path under docs/SAT. The layout follows the company's SAT folder.
 DOCUMENTS = {
     "Technical Document": "Technical Document.docx",
@@ -851,9 +854,9 @@ def build(name: str, output: Path) -> None:
     now = datetime.now(timezone.utc)
     props = doc.core_properties
     # Word puts the name of its user into "last modified by" when Update-WordFields.ps1 saves
-    # the file; that script sets it back to JET.
-    props.author = "JET"
-    props.last_modified_by = "JET"
+    # the file; that script sets both fields back to the values in source/document-properties.json.
+    props.author = RECORDER["creator"]
+    props.last_modified_by = RECORDER["lastModifiedBy"]
     props.title = meta["title"]
     props.subject = "" if plain else f"{PRODUCT} {VERSION}"
     props.comments = ""

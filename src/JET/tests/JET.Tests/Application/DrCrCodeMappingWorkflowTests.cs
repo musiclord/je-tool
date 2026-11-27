@@ -19,8 +19,8 @@ public sealed class DrCrCodeMappingWorkflowTests
         var oldMapping = Codes(); oldMapping.Remove("drCrCreditCode");
         var folder = new JetProjectFolder(fixture.Host.ProjectsRoot);
         ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
-        // 合成舊 v2 案件：保留已完成的 D/C 投影，只讓已儲存 snapshot 缺少新版新增的貸方代碼。
-        // 不經新版確認入口猜值，也不改任何 target 列。
+        // 合成 v2 格式的案件：保留已完成的 D/C 投影，已儲存的 snapshot 沒有貸方代碼。
+        // 不經確認入口猜值，也不改任何 target 列。
         await new LocalMappingStateStore(database).SaveAsync(fixture.ProjectId,
             new CommittedMapping(DatasetKind.Gl, oldMapping, "side",
                 current.GetProperty("sourceBatchId").GetString()!, current.GetProperty("committedUtc").GetDateTimeOffset()),
@@ -78,7 +78,6 @@ public sealed class DrCrCodeMappingWorkflowTests
         var mapping = Codes(); mapping["drCr"] = "BadSide";
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, mode));
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        // 這句的用字已定案。
         Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.Equal(2, error.Details!.Count);
         var unknown = Assert.Single(error.Details, item => item.ReasonCode == "dc_unlisted");
@@ -108,7 +107,6 @@ public sealed class DrCrCodeMappingWorkflowTests
         if (overlap) mapping["drCrCreditCode"] = "\u3000d ";
         else { mapping.Remove("drCrCreditCode"); mapping.Remove("drCrDebitCode"); }
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "side"));
-        // 這句的用字已定案。
         if (overlap)
         {
             Assert.Equal("借方與貸方代碼必須不同。", error.Message);

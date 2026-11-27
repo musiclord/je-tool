@@ -120,7 +120,7 @@ public sealed class GlExcludedPopulationProjectionProviderTests
         var error = Assert.Single(result.Errors);
         Assert.Equal(3, error.SourceRowNumber);
         Assert.Equal("amount", error.Field);
-        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
+        // 訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
         Assert.Null(result.GlTotals);
 

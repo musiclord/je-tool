@@ -7,9 +7,9 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 命中傳票分頁。草稿以同一份 WHERE plan 對查核期間母體逐列算 is_hit，再依傳票聚合；已儲存的情境改讀儲存時存下的
-/// filter_hit 與 filter_hit_condition，不再判斷條件，傳票的分錄數、總額與日期仍讀 GL。兩條路的聚合、排序、搜尋與
+/// filter_hit 與 filter_hit_condition，不重新判斷條件，傳票的分錄數、總額與日期仍讀 GL。兩條路的聚合、排序、搜尋與
 /// 分頁是同一段 SQL，畫面看到的列才會相同。傳票摘要頁只列有命中列的傳票；展開分錄頁列出該傳票全部列（含參考列），
-/// 並標示本列符合哪些條件。兩值語意，沒有待判定。
+/// 並標示本列符合哪些條件；每列只分符合與不符合。
 /// </summary>
 internal static class FilterVoucherPageReader
 {

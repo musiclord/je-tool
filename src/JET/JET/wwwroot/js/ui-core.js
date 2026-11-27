@@ -2,19 +2,19 @@
   前端共用核心（JetUi namespace）。
   持有：DOM 輔助、run() 包裝、流程閘門與導航、統一步驟頁尾、
   步驟渲染器註冊表與共用契約鏡像常數。
-  各步驟渲染器以獨立檔案自行註冊（js/steps/*.js）；本檔不承載任何權威業務規則。
+  各步驟渲染器以獨立檔案自行註冊（js/steps/*.js）；本檔不放業務規則，業務規則以後端為準。
 */
 (function (global) {
   'use strict';
 
   var Store = global.JetStore;
 
-  // 這個版本在畫面上隱藏的功能。categoryHierarchy 是科目分類的上下層級與進階設定：第四步分類設定的「進階設定」（分類用途、上層分類）
-  // 與第五步科目分類條件的「選取依據」。關著時分類設定只填名稱，做到和舊版 JET 的科目配對一樣；
-  // 前端程式、後端與資料都保留。分類樹的縮排與展開箭頭、科目樹與條件讀回裡的「包含下層分類」
+  // 畫面功能開關。categoryHierarchy 是科目分類的上下層級與進階設定：第四步分類設定的「進階設定」（分類用途、上層分類）
+  // 與第五步科目分類條件的「選取依據」。關著時分類設定只填名稱，和舊版 JET 的科目配對一樣；
+  // 開關只影響畫面，前端程式、後端與資料不變。分類樹的縮排與展開箭頭、科目樹與條件讀回裡的「包含下層分類」
   // 不看這個開關，看案件資料：有分類設了上層才出現，所以開關關著時，新案件看不到它們。
   // scenarioTemplates 是第五步右側條件組合上方的「從情境範例開始」托盤與裡面的情境範例。關著時不畫托盤，
-  // 第五步只從條件總覽的「常用篩選條件」「預篩選」「欄位條件」三個分頁加入條件；範例的資料與套用的程式都保留。
+  // 第五步只從條件總覽的「常用篩選條件」「預篩選」「欄位條件」三個分頁加入條件。
   var FEATURES = { categoryHierarchy: false, scenarioTemplates: false };
 
   // 步驟可以獨立載入；有動畫時由殼層排除淡出複本，沒有動畫時維持一般查找。
@@ -112,7 +112,7 @@
 
   // GL 核准日三態（後端 mapping.commit.gl 接受的 approvalDateMode 固定值）。
   // mapped 必須且只可配「傳票核准日」來源欄；sameAsGlDate 直接沿用標準化後的總帳日期，
-  // 兩者互斥由前端就近引導，後端 mapping.commit.gl 仍是權威。
+  // 兩者互斥由前端就近引導，最後以後端 mapping.commit.gl 的檢查為準。
   var GL_APPROVAL_DATE_MODES = [
     { value: 'unmapped', label: '—' },
     { value: 'mapped', label: '由來源欄提供' },
@@ -126,7 +126,7 @@
     { value: 'amount', label: '金額' }
   ];
 
-  // 後端 GlRdeStorageLimits.LabelUtf16CodeUnits 的 UI 鏡像上限；後端仍是權威。
+  // 後端 GlRdeStorageLimits.LabelUtf16CodeUnits 的 UI 鏡像上限；以後端為準。
   var RDE_MAX_LABEL_LENGTH = 400;
 
   // 人工／自動代碼的後端預設（manualAutoPolicy 未提供時的值）。
@@ -134,16 +134,16 @@
 
   // mapping.valueProfile 的有界取樣上限（action 的 limit 允許 1 到 100）。
   var VALUE_PROFILE_LIMIT = 50;
-  // 後端 MappingValueProfileHandler.MaxLimit 的 UI 鏡像：一次送去比對的來源值上限；後端仍是權威。
+  // 後端 MappingValueProfileHandler.MaxLimit 的 UI 鏡像：一次送去比對的來源值上限；以後端為準。
   var VALUE_PROFILE_MAX_VALUES = 100;
-  // 後端 TextStorageLimits.TextUtf16CodeUnits 的 UI 鏡像：搜尋文字輸入框的字數上限；後端仍是權威。
+  // 後端 TextStorageLimits.TextUtf16CodeUnits 的 UI 鏡像：搜尋文字輸入框的字數上限；以後端為準。
   var SEARCH_TEXT_MAX_LENGTH = 400;
   // 既定門檻；只供預設值與文案使用，不在前端判斷命中。
   // preparerMaxEntries 與 accountMaxEntries 是第五步欄位條件裡「編製分錄較少的人員」「較少使用的科目」加入時預設的筆數，
   // 審計員可以改。第四步照舊版不挑出 11 筆以下的人員與科目。
   // 「分錄金額中有連續 0 的尾數」的 0 的個數不是固定值，由後端依 GL 的借方平均算出，見下面的 trailingZeroDigits。
   var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11 };
-  // 三種展示用途各自命名，不改後端query.*Page預設200列，也不共用審計門檻。
+  // 三種展示用途各自命名，和後端 query.*Page 預設的 200 列分開，也不和審計門檻共用。
   var RESULT_PREVIEW_PAGE_SIZE = 50;
   var TABLE_PAGE_SIZE = 200;
   var REPORT_HISTORY_PAGE_SIZE = 50;
@@ -165,29 +165,23 @@
   ];
 
   // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes；
-  // quickLabel 與 group 是前端呈現 metadata。
+  // group 是前端呈現 metadata。
   // 每種型別需要什麼前置條件寫在下面的 FILTER_RULE_PREREQUISITES。
-  // group 只有 'common' 有意義（風險樣態下拉的「常用篩選條件」分組）；其餘分組與 quickLabel 是遺留的 metadata，
-  // 畫面用的是三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
+  // group 只有 'common' 會用到（風險樣態下拉的「常用篩選條件」分組），畫面分組用的是四個家族（filter-step 的 RULE_FAMILIES）；
+  // 其餘 group 值畫面不讀。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
-    { value: 'fieldValue', label: '欄位值比較', quickLabel: '指定值與排除', group: 'field' },
+    { value: 'fieldValue', label: '欄位值比較', group: 'field' },
     { value: 'accountSide', label: '科目分類', group: 'nature' },
-    { value: 'prescreen', label: '預篩選', quickLabel: '選擇預篩選條件', group: 'risk' },
-    { value: 'text', label: '文字條件', group: 'field' },
-    { value: 'textSet', label: '文字值清單', group: 'field' },
-    { value: 'numRange', label: '金額區間', group: 'field' },
-    { value: 'dateRange', label: '日期區間', group: 'field' },
+    { value: 'prescreen', label: '預篩選', group: 'risk' },
     { value: 'drCrOnly', label: '借貸限定', group: 'nature' },
     { value: 'manualAuto', label: '人工/自動分錄', group: 'nature' },
     // 借貸科目組合：畫面上只有一張卡（specialAccountCategoryPair 為預設 wire 型別），五種白話模式跨兩個
-    // wire 型別（ACCOUNT_COMBINATION_OPTIONS）；accountPair 只在型別下拉與舊情境讀回出現，不進快速加入。
+    // wire 型別（ACCOUNT_COMBINATION_OPTIONS）；accountPair 只在型別下拉，以及讀回已儲存的這種條件時出現，不進快速加入。
     { value: 'accountPair', label: '借貸科目組合（看對方科目）', group: 'pattern', pickerHidden: true },
     { value: 'specialAccountCategoryPair', label: '借貸科目組合', group: 'pattern' },
     { value: 'entityFrequency', label: '科目與人員統計', group: 'pattern' },
     { value: 'group', label: '子條件組', group: 'compound' },
     { value: 'voucher', label: '整張傳票條件', group: 'compound' },
-    // 攸關資料元素條件：舊式條件，只在舊情境讀回與編輯時出現，畫面不提供新增。
-    { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field' },
     // 常用篩選條件專用的四種型別（group 是 common，不和其他型別同組）；特定尾數用欄位條件的預設值（FILTER_COMMON_PRESETS）。
     // 型別標籤沿用卡片上的用語。
     { value: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入', group: 'common' },
@@ -197,9 +191,9 @@
   ];
 
   // 常用篩選條件裡「重用既有型別」的五張卡（特定人員、特定摘要、空白摘要、特定尾數、非營業日）：點卡片即帶入既有型別的預填規則，
-  // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterCondition 之上，加入時整份深拷貝。
+  // 不另立 wire 型別，避免和後端已有的述詞重複，條件的意思以後端述詞為準。overrides 套在 newFilterCondition 之上，加入時整份深拷貝。
   // 非營業日直接加入一條「總帳日期 在非營業日」（排除補班日），和其他卡片一樣加入目前條件組。
-  // legacyOverrides 是較早的寫法，只有這一條的子條件組；只用來認出已儲存情境裡的這張卡，按卡片時不會加入。
+  // legacyOverrides 是只有這一條的子條件組，只用來認出已儲存情境裡的這張卡，按卡片時不會加入。
   // 摘要的預設關鍵字由 project.load 送來；常用篩選條件的卡片與欄位條件分頁傳票摘要底下的「含特定字詞」都用它預填。
   // 每次回傳新的陣列，多次加入不共用同一份。開案前是空陣列。
   function suspiciousKeywordDefaults() {
@@ -223,20 +217,20 @@
       ] }] }
   ];
 
-  // 較早儲存的情境裡，非營業日卡片加入的是只有一條「總帳日期 在非營業日」的子條件組。已儲存情境裡的這種子條件組
-  // 照舊讀回「非營業日」，條件樹不改寫。正本是 Domain FilterConditionLabels.NonBusinessDayAtom，
+  // 已儲存情境裡只有一條「總帳日期 在非營業日」的子條件組，讀回時寫成「非營業日」，條件樹不改寫。
+  // 正本是 Domain FilterConditionLabels.NonBusinessDayAtom，
   // 後端 FilterConditionRenderer 以同一規則辨識。
   var FILTER_COMMON_ATOM_LABELS = {
     nonBusinessDay: '非營業日'
   };
 
-  // 常用篩選條件的十張卡片：「常用篩選條件」分頁的單一資料來源，十顆按鈕由此一份資料驅動，
-  // 而非十段重複 HTML，新增卡片只要加一筆資料。每筆只是「指向既有述詞」的標記：
+  // 常用篩選條件的十張卡片：「常用篩選條件」分頁的十顆按鈕都由這份資料產生，新增卡片只要加一筆資料。
+  // 每筆只是「指向既有述詞」的標記：
   //   key           → 卡片代號：條件上的身分標記與案件檔編輯來源都記它，不顯示在畫面上。
   //   kind:'type'   → ref 是既有 FILTER_RULE_TYPES 的 value；點按帶入一條 newFilterCondition(ref)。
   //   kind:'preset' → ref 是既有 FILTER_COMMON_PRESETS 的 key；點按帶入該預設的一條規則。
   //   kind:'spec'   → 使用明確覆寫值，固定資產與費用的組合不預選分類。
-  // label 是卡片顯示文字，沿用最早提出這十個條件時的用語；陣列順序就是畫面、自動名稱與動機的順序。
+  // label 是卡片顯示文字，照常用篩選條件清單的原文；陣列順序就是畫面、自動名稱與動機的順序。
   // 每張卡是可複選 toggle：選取即把其規格落地成 rule 併入草稿、並在每條 rule 打上 __commonCard 身分標記
   //（UI-only，剝除後才送 wire）；取消即移除帶該標記的 rule。送出時由標記推導 source:'common'；
   // 名稱與動機可沿用自動值、手改或留白，留白時後端補上同樣的自動文字；後端的鏡像是 FilterCommonConditions，兩邊逐字相同。
@@ -328,7 +322,7 @@
     preparerEqualsApprover: ['gl:createdBy', 'gl:approvedBy']
   };
   // 這幾種條件需要的是條件自己選的 GL 欄位；欄位值比較用攸關資料元素欄位，或欄位已不在欄位目錄時，由各自的檢查說明。
-  var FILTER_FIELD_RULE_TYPES = ['fieldValue', 'text', 'textSet', 'dateRange', 'numRange', 'entityFrequency'];
+  var FILTER_FIELD_RULE_TYPES = ['fieldValue', 'entityFrequency'];
   // 欄位目錄的 GL 語意欄位（後端 JetFieldCatalog.GlFields），依目錄順序。
   var GL_SEMANTIC_FIELDS = ['voucherNumber', 'lineItem', 'glDate', 'approvalDate', 'accountNumber', 'accountName', 'description', 'sourceModule',
     'createdBy', 'approvedBy', 'isManual', 'amount', 'postingStatus'];
@@ -359,7 +353,7 @@
   ];
 
   // 借貸科目組合卡的模式選單（前端呈現；wire 仍是 accountPair 與 specialAccountCategoryPair 兩型別）。
-  // accountPair exact 與 specialAccountCategoryPair drAndCr 述詞相同，新情境只用後者；exact 只給舊情境讀回。
+  // accountPair exact 與 specialAccountCategoryPair drAndCr 述詞相同，新加入的條件只用後者；exact 只用在讀回已儲存的這種條件。
   var ACCOUNT_COMBINATION_OPTIONS = [
     { type: 'specialAccountCategoryPair', mode: 'drAndCr', label: '借方是 A 且貸方是 B', hint: '同一張傳票同時有 A 借方與 B 貸方；輸出 A 借列與 B 貸列。' },
     // 兩個否定模式照舊版連同一張傳票對方那一側一起輸出。
@@ -472,7 +466,7 @@
     { key: 'amount', field: 'amount', checks: [
       // 內建的金額門檻一律含門檻本身，和情境範例裡兩個大額分錄的範例相同。
       { key: 'largeAmount', label: '大額', name: '大額分錄', focusValue: true, conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '', amountBasis: 'absolute' }] },
-      // 一條條件；已儲存情境裡「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組照舊能讀。
+      // 加入的是一條條件；已儲存情境裡「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組也讀得回來。
       // 個數留空，加入時帶由 GL 算出的個數，見 FilterValues.zeroRunDefault。
       { key: 'trailingZeros', label: '尾數連續多個 0', name: '金額尾數連續多個 0', conditions: [
         { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '', amountBasis: 'absolute' }] }
@@ -511,110 +505,22 @@
   ];
 
   // 科目配對單側多選分類的讀回分隔字元。正本是 Domain FilterConditionLabels.CategoryListSeparator，
-  // 後端 renderer 是唯一權威輸出；前端讀回只鏡射同一分隔字元，不自行決定呈現方式。
+  // 讀回文字以後端 renderer 的輸出為準；前端讀回只鏡射同一分隔字元，不自行決定呈現方式。
   var FILTER_CATEGORY_LIST_SEPARATOR = '、';
 
-  var TEXT_MODE_OPTIONS = [
-    { value: 'contains', label: '包含' },
-    { value: 'exact', label: '完全符合' },
-    { value: 'notContains', label: '不包含（排除）' },
-    { value: 'notExact', label: '不等於（排除）' }
-  ];
-
-  // 進階篩選條件 AST 的封閉選項。顯示字串鏡像 FilterConditionRenderer；前端只負責編輯 wire，
-  // textSet 的正規化／比對仍由後端權威執行。
-  var TEXT_SET_MODE_OPTIONS = [
-    { value: 'contains', label: '包含任一值' },
-    { value: 'exact', label: '完全符合任一值' }
-  ];
-
-  var TEXT_SET_NORMALIZATION_OPTIONS = [
-    { value: 'preserve', label: '保留半形空白' },
-    { value: 'removeAsciiSpaces', label: '移除半形空白' }
-  ];
-
-  // 後端 FilterScenarioLimits.MaxTextSetValuesPerRule 的 UI 鏡像；後端仍是權威。
-  var TEXT_SET_MAX_VALUES = 100;
-
-  // 後端 FilterScenarioLimits.MaxSavedScenarios 的 UI 鏡像（每個案件可保存的篩選情境數）；後端仍是權威。
+  // 後端 FilterScenarioLimits.MaxSavedScenarios 的 UI 鏡像（每個案件可保存的篩選情境數）；以後端為準。
   var FILTER_MAX_SAVED_SCENARIOS = 10;
   // 情境名稱上限，和後端 FilterScenarioLimits.MaxNameLength 相同；輸入框直接限制字數。
   var FILTER_MAX_SCENARIO_NAME_LENGTH = 400;
 
-  // typed（攸關資料元素）條件的 operator 封閉選單。value/label 逐鍵鏡像 Domain
-  // FilterConditionLabels.TypedOperators 與 TypedFieldOperatorSets 的 per-type 集合；
-  // 正本在 Domain，前端只呈現，比較語意與 blank 判定仍全由後端 SQL 執行。
-  var TYPED_TEXT_OPERATORS = [
-    { value: 'equals', label: '等於' },
-    { value: 'notEquals', label: '不等於（排除）' },
-    { value: 'contains', label: '包含' },
-    { value: 'notContains', label: '不包含（排除）' },
-    { value: 'in', label: '屬於任一值' },
-    { value: 'notIn', label: '不屬於任何值（排除）' },
-    { value: 'isBlank', label: '為空白' },
-    { value: 'isNotBlank', label: '非空白' }
-  ];
-
-  var TYPED_DATE_OPERATORS = [
-    { value: 'on', label: '等於日期' },
-    { value: 'before', label: '早於' },
-    { value: 'onOrBefore', label: '不晚於' },
-    { value: 'after', label: '晚於' },
-    { value: 'onOrAfter', label: '不早於' },
-    { value: 'between', label: '介於' },
-    { value: 'isBlank', label: '為空白' },
-    { value: 'isNotBlank', label: '非空白' }
-  ];
-
-  var TYPED_AMOUNT_OPERATORS = [
-    { value: 'equals', label: '等於' },
-    { value: 'notEquals', label: '不等於（排除）' },
-    { value: 'greaterThan', label: '大於' },
-    { value: 'greaterThanOrEqual', label: '大於等於' },
-    { value: 'lessThan', label: '小於' },
-    { value: 'lessThanOrEqual', label: '小於等於' },
-    { value: 'between', label: '介於' },
-    { value: 'isBlank', label: '為空白' },
-    { value: 'isNotBlank', label: '非空白' }
-  ];
-
-  // typed amount 條件必填的比較基準（Domain TypedAmountBasisNames 與讀回標籤的鏡像）。
-  var TYPED_AMOUNT_BASIS_OPTIONS = [
-    { value: 'signed', label: '帶正負號金額' },
-    { value: 'absolute', label: '金額絕對值' }
-  ];
-
-  // typed in／notIn 的值數上限（與後端相同，1 到 100；後端仍是權威）。
+  // 欄位值條件每條值清單的上限（與後端相同，1 到 100；以後端為準）。
   var TYPED_SET_MAX_VALUES = 100;
 
-  // 尾數比對每組的位數上限（與後端 TrailingZeroThreshold.MaxCustomDigits 相同；後端仍是權威）。
+  // 尾數比對每組的位數上限（與後端 TrailingZeroThreshold.MaxCustomDigits 相同；以後端為準）。
   var TAIL_DIGITS_MAX = 12;
 
-  // RDE 型別 → 可用 operator 集合；未知型別回空陣列（fail closed，同後端 ForValueType）。
-  function typedOperatorsForValueType(valueType) {
-    if (valueType === 'text') { return TYPED_TEXT_OPERATORS; }
-    if (valueType === 'date') { return TYPED_DATE_OPERATORS; }
-    if (valueType === 'amount') { return TYPED_AMOUNT_OPERATORS; }
-    return [];
-  }
-
-  // 認不得的預篩選條件、比對方式或借貸組合方式不印程式代號。
+  // 認不得的預篩選條件、借貸組合方式或條件類型不印程式代號。
   var RETIRED_CONDITION_LABEL = '已停用的條件';
-
-  function typedOperatorLabel(op) {
-    var all = TYPED_TEXT_OPERATORS.concat(TYPED_DATE_OPERATORS, TYPED_AMOUNT_OPERATORS);
-    var hit = all.filter(function (o) { return o.value === op; })[0];
-    return hit ? hit.label : (op ? RETIRED_CONDITION_LABEL : '');
-  }
-
-  // operand carrier 判定（固定三種）：只決定要渲染哪一種輸入框，
-  // 缺漏／型別錯誤的最終判定仍由後端 invalid_scenario 負責。
-  function typedOperatorCarrier(op) {
-    if (op === 'isBlank' || op === 'isNotBlank') { return 'none'; }
-    if (op === 'between') { return 'range'; }
-    if (op === 'in' || op === 'notIn') { return 'set'; }
-    return 'value';
-  }
 
   // 科目分類的 semantic role 封閉選單（Domain AccountCategoryBuiltIns 的 role 鏡像）。
   // 商業判定只看 role，不看顯示名稱；自訂分類指定與內建同 role 即參與同一結果。
@@ -637,7 +543,7 @@
 
   var CATEGORY_MAX_LABEL_LENGTH = 400;
 
-  // 可作文字／日期條件的邏輯欄位（白名單的前端鏡像；權威驗證在後端）。
+  // 可作文字或日期條件的邏輯欄位（白名單的前端鏡像；驗證以後端為準）。
   var FILTER_TEXT_FIELDS = ['voucherNumber', 'lineItem', 'accountNumber', 'accountName', 'description', 'sourceModule', 'createdBy', 'approvedBy'];
   var FILTER_DATE_FIELDS = ['glDate', 'approvalDate'];
 
@@ -713,7 +619,7 @@
     return (value == null || isNaN(value)) ? '—' : Number(value).toLocaleString('en-US');
   }
 
-  // Only differences/net use this display helper; the backend value and report precision stay unchanged.
+  // 只有差額與淨額用這個顯示方式；後端的值與報表的精度不受影響。
   function moneyDifference(value) {
     var formatted = money(value), number = Number(value);
     if (number !== 0 && (formatted === '0.00' || formatted === '-0.00')) {
@@ -735,7 +641,7 @@
   }
 
   // 非同步讀取的統一最新回應守衛。每次 issue 使上一張 ticket 失效；消費者可再提供自己的狀態 predicate
-  // （專案、資料世代、草稿 revision、savedScenarios 參照等）。invalidate 供 workflow reset／快取作廢使用。
+  // （案件、資料世代、草稿 revision、savedScenarios 參照等）。invalidate 供 workflow reset／快取作廢使用。
   function createLatestResponseGuard() {
     var revision = 0;
     return {
@@ -749,10 +655,10 @@
     };
   }
 
-  // 統一的 action 執行包裝：權威 single-flight（同一時間至多一項作業）＋ busy 狀態 ＋ 錯誤導入訊息區。
+  // 統一的 action 執行包裝：同一時間只執行一項作業（single-flight），管理 busy 狀態，並把錯誤寫進訊息區。
   // 進入時若已 busy：留下可見提示後回 resolved no-op（不執行 factory）；busy 判斷只在這個入口，各步驟不手寫
-  //   `if (busy) return`，杜絕鍵盤／頂列／目錄／預覽等破口併發第二項作業。
-  // 錯誤在此吸收（已顯示給使用者），避免 unhandled rejection；後端 operation_in_progress 誠實呈現「另一項作業還在進行」。
+  //   `if (busy) return`，鍵盤、頂列、目錄與預覽都不能另外開始第二項作業。
+  // 錯誤在此吸收（已顯示給使用者），避免 unhandled rejection；後端回 operation_in_progress 時照實顯示「另一項作業還在進行」。
   // 成功時只留一則完成訊息，耗時寫進同一則：
   // options.completionMessage(value) 回傳這個操作自己的完成句，Ui.run 記「完成句，耗時 X。」，操作本身不另記完成句；
   // 回傳空字串表示這次其實沒有做事（例如沒有選檔），不記。沒有 completionMessage 而有 logCompletion 時，
@@ -826,7 +732,7 @@
   }
 
   // 進度接進訊息時，開頭「工作底稿：正在…」的冒號拿掉，免得一句出現兩個冒號。
-  // 忙碌畫面上的進度照舊，只有訊息面板用這個寫法。
+  // 忙碌畫面上的進度保留原文，只有訊息面板用這個寫法。
   function progressInMessage(detail) {
     return String(detail || '').replace(/^([^：，「」]+)：(?=正在)/, '$1');
   }
@@ -963,10 +869,10 @@
       });
   }
 
-  /* ---- 專案工作鎖：離場釋放 ------------------------ */
-  // 實際離開專案時釋放工作鎖。案件鎖是本機檔案鎖，不需要續租。純鏡像、零商業邏輯。
+  /* ---- 案件鎖：離場釋放 ------------------------ */
+  // 實際離開案件時釋放案件鎖。這把鎖是本機檔案鎖，不需要續租。這裡只轉送給後端，不含業務邏輯。
 
-  // 離開專案時直接等後端釋放鎖。不得走會吞掉
+  // 離開案件時直接等後端釋放鎖。不得走會吞掉
   // operation_in_progress 的 runBackground，否則長作業仍在寫入時可能誤離場。
   function releaseProjectLease() {
     if (global.JetApi.isReady()) {
@@ -1032,13 +938,13 @@
     return readback ? '已不存在的欄位' : '欄位已不存在';
   }
 
-  // 舊式文字、日期條件讀回用的 GL 欄位名稱；欄位已不存在時同上，不印程式代號。
+  // 文字條件、文字值清單與日期區間條件讀回用的 GL 欄位名稱；欄位已不存在時同上，不印程式代號。
   function glFieldReadback(state, key) {
     var hit = GL_FIELDS.filter(function (f) { return f.key === key; })[0];
     return hit ? hit.label : missingConditionFieldName(state, { field: key }, 'readback');
   }
 
-  /* ---- 第五步條件的前置條件（鏡像後端 JetRuleRequirements，權威驗證在後端） -------------- */
+  /* ---- 第五步條件的前置條件（鏡像後端 JetRuleRequirements，驗證以後端為準） -------------- */
 
   // 後端算好的可用 GL 欄位：project.load 與 mapping.commit.gl 回傳的 availableGlFields，存在已確認的 GL 配對上。
   // 沒有已確認的 GL 配對時是 null，不檢查欄位，和後端沒有清單時一樣；第五步要先確認 GL 配對才進得來。
@@ -1135,9 +1041,9 @@
     return parts.join('；');
   }
 
-  /* ---- 專案層契約鏡像的讀取輔助（純讀取，不重算任何審計語意） -------------- */
+  /* ---- 案件層契約鏡像的讀取輔助（純讀取，不重算任何審計語意） -------------- */
 
-  // 目前專案的科目分類；project.load 尚未回傳時退回內建五類，讓畫面有可讀初值。
+  // 目前案件的科目分類；project.load 尚未回傳時退回內建五類，讓畫面有可讀初值。
   // 這只是顯示用退路：保存與判定一律以後端科目分類的 revision 為準。
   function accountCategories(state) {
     var snapshot = state && state.accountCategory;
@@ -1201,7 +1107,7 @@
   }
 
   // 選的分類都沒有下層時，「包含下層分類」與「僅分類本身」選到的分類相同，條件讀回不必寫選取依據與實際納入分類。
-  // 新案件的分類都是平的一層，讀回就和舊版一樣只寫分類；「相同分類用途」會納入同用途的其他分類，照舊寫出。
+  // 分類都是平的一層時，讀回只寫分類；「相同分類用途」會納入同用途的其他分類，一律寫出選取依據與實際納入分類。
   // 後端 FilterConditionRenderer.CategorySelectionMatters 是同一個規則。
   function categorySelectionMatters(state, ids, mode) {
     if (mode !== 'subtree' && mode !== 'node') { return true; }
@@ -1231,7 +1137,7 @@
     var tree = categoryTree(state);
     var prefix = view.focusKey || 'category';
     var all = accountCategories(state);
-    // 分類都是平的一層時（新案件都是），沒有展開箭頭要對齊，不留空位。
+    // 分類都是平的一層時，沒有展開箭頭要對齊，不留空位。
     var branches = tree.some(function (category) { return tree.some(function (child) { return child.parentCategoryId === category.categoryId; }); });
     return '<div class="category-tree">' + tree.map(function (category) {
         var branch = tree.some(function (child) { return child.parentCategoryId === category.categoryId; });
@@ -1449,7 +1355,7 @@
       status.hidden = false; status.textContent = '正在讀取資料…'; retry.hidden = true;
       state.statusText = status.textContent;
       var requested = { reset: reset, target: target, label: label, previous: previous, sort: state.sort, search: state.search };
-      // These are bounded result reads, not mutations. Their status must not acquire the whole-page busy state.
+      // 這些是有界的結果讀取，不是修改；讀取狀態不能占用全畫面的 busy 狀態。
       var pending;
       try { pending = opts.fetchPage(cursor, requested.sort, requested.search); }
       catch (error) { pending = Promise.reject(error); }
@@ -1568,7 +1474,7 @@
     stepRenderers[stepId] = renderer;
   }
 
-  // 步驟模組的區域狀態（如待匯入清單）在離開專案／載入專案時歸零。
+  // 步驟模組的區域狀態（如待匯入清單）在離開或載入案件時歸零。
   function registerWorkflowReset(fn) {
     workflowResets.push(fn);
   }
@@ -1591,7 +1497,7 @@
   var COMPLETENESS_RERUN_REASON = '請重新執行資料驗證，以取得目前資料的結果';
   var COMPLETENESS_FIRST_RUN_REASON = '請先執行資料驗證，以取得目前資料的結果';
 
-  // 「可否繼續後續步驟」只鏡射 validate.run 後端的判定（completenessTest.eligibility）。舊摘要缺少這個欄位
+  // 「可否繼續後續步驟」只鏡射 validate.run 後端的判定（completenessTest.eligibility）。摘要缺少這個欄位
   // 時 fail closed 並要求重跑；不得在前端用控制總數或逐科目比對的原始結果重算第二份判定。
   // 從未執行資料驗證時沒有東西可以「重新」執行，改請審計員先執行。
   function completenessEligibility(validation) {
@@ -1635,7 +1541,7 @@
         }
         break;
       case 5:
-        // 沒有已儲存的情境也能產生工作底稿，第三、四步留空。只有已儲存的情境無法套用目前規則時，
+        // 沒有已儲存的情境也能產生工作底稿，底稿的 step3 與 step4 留空。只有已儲存的情境無法套用目前規則時，
         // 底稿會用到過期的條件，才鎖住第六步；已經有版本紀錄時仍能進來查看，匯出按鈕照樣停用（見 export-step.js）。
         var unusable = unusableFilterScenarioReason(state);
         if (unusable && !hasWorkingPaperHistory(state)) { missing.push(unusable); }
@@ -1726,8 +1632,8 @@
     4: '需先完成資料驗證'
   };
 
-  // 鎖定原因沿線找第一個未滿足的進入條件；完整性所在的 Step 4 使用
-  // 後端「可否繼續」判定的動態原因，第六步寫無法套用目前規則的情境，其餘步驟維持既有短句。
+  // 鎖定原因沿線找第一個未滿足的進入條件；進入第五步（索引 4）要看完整性，使用
+  // 後端「可否繼續」判定的動態原因，第六步寫無法套用目前規則的情境，其餘步驟用 STEP_LOCKED_REASON 的固定短句。
   function lockedStepReason(state, index) {
     for (var i = 1; i <= index; i++) {
       var gate = stepGate(state, i);
@@ -1740,7 +1646,7 @@
     return STEP_LOCKED_REASON[index] || '';
   }
 
-  // 文件流／目錄的「呈現狀態」彙整：完全由既有進入條件推導，不新增任何放行語意。
+  // 文件流與目錄的「呈現狀態」彙整：完全由上面的進入條件推導，本身不決定能否進入。
   // status = 'current'（=currentStepIndex）｜'done'（stepComplete 判定本步已完成）｜
   //          'available'（可達但未完成）｜'locked'（不可達）。
   // 「完成」一律由 stepComplete 判定；最後一步在有目前版本的工作底稿時算完成。
@@ -1771,7 +1677,7 @@
     return count;
   }
 
-  // 統一導航入口：切換步驟並把目前位置持久化到專案（resume 用）。
+  // 統一導航入口：切換步驟並把目前位置持久化到案件（resume 用）。
   function gotoStep(index, pendingConfirmed) {
     var state = Store.getState();
     if (index < 0 || index >= Store.STEPS.length || !isStepReachable(state, index)) {
@@ -2268,7 +2174,7 @@
       });
   }
 
-  /* ---- 專案載入 / 切換 ------------------------------------------------------ */
+  /* ---- 案件載入 / 切換 ------------------------------------------------------ */
 
   // Picker 清單的共用 latest-response generation。每次本機刷新都使前一張 ticket 失效；
   // 開案、建立新案或回到 picker 前另行 invalidate，避免晚到成功或失敗污染新的 view generation。
@@ -2369,7 +2275,7 @@
         applyLoadedProject(data);
         opened = true;
 
-        // 還原持久化的訊息歷史（log.recent）；失敗不影響專案載入
+        // 還原持久化的訊息歷史（log.recent）；失敗不影響案件載入
         return global.JetApi.logRecent({}).then(function (log) {
           Store.seedMessages(log.messages || []);
         }).catch(function () {}).then(function () {
@@ -2502,13 +2408,12 @@
   // project.load.filterScenarioCheck：開案時 JET 用目前規則檢查已儲存情境的結果。
   function filterScenarioRecalculatedMessage(check) {
     if (!check || check.status !== 'recalculated') { return null; }
-    // 這句的用字已定案。
     return '篩選規則已更新，已重算 ' + check.recalculatedCount +
       ' 個情境；之前的條件篩選報告與底稿需要重新產生。';
   }
 
   // 待修正清單最後的下一步與沒有逐筆清單時的整批說明。
-  // 黃色提示不過度解釋，所以這兩句和上面的重算訊息都縮短了。
+  // 黃色提示不過度解釋，這兩句和上面的重算訊息都寫得簡短。
   var FILTER_SCENARIO_NEXT_STEP = '請到「進階條件篩選」修改後儲存，或移除不需要的情境。';
   var FILTER_SCENARIO_RECHECK_NEEDED = '已儲存的篩選情境無法套用目前規則，' +
     '請到「進階條件篩選」按「重新檢查並儲存情境」。';
@@ -2527,7 +2432,7 @@
 
   // 已儲存情境無法套用目前規則時的說明：先說狀態，逐筆列出哪個情境、哪裡不符合，最後只說一次下一步。
   // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明，請審計員按「重新檢查並儲存情境」列出清單。
-  // 提示要避免專業術語、不得過長，所以下一步不再逐筆重複。
+  // 提示避免專業術語、不寫太長，所以下一步只在最後寫一次。
   function filterScenarioProblemsHtml(state) {
     var check = state.filterScenarioCheck;
     var problems = check && Array.isArray(check.problems) ? check.problems : [];
@@ -2656,7 +2561,7 @@
     if (!isLast) {
       var nextLabel = steps[index + 1].label;
       var gate = stepGate(state, index + 1);
-      // 第五步的未完成原因已集中在步驟標題下方，頁尾不重複列出；下一步限制維持原判定。
+      // 第五步的未完成原因寫在步驟標題下方，頁尾不重複列出；能否前往下一步照 stepGate 判定，和其他步驟相同。
       statusHtml = gate.ok || steps[index].id === 'filter'
         ? ''
         : '<p class="step-footer__hint">前往「' + nextLabel + '」前需要：' +
@@ -2695,7 +2600,7 @@
 
   }
 
-  /* ---- 共用 helper：專案內報告產物 --------------------------------------- */
+  /* ---- 共用 helper：案件內報告產物 --------------------------------------- */
 
   function sameScalarArray(left, right) {
     if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) { return false; }
@@ -2871,13 +2776,6 @@
       join: 'AND',
       type: type,
       prescreenKey: 'suspiciousKeywords',
-      field: type === 'dateRange' ? 'glDate' : (type === 'numRange' ? 'amount' : 'description'),
-      keywords: '',
-      values: [],
-      mode: 'contains',
-      normalization: 'preserve',
-      from: '',
-      to: '',
       drCr: 'debit',
       isManual: 'true',
       // pairMode 的合法取值依型別而異：accountPair 為 exact/debitAnchor/creditAnchor，
@@ -2889,12 +2787,6 @@
       // 條件只帶這兩個陣列，不另外帶單選分類欄位。
       debitCategoryIds: ['builtin.receivables'],
       creditCategoryIds: ['builtin.revenue'],
-      // typed（攸關資料元素）條件：fieldId／operator 由使用者在建構器選定，初值留空以避免
-      // 前端猜欄位；operand carrier 依 operator 決定，amountBasis 只在 amount 條件送出。
-      fieldId: '',
-      operator: '',
-      amountBasis: 'absolute',
-      value: '',
       windowDays: ''
     };
   }
@@ -2902,8 +2794,8 @@
   /* ---- 共用：依後端回應建立表格列 ------------------------------------------ */
 
   // 分頁與等待狀態由 bindPagedTable 處理；此函式只建立列，不計算查核結果。
-  // columns:每欄一個取值函式 row→cell,或 { cell:fn, className } 帶 td class(沿用既有欄樣式);
-  // 呼叫端決定欄序與顯示,沿用既有 table 欄序;一律 esc 後插入,前端不做任何業務轉換(顯示形狀由後端決定)。
+  // columns：每欄一個取值函式 row→cell，或 { cell: fn, className } 另帶 td 的 class。
+  // 欄序與顯示由呼叫端決定；一律 esc 後插入，前端不做業務轉換，顯示內容由後端決定。
   function appendRowsToTbody(tbody, rows, columns) {
     if (!tbody) { return; }
     var html = (rows || []).map(function (row) {
@@ -2959,10 +2851,6 @@
     FILTER_SCENARIO_TEMPLATES: FILTER_SCENARIO_TEMPLATES,
     FIELD_SHORTCUT_GROUPS: FIELD_SHORTCUT_GROUPS,
     FILTER_CATEGORY_LIST_SEPARATOR: FILTER_CATEGORY_LIST_SEPARATOR,
-    TEXT_MODE_OPTIONS: TEXT_MODE_OPTIONS,
-    TEXT_SET_MODE_OPTIONS: TEXT_SET_MODE_OPTIONS,
-    TEXT_SET_NORMALIZATION_OPTIONS: TEXT_SET_NORMALIZATION_OPTIONS,
-    TEXT_SET_MAX_VALUES: TEXT_SET_MAX_VALUES,
     FILTER_MAX_SAVED_SCENARIOS: FILTER_MAX_SAVED_SCENARIOS,
     FILTER_MAX_SCENARIO_NAME_LENGTH: FILTER_MAX_SCENARIO_NAME_LENGTH,
     FILTER_TEXT_FIELDS: FILTER_TEXT_FIELDS,
@@ -2979,15 +2867,8 @@
     TABLE_PAGE_SIZE: TABLE_PAGE_SIZE,
     pageControlsHtml: pageControlsHtml,
     REPORT_HISTORY_PAGE_SIZE: REPORT_HISTORY_PAGE_SIZE,
-    TYPED_TEXT_OPERATORS: TYPED_TEXT_OPERATORS,
-    TYPED_DATE_OPERATORS: TYPED_DATE_OPERATORS,
-    TYPED_AMOUNT_OPERATORS: TYPED_AMOUNT_OPERATORS,
-    TYPED_AMOUNT_BASIS_OPTIONS: TYPED_AMOUNT_BASIS_OPTIONS,
     TYPED_SET_MAX_VALUES: TYPED_SET_MAX_VALUES,
     TAIL_DIGITS_MAX: TAIL_DIGITS_MAX,
-    typedOperatorsForValueType: typedOperatorsForValueType,
-    typedOperatorLabel: typedOperatorLabel,
-    typedOperatorCarrier: typedOperatorCarrier,
     ACCOUNT_CATEGORY_ROLES: ACCOUNT_CATEGORY_ROLES,
     ACCOUNT_CATEGORY_BUILT_INS: ACCOUNT_CATEGORY_BUILT_INS,
     CATEGORY_MAX_LABEL_LENGTH: CATEGORY_MAX_LABEL_LENGTH,

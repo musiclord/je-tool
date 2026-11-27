@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// system.whoAmI 的純 Application 單元測試。
-/// 身分就是本機的 Windows 帳號，不向線上使用者目錄取編號，也沒有編號的離線快取。
+/// 身分就是本機的 Windows 帳號，回應只有 principal 與 shortName。
 /// </summary>
 public sealed class SystemWhoAmIHandlerTests
 {

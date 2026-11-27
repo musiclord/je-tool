@@ -10,14 +10,14 @@ internal sealed partial class WorkingPaperWriter
     private static readonly IReadOnlyList<string> WorkingPaperDirectTemplateSheets =
     [
         WorkingPaperSheetCatalog.Cover,
-        WorkingPaperSheetCatalog.Step1,
-        WorkingPaperSheetCatalog.Step11,
-        WorkingPaperSheetCatalog.Step12,
-        WorkingPaperSheetCatalog.Step13,
-        WorkingPaperSheetCatalog.Step2,
-        WorkingPaperSheetCatalog.Step3,
-        WorkingPaperSheetCatalog.Step4,
-        WorkingPaperSheetCatalog.Step41,
+        WorkingPaperSheetCatalog.Completeness,
+        WorkingPaperSheetCatalog.VoucherBalance,
+        WorkingPaperSheetCatalog.PreparerSummary,
+        WorkingPaperSheetCatalog.CompletenessDifference,
+        WorkingPaperSheetCatalog.InfSampling,
+        WorkingPaperSheetCatalog.HighRiskSummary,
+        WorkingPaperSheetCatalog.HighRiskVoucher,
+        WorkingPaperSheetCatalog.HighRiskVoucherDetail,
         WorkingPaperSheetCatalog.FieldInfo,
         WorkingPaperSheetCatalog.CalendarInfo,
         WorkingPaperSheetCatalog.AccountMapping
@@ -65,7 +65,6 @@ internal sealed partial class WorkingPaperWriter
         private readonly WorkbookPart _workbookPart;
         private readonly WorkbookStyleMap _styles;
         private readonly WorkbookStylePatcher _stylePatcher;
-        private readonly bool _useFinalStep41Schema;
         private readonly CancellationToken _cancellationToken;
         private readonly Dictionary<string, WorksheetPart> _templateParts =
             new(StringComparer.Ordinal);
@@ -86,13 +85,11 @@ internal sealed partial class WorkingPaperWriter
             DirectTemplateWorkbookEditor editor,
             WorkbookStyleMap styles,
             WorkbookStylePatcher stylePatcher,
-            bool useFinalStep41Schema,
             CancellationToken cancellationToken)
         {
             _editor = editor;
             _styles = styles;
             _stylePatcher = stylePatcher;
-            _useFinalStep41Schema = useFinalStep41Schema;
             _cancellationToken = cancellationToken;
             _workbookPart = editor.Document.WorkbookPart
                 ?? throw new InvalidDataException("WorkingPaper 範本缺少 workbook part。");
@@ -147,7 +144,7 @@ internal sealed partial class WorkingPaperWriter
             var writtenCellStyle = WithLockedArea(mapCellStyle, lockedArea, writtenCell: true);
             var templateCellStyle = WithLockedArea(mapCellStyle, lockedArea, writtenCell: false);
 
-            if (name is WorkingPaperSheetCatalog.Intro or WorkingPaperSheetCatalog.Step5)
+            if (name is WorkingPaperSheetCatalog.Intro or WorkingPaperSheetCatalog.PostClosingEntries)
             {
                 return SheetWriter.PreserveTemplate(name, _styles, _cancellationToken);
             }
@@ -161,15 +158,15 @@ internal sealed partial class WorkingPaperWriter
                 {
                     RemoveCoverEmbeddedDocument(part, _cancellationToken);
                 }
-                if (string.Equals(name, WorkingPaperSheetCatalog.Step4, StringComparison.Ordinal))
+                if (string.Equals(name, WorkingPaperSheetCatalog.HighRiskVoucher, StringComparison.Ordinal))
                 {
                     _continuationPrototypeStyles.Add(
                         name,
-                        CaptureStep4ContinuationPrototypeStyles(
+                        CaptureHighRiskVoucherContinuationPrototypeStyles(
                             part,
                             _cancellationToken));
                 }
-                if (name is WorkingPaperSheetCatalog.Step2 or WorkingPaperSheetCatalog.Step4)
+                if (name is WorkingPaperSheetCatalog.InfSampling or WorkingPaperSheetCatalog.HighRiskVoucher)
                 {
                     _templateValidations.Add(
                         name,
@@ -188,15 +185,15 @@ internal sealed partial class WorkingPaperWriter
                 }
                 _templateParts.Add(name, part);
                 Func<uint, uint, uint?, uint, uint>? mergeCellStyle = name is
-                    WorkingPaperSheetCatalog.Step2
-                    or WorkingPaperSheetCatalog.Step3
-                    or WorkingPaperSheetCatalog.Step4
+                    WorkingPaperSheetCatalog.InfSampling
+                    or WorkingPaperSheetCatalog.HighRiskSummary
+                    or WorkingPaperSheetCatalog.HighRiskVoucher
                     ? (_, column, templateStyle, sourceStyle) =>
                     {
                         if (templateStyle is null
                             && string.Equals(
                                 name,
-                                WorkingPaperSheetCatalog.Step4,
+                                WorkingPaperSheetCatalog.HighRiskVoucher,
                                 StringComparison.Ordinal)
                             && _continuationPrototypeStyles[name].TryGetValue(
                                 ReportSheetWriter.Reference(column, 13U),
@@ -213,7 +210,6 @@ internal sealed partial class WorkingPaperWriter
                     : null;
                 var plan = DirectOverlayPlan(
                     name,
-                    _useFinalStep41Schema,
                     templateCellStyle,
                     mergeCellStyle);
                 if (lockedArea is not null)
@@ -442,7 +438,7 @@ internal sealed partial class WorkingPaperWriter
         {
             if (!string.Equals(
                     prototypeSheetName,
-                    WorkingPaperSheetCatalog.Step4,
+                    WorkingPaperSheetCatalog.HighRiskVoucher,
                     StringComparison.Ordinal))
             {
                 return sourceStyleMap;
@@ -468,7 +464,7 @@ internal sealed partial class WorkingPaperWriter
         }
 
         private static IReadOnlyDictionary<string, uint>
-            CaptureStep4ContinuationPrototypeStyles(
+            CaptureHighRiskVoucherContinuationPrototypeStyles(
                 WorksheetPart prototypePart,
                 CancellationToken cancellationToken)
         {
@@ -556,7 +552,7 @@ internal sealed partial class WorkingPaperWriter
             }
 
             if (!_openedNames.Contains(WorkingPaperSheetCatalog.Intro)
-                || !_openedNames.Contains(WorkingPaperSheetCatalog.Step5))
+                || !_openedNames.Contains(WorkingPaperSheetCatalog.PostClosingEntries))
             {
                 throw new InvalidDataException(
                     "WorkingPaper 正式輸出不可省略 Intro 或 Step5 固定範本 worksheet。");
@@ -658,7 +654,6 @@ internal sealed partial class WorkingPaperWriter
 
     private static DirectTemplateWorksheetOverlayPlan DirectOverlayPlan(
         string sheetName,
-        bool useFinalStep41Schema,
         Func<uint, uint, uint, uint>? mapCellStyle,
         Func<uint, uint, uint?, uint, uint>? mergeCellStyle) =>
         (sheetName switch
@@ -666,13 +661,13 @@ internal sealed partial class WorkingPaperWriter
             WorkingPaperSheetCatalog.Cover => OverlayOnly(
                 mapCellStyle,
                 (1U, 1U), (2U, 1U), (3U, 1U), (6U, 1U)),
-            WorkingPaperSheetCatalog.Step1 => RowsAndCells(
+            WorkingPaperSheetCatalog.Completeness => RowsAndCells(
                 row => row >= 20,
                 (row, column) => row >= 20 && column is >= 1 and <= 6,
                 [(1U, 1U), (2U, 1U), (3U, 1U), (7U, 1U), (15U, 2U), (17U, 2U)],
                 WorkingPaperSourceProtection),
             // 舊版 JET 的版面：B14 說明、第 16 列五欄表頭、第 17 列起明細。
-            WorkingPaperSheetCatalog.Step11 => RowsAndCells(
+            WorkingPaperSheetCatalog.VoucherBalance => RowsAndCells(
                 row => row >= 17,
                 (row, column) => row >= 17 && column is >= 2 and <= 6,
                 [
@@ -689,17 +684,17 @@ internal sealed partial class WorkingPaperWriter
                     (16U, 6U)
                 ],
                 WorkingPaperSourceProtection),
-            WorkingPaperSheetCatalog.Step12 => RowsAndCells(
+            WorkingPaperSheetCatalog.PreparerSummary => RowsAndCells(
                 row => row >= 12,
                 (row, column) => row >= 12 && column is >= 1 and <= 8,
                 [(1U, 1U), (2U, 1U), (3U, 1U), (7U, 1U)],
                 WorkingPaperSourceProtection),
-            WorkingPaperSheetCatalog.Step13 => RowsAndCells(
+            WorkingPaperSheetCatalog.CompletenessDifference => RowsAndCells(
                 row => row >= 17,
                 (row, column) => row >= 17 && column is >= 1 and <= 7,
                 [(1U, 1U), (2U, 1U), (3U, 1U), (7U, 1U), (12U, 2U)],
                 WorkingPaperSourceProtection),
-            WorkingPaperSheetCatalog.Step2 => RowsAndCells(
+            WorkingPaperSheetCatalog.InfSampling => RowsAndCells(
                 row => row is 49 or 51 || row >= 53,
                 (row, column) =>
                     row == 49 && column >= 21
@@ -707,24 +702,24 @@ internal sealed partial class WorkingPaperWriter
                     || row >= 53 && column >= 1,
                 [(1U, 1U), (2U, 1U), (4U, 1U), (51U, 12U)],
                 WorkingPaperSourceProtectionAndValidation),
-            // 條件或原因換行的列由 EmitStep3 依行數加高；其他列沿用範本的列高。
-            WorkingPaperSheetCatalog.Step3 => RowsAndCells(
+            // 條件或原因換行的列由 EmitHighRiskSummary 依行數加高；其他列沿用範本的列高。
+            WorkingPaperSheetCatalog.HighRiskSummary => RowsAndCells(
                 row => row >= 19,
                 (row, column) => row >= 19 && column is >= 2 and <= 5,
                 [(1U, 1U), (2U, 1U), (7U, 2U), (9U, 2U)],
                 WorkingPaperSourceProtection) with
             {
-                UseSourceRowHeight = static row => row >= Step3FirstDataRow
+                UseSourceRowHeight = static row => row >= HighRiskSummaryFirstDataRow
             },
             // A12 的說明句整句寫在範本裡，第一頁照範本原字。
-            WorkingPaperSheetCatalog.Step4 => RowsAndCells(
+            WorkingPaperSheetCatalog.HighRiskVoucher => RowsAndCells(
                 row => row >= 13,
                 (row, column) => row >= 13
                     && (column is >= 1 and <= 15
                         || row > 1000 && column is >= 16 and <= 21),
                 [(1U, 1U), (2U, 1U)],
                 WorkingPaperSourceProtectionAndValidation),
-            WorkingPaperSheetCatalog.Step41 when useFinalStep41Schema =>
+            WorkingPaperSheetCatalog.HighRiskVoucherDetail =>
                 new DirectTemplateWorksheetOverlayPlan(
                     IsDynamicRow: row => row is 1 or 2 || row >= 5,
                     IsDynamicCell: (row, column) =>
@@ -742,15 +737,6 @@ internal sealed partial class WorkingPaperWriter
                      MapTemplateRowStyle: mapCellStyle is null
                          ? null
                          : (row, style) => mapCellStyle(row, 0U, style)),
-            WorkingPaperSheetCatalog.Step41 => RowsAndCells(
-                row => row >= 6,
-                (row, column) => row >= 6
-                    && (column is >= 1 and <= 13
-                        || column is >= 17 and <= 26
-                        || row > 503 && column is >= 14 and <= 16),
-                [(1U, 1U), (2U, 1U)],
-                WorkingPaperSourceProtection,
-                mergeSourceColumnWidths: false),
             // 舊版三張自動化工具表都整張保護。
             WorkingPaperSheetCatalog.FieldInfo => ReferenceData(
                 maximumDynamicColumn: 8,

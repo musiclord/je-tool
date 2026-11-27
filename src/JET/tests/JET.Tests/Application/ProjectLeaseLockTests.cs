@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 刪除案件時本機資料夾清理失敗的端到端驗收。
+/// 刪除案件時本機資料夾清理失敗的端到端測試。
 /// </summary>
 public sealed class ProjectLeaseLockTests
 {
@@ -22,7 +22,7 @@ public sealed class ProjectLeaseLockTests
         var projectId = created.GetProperty("projectId").GetString()!;
         var projectDir = Path.Combine(host.ProjectsRoot, projectId);
 
-        // 在專案資料夾內開一個檔並保持開啟（FileShare.None）→ Directory.Delete(recursive) 必拋 →
+        // 在案件資料夾內開一個檔並保持開啟（FileShare.None）→ Directory.Delete(recursive) 必拋 →
         // 模擬「DB 刪除已成功、本機資料夾清理失敗」。
         var blockerPath = Path.Combine(projectDir, "cleanup-blocker.tmp");
         using (var blocker = new FileStream(blockerPath, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -32,12 +32,12 @@ public sealed class ProjectLeaseLockTests
 
             var deleted = await host.DispatchAsync("project.delete", $$"""{ "projectId": "{{projectId}}" }""");
 
-            // 折疊修正：資料夾清理失敗仍回 ok（DB 刪除已 commit），並附 message 供前端寫訊息面板。
+            // 資料夾清理失敗仍回 ok（資料庫刪除已 commit），並附 message 供前端寫進訊息面板。
             Assert.True(deleted.GetProperty("ok").GetBoolean());
             Assert.Equal(projectId, deleted.GetProperty("projectId").GetString());
             Assert.Equal(JsonValueKind.String, deleted.GetProperty("message").ValueKind);
             Assert.Equal(
-                // 訊息不把仍可能包含報告與底稿的案件資料夾稱為快取。
+                // 訊息稱「案件資料夾」，因為資料夾裡可能還有報告與底稿。
                                 "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。",
                 deleted.GetProperty("message").GetString());
             // DB 刪除確實已發生（jet.db 於 folder-cleanup 之前刪除、交易已 commit）。

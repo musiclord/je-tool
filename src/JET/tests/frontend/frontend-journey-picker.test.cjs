@@ -1,5 +1,5 @@
 'use strict';
-// 情境 1：案件清單。
+// 案件清單的情境測試。
 //
 // 審計員的操作：開啟 JET 看到本機案件清單；按「重新整理案件清單」，成功與失敗；刪除一個案件，失敗、成功、
 // 資料夾沒刪乾淨；開一個會失敗的案件後輸出支援日誌；清單還在讀取時想開案或新增案件；按「退出」但視窗關不掉，回到案件清單；
@@ -9,12 +9,10 @@
 // 整個 index.html 的 body 標記與全部前端腳本，正式的 jet-api.js 經假的 chrome.webview 收發，app.js 照瀏覽器執行正式的 init()。
 // remapAppFixture 把 app.js 切成幾段載入、不跑 init()，案件清單第一次讀取與 jet-api.js 的請求都看不到，所以這裡用整個畫面。
 //
-// 逐字比對的只有已定案的用字；「重新整理案件清單」以外的按鈕文字用字沒有定案，
-// 按鈕用 data-action 找，文字只比對意思。預期值一律寫死；action payload 用 deepEqual 精確比對；
-// 斷言的失敗值不是假 DOM 節點（節點只用 === 轉成布林）。
-// 作業名稱（Ui.run 的 label）只有「讀取案件清單」、「開啟案件」與「刪除案件」的用字已定案，
-// 其他作業名稱放在已定案的句型裡時只比對意思。
-// 每個測試都有 30 秒上限：改壞檢查時若有請求永遠等不到回應，測試直接失敗，不會拖到改壞工具的時間上限。
+// 按鈕用 data-action 找，預期值使用固定文字，action payload 用 deepEqual 精確比對。
+// 「重新整理案件清單」按鈕及「讀取案件清單」、「開啟案件」、「刪除案件」作業名稱逐字核對，
+// 其他按鈕與作業名稱只比對意思。
+// 每個測試都有 30 秒上限：有請求永遠等不到回應時，測試直接失敗，不會一直等下去。
 const nodeTest = require('node:test');
 const test = (name, fn) => nodeTest(name, { timeout: 30000 }, fn);
 const assert = require('node:assert/strict');
@@ -60,7 +58,7 @@ test('the case list has only the local section and the title has no sentence res
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
 });
 
-// 按「重新整理案件清單」後讀取失敗。作業名稱「讀取案件清單」的用字已定案，逐字比對。
+// 按「重新整理案件清單」後讀取失敗，訊息帶有「讀取案件清單」。
 test('a failed refresh keeps the local rows, puts the reason above the list as an alert, and the next refresh clears it at once', async () => {
   const f = await boot([LOCAL_A]);
   f.click('[data-action="picker-refresh-local"]');
@@ -111,7 +109,6 @@ test('deleting a case reloads the local list once only after it succeeds, the ro
   f.reply('project.listLocal', { projects: [LOCAL_B] }); await flush();
   assert.deepEqual(rowNames(f, 'local'), ['合成乙案']);
   assert.equal(f.state().busy, false);
-  // 這句的用字已定案。
   assert.deepEqual(f.messages()[0], { text: '已刪除案件「合成甲案」。', level: 'info' });
   assert.equal(errorBox(f), null);
   // 被刪的那一列不在了，焦點交給下一個案件的開啟鈕。
@@ -147,7 +144,6 @@ test('a failed deletion sends no list request, explains the failure with the cas
   f.fail('project.delete', { code: 'file_locked', message: '合成：檔案正被其他程式使用' }, 'delete-correlation'); await flush();
   assert.equal(f.sent('project.listLocal').length, listsBefore, 'a failed deletion does not reload the list');
   assert.equal(f.state().busy, false);
-  // 「刪除案件」與失敗句的用字已定案。
   const box = errorBox(f);
   assert.equal(box.role, 'alert');
   assert.match(box.body, /^刪除案件失敗：合成：檔案正被其他程式使用（耗時/);
@@ -186,7 +182,7 @@ test('a case that fails to open keeps the auditor on the list with the reason, a
   f.fail(load, { code: 'file_read_error', message: '合成：案件資料讀不出來' }, 'load-correlation'); await flush();
   assert.equal(f.state().view, 'picker');
   assert.equal(f.state().project, null);
-  // 「開啟案件」與失敗句的用字已定案，包括括號後的句號。
+  // 開案失敗訊息包含「開啟案件」及原因。
   const box = errorBox(f);
   assert.equal(box.role, 'alert');
   assert.equal(box.body, '開啟案件失敗：合成：案件資料讀不出來（耗時 1.2 秒）。');
@@ -197,7 +193,6 @@ test('a case that fails to open keeps the auditor on the list with the reason, a
   const exported = f.request('support.log.export');
   assert.deepEqual(plain(exported.payload), {});
   f.reply(exported, { filePath: '合成/logs/JET-support.txt' }); await flush();
-  // 這句的用字已定案。
   assert.equal(f.$('.picker-footer [role="status"]').textContent, '支援日誌已輸出：合成/logs/JET-support.txt');
   assert.match(errorBox(f).body, /合成：案件資料讀不出來/);
 });
@@ -210,7 +205,6 @@ test('while the list is still loading, opening a case sends nothing and stays on
   await flush();
   assert.equal(f.sent('project.load').length, 0, 'no project.load while the list is loading');
   assert.equal(f.state().view, 'picker');
-  // 這句的用字已定案。
   assert.deepEqual(f.messages()[0], { text: '「讀取案件清單」還在進行，請等它完成後再試。', level: 'info' });
 });
 

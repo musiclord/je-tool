@@ -25,7 +25,6 @@ public sealed class MessageLogFrontendTests
             // 兩份清單寫全名。
             "上傳國定假日清單",
             "上傳補班日清單",
-            // 這兩個操作名稱已定案。
             "匯入科目配對範本",
             "重建科目配對範本",
             "產生驗證階段報告",

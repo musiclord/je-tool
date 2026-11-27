@@ -2,21 +2,21 @@
 require('./support/resource-guard.cjs');
 // 第五步組條件的情境測試。
 //
-// 情境 10「第五步常用篩選條件的卡片與範例」：審計員在四種科目配對狀態下看常用篩選條件的卡片與欄位的常用查法，
+// 「第五步常用篩選條件的卡片與範例」：審計員在四種科目配對狀態下看常用篩選條件的卡片與欄位的常用查法，
 // 加入「貸方為收入但借方非一般對方科目」那張卡看說明，並套用每一個情境範例。卡片列在「常用篩選條件」分頁，
 // 範例在右側條件組合上方的「從情境範例開始」；常用查法掛在欄位條件分頁的各欄位底下，收在按「加入」打開的選單裡，
 // 審計員用滑鼠或鍵盤選一項。另在「預篩選」分頁逐一加入每一條預篩選規則，
 // 看前置不足的停用原因，並從分頁加入「未預期借貸組合」後查看傳票數量與分錄筆數。
-// 情境 11「第五步自訂條件與條件組」：審計員在欄位條件分頁從各家族各加一條、組成兩組，看組內條件的組合方式，
+// 「第五步自訂條件與條件組」：審計員在欄位條件分頁從各家族各加一條、組成兩組，看組內條件的組合方式，
 // 移除一條，用「加入到」的組號換加入的組，切換 AND 與 OR 並加整張傳票條件，加借貸科目組合並切換五種查找方式，
 // 在分類清單勾選分類，最後預覽，預覽的錯誤標在條件列上。另有兩段看科目樹的讀取晚到：科目還沒讀回來就把條件換成沒有科目樹的比較方式，
 // 或換到第四步（這一段用整個 JET 畫面的夾具 bootFullApp）。
 //
 // 每個測試都執行正式的 state.js、ui-core.js、filter-values.js、filter-vouchers.js 與第五步的五個檔案（steps/filter-step-*.js 與 filter-step.js），
 // 在假 DOM 上畫出第五步並用點擊與選單操作；合成資料只控制邊界。
-// 第五步的儲存、另存、移除與重新檢查屬於情境 12、13（frontend-journey-filter-saved.test.cjs），這個檔不寫那些流程的斷言。
+// 第五步的儲存、另存、移除與重新檢查在 frontend-journey-filter-saved.test.cjs，這個檔不寫那些流程的斷言。
 //
-// 斷言規則：用字已經定案的文字逐字比對，其他文字只比對意思；預期值寫死，不由被測程式算出；
+// 斷言規則：固定的用字逐字比對，其他文字只比對意思；預期值寫死，不由被測程式算出；
 // 送出的 payload 精確比對，而且不得帶 `__` 開頭的鍵。
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -27,7 +27,7 @@ const { contractJetApi } = require('./support/action-contract.cjs');
 const ALL_MAPPED = { hasAnyCategory: true, hasRevenue: true, hasCounterpart: true };
 
 // 本檔自己的夾具：和共用模組的 filterOperationFixture 相同，執行正式腳本並訂閱重繪；
-// 另外掛出 toWireDraft（情境 11 要看草稿送出的形狀），並記下預覽與傳票分頁的請求。
+// 另外掛出 toWireDraft（自訂條件與條件組的測試要看草稿送出的形狀），並記下預覽與傳票分頁的請求。
 // 只服務這個檔的夾具留在這裡，沒有收進共用模組。
 // availableGlFields 是後端 project.load 與 mapping.commit.gl 回傳的可用欄位清單（欄位可用性只在後端算一次）；
 // 沒給時已確認的配對不帶清單，畫面不檢查欄位，和後端沒有清單時相同。
@@ -35,7 +35,7 @@ function buildFixture(options = {}) {
   // zerosThreshold 模擬後端照 GL 借方平均算出、跟著已確認 GL 配對帶回的尾數 0 的個數。
   // 沒有國定假日清單時，第五步的假日條件停用並寫原因；補班日清單也比照。
   // 這個夾具代表兩份清單都已上傳的案件，預設帶 3 天國定假日與 1 天補班日；要看沒有清單的畫面時傳 calendar: null 或只帶其中一份。
-  // features 是這個版本隱藏的功能開關（Ui.FEATURES），在第一次畫出第五步之前設定；沒給時照正式程式的預設。
+  // features 是預設關閉的功能開關（Ui.FEATURES），在第一次畫出第五步之前設定；沒給時照正式程式的預設。
   const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], accountCategory = null, saved = [], availableGlFields = null, neverBlankGlFields = null, zerosThreshold = 4,
     calendar = { holidayCount: 3, makeupDayCount: 1 }, features = {},
     project = { projectId: 'filter-build-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-01' } } = options;
@@ -80,7 +80,7 @@ function buildFixture(options = {}) {
 
 // 欄位條件分頁，程式裡的識別是 field。
 const fieldPane = options => { const f = buildFixture(options); f.click('[data-condition-source="field"]'); return f; };
-// 「從情境範例開始」在這個版本隱藏；要用範例的測試先用這個函式把開關打開，托盤與範例才會畫出來。
+// 「從情境範例開始」預設隱藏；要用範例的測試先用這個函式把開關打開，托盤與範例才會畫出來。
 const withExamples = (options = {}) => ({ ...options, features: { scenarioTemplates: true } });
 // 卡片以代號識別（Ui.FILTER_COMMON_CONDITIONS 的 key）。
 const card = (f, key) => f.$('[data-common-card="' + key + '"]');
@@ -106,7 +106,7 @@ function screenTexts(node, skip) {
 }
 
 // ------------------------------------------------------------------------------------------------
-// 情境 10：常用篩選條件的卡片與範例
+// 常用篩選條件的卡片與範例
 // ------------------------------------------------------------------------------------------------
 
 // 停用原因的句子逐字比對：還沒匯入與匯入了但沒有任何分類同一句，缺收入或對方分類時寫出分類名稱。
@@ -433,8 +433,8 @@ test('every example applies under its own name and the condition screens never s
   assert.equal(named.draft().name, '借現金、貸非現金 2');
 });
 
-// 「從情境範例開始」在這個版本隱藏，開關 Ui.FEATURES.scenarioTemplates 預設關著：第五步沒有托盤，也沒有任何範例，
-// 畫面上不出現「範例」兩個字；條件總覽照舊是「常用篩選條件」「預篩選」「欄位條件」三個分頁，三個分頁都還能加入條件。
+// 「從情境範例開始」預設隱藏，開關 Ui.FEATURES.scenarioTemplates 預設關著：第五步沒有托盤，也沒有任何範例，
+// 畫面上不出現「範例」兩個字；條件總覽是「常用篩選條件」「預篩選」「欄位條件」三個分頁，三個分頁都能加入條件。
 // 開關打開並重畫後，托盤回到條件組合上方，十一個範例照原順序列出，套用照常。
 test('the example tray is hidden by default and comes back with its eleven examples when the feature switch is on', () => {
   const f = buildFixture({ glMapping: { approvedBy: 'Checker', createdBy: 'Maker' },
@@ -469,7 +469,7 @@ test('the example tray is hidden by default and comes back with its eleven examp
   assert.equal(f.draft().name, '期末最後 7 天的人工分錄');
 });
 
-// 範例隱藏時，2024 篩選表轉入的四個範例仍能用畫面上的入口逐條組出來：欄位條件分頁各欄位的「加入」與常用查法、
+// 範例隱藏時，下面四個範例也能用畫面上的入口逐條組出來：欄位條件分頁各欄位的「加入」與常用查法、
 // 條件組標頭的「整張傳票」，以及整張傳票條件裡的「加入子條件」。這裡不打開開關，組完核對每一條的型別、欄位與比較方式，
 // 同一組內都用 AND 連接。預期值照四個範例的條件逐條寫死；範例把其中兩條包在子條件組，這裡直接加在同一組。
 test('with the example tray hidden the four examples from the 2024 form are composed from the field tab and the group buttons', () => {
@@ -532,11 +532,11 @@ test('with the example tray hidden the four examples from the 2024 form are comp
 });
 
 // ------------------------------------------------------------------------------------------------
-// 情境 11：自訂條件與條件組
+// 自訂條件與條件組
 // ------------------------------------------------------------------------------------------------
 
 // 連接只寫 AND 與 OR，是兩格的分段切換（一組單選鈕），選項字沒有「全部符合」「任一符合」；選項值是送出的契約，精確比對。
-// 「同一傳票」併在整張傳票條件裡，沒有比對範圍的選單，也沒有主要條件。
+// 要比對同一張傳票時用整張傳票條件；條件組沒有比對範圍的選單，也沒有設為主要條件的按鈕。
 test('two conditions offer AND or OR and explicit voucher conditions replace the scope menu', () => {
   const f = fieldPane();
   f.click('[data-add-field="description"]');
@@ -1020,7 +1020,7 @@ test('a date condition keeps a typed value only while it still means the same th
 });
 
 // 文字條件的值清單在各篩選方式下都是文字本身，換方式時照樣留著：關鍵字換成「開頭符合」「完整內容相同」都帶過去。
-// 區間的起點與終點只有區間用得到，換到別的方式再換回來仍在。這個測試守住沒有改動的沿用。
+// 區間的起點與終點只有區間用得到，換到別的方式再換回來仍在。這個測試確認這兩種值換篩選方式時照樣沿用。
 test('text values and range bounds carry over between comparisons that read them the same way', () => {
   const f = fieldPane();
   const s = comparisonSwitcher(f);
@@ -1141,7 +1141,7 @@ test('fields that always have a value offer no blank choice, no include-blank bo
   assert.match(summary(4), /；空白不列入$/);
 });
 
-// 已存的情境可能留著對金額選「空白」的條件，畫面已不提供這個選項。這種條件一定是 0 筆，畫面照樣顯示選的是哪一項，
+// 已存的情境可能有對金額選「空白」的條件，但畫面不提供這個選項。這種條件一定是 0 筆，畫面照樣顯示選的是哪一項，
 // 並寫出原因與改法；「非空白」不改變結果，不提示。
 test('a saved blank choice on a field that always has a value stays visible and says what to do instead', () => {
   const blankRule = (field, operator) => ({ type: 'fieldValue', join: 'AND', field, operator, includeBlank: false, ...(field === 'amount' ? { amountBasis: 'absolute' } : {}) });
@@ -1204,7 +1204,7 @@ test('excluding text values counts blank entries by default and the auditor can 
   assert.deepEqual(plain([rule(2).operator, rule(2).includeBlank, sent(2)]), ['notEquals', false, false]);
 });
 
-// 科目分類先隱藏上下層級，新案件的分類都是平的一層。分類都是平的時，科目分類條件的分類清單
+// 科目分類不顯示上下層級，新案件的分類都是平的一層。分類都是平的時，科目分類條件的分類清單
 // 不畫展開鈕的空位，從科目樹選取時不寫「包含下層分類」；案件已有分類設上層時，兩處仍畫出展開鈕、寫出包含下層分類。
 // 開關關著，兩種情形都沒有「選取依據」。
 test('with flat categories the category list leaves no chevron slots and the account tree does not mention subcategories', () => {
@@ -1353,9 +1353,8 @@ test('preview sends the composed groups exactly and marks a rejected condition o
   await settle();
   const request = f.requests.filter(r => r.action === 'filterPreview');
   assert.equal(request.length, 1);
-  const filler = { field: 'description', values: [], mode: 'contains', normalization: 'preserve', from: '', to: '', drCr: 'debit', isManual: 'true',
-    pairMode: 'exact', debitCategoryIds: ['builtin.receivables'], creditCategoryIds: ['builtin.revenue'], fieldId: '', operator: '',
-    amountBasis: 'absolute', value: '', windowDays: '' };
+  const filler = { drCr: 'debit', isManual: 'true',
+    pairMode: 'exact', debitCategoryIds: ['builtin.receivables'], creditCategoryIds: ['builtin.revenue'], windowDays: '' };
   // 名稱用條件名稱的寫法，動機每行不以字母開頭，編輯來源送第 2 版的卡片代號，來源代碼是 common。
   assert.deepEqual(plain(request[0].payload), {
     populationScope: 'auditPeriod',
@@ -1366,14 +1365,14 @@ test('preview sends the composed groups exactly and marks a rejected condition o
         { join: 'AND', matchScope: 'row', conditions: [{ join: 'AND', type: 'fieldValue', field: 'description', operator: 'isBlank', includeBlank: false }] },
         { join: 'AND', matchScope: 'row', conditions: [
           { join: 'OR', type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '000000', amountBasis: 'absolute', includeBlank: false },
-          { join: 'OR', type: 'manualAuto', prescreenKey: 'suspiciousKeywords', keywords: '', ...filler }] }],
+          { join: 'OR', type: 'manualAuto', prescreenKey: 'suspiciousKeywords', ...filler }] }],
       editorOrigins: { version: 2, nameIsAutomatic: true, rationaleIsAutomatic: true,
         groups: [{ cards: ['blankDescription'] }, { cards: ['specificTrailingDigits', null] }] },
       source: 'common'
     }
   });
   assert.doesNotMatch(JSON.stringify(request[0].payload), /"__/);
-  // 草稿本身沒有被送出的投影改動：空的第 2 組還在，標記仍在草稿裡。
+  // 送出前整理出的 payload 不會改到草稿：空的第 2 組還在，標記仍在草稿裡。
   assert.deepEqual(rulesOf(f), [['fieldValue'], [], ['fieldValue', 'manualAuto']]);
   assert.equal(f.draft().groups[0].conditions[0].__commonCard, 'blankDescription');
 
@@ -1609,7 +1608,6 @@ test('a field that cannot be used keeps its menu shut and a shortcut that needs 
   const next = menu.children[menu.children.indexOf(item) + 1];
   assert.equal(next.getAttribute('id'), 'filter-check-note-prepPeriodApproval');
   assert.equal(item.getAttribute('aria-describedby'), 'filter-check-note-prepPeriodApproval');
-  // 這句的用字已定案。
   assert.equal(next.textContent, '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
   assert.equal(row('approvalDate').querySelectorAll('.filter-check__note').length, 1, 'the reason is written once, inside the menu');
 });
@@ -1639,7 +1637,7 @@ test('the prescreen tab lists every prescreen rule and each add button brings in
   assert.equal(f.$('[data-condition-pane="prescreen"]').hidden, false);
   assert.deepEqual(f.$$('[data-add-prescreen]').map(button =>
     [button.getAttribute('data-add-prescreen'), button.closest('.filter-check').querySelector('.filter-check__label').textContent]), PRESCREEN_RULES);
-  // 和常用查核條件一樣，每一列只有名稱與「加入」，不另加說明。
+  // 和「常用篩選條件」分頁一樣，每一列只有名稱與「加入」，不另加說明。
   for (const item of f.$('[data-condition-pane="prescreen"]').querySelectorAll('.filter-check')) {
     assert.equal(item.querySelector('[data-add-prescreen]').textContent, '加入');
     assert.deepEqual(item.children.filter(child => !child.matches('.filter-check__label') && !child.matches('[data-add-prescreen]')), []);
@@ -1653,7 +1651,7 @@ test('the prescreen tab lists every prescreen rule and each add button brings in
   }
 });
 
-// 前置不足時按鈕停用，原因寫在該項下方並由 aria-describedby 連到按鈕，和常用查核條件同一種做法；後端一定會擋的條件不會被帶入。
+// 前置不足時按鈕停用，原因寫在該項下方並由 aria-describedby 連到按鈕，和常用篩選條件同一種做法；後端一定會擋的條件不會被帶入。
 // 前端讀後端算好的可用欄位，這裡給一份沒有傳票建立人員的可用欄位清單，表示傳票建立人員未配對；
 // 欄位的原因接上和第四步相同的下一步，寫出可以回欄位配對補上。
 const WITHOUT_CREATED_BY = ['voucherNumber', 'lineItem', 'glDate', 'approvalDate', 'accountNumber', 'accountName', 'description', 'sourceModule', 'approvedBy', 'isManual', 'amount'];
@@ -1666,7 +1664,6 @@ test('a prescreen rule the backend would reject is disabled with its reason and 
   assert.deepEqual(f.$$('[data-add-prescreen]').filter(button => button.disabled).map(button => button.getAttribute('data-add-prescreen')),
     ['prepPeriodApproval', 'unexpectedAccountPair', 'nonAuthorizedPreparer']);
   const reason = key => f.$('#' + f.$('[data-add-prescreen="' + key + '"]').getAttribute('aria-describedby')).textContent;
-  // 這句的用字已定案。
   assert.equal(reason('prepPeriodApproval'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
   assert.match(reason('unexpectedAccountPair'), /Revenue.*第四步/);
   assert.match(reason('nonAuthorizedPreparer'), /授權編製人員清單/);
@@ -1792,7 +1789,7 @@ test('a pasted comma list keeps the value list at its fixed height instead of st
 // ------------------------------------------------------------------------------------------------
 
 // GL 沒有配對的欄位停用並寫原因：欄位按鈕照樣列出但不能按，下方寫出原因以及可以回欄位配對補上，
-// 常用查核條件與範例用同一套判斷。
+// 常用篩選條件與情境範例用同一套判斷。
 // 可用欄位照後端在「傳票核准日、分錄來源模組、傳票建立人員、傳票核准人員與人工/自動分錄都沒有選來源欄」時送的清單寫死；
 // 傳票文件項次沒有來源欄時系統自動編號，算已配對，所以在清單裡。
 // 原因是後端第五步的句子；GL 欄位的句子接上和第四步相同的下一步，同一個入口缺幾個欄位就寫在同一句。
@@ -1924,15 +1921,11 @@ test('the field menus on condition cards disable unmapped fields and a condition
   // 草稿裡已經有用到未配對欄位的條件（例如舊情境，或改了配對之後）：條件卡片寫出原因，預覽前就擋下、不送出。
   f.store.setFilterDraft({ name: '合成條件', rationale: '合成', groups: [{ join: 'AND', matchScope: 'row', conditions: [
     { type: 'fieldValue', join: 'AND', field: 'approvedBy', operator: 'isBlank', values: [] },
-    { type: 'dateRange', join: 'AND', field: 'approvalDate', from: '2025-01-01', to: '2025-01-31' },
+    { type: 'fieldValue', join: 'AND', field: 'approvalDate', operator: 'between', from: '2025-01-01', to: '2025-01-31' },
     { type: 'prescreen', join: 'AND', prescreenKey: 'weekendApproval' }] }] });
   const row = index => f.$('.rule-row[data-gi="0"][data-ri="' + index + '"]');
   assert.ok(screenTexts(row(0)).includes(unmapped('傳票核准人員')), 'the field condition says why');
-  const dateOption = value => row(1).querySelector('[data-rule-bind="field"]').querySelectorAll('option').find(node => node.getAttribute('value') === value);
-  assert.equal(dateOption('approvalDate').disabled, true);
-  assert.notEqual(dateOption('approvalDate').getAttribute('selected'), null, 'the saved field stays chosen');
-  assert.equal(dateOption('glDate').disabled, false);
-  assert.ok(screenTexts(row(1)).includes(unmapped('傳票核准日')), 'the old date range condition says why');
+  assert.ok(screenTexts(row(1)).includes(unmapped('傳票核准日')), 'the date condition says why');
   // 預篩選條件也一樣：樣態選單照樣寫條件的名稱，原因寫在卡片上。
   const chosen = row(2).querySelector('[data-pattern-subject]').querySelectorAll('option').find(node => node.getAttribute('selected') !== null);
   assert.equal(chosen.getAttribute('value'), 'prescreen:weekendApproval');

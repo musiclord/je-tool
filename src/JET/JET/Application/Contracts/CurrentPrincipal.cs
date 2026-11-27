@@ -1,9 +1,9 @@
 namespace JET.Application;
 
 /// <summary>
-/// 當前使用者身分：合格化的 Windows 帳號（<c>網域\帳號</c>；未加網域的機器為 <c>機器名\帳號</c>），
+/// 當前使用者身分：完整的 Windows 帳號（<c>網域\帳號</c>；未加網域的機器為 <c>機器名\帳號</c>），
 /// 由 composition root 以 <see cref="System.Security.Principal.WindowsIdentity"/> 取得並注入，
-/// 不採用前端傳入的 operatorId。目前部門內使用，以 IT 管理主機的 Windows 帳號識別操作人員。
+/// 不採用前端傳入的 operatorId。JET 在部門內使用，以 IT 管理主機的 Windows 帳號識別操作人員。
 /// 案件鎖的持有人照 <see cref="Name"/> 原樣記錄；案件鎖的介面只收字串，Domain 不必認得這個型別。
 /// </summary>
 public sealed record CurrentPrincipal(string Name)

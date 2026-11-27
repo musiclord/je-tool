@@ -13,11 +13,11 @@ namespace JET.Application;
 internal sealed class QuotedLineBreakTally
 {
     private const int ListedRowLimit = 5;
-    private readonly List<int> firstRows = [];
+    private readonly List<int> _firstRows = [];
 
     public int Count { get; private set; }
 
-    public IReadOnlyList<int> FirstRows => firstRows;
+    public IReadOnlyList<int> FirstRows => _firstRows;
 
     public void Observe(StagingRow row)
     {
@@ -27,9 +27,9 @@ internal sealed class QuotedLineBreakTally
         }
 
         Count++;
-        if (firstRows.Count < ListedRowLimit)
+        if (_firstRows.Count < ListedRowLimit)
         {
-            firstRows.Add(row.SourceRowNumber);
+            _firstRows.Add(row.SourceRowNumber);
         }
     }
 
@@ -55,12 +55,12 @@ internal sealed class QuotedLineBreakTally
 
         if (logger is not null)
         {
-            ImportSourceDiagnostics.QuotedLineBreaks(logger, sourceNo, Count, string.Join(",", firstRows));
+            ImportSourceDiagnostics.QuotedLineBreaks(logger, sourceNo, Count, string.Join(",", _firstRows));
         }
 
         // 這句只有「，例如第…列」一種寫法，列號全部列出時也一樣。
         // 來源檔用「列」，所以寫「列數減少」。
-        return $"「{fileName}」有 {CountText.Format(Count)} 列的欄位內含換行，例如第 {string.Join("、", firstRows)} 列。"
+        return $"「{fileName}」有 {CountText.Format(Count)} 列的欄位內含換行，例如第 {string.Join("、", _firstRows)} 列。"
             + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。";
     }
 }

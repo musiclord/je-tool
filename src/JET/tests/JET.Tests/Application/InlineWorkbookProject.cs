@@ -144,7 +144,7 @@ internal sealed class InlineGlWorkbookBuilder
         return path;
     }
 
-    // 其他程式產生的 xlsx 可能用 t="d" 的儲存格寫日期的文字，這裡用 Open XML SDK 照這種寫法改進存好的檔案。
+    // 其他程式產生的 xlsx 可能用 t="d" 的儲存格寫日期的文字，這裡用 Open XML SDK 照這種寫法改寫存好的檔案。
     private static void WriteDateTypedCells(string path, IReadOnlyList<(string Reference, string Text)> dateTypedCells)
     {
         using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(path, true);
@@ -162,7 +162,7 @@ internal sealed class InlineGlWorkbookBuilder
         worksheet.Save();
     }
 
-    // 其他程式產生的 xlsx 可能在數值儲存格寫 NaN、Infinity 或 -Infinity，這裡用 Open XML SDK 照這種寫法改進存好的檔案。
+    // 其他程式產生的 xlsx 可能在數值儲存格寫 NaN、Infinity 或 -Infinity，這裡用 Open XML SDK 照這種寫法改寫存好的檔案。
     private static void WriteNonFiniteSerials(string path, IReadOnlyList<(string Reference, double Value)> serials)
     {
         using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(path, true);

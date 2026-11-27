@@ -60,19 +60,19 @@ public sealed class WorkingPaperExportReportContentTests
             workbook.Worksheet(WorkingPaperSheetCatalog.Cover).Cell("A3").GetString());
         Assert.Contains(
             "查核期間內",
-            workbook.Worksheet(WorkingPaperSheetCatalog.Step3).Cell("B7").GetString(),
+            workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary).Cell("B7").GetString(),
             StringComparison.Ordinal);
         foreach (var required in new[]
         {
             WorkingPaperSheetCatalog.Intro,
-            WorkingPaperSheetCatalog.Step1,
-            WorkingPaperSheetCatalog.Step11,
-            WorkingPaperSheetCatalog.Step12,
-            WorkingPaperSheetCatalog.Step2,
-            WorkingPaperSheetCatalog.Step3,
-            WorkingPaperSheetCatalog.Step4,
-            WorkingPaperSheetCatalog.Step41,
-            WorkingPaperSheetCatalog.Step5,
+            WorkingPaperSheetCatalog.Completeness,
+            WorkingPaperSheetCatalog.VoucherBalance,
+            WorkingPaperSheetCatalog.PreparerSummary,
+            WorkingPaperSheetCatalog.InfSampling,
+            WorkingPaperSheetCatalog.HighRiskSummary,
+            WorkingPaperSheetCatalog.HighRiskVoucher,
+            WorkingPaperSheetCatalog.HighRiskVoucherDetail,
+            WorkingPaperSheetCatalog.PostClosingEntries,
             WorkingPaperSheetCatalog.FieldInfo,
             WorkingPaperSheetCatalog.CalendarInfo,
             WorkingPaperSheetCatalog.AccountMapping
@@ -94,24 +94,24 @@ public sealed class WorkingPaperExportReportContentTests
             response.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
 
         using var workbook = new XLWorkbook(path);
-        var step3 = workbook.Worksheet(WorkingPaperSheetCatalog.Step3);
-        Assert.Equal("C2", step3.Cell("B19").GetString());
-        Assert.True(step3.Cell("B20").IsEmpty());
+        var highRiskSummary = workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary);
+        Assert.Equal("C2", highRiskSummary.Cell("B19").GetString());
+        Assert.True(highRiskSummary.Cell("B20").IsEmpty());
         Assert.All(
-            step3.Range("F18:F28").Cells(),
+            highRiskSummary.Range("F18:F28").Cells(),
             cell => Assert.True(cell.IsEmpty()));
-        var step4 = workbook.Worksheet(WorkingPaperSheetCatalog.Step4);
-        Assert.Equal("C1", step4.Cell("F11").GetString());
-        Assert.Equal("C2", step4.Cell("G11").GetString());
-        Assert.Equal("C10", step4.Cell("O11").GetString());
-        Assert.True(workbook.TryGetWorksheet(WorkingPaperSheetCatalog.Step1, out _));
-        Assert.True(workbook.TryGetWorksheet(WorkingPaperSheetCatalog.Step5, out _));
+        var highRiskVoucher = workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucher);
+        Assert.Equal("C1", highRiskVoucher.Cell("F11").GetString());
+        Assert.Equal("C2", highRiskVoucher.Cell("G11").GetString());
+        Assert.Equal("C10", highRiskVoucher.Cell("O11").GetString());
+        Assert.True(workbook.TryGetWorksheet(WorkingPaperSheetCatalog.Completeness, out _));
+        Assert.True(workbook.TryGetWorksheet(WorkingPaperSheetCatalog.PostClosingEntries, out _));
     }
 
     // 底稿的週末表照案件設定的每週休息日寫 Y，不固定寫星期六、星期日。
     // Step 3 的 B7、B9 寫舊版原文，JET 寫的查核期間與排除範圍另起一行接在後面。
     [Fact]
-    public async Task Export_WeekendTableFollowsProjectNonWorkingDays_AndStep3WritesLegacyScopeText()
+    public async Task Export_WeekendTableFollowsProjectNonWorkingDays_AndHighRiskSummaryWritesLegacyScopeText()
     {
         using var host = new HandlerTestHost();
         var project = await DemoProjectPipeline.SetupAsync(host);
@@ -150,16 +150,16 @@ public sealed class WorkingPaperExportReportContentTests
 
         var demoProject = project.Demo.GetProperty("project");
         var period = $"{demoProject.GetProperty("periodStart").GetString()} ~ {demoProject.GetProperty("periodEnd").GetString()}";
-        var step3 = workbook.Worksheet(WorkingPaperSheetCatalog.Step3);
+        var highRiskSummary = workbook.Worksheet(WorkingPaperSheetCatalog.HighRiskSummary);
         // ClosedXML 在 Windows 讀回時把儲存格裡的換行改成 \r\n，比對前統一成底稿實際寫的 \n。
         Assert.Equal(
             "期末財務報表準備期間與整個財務報導期間之會計分錄\n" + $"查核期間內（{period}）之會計分錄",
-            step3.Cell("B7").GetString().ReplaceLineEndings("\n"));
+            highRiskSummary.Cell("B7").GetString().ReplaceLineEndings("\n"));
         Assert.Equal(
             "查核團隊考量舞弊風險相關之分錄，除了會於期末財務報表準備期間發生外，某些與舞弊風險因子相關之分錄類型(例如：收入)"
             + "亦會在整個財務報導期間中被記錄。這些都將會對財務報表的正確性造成影響。因此，除測試期末財務報表準備期間之分錄外，"
             + " 亦將對整個財務報表期間之會計分錄母體，篩選與舞弊風險類型相關之分錄。\n"
             + "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與總帳日期空白的分錄，不列入本版各情境的結果與彙總。",
-            step3.Cell("B9").GetString().ReplaceLineEndings("\n"));
+            highRiskSummary.Cell("B9").GetString().ReplaceLineEndings("\n"));
     }
 }

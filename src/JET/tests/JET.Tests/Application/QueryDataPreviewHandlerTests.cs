@@ -645,7 +645,7 @@ public sealed class QueryDataPreviewHandlerTests
     [Fact]
     public async Task Preview_SchemaOverview_ListsCatalogExposedEntriesWithoutImportingData()
     {
-        // schemaOverview 由 catalog 驅動：剛建專案、未匯入任何資料也恆有列。
+        // schemaOverview 由 catalog 驅動：剛建案件、未匯入任何資料也恆有列。
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
@@ -661,7 +661,7 @@ public sealed class QueryDataPreviewHandlerTests
         Assert.Equal(expected, data.GetProperty("totalCount").GetInt64());
         Assert.Equal(expected, data.GetProperty("rows").GetArrayLength());
 
-        // 正準名出現、Hidden 不出現（負向）。
+        // 審計用名稱出現、Hidden 不出現（負向）。
         var canonicalNames = data.GetProperty("rows").EnumerateArray().Select(r => r[0].GetString()).ToList();
         // 資料名稱寫成 PBC-GL。
         Assert.Contains("PBC-GL", canonicalNames);

@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 後端儲存時只保留該條件類型用得到的欄位，存檔格式只在一個地方決定；
-/// 已存的舊情境在下次儲存時整理。前端送出的格式不變。
+/// 已存的情境在下次儲存時整理。前端送出的條件可以帶該類型用不到的屬性，整理只在後端做。
 /// 這裡核對 <see cref="FilterConditionWireFields"/>：每種條件只留 type、join 與該類型用得到的屬性，情境層與條件組層原樣保留；
 /// 整理前後的驗證結果、編譯出的 SQL 與參數、讀回文字完全相同；表上的類型和解析器認得的類型一一對應。
 /// 「完整版」照前端 ui-core.js newFilterCondition 給多數條件類型的共同預設值補上用不到的屬性，模擬畫面實際送出的內容。
@@ -29,7 +29,8 @@ public sealed class FilterConditionWireFieldsTests
     private static readonly FilterConditionContext RuleContext =
         new(100, "2025-12-01", "2025-01-01", "2025-12-31") { RdeFields = RdeFields };
 
-    // ui-core.js newFilterCondition 的共同預設值。categorySelection 只給借貸組合，那兩種本來就保留它。
+    // ui-core.js newFilterCondition 的共同預設值，再加上欄位值條件的屬性與已不使用的 keywords、mode、normalization，
+    // 確認其他類型帶著它們時也會被刪掉。categorySelection 只給借貸組合，那兩種本來就保留它。
     // 畫面不送 digits 與 maxEntries，這裡也不帶。
     private const string GenericDefaults = """
         {"prescreenKey":"suspiciousKeywords","field":"description","keywords":"","values":[],"mode":"contains",
@@ -42,10 +43,6 @@ public sealed class FilterConditionWireFieldsTests
     public static TheoryData<string> CompactValidRules() => new()
     {
         """{"join":"AND","type":"prescreen","prescreenKey":"blankDescription"}""",
-        """{"join":"AND","type":"text","field":"description","keywords":"合成","mode":"contains"}""",
-        """{"join":"OR","type":"textSet","field":"description","values":["甲","乙 丙"],"mode":"exact","normalization":"removeAsciiSpaces"}""",
-        """{"join":"AND","type":"dateRange","field":"glDate","from":"2025-03-01","to":"2025-03-31"}""",
-        """{"join":"AND","type":"numRange","field":"amount","from":"100","to":"5000"}""",
         """{"join":"AND","type":"drCrOnly","drCr":"credit"}""",
         """{"join":"AND","type":"manualAuto","isManual":"false"}""",
         """{"join":"AND","type":"accountPair","pairMode":"debitAnchor","categorySelection":"subtree","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.revenue"]}""",
@@ -56,8 +53,8 @@ public sealed class FilterConditionWireFieldsTests
         """{"join":"AND","type":"revenueWithoutNormalCounterpart"}""",
         """{"join":"AND","type":"manualRevenueEntry"}""",
         """{"join":"AND","type":"preparerEqualsApprover"}""",
-        $$"""{"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"  Alpha "}""",
-        $$"""{"join":"AND","type":"typed","fieldId":"{{MoneyFieldId}}","operator":"greaterThan","value":"100","amountBasis":"absolute"}""",
+        $$"""{"join":"AND","type":"fieldValue","fieldId":"{{TextFieldId}}","operator":"equals","value":"  Alpha ","includeBlank":false}""",
+        $$"""{"join":"AND","type":"fieldValue","fieldId":"{{MoneyFieldId}}","operator":"greaterThan","value":"100","amountBasis":"absolute","includeBlank":false}""",
         """{"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["合成"],"includeBlank":false}""",
         """{"join":"AND","type":"fieldValue","field":"amount","operator":"between","from":"100","to":"500","amountBasis":"absolute","includeBlank":false}""",
         // 尾數連續多個 0：同時確認 SQLite 方言編譯得出來。
@@ -134,7 +131,7 @@ public sealed class FilterConditionWireFieldsTests
     {
         using var source = JsonDocument.Parse($$"""
             {"name":"合成","unknownTop":1e2,"groups":[{"join":"AND","unknownGroup":1.2300,"matchScope":"row","conditions":[
-              {"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"  Alpha ","unknownRule":1E+02},
+              {"join":"AND","type":"fieldValue","fieldId":"{{TextFieldId}}","operator":"equals","value":"  Alpha ","unknownRule":1E+02},
               {"join":"AND","type":"entityFrequency","countFrom":5.0,"windowDays":"10"}]}],
              "editorOrigins":{"version":2,"groups":[{"cards":[null,null]}]},"source":"common"}
             """);

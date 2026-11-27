@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// query.filterHitsPage 走訪驗收。
+/// query.filterHitsPage 走訪測試。
 /// 每測試自建 host(filter.commit 改狀態,不可共用唯讀 fixture)。
 ///
 /// 設計技術:狀態轉換(commit → 走訪)+ metamorphic recount oracle。

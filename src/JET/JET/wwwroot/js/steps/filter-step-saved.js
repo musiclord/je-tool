@@ -118,7 +118,7 @@
     return JSON.stringify([draft.name, draft.rationale, !!draft.__nameDirty, !!draft.__rationaleDirty]);
   }
 
-  // 錯誤細節帶 scenarioPosition 時，只有屬於這次儲存的那個情境才標在目前草稿上；沒帶位置的照舊視為目前草稿。
+  // 錯誤細節帶 scenarioPosition 時，只有屬於這次儲存的那個情境才標在目前草稿上；沒帶位置的錯誤標在目前草稿上。
   function belongsToTarget(detail, targetPosition) {
     return typeof targetPosition !== 'number' || typeof detail.scenarioPosition !== 'number' ||
       detail.scenarioPosition === targetPosition;
@@ -290,7 +290,7 @@
       '<section class="report-output">' +
         '<div class="report-output__head">' +
           '<div>' +
-            // 報告是否為目前版本由按鈕名稱與下方清單表示，標題下不另寫「條件或資料變更後，請重新產生」，常駐說明不再多寫。
+            // 報告是否為目前版本由按鈕名稱與下方清單表示，標題下不另外寫說明。
             '<h3 class="report-output__title">條件篩選報告</h3>' +
           '</div>' +
           '<button type="button" class="btn btn--ghost" data-action="export-criteria-report"' +
@@ -308,8 +308,8 @@
   }
 
   /* ---- 高風險條件彙總：符合條件摘要與傳票符合的條件 ----
-     全程零商業邏輯：只把 wire 回來的 matchedPositions 對映成 C 欄 ✓／空白、組表；
-     查詢/pivot/計算/SQL 全在後端三 action（highRiskSummaryScenarios/VoucherPage/RowPage）。 */
+     這裡不做業務判斷：只把 wire 回來的 matchedPositions 對映成 C 欄 ✓ 或空白並組成表格；
+     查詢、樞紐、計算與 SQL 都在後端三個 action（highRiskSummaryScenarios、VoucherPage、RowPage）。 */
 
   // 摺疊外殼；展開時惰性載入(bind() 的 toggle 處理)。無已存情境時不顯示展開鈕,直接友善空狀態。
   function highRiskSummaryHtml(state) {
@@ -421,8 +421,8 @@
 
   // 確保某個展開中的已存情境詳情有命中預覽：優先用 viewState 快取（bump 重繪後不重抓；已存定義只在
   // commit 時變，跨草稿編輯保留快取是安全的），沒有快取才讀取並寫入快取。
-  // 有可用的已儲存版本時，直接讀儲存情境時存好的結果：傳票頁第一頁另帶符合的傳票數與分錄筆數，不再即時預覽一次。
-  // 還沒有可用的已儲存版本時（例如有情境還不能套用目前規則），照舊用 filter.preview 依目前範圍即時計算。
+  // 有可用的已儲存版本時，直接讀儲存情境時存好的結果：傳票頁第一頁另帶符合的傳票數與分錄筆數，不另外即時預覽。
+  // 還沒有可用的已儲存版本時（例如有情境還不能套用目前規則），用 filter.preview 依目前範圍即時計算。
   // data-loaded 旗標防同一份 DOM 生命週期內重複載入（重複展開/收合不重抓）。
   function ensureScenarioPreview(container, index) {
     var previewEl = Ui.findLive(container, '[data-bind="scenario-preview-' + index + '"]');
@@ -499,7 +499,7 @@
   }
 
   // 彙總展開時讀取情境摘要，再依選中的頁籤呈現摘要或傳票符合的條件。
-  // 以 high-risk-summary-body 的 data-loaded 旗標當快取,重複展開不重抓。零商業邏輯:只發 action、組表、對映 ✓。
+  // 以 high-risk-summary-body 的 data-loaded 旗標當快取，重複展開不重抓；這裡只發 action、組表格、對映 ✓。
   function highRiskSummaryViewButton(key, label) {
     return '<button type="button" data-high-risk-summary-view="' + key + '"' +
       Ui.tabAttributes(FilterStep.viewState.highRiskSummaryView === key, 'high-risk-summary-panel-' + key, 'high-risk-summary-tab-' + key) + '>' + label + '</button>';
@@ -660,7 +660,7 @@
       var origins = draft.editorOrigins;
       if (origins) {
         draft.__restoredOrigins = true;
-        // 編輯來源逐條記卡片代號，重開時把卡片標記放回條件上。後端只接受第 2 版，這裡不用再分版本。
+        // 編輯來源逐條記卡片代號，重開時把卡片標記放回條件上。後端只接受第 2 版的編輯來源，所以這裡不分版本。
         draft.groups.forEach(function (group, gi) {
           var origin = origins.groups[gi];
           group.conditions.forEach(function (rule, ri) { if (origin.cards[ri]) { rule[COMMON_CARD_KEY] = origin.cards[ri]; } });
@@ -752,8 +752,8 @@
         FilterStep.viewState.openScenarios[index] = !body.hidden; // 跨 bump 重繪保留展開狀態
         if (body.hidden) { return; }
 
-        // 首次展開時惰性載入該情境的命中預覽（重用既有 filter.preview，顯示前 10 筆）；
-        // 快取與還原邏輯收斂在 ensureScenarioPreview。
+        // 首次展開時才讀這個情境的命中預覽：有可用的已儲存版本時讀傳票頁第一頁，沒有時用 filter.preview 即時計算；
+        // 快取與還原都在 ensureScenarioPreview。
         ensureScenarioPreview(container, index);
       });
     });

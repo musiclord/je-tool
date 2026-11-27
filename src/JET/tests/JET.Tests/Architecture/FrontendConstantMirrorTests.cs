@@ -13,7 +13,7 @@ public sealed class FrontendConstantMirrorTests
     public void PrescreenThresholds_HaveSeparateFixedDomainAndFrontendMirrors()
     {
         // 第四步照舊版沒有 11 筆以下的人員與科目兩條規則，後端沒有這兩個門檻；
-        // 前端的 preparerMaxEntries 與 accountMaxEntries 只是第五步「依審計目的」兩項的預設，仍是 11。
+        // 前端的 preparerMaxEntries 與 accountMaxEntries 只是第五步欄位條件兩項常用查法的預設，仍是 11。
         // 「分錄金額中有連續 0 的尾數」的 0 的個數照 IDEA 版由 GL 算出，前後端都沒有固定 6 個 0 的常數；
         // 前端讀已確認 GL 配對帶回的個數（trailingZeroDigits）。
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
@@ -55,16 +55,16 @@ public sealed class FrontendConstantMirrorTests
             Assert.Equal(50, NumericConstant(core, key));
             Assert.Contains(key + ": " + key, core, StringComparison.Ordinal);
         }
-        // These are actual endpoint defaults, not inferred from a matching-looking frontend literal.
+        // 這些是 endpoint 實際的預設值，不是從看起來相符的前端字面值推得。
         Assert.Equal(50, HandlerDefault(typeof(MappingValueProfileHandler)));
-        // 明細與欄位配對每頁最多 200 筆；驗證摘要及欄位值取樣的 50 筆設定不變。
+        // 明細與欄位配對每頁最多 200 筆；驗證摘要與欄位值取樣是 50 筆。
         Assert.Equal(200, HandlerDefault(typeof(QueryDataPreviewHandler)));
         Assert.Equal(200, NumericConstant(core, "TABLE_PAGE_SIZE"));
         Assert.Contains("TABLE_PAGE_SIZE: TABLE_PAGE_SIZE", core, StringComparison.Ordinal);
         Assert.Equal(50, HandlerDefault(typeof(DevDbTableDataHandler)));
         Assert.Equal(200, PageRequest.DefaultPageSize);
         Assert.Equal(500, PageRequest.MaxPageSize);
-        // 開發者表格也明示每頁 200 筆，省略 limit 的後端相容預設仍為 50。
+        // 開發者表格也明示每頁 200 筆；省略 limit 時後端預設 50 筆。
         Assert.Contains("limit: Ui.TABLE_PAGE_SIZE", Read("JET", "wwwroot", "js", "dev-panel.js"), StringComparison.Ordinal);
     }
 
@@ -87,7 +87,7 @@ public sealed class FrontendConstantMirrorTests
     [Fact]
     public void ValidationSummaryPreviewRows_UseTheSameDisplayOnlyLimitForAllProviders()
     {
-        // Reflection preserves a compilable first-failure test before introducing this display-only constant.
+        // 用反射取得只供顯示的 ResultPreviewLimits；型別或常數不存在時是斷言失敗，不是編譯錯誤。
         var type = typeof(PageRequest).Assembly.GetType("JET.Domain.ResultPreviewLimits");
         Assert.NotNull(type);
         Assert.Equal(50, type.GetField("SummaryRows", BindingFlags.Public | BindingFlags.Static)?.GetRawConstantValue());

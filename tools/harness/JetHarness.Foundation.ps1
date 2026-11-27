@@ -440,7 +440,7 @@ function Read-JetRegistry {
     if ([string]$excelSettings.driverProject -cne 'tools/harness/excel-driver/ExcelDriver.csproj' -or
         [string]$excelSettings.driverAssembly -cne 'tools/harness/excel-driver/bin/Release/net10.0-windows/Jet.ExcelDriver.dll' -or
         [string]$excelSettings.configuration -cne 'Release' -or
-        [string]$excelSettings.fixtureMethodPattern -cne '*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate*' -or
+        [string]$excelSettings.fixtureMethodPattern -cne '*SixReportWorkflowJourneyTests.AccountMappingHandoff_ExportsSixWorkbooksWithManifest*' -or
         [string]$excelSettings.fixtureEnvironmentVariable -cne 'JET_SIX_REPORT_EVIDENCE_DIR' -or
         $environmentNames -cnotcontains ([string]$excelSettings.fixtureEnvironmentVariable) -or
         [string]$excelSettings.scenario -cne 'synthetic-report-roundtrip' -or

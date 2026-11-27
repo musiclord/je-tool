@@ -38,7 +38,7 @@ internal sealed partial class GlFilterWhereBuilder(
 
         combined ??= "1 = 0";
 
-        // 傳票明細的「本列符合哪些條件」：每條規則各自的述詞，兩值、不推算補分類後的可能性。
+        // 傳票明細的「本列符合哪些條件」：每條規則各自的述詞，結果只有符合與不符合。
         // 整張傳票條件是傳票層條件，其餘都是決定命中列的主要條件。
         var evidence = new List<FilterConditionEvidenceSql>();
         if (includeEvidence)
@@ -119,7 +119,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 return BuildChildren(parameters, rule.Conditions, context, schemaPrefix);
             case FilterConditionType.Voucher:
                 var body = BuildChildren(parameters, rule.Conditions, context, schemaPrefix);
-                // 借貸範圍是已拿掉的舊寫法，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
+                // 傳票條件不接受借貸範圍，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
                 if (rule.Side is not null) throw new InvalidOperationException("傳票判斷範圍無效。");
                 var population = GlPopulationScopeSql.Predicate(context, "g");
                 string Set(string predicate) => $"SELECT g.voucher_number FROM {schemaPrefix}gl g WHERE g.voucher_number IS NOT NULL AND {population} AND ({predicate})";
@@ -135,7 +135,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 // 空白號碼不屬於任何傳票；尤其 NOT IN 空集合不能把它反轉成命中。
                 return $"(g.voucher_number IS NOT NULL AND {quantified})";
             case FilterConditionType.FieldValue:
-                // 分錄方向是已拿掉的舊寫法，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
+                // 欄位值條件不接受分錄方向，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
                 if (rule.DrCr is not null) throw new InvalidOperationException("欄位值條件不帶借貸方向。");
                 return predicates.FieldValue(parameters, rule, context, schemaPrefix);
             case FilterConditionType.AccountSide:
@@ -143,24 +143,6 @@ internal sealed partial class GlFilterWhereBuilder(
             case FilterConditionType.Prescreen:
                 // 十二條預篩選規則的述詞只在 PrescreenRulePredicates 對應一次，第四步計數與這裡同一個方法。
                 return PrescreenRulePredicates.Build(predicates, rule.PrescreenKey!, parameters, context, schemaPrefix);
-
-            case FilterConditionType.Text:
-                GlFieldWhitelist.TryResolve(rule.Field, out var textColumn);
-                return predicates.TextMatch(parameters, textColumn.Column, rule.Keywords, rule.Mode);
-
-            case FilterConditionType.TextSet:
-                GlFieldWhitelist.TryResolve(rule.Field, out var textSetColumn);
-                var normalizedValues = rule.Values
-                    .Select(value => TextSetValueNormalizer.Normalize(value, rule.Normalization))
-                    .ToArray();
-                return predicates.TextMatch(parameters, textSetColumn.Column, normalizedValues, rule.Mode);
-
-            case FilterConditionType.DateRange:
-                GlFieldWhitelist.TryResolve(rule.Field, out var dateColumn);
-                return predicates.DateRange(parameters, dateColumn.Column, rule.FromDate, rule.ToDate);
-
-            case FilterConditionType.NumRange:
-                return predicates.AmountRange(parameters, rule.FromAmountScaled, rule.ToAmountScaled);
 
             case FilterConditionType.DrCrOnly:
                 return predicates.DrCrOnly(parameters, rule.DrCr!);
@@ -211,11 +193,6 @@ internal sealed partial class GlFilterWhereBuilder(
             case FilterConditionType.PreparerEqualsApprover:
                 // 編製與核准同一人：created_by = approved_by（皆非空）。
                 return predicates.PreparerEqualsApprover();
-
-            case FilterConditionType.TypedField:
-                // 攸關資料元素條件：fieldId 要在 context.RdeFields 裡查得到。空白是指這筆分錄在 gl_rde_value 沒有值；
-                // 「不等於」這類否定的比較不會命中空白的分錄。所有值都用參數綁定。
-                return predicates.TypedField(parameters, rule, context, schemaPrefix);
 
             default:
                 throw new InvalidOperationException($"未處理的規則型別 {rule.Type}。");

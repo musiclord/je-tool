@@ -73,13 +73,13 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             CancellationToken.None,
             progress.Add);
 
-        AssertIntermediateBeforeCompletion(progress, stats, Step1Sheet, checkpointRows: 2);
-        AssertIntermediateBeforeCompletion(progress, stats, Step4Sheet, checkpointRows: 2);
-        AssertIntermediateBeforeCompletion(progress, stats, Step41Sheet, checkpointRows: 2);
+        AssertIntermediateBeforeCompletion(progress, stats, CompletenessSheet, checkpointRows: 2);
+        AssertIntermediateBeforeCompletion(progress, stats, HighRiskVoucherSheet, checkpointRows: 2);
+        AssertIntermediateBeforeCompletion(progress, stats, HighRiskVoucherDetailSheet, checkpointRows: 2);
     }
 
     [Fact]
-    public async Task WriteAsync_Step4ReportsSheetStartBeforeFirstRowOrCompletion()
+    public async Task WriteAsync_HighRiskVoucherSheetReportsStartBeforeFirstRowOrCompletion()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupContinuationProjectAsync(host, voucherCount: 3);
@@ -97,26 +97,26 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             CancellationToken.None,
             progress.Add);
 
-        var step3Completion = Assert.Single(
+        var highRiskSummaryCompletion = Assert.Single(
             progress,
-            update => update.SheetName == Step3Sheet);
-        var step4Updates = progress
-            .Where(update => update.SheetName == Step4Sheet)
+            update => update.SheetName == HighRiskSummarySheet);
+        var highRiskVoucherUpdates = progress
+            .Where(update => update.SheetName == HighRiskVoucherSheet)
             .ToArray();
         var start = Assert.Single(
-            step4Updates,
-            update => update.SheetsCompleted == step3Completion.SheetsCompleted
+            highRiskVoucherUpdates,
+            update => update.SheetsCompleted == highRiskSummaryCompletion.SheetsCompleted
                       && update.RowsWritten == 0);
         var completion = Assert.Single(
-            step4Updates,
-            update => update.SheetsCompleted == step3Completion.SheetsCompleted + 1);
+            highRiskVoucherUpdates,
+            update => update.SheetsCompleted == highRiskSummaryCompletion.SheetsCompleted + 1);
         Assert.True(
             progress.IndexOf(start) < progress.IndexOf(completion),
             "Step4 sheet-start checkpoint must precede its first completion event.");
     }
 
     [Fact]
-    public async Task FinalizedStep4_StreamsOnceAndLateLongTextUsesFullDataWidths()
+    public async Task FinalizedHighRiskVoucher_StreamsOnceAndLateLongTextUsesFullDataWidths()
     {
         const int voucherCount = 757;
         using var host = new HandlerTestHost();
@@ -142,7 +142,7 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             ("@preparer", longPreparer),
             ("@originalVoucherNumber", $"PAGE-{voucherCount:000}"));
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        var captured = new CapturingStep4StreamRepository(
+        var captured = new CapturingHighRiskVoucherStreamRepository(
             new LocalHighRiskSummaryVoucherPageRepository(database));
         var context = await CurrentContextForAsync(host, projectId);
         var plan = await CurrentPlanForAsync(host, context);
@@ -163,43 +163,43 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             voucherCount,
             Assert.Single(
                 stats.SheetStats,
-                item => item.SheetName == Step4Sheet).RowsWritten);
+                item => item.SheetName == HighRiskVoucherSheet).RowsWritten);
 
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
-        var step3 = workbook.Worksheet(Step3Sheet);
-        Assert.Equal(longScenarioName, step3.Cell("C19").GetString());
-        Assert.Equal(longScenarioRationale, step3.Cell("D19").GetString());
-        // step3 的工作表外觀對齊舊流程，條件與原因欄分別以 60 與 50 為上限並換行：
+        var highRiskSummary = workbook.Worksheet(HighRiskSummarySheet);
+        Assert.Equal(longScenarioName, highRiskSummary.Cell("C19").GetString());
+        Assert.Equal(longScenarioRationale, highRiskSummary.Cell("D19").GetString());
+        // step3 的條件與原因欄分別以 60 與 50 為上限並換行：
         // 56 個全形字約 112 字寬，扣掉留白後每行約 50 字寬，換成 3 行，
         // 11 點字每行 16.5 點，所以第 19 列是 49.5 點。數量欄與 step4 的長文字仍依全部資料決定欄寬。
-        Assert.InRange(step3.Column(3).Width, 60D - 1.5D, 60D + 1.5D);
-        Assert.InRange(step3.Column(4).Width, 50D - 1.5D, 50D + 1.5D);
-        Assert.True(step3.Cell("C19").Style.Alignment.WrapText);
-        Assert.True(step3.Cell("D19").Style.Alignment.WrapText);
-        Assert.Equal(49.5D, step3.Row(19).Height);
-        AssertSafeCountColumn(step3, 5);
-        AssertSingleLine(step3.Cell("E19"));
+        Assert.InRange(highRiskSummary.Column(3).Width, 60D - 1.5D, 60D + 1.5D);
+        Assert.InRange(highRiskSummary.Column(4).Width, 50D - 1.5D, 50D + 1.5D);
+        Assert.True(highRiskSummary.Cell("C19").Style.Alignment.WrapText);
+        Assert.True(highRiskSummary.Cell("D19").Style.Alignment.WrapText);
+        Assert.Equal(49.5D, highRiskSummary.Row(19).Height);
+        AssertSafeCountColumn(highRiskSummary, 5);
+        AssertSingleLine(highRiskSummary.Cell("E19"));
 
-        var step4 = workbook.Worksheet(Step4Sheet);
-        Assert.Equal("PAGE-001", step4.Cell("B13").GetString());
-        Assert.Equal(longVoucherNumber, step4.Cell(12 + voucherCount, 2).GetString());
-        Assert.Equal(longPreparer, step4.Cell(12 + voucherCount, 4).GetString());
-        Assert.Equal(voucherCount, step4.Cell(12 + voucherCount, 1).GetValue<int>());
-        Assert.Equal("Y", step4.Cell("F13").GetString());
-        AssertFullDataWidth(step4, 2, longVoucherNumber);
-        AssertFullDataWidth(step4, 4, longPreparer);
-        AssertSafeAmountColumn(step4, 5);
-        AssertSingleLine(step4.Cell(12 + voucherCount, 2));
-        AssertSingleLine(step4.Cell(12 + voucherCount, 4));
-        AssertSingleLine(step4.Cell(12 + voucherCount, 5));
-        AssertSingleLine(step4.Cell(12 + voucherCount, 16));
+        var highRiskVoucher = workbook.Worksheet(HighRiskVoucherSheet);
+        Assert.Equal("PAGE-001", highRiskVoucher.Cell("B13").GetString());
+        Assert.Equal(longVoucherNumber, highRiskVoucher.Cell(12 + voucherCount, 2).GetString());
+        Assert.Equal(longPreparer, highRiskVoucher.Cell(12 + voucherCount, 4).GetString());
+        Assert.Equal(voucherCount, highRiskVoucher.Cell(12 + voucherCount, 1).GetValue<int>());
+        Assert.Equal("Y", highRiskVoucher.Cell("F13").GetString());
+        AssertFullDataWidth(highRiskVoucher, 2, longVoucherNumber);
+        AssertFullDataWidth(highRiskVoucher, 4, longPreparer);
+        AssertSafeAmountColumn(highRiskVoucher, 5);
+        AssertSingleLine(highRiskVoucher.Cell(12 + voucherCount, 2));
+        AssertSingleLine(highRiskVoucher.Cell(12 + voucherCount, 4));
+        AssertSingleLine(highRiskVoucher.Cell(12 + voucherCount, 5));
+        AssertSingleLine(highRiskVoucher.Cell(12 + voucherCount, 16));
     }
 
     [Theory]
-    [InlineData(Step12Sheet)]
-    [InlineData(Step4Sheet)]
-    [InlineData(Step41Sheet)]
+    [InlineData(PreparerSummarySheet)]
+    [InlineData(HighRiskVoucherSheet)]
+    [InlineData(HighRiskVoucherDetailSheet)]
     [InlineData(CalendarInfoSheet)]
     public async Task WriteAsync_CancelDuringCollectionBackedSheet_StopsBeforeSheetCompletion(string targetSheet)
     {
@@ -255,7 +255,7 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
         void OnProgress(WorkingPaperProgress update)
         {
             progress.Add(update);
-            if (update.SheetName == Step4Sheet && update.RowsWritten == 1)
+            if (update.SheetName == HighRiskVoucherSheet && update.RowsWritten == 1)
             {
                 cancellation.Cancel();
             }
@@ -269,9 +269,9 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             OnProgress));
 
         var intermediate = Assert.Single(progress, update =>
-            update.SheetName == Step4Sheet && update.RowsWritten == 1);
+            update.SheetName == HighRiskVoucherSheet && update.RowsWritten == 1);
         Assert.DoesNotContain(progress, update =>
-            update.SheetName == Step4Sheet
+            update.SheetName == HighRiskVoucherSheet
             && update.SheetsCompleted > intermediate.SheetsCompleted);
     }
 
@@ -299,12 +299,12 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
         var context = await CurrentContextForAsync(host, projectId);
         var plan = await CurrentPlanForAsync(host, context, completenessDiffs);
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        var capturedStep41 = new CapturingStep41PreparedRepository(
+        var capturedHighRiskVoucherDetail = new CapturingHighRiskVoucherDetailPreparedRepository(
             new LocalHighRiskSummaryRowPageRepository(database));
         var writer = (IWorkingPaperPlanWriter)BuildWriter(
             host,
             new WorkingPaperWriterOptions(continuationRowLimit),
-            highRiskSummaryRowsOverride: capturedStep41,
+            highRiskSummaryRowsOverride: capturedHighRiskVoucherDetail,
             completenessDiffsOverride: completenessDiffs);
         var stats = await writer.WriteAsync(
             stream,
@@ -312,20 +312,19 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             plan,
             CancellationToken.None);
 
-        var step4Stats = stats.SheetStats.Where(stat => IsSheetSeries(stat.SheetName, Step4Sheet)).ToList();
-        var step41Stats = stats.SheetStats.Where(stat => IsSheetSeries(stat.SheetName, Step41Sheet)).ToList();
-        Assert.True(step4Stats.Count > 1, "縮小列上限後 step4 應建立續頁");
-        Assert.True(step41Stats.Count > 1, "縮小列上限後 step4-1 應建立續頁");
-        Assert.Equal(26L, step4Stats.Sum(stat => stat.RowsWritten));
-        Assert.Equal(52L, step41Stats.Sum(stat => stat.RowsWritten));
-        Assert.All(step4Stats, stat => Assert.InRange(stat.RowsWritten, 1L, 13L));
-        Assert.All(step41Stats, stat => Assert.InRange(stat.RowsWritten, 1L, 20L));
-        Assert.Equal(step4Stats.Count, step4Stats.Select(stat => stat.SheetName).Distinct().Count());
-        Assert.Equal(step41Stats.Count, step41Stats.Select(stat => stat.SheetName).Distinct().Count());
-        Assert.Equal(0, capturedStep41.TypedPageCalls);
-        var preparedMetrics = Assert.IsType<WorkingPaperStep41PreparedSessionMetrics>(
-            capturedStep41.Metrics);
-        Assert.Equal(1, preparedMetrics.SchemaReadinessCommands);
+        var highRiskVoucherStats = stats.SheetStats.Where(stat => IsSheetSeries(stat.SheetName, HighRiskVoucherSheet)).ToList();
+        var highRiskVoucherDetailStats = stats.SheetStats.Where(stat => IsSheetSeries(stat.SheetName, HighRiskVoucherDetailSheet)).ToList();
+        Assert.True(highRiskVoucherStats.Count > 1, "縮小列上限後 step4 應建立續頁");
+        Assert.True(highRiskVoucherDetailStats.Count > 1, "縮小列上限後 step4-1 應建立續頁");
+        Assert.Equal(26L, highRiskVoucherStats.Sum(stat => stat.RowsWritten));
+        Assert.Equal(52L, highRiskVoucherDetailStats.Sum(stat => stat.RowsWritten));
+        Assert.All(highRiskVoucherStats, stat => Assert.InRange(stat.RowsWritten, 1L, 13L));
+        Assert.All(highRiskVoucherDetailStats, stat => Assert.InRange(stat.RowsWritten, 1L, 20L));
+        Assert.Equal(highRiskVoucherStats.Count, highRiskVoucherStats.Select(stat => stat.SheetName).Distinct().Count());
+        Assert.Equal(highRiskVoucherDetailStats.Count, highRiskVoucherDetailStats.Select(stat => stat.SheetName).Distinct().Count());
+        Assert.Equal(0, capturedHighRiskVoucherDetail.TypedPageCalls);
+        var preparedMetrics = Assert.IsType<WorkingPaperHighRiskVoucherDetailPreparedSessionMetrics>(
+            capturedHighRiskVoucherDetail.Metrics);
         Assert.Equal(1, preparedMetrics.Connections);
         Assert.Equal(1, preparedMetrics.Transactions);
         Assert.Equal(1, preparedMetrics.TemporaryTableInitializationCommands);
@@ -346,7 +345,6 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
         Assert.True(preparedMetrics.TemporaryObjectsCleared);
         Assert.Equal(
             [
-                "schemaReadiness",
                 "initializeTemporaryTables",
                 "materializeHitVouchers",
                 "materializeRowTags",
@@ -354,17 +352,17 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
                 "cleanup"
             ],
             preparedMetrics.Commands.Select(command => command.Operation));
-        Assert.All(step4Stats.Concat(step41Stats), stat =>
+        Assert.All(highRiskVoucherStats.Concat(highRiskVoucherDetailStats), stat =>
             Assert.InRange(stat.SheetName.Length, 1, ExcelWorksheetConstraints.MaxSheetNameLength));
 
         var expectedContinuedSeries = new[]
         {
-            Step1Sheet,
-            Step11Sheet,
-            Step12Sheet,
-            Step13Sheet,
-            Step4Sheet,
-            Step41Sheet,
+            CompletenessSheet,
+            VoucherBalanceSheet,
+            PreparerSummarySheet,
+            CompletenessDifferenceSheet,
+            HighRiskVoucherSheet,
+            HighRiskVoucherDetailSheet,
             CalendarInfoSheet,
             AccountMappingSheet
         };
@@ -373,18 +371,18 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             Assert.True(stats.SheetStats.Count(stat => IsSheetSeries(stat.SheetName, baseName)) > 1,
                 $"{baseName} 的合成資料超過本測試列容量，應建立續頁");
         }
-        Assert.Equal(27L, SumSeriesRows(stats, Step1Sheet));
-        Assert.Equal(26L, SumSeriesRows(stats, Step11Sheet));
-        Assert.Equal(26L, SumSeriesRows(stats, Step12Sheet));
-        Assert.Equal(26L, SumSeriesRows(stats, Step13Sheet));
+        Assert.Equal(27L, SumSeriesRows(stats, CompletenessSheet));
+        Assert.Equal(26L, SumSeriesRows(stats, VoucherBalanceSheet));
+        Assert.Equal(26L, SumSeriesRows(stats, PreparerSummarySheet));
+        Assert.Equal(26L, SumSeriesRows(stats, CompletenessDifferenceSheet));
         Assert.Equal(36L, SumSeriesRows(stats, CalendarInfoSheet));
         Assert.Equal(27L, SumSeriesRows(stats, AccountMappingSheet));
 
         stream.Position = 0;
         using (var workbook = new XLWorkbook(stream))
         {
-            var step4Ordinals = new List<long>();
-            foreach (var stat in step4Stats)
+            var highRiskVoucherOrdinals = new List<long>();
+            foreach (var stat in highRiskVoucherStats)
             {
                 var sheet = workbook.Worksheet(stat.SheetName);
                 Assert.Equal("傳票號碼", sheet.Cell("B11").GetString());
@@ -393,33 +391,33 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
                     "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)"
                     + "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",
                     sheet.Cell("A12").GetString());
-                if (!string.Equals(stat.SheetName, Step4Sheet, StringComparison.Ordinal))
+                if (!string.Equals(stat.SheetName, HighRiskVoucherSheet, StringComparison.Ordinal))
                 {
                     Assert.True((sheet.LastRowUsed()?.RowNumber() ?? 0) <= continuationRowLimit);
                 }
                 for (var row = 13; row < 13 + stat.RowsWritten; row++)
                 {
-                    step4Ordinals.Add(sheet.Cell(row, 1).GetValue<long>());
+                    highRiskVoucherOrdinals.Add(sheet.Cell(row, 1).GetValue<long>());
                 }
             }
-            Assert.Equal(Enumerable.Range(1, 26).Select(value => (long)value), step4Ordinals);
+            Assert.Equal(Enumerable.Range(1, 26).Select(value => (long)value), highRiskVoucherOrdinals);
 
-            var step41Keys = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var stat in step41Stats)
+            var highRiskVoucherDetailKeys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var stat in highRiskVoucherDetailStats)
             {
                 var sheet = workbook.Worksheet(stat.SheetName);
                 Assert.Equal("傳票號碼_JE", sheet.Cell("A5").GetString());
-                if (!string.Equals(stat.SheetName, Step41Sheet, StringComparison.Ordinal))
+                if (!string.Equals(stat.SheetName, HighRiskVoucherDetailSheet, StringComparison.Ordinal))
                 {
                     Assert.True((sheet.LastRowUsed()?.RowNumber() ?? 0) <= continuationRowLimit);
                 }
                 for (var row = 6; row < 6 + stat.RowsWritten; row++)
                 {
-                    Assert.True(step41Keys.Add($"{sheet.Cell(row, 1).GetString()}\u001f{sheet.Cell(row, 2).GetString()}"),
+                    Assert.True(highRiskVoucherDetailKeys.Add($"{sheet.Cell(row, 1).GetString()}\u001f{sheet.Cell(row, 2).GetString()}"),
                         "step4-1 續頁不得重複傳票行");
                 }
             }
-            Assert.Equal(52, step41Keys.Count);
+            Assert.Equal(52, highRiskVoucherDetailKeys.Count);
 
             foreach (var baseName in new[] { CalendarInfoSheet, AccountMappingSheet })
             {
@@ -439,15 +437,15 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
         stream.Position = 0;
         using var document = SpreadsheetDocument.Open(stream, false);
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        foreach (var stat in step4Stats.Concat(step41Stats))
+        foreach (var stat in highRiskVoucherStats.Concat(highRiskVoucherDetailStats))
         {
             var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
                 .Single(item => item.Name?.Value == stat.SheetName);
             var part = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!));
             var worksheet = part.RequiredWorksheet();
             Assert.NotNull(worksheet.Elements<Columns>().SingleOrDefault());
-            if (!string.Equals(stat.SheetName, Step4Sheet, StringComparison.Ordinal)
-                && !string.Equals(stat.SheetName, Step41Sheet, StringComparison.Ordinal))
+            if (!string.Equals(stat.SheetName, HighRiskVoucherSheet, StringComparison.Ordinal)
+                && !string.Equals(stat.SheetName, HighRiskVoucherDetailSheet, StringComparison.Ordinal))
             {
                 Assert.Empty(worksheet.Elements<SheetViews>());
                 Assert.Empty(worksheet.Descendants<Pane>());
@@ -457,7 +455,7 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             // 照舊版只保護 step4，step4-1 不保護。
             // step4 的下拉選單照範本的兩組選項。
             // 這一頁的傳票沒有超過範本第 27 列，所以範圍和範本相同。
-            if (IsSheetSeries(stat.SheetName, Step4Sheet))
+            if (IsSheetSeries(stat.SheetName, HighRiskVoucherSheet))
             {
                 Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
             }
@@ -467,7 +465,7 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             }
 
             var validations = worksheet.Descendants<DataValidation>().ToArray();
-            if (IsSheetSeries(stat.SheetName, Step4Sheet))
+            if (IsSheetSeries(stat.SheetName, HighRiskVoucherSheet))
             {
                 Assert.Equal(
                     new (string?, string?)[] { ("P12:P27 Q13:R27", "\"v,no,n/a\""), ("S12:S27", "\"Yes,No\"") },
@@ -480,9 +478,9 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
                 Assert.Empty(validations);
             }
 
-            if (IsSheetSeries(stat.SheetName, Step4Sheet))
+            if (IsSheetSeries(stat.SheetName, HighRiskVoucherSheet))
             {
-                if (!string.Equals(stat.SheetName, Step4Sheet, StringComparison.Ordinal))
+                if (!string.Equals(stat.SheetName, HighRiskVoucherSheet, StringComparison.Ordinal))
                 {
                     AssertCellUnlocked(workbookPart, worksheet, "P13");
                     AssertCellNumberFormat(workbookPart, worksheet, "E13", "#,##0.0000");
@@ -490,13 +488,13 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             }
             else
             {
-                if (!string.Equals(stat.SheetName, Step41Sheet, StringComparison.Ordinal))
+                if (!string.Equals(stat.SheetName, HighRiskVoucherDetailSheet, StringComparison.Ordinal))
                 {
-                    var amountColumn = plan.Step41Columns
+                    var amountColumn = plan.HighRiskVoucherDetailColumns
                         .Select((column, index) => (column, index))
                         .Single(item =>
                             item.column.ValueSource
-                            == WorkingPaperStep41ValueSource.SignedAmount)
+                            == WorkingPaperHighRiskVoucherDetailValueSource.SignedAmount)
                         .index + 1;
                     var amountReference = $"{ColumnLetters(amountColumn)}6";
                     AssertCellNumberFormat(
@@ -507,11 +505,11 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
                 }
             }
 
-            var headerRow = IsSheetSeries(stat.SheetName, Step4Sheet) ? 11U : 5U;
+            var headerRow = IsSheetSeries(stat.SheetName, HighRiskVoucherSheet) ? 11U : 5U;
             var row = worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
                 .First(item => item.RowIndex?.Value == headerRow);
-            if (!string.Equals(stat.SheetName, Step4Sheet, StringComparison.Ordinal)
-                && !string.Equals(stat.SheetName, Step41Sheet, StringComparison.Ordinal))
+            if (!string.Equals(stat.SheetName, HighRiskVoucherSheet, StringComparison.Ordinal)
+                && !string.Equals(stat.SheetName, HighRiskVoucherDetailSheet, StringComparison.Ordinal))
             {
                 Assert.Equal(42d, row.Height!.Value);
             }
@@ -523,13 +521,13 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
 
         // 這個案件沒有配對人工傳票欄位，step1-2 的 C 欄留白，但照舊版和 B12:E 一起鎖定。
         // 這裡確認 C12 鎖定；F 到 H 欄仍可填。
-        AssertEditableCells(workbookPart, Step12Sheet, ["F12", "G12", "H12"]);
-        var step12 = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
-            .Single(item => item.Name?.Value == Step12Sheet);
-        var step12Worksheet = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(step12.Id!.Value!)).RequiredWorksheet();
-        Assert.Null(CellFor(step12Worksheet, "C12").CellValue);
-        Assert.True(ResolveCellFormat(workbookPart, CellFor(step12Worksheet, "C12")).Protection?.Locked?.Value ?? true);
-        AssertEditableCells(workbookPart, Step13Sheet, ["E17", "F17", "G17"]);
+        AssertEditableCells(workbookPart, PreparerSummarySheet, ["F12", "G12", "H12"]);
+        var preparerSummary = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
+            .Single(item => item.Name?.Value == PreparerSummarySheet);
+        var preparerSummaryWorksheet = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(preparerSummary.Id!.Value!)).RequiredWorksheet();
+        Assert.Null(CellFor(preparerSummaryWorksheet, "C12").CellValue);
+        Assert.True(ResolveCellFormat(workbookPart, CellFor(preparerSummaryWorksheet, "C12")).Protection?.Locked?.Value ?? true);
+        AssertEditableCells(workbookPart, CompletenessDifferenceSheet, ["E17", "F17", "G17"]);
     }
 
     [Fact]
@@ -546,7 +544,7 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
         Assert.InRange(name.Length, 1, ExcelWorksheetConstraints.MaxSheetNameLength);
         Assert.DoesNotContain('/', name);
         Assert.EndsWith(" (續12)", name, StringComparison.Ordinal);
-        Assert.Equal(Step4Sheet, ExcelWorksheetConstraints.ContinuationSheetName(Step4Sheet, 1));
+        Assert.Equal(HighRiskVoucherSheet, ExcelWorksheetConstraints.ContinuationSheetName(HighRiskVoucherSheet, 1));
     }
 
 }

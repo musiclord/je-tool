@@ -17,7 +17,7 @@ public sealed record DevTablePage(
     int Offset);
 
 /// <summary>
-/// 開發階段 SQLite 檢視工具的抽象。GetTablePageAsync 回傳 null
+/// 開發者工具檢視 SQLite 用的介面，只有 Debug 組建會開放這個工具。GetTablePageAsync 回傳 null
 /// 表示 tableName 不在白名單（呼叫端轉 table_not_allowed）。
 /// </summary>
 public interface IDevDatabaseInspector

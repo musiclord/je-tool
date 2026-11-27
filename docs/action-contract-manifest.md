@@ -8,10 +8,8 @@
 精確的 `payload`（參數）與回應格式，應由對應處理器、Domain 契約和測試共同確認。修改 action 時，
 必須在同一個變更中更新本檔、`wwwroot/js/jet-api.js`、處理器註冊與相應測試，不能只改其中一邊。
 
-每個 action 由一個處理器類別負責。類別名稱是把 action 以句點分開的每一段首字改大寫後相連，再接 `Handler`，
-例如 `import.accountMapping.fromFile` 的處理器是 `ImportAccountMappingFromFileHandler`。一個檔案只放一個處理器時，
-檔名就是類別名稱；放多個處理器時，檔名寫這幾個處理器共同的主題再接 `Handlers`，例如 `ImportCalendarHandlers.cs`。
-`HandlerNamingTests` 逐一核對註冊的處理器有沒有照這兩條規則命名。
+每個 action 由一個處理器類別負責，例如 `import.accountMapping.fromFile` 的處理器是 `ImportAccountMappingFromFileHandler`。
+處理器的類別與檔名怎麼取，以及 action 名稱的寫法，見[命名規則](naming-conventions.md)；`HandlerNamingTests` 逐一核對註冊的處理器。
 
 正式後端實際收到與回應的欄位和型別，由 `ActionShapeContractTests` 走一遍合成案件後記在
 `src/JET/tests/JET.Tests/Fixtures/action-shapes.json`，前端測試的假後端都用它核對。改了 `payload` 或回應的欄位時，
@@ -505,8 +503,6 @@ xlsx 儲存格型別 `t="d"` 的值是日期文字，讀取器照原文存進 PB
 SQLite 在資料庫內先用 .NET 的比對鍵彙總全部來源，再取常見值與計算不同值數量，大小寫等價的值不分成兩組。
 `checkSourceValues: true` 必須搭配 `comparisonValues`，不能與 `comparisonOnly: true` 同時使用；它另外核對完整來源，
 回傳 `missingComparisonValues` 及 `sourceValueCheckStatus: "checked"`，不能拿前 50 個顯示值推定某個代碼不存在。
-資料庫實作沒有這項核對時，原摘要仍可讀取，但 `missingComparisonValues` 回 null，狀態為 `unsupportedProvider`；
-畫面須寫尚未核對，不得當成缺值或空清單。目前只有 SQLite，它會核對，所以不會出現這個狀態。
 `comparisonOnly: true` 時必須提供 `comparisonValues`，只回 `sourceColumn`、`comparisonGroups` 和 `comparisonKeys`；
 此模式仍要求已開啟案件，但不查匯入批次、不讀母體、不保存或驗證政策。100 是這項呈現資料的單次傳輸上限，
 不是人工、自動或過帳政策可保存的代碼上限。畫面將較長清單分批送出；只取得文字等價對應時不重查母體，核對來源是否存在時才另行查詢。
@@ -813,12 +809,9 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 | `specialAccountCategoryPair` | `pairMode`、`debitCategoryIds[]`、`creditCategoryIds[]` | `drAndCr`（借方是 A 且貸方是 B）、`drNotCr`（借方是 A 且整張傳票沒有 B 貸方）、`notDrCr`（貸方是 B 且整張傳票沒有 A 借方）。`drNotCr` 標記 A 類借方與同一張傳票貸方那一側的全部分錄，`notDrCr` 標記 B 類貸方與同一張傳票借方那一側的全部分錄，和 `accountPair` 的 `debitAnchor`、`creditAnchor` 相同（裁定 2026-11-05-45） |
 | `accountPair` | `pairMode`、`debitCategoryIds[]`、`creditCategoryIds[]` | `exact`（舊情境讀回用，不再新建）、`debitAnchor`（借方是 A，看它的對方科目）、`creditAnchor`（貸方是 B，看它的對方科目） |
 | `prescreen` | `prescreenKey` | 預篩選規則鍵 |
-| `text`、`textSet` | `keywords`（逗號分隔）、`mode`、`values[]`、`normalization` | `mode` 為 `contains`、`exact`、`notContains`、`notExact`；舊情境讀回與編輯用，不提供新建 |
-| `numRange`、`dateRange` | `field`、`from`、`to` | 金額以顯示值字串，日期為 ISO 字串；區間含兩端 |
 | `drCrOnly`、`manualAuto` | `drCr`、`isManual` | `debit` 或 `credit`；布林 |
 | `revenueDebitNearQuarterEnd` | `windowDays` | 整數門檻，範圍由 Domain 驗證 |
 | `revenueWithoutNormalCounterpart`、`manualRevenueEntry`、`preparerEqualsApprover` | 無 | 固定規則 |
-| `typed` | `fieldId`、`operator`、`value`、`values`、`from`、`to`、`amountBasis` | 2026-08-14 凍結的攸關資料元素欄位條件，契約不變 |
 
 `fieldValue` 日期另支援 `isWeekend`、`isHoliday`、`isMakeupDay`、`isNonBusinessDay` 及各自的 `isNot…` 否定形式，
 不帶值參數。週末依第二步設定的每週休息日；國定假日、補班日依第二步上傳的清單；非營業日為週末或國定假日再排除補班日。
@@ -873,8 +866,9 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 `none` 加上該側與反向條件在沒有該側分錄時也會成立；要排除這種傳票，須再加一個 `any` 確認該側至少有一筆，並留意空白值是否列入反向條件。
 
 已停用的寫法包括 `sameVoucher`、欄位附帶借貸方向、分類附帶方向或 `absent`、傳票附帶 `side`、核心金額 `signed`，
-以及 `customKeywords`、`customTrailingZeros`、`trailingDigits`、`customPreparerEntryCount`、`customAccountEntryCount`。
-這些寫法不讀回，也不寫出替代操作（裁定 2026-10-30-25）。五種停用的型別在解析時就回 `invalid_scenario`，
+以及 `customKeywords`、`customTrailingZeros`、`trailingDigits`、`customPreparerEntryCount`、`customAccountEntryCount`，
+還有早期版本的 `text`、`textSet`、`dateRange`、`numRange`、`typed`（裁定 2026-11-26-10）。
+這些寫法不讀回，也不寫出替代操作（裁定 2026-10-30-25）。這十種停用的型別在解析時就回 `invalid_scenario`，
 原因是「此條件的類型已停用，請刪除此條件」；其餘寫法當成無法讀取的條件，那一條寫「此條件內容有誤，無法儲存。請刪除此條件後重新設定。」
 開案時經既有待修正檢查列出問題，原因寫「條件內容無法讀取」或上面那句，保留原定義，不自動轉換。
 
@@ -974,7 +968,7 @@ filter.scenario.recheck { populationScope?: "auditPeriod" }
 沒有已儲存情境也能匯出底稿（裁定 2026-10-29-16）：這時 `scenarioRevision` 送 null 或不送，`scenarioPositions` 送空陣列，
 回應的 `publishedReport.sourceRef.scenarioRevision` 是 null；之後一儲存情境，這份底稿就標成過期。
 有情境時 `scenarioRevision` 仍必須是目前版本，送 null 回 `stale_result`。有情境但一個都沒勾選時也照樣匯出（裁定 2026-10-30-15），
-`scenarioPositions` 可以是空陣列。兩種情況的底稿第三步與第四步只留表頭。
+`scenarioPositions` 可以是空陣列。兩種情況的底稿 step3 高風險條件彙總與 step4 符合高風險條件傳票只留表頭。
 底稿需要重算時只重算 `scenarioPositions` 所選情境，未選情境不參與本次來源欄位驗證，也不刪除其命中。
 回應 `filterResultsCurrent` 表示全案結果是否目前有效；false 不代表本次底稿失敗，前端不得因此清除全案失效旗標。
 底稿的 `sourceRef.filterDataRevision` 保存既有篩選資料版本，搭配驗證 run、情境版本及位置判斷來源有效性。

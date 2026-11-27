@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// TB legacy 金額模式 OpenClose（legacy SA=2）與 OpenCloseBySide（legacy SA=4）的窄流程驗收：
+/// TB legacy 金額模式 OpenClose（legacy SA=2）與 OpenCloseBySide（legacy SA=4）的窄流程測試：
 /// 匯入 TB，用這兩種模式執行 mapping.commit.tb，再讀回 tb.change_amount_scaled。
 /// oracle：規格（舊版 JET 的換算式）與手算的固定資料集。
 /// 斷言核對每個科目編號對應的變動 scaled 值。scale=10000（HandlerTestHost 預設）。
@@ -168,7 +168,7 @@ public sealed class TbOpenCloseMappingTests
 
     /// <summary>
     /// 寬表等價性（metamorphic oracle）：同一科目用 DirectChange（直接給 +500 變動）與 OpenClose
-    /// （期初 1000／期末 1500）算出相同 tb.change_amount_scaled。兩案各自獨立專案。
+    /// （期初 1000／期末 1500）算出相同 tb.change_amount_scaled。兩案各自是獨立的案件。
     /// </summary>
     [Fact]
     public async Task OpenClose_IsEquivalentToDirectChange_ForSameNetMovement()

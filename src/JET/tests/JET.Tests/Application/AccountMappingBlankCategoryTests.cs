@@ -45,7 +45,7 @@ public sealed class AccountMappingBlankCategoryTests
         Assert.Equal(JsonValueKind.Null, next.GetProperty("nextCursor").ValueKind);
 
         // 留白視為 Others：貸方「不屬於 Cash」兩張都命中，沒有待判定。
-        // 借貸方向與傳票佐證用明示寫法。
+        // 借貸方向用 drCrOnly 寫明，對方科目用整張傳票條件（voucher）找。
         var scenario = JsonDocument.Parse("""
           {"name":"Blank as others","rationale":"Synthetic","groups":[{"conditions":[
             {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},

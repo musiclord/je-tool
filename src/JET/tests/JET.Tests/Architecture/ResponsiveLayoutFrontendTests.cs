@@ -4,8 +4,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 多倍率縮放的靜態版面守衛。這裡只鎖定 shrink／wrap／own-scroll／containment
-/// 原語；實際 75%–200% WebView2 ZoomFactor 與 Windows DPI 仍由人工矩陣驗收。
+/// 多倍率縮放的靜態版面檢查。這裡只檢查收縮、換行、自己捲動與 containment 這幾種版面寫法；
+/// 實際 75% 到 200% 的 WebView2 ZoomFactor 與 Windows DPI 不在這裡檢查。
 /// </summary>
 public sealed class ResponsiveLayoutFrontendTests
 {
@@ -156,10 +156,7 @@ public sealed class ResponsiveLayoutFrontendTests
             ".overview__pipeline",
             "grid-template-columns",
             @"repeat\(\s*2\s*,\s*minmax\(\s*0[^;]*");
-        Assert.True(
-            HasResponsiveExit(css, ".overview-bi__head") ||
-            OwnsHorizontalOverflow(css, ".overview-bi__tabs"),
-            "overview BI 標題列必須可換行／堆疊，或讓 tabs 在自身範圍內水平捲動。");
+        AssertOwnsHorizontalOverflow(css, ".overview-bi__tabs");
     }
 
     [Fact]
@@ -186,9 +183,9 @@ public sealed class ResponsiveLayoutFrontendTests
     }
 
     /// <summary>
-    /// 視窗放大縮小時會對不齊的情形：寬視窗中欄右側空出一塊、單列標題列的案件摘要比標誌與操作組高、
-    /// 窄視窗時步驟列的箭頭掉到下一行、案件摘要換行後下一行縮排、驗證清單沒有「檢視」時狀態標籤沒有貼齊右緣、
-    /// 長狀態文字把「檢視」推出卡片。這裡鎖住讓這些對齊線在任何寬度下都不移動的版面原語。
+    /// 視窗放大縮小時，這些對齊線都不移動：寬視窗時中欄右側不空出一塊；單列標題列的案件摘要不比標誌與操作組高；
+    /// 窄視窗時步驟列的箭頭不掉到下一行；案件摘要換行後下一行不縮排；驗證清單沒有「檢視」時，狀態標籤貼齊右緣；
+    /// 長狀態文字不把「檢視」推出卡片。這裡檢查做到這些的版面寫法。
     /// </summary>
     [Fact]
     public void AlignmentLines_StayPutAcrossWindowWidths()

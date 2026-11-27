@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 搬遷程式時留下的 golden characterization：鎖住條件左折疊、參數與 null-record SQL，
-/// 讓 namespace／檔案位置改變時不會順帶改變 SQL 行為。
+/// 條件編譯的固定答案測試：鎖住條件左折疊、參數與 null-record SQL，
+/// 讓命名空間或檔案位置改變時不會順帶改變 SQL 行為。
 /// </summary>
 public sealed class FilterCompilationTests
 {
@@ -28,7 +28,7 @@ public sealed class FilterCompilationTests
                 new FilterGroupSpec(FilterJoin.And,
                 [
                     TextRule("alpha"),
-                    AmountRule(100) with { Join = FilterJoin.Or }
+                    AmountRule("0.01") with { Join = FilterJoin.Or }
                 ]),
                 new FilterGroupSpec(FilterJoin.Or,
                 [
@@ -42,9 +42,12 @@ public sealed class FilterCompilationTests
 
         var plan = builder.BuildPlan(scenario, Context);
 
+        // 欄位值條件先判斷空白（空白不列入）再比較；文字的空白判定走 SQLite 方言的 Trim。
+        var text = "(CASE WHEN ((g.description IS NULL OR " + SqliteDialect.Instance.Trim("g.description") + " = '')) THEN 0 "
+            + "WHEN ((instr(UPPER(COALESCE(g.description, '')), @p0) > 0)) THEN 1 ELSE 0 END = 1)";
+        const string amount = "(CASE WHEN (g.amount_scaled IS NULL) THEN 0 WHEN (ABS(g.amount_scaled) >= @p1) THEN 1 ELSE 0 END = 1)";
         Assert.Equal(
-            "(((((instr(UPPER(COALESCE(g.description, '')), @p0) > 0) OR " +
-            "(ABS(g.amount_scaled) >= @p1))) OR (g.is_manual = @p2)) AND (g.dr_cr = @p3))",
+            "((((" + text + " OR " + amount + ")) OR (g.is_manual = @p2)) AND (g.dr_cr = @p3))",
             plan.Sql);
         Assert.Collection(
             plan.Parameters,
@@ -196,20 +199,25 @@ public sealed class FilterCompilationTests
     }
 
     private static FilterConditionSpec TextRule(string keyword) =>
-        new(FilterJoin.And, FilterConditionType.Text, null, "description", [keyword], TextMatchMode.Contains,
-            null, null, null, null, null, null);
+        new(FilterJoin.And, FilterConditionType.FieldValue, null, "description", [], null, null)
+        {
+            TypedOperator = "contains",
+            TypedValues = [keyword]
+        };
 
-    private static FilterConditionSpec AmountRule(long fromScaled) =>
-        new(FilterJoin.And, FilterConditionType.NumRange, null, "amount", [], TextMatchMode.Contains,
-            null, null, fromScaled, null, null, null);
+    private static FilterConditionSpec AmountRule(string amount) =>
+        new(FilterJoin.And, FilterConditionType.FieldValue, null, "amount", [], null, null)
+        {
+            TypedOperator = "greaterThanOrEqual",
+            TypedValue = amount,
+            AmountBasis = TypedAmountBasisNames.Absolute
+        };
 
     private static FilterConditionSpec ManualRule(bool isManual) =>
-        new(FilterJoin.And, FilterConditionType.ManualAuto, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, isManual);
+        new(FilterJoin.And, FilterConditionType.ManualAuto, null, null, [], null, isManual);
 
     private static FilterConditionSpec DrCrRule(string drCr) =>
-        new(FilterJoin.And, FilterConditionType.DrCrOnly, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, drCr, null);
+        new(FilterJoin.And, FilterConditionType.DrCrOnly, null, null, [], drCr, null);
 
     private static void AssertParameter(FilterSqlParameter parameter, string name, object value)
     {

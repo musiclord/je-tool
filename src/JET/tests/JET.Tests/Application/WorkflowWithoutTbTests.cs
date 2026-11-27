@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 // 沒有 TB 也能往下做，逐科目比對寫無法執行和原因，由審計員在底稿說明。
-// 已匯入 TB、但配對還沒確認時的報告與底稿句子照同一組句子改寫。
+// 已匯入 TB、但配對還沒確認時，報告與底稿用同一組句子。
 
 /// <summary>
 /// 沒有 TB，或已匯入 TB 但還沒確認配對的案件，照審計員的順序走完資料驗證、預篩選、條件篩選、
@@ -16,11 +16,11 @@ namespace JET.Tests.Application;
 public sealed class WorkflowWithoutTbTests
 {
     private const string NotImportedReason = "沒有匯入 TB，無法執行 GL 與 TB 逐科目比對。";
-    // 這句的用字已定案，寫「尚未確認」。
+    // 配對尚未確認時顯示「尚未確認」。
     private const string NotConfirmedReason = "TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。";
     private const string NotImportedListNote = "#本案件未匯入試算表，無法執行試算表科目金額本期異動與會計分錄(JE)之推滾比對。";
     private const string NotConfirmedListNote = "#本案件試算表欄位配對尚未確認，無法執行試算表科目金額本期異動與會計分錄(JE)之推滾比對。";
-    private const string Step1Conclusion = "基於上述程序，查核團隊對於JE測試母體之完整性，尚需另行說明以取得足夠的查核證據。";
+    private const string CompletenessConclusion = "基於上述程序，查核團隊對於JE測試母體之完整性，尚需另行說明以取得足夠的查核證據。";
 
     [Theory]
     [InlineData("sqlite", false)]
@@ -79,16 +79,16 @@ public sealed class WorkflowWithoutTbTests
         Assert.Equal("workingPaper", report.GetProperty("kind").GetString());
         using (var book = new XLWorkbook(ReportPath(host, projectId, report)))
         {
-            var step1 = book.Worksheet(WorkingPaperSheetCatalog.Step1);
-            Assert.Equal(Step1Conclusion, step1.Cell("B15").GetString());
-            Assert.Equal(tbImported ? NotConfirmedListNote : NotImportedListNote, step1.Cell("B17").GetString());
+            var completenessSheet = book.Worksheet(WorkingPaperSheetCatalog.Completeness);
+            Assert.Equal(CompletenessConclusion, completenessSheet.Cell("B15").GetString());
+            Assert.Equal(tbImported ? NotConfirmedListNote : NotImportedListNote, completenessSheet.Cell("B17").GetString());
             // 科目清單留空：表頭照舊，表頭下面沒有科目。
-            Assert.Contains("試算表科目", step1.Cell("B19").GetString());
-            Assert.True(step1.Row(20).IsEmpty());
-            Assert.False(book.Worksheets.Contains(WorkingPaperSheetCatalog.Step13));
+            Assert.Contains("試算表科目", completenessSheet.Cell("B19").GetString());
+            Assert.True(completenessSheet.Row(20).IsEmpty());
+            Assert.False(book.Worksheets.Contains(WorkingPaperSheetCatalog.CompletenessDifference));
             // 其他步驟照常。
-            Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.Step11));
-            Assert.True(book.Worksheet(WorkingPaperSheetCatalog.Step41).RowsUsed().Count() > 1);
+            Assert.True(book.Worksheets.Contains(WorkingPaperSheetCatalog.VoucherBalance));
+            Assert.True(book.Worksheet(WorkingPaperSheetCatalog.HighRiskVoucherDetail).RowsUsed().Count() > 1);
         }
     }
 

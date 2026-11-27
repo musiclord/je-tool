@@ -9,7 +9,7 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 寫出舊版 JET 版型的科目配對範本。AccountMapping 工作表的資料從第 4 列開始，A、B 欄鎖定，
 /// 只有 C 欄從第 4 列到最後一筆資料不鎖定，並套上分類的下拉選單。
-/// 第二張 List 工作表放目前專案的科目分類名稱，不鎖定，審計員可以在清單最後加上新的分類名稱。
+/// 第二張 List 工作表放目前案件的科目分類名稱，不鎖定，審計員可以在清單最後加上新的分類名稱。
 /// 寫出時先複製固定範本，再由上往下依序重寫 AccountMapping 與 List 這兩張工作表；範本的其他工作表不能改。
 /// </summary>
 public sealed class AccountMappingTemplateWriter :

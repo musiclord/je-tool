@@ -68,7 +68,6 @@ internal sealed record ProjectRepositories
     public required IAccountMappingBlankPageRepository AccountMappingBlankPages { get; init; }
     public required IAccountMappingDifferenceRepository AccountMappingDifferences { get; init; }
     public required IVoucherBalancePageRepository VoucherBalancePages { get; init; }
-    public required IUnbalancedVoucherPageRepository UnbalancedVoucherPages { get; init; }
     public required IBlankRecordsPageRepository BlankRecordsPages { get; init; }
     public required ISourceQualityPageRepository SourceQualityPages { get; init; }
     public required IFilterHitsPageRepository FilterHitsPages { get; init; }

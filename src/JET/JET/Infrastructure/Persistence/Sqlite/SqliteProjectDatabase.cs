@@ -6,7 +6,7 @@ using SQLitePCL;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// <see cref="ILocalProjectDatabase"/> 的 SQLite 實作：建立每個案件 jet.db 的連線，並負責建表與檢查結構版本。
+/// <see cref="ILocalProjectDatabase"/> 的 SQLite 實作：建立每個案件 jet.db 的連線，負責建表，並在開案時核對結構。
 /// 每個案件一個資料庫檔，一個檔案裡只有一個案件的資料，所以資料表沒有 project_id 欄。
 /// 傳入監看模組時，這裡建立的每條連線都把語句的執行通知它；監看模組只記錄，不改變語句的執行與結果。
 /// </summary>
@@ -14,9 +14,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     : ILocalProjectDatabase
 {
     /// <summary>
-    /// 案件資料庫的現行結構，建成後標成第 21 版。只有新資料庫會執行這段；已有資料表的資料庫檢查版本，
-    /// 較早版本建立的案件由 <see cref="ProjectSchemaVersions"/> 的步驟升到現行結構。
-    /// 改這段結構時，現行版本加一並加一步升版，讓已經建立的案件得到同樣的結構。
+    /// 案件資料庫的現行結構。新資料庫在一個交易裡執行這段；已有資料表的資料庫開啟時和它比對，缺少的索引與觸發條件補上。
+    /// 在這裡新增表或欄位時，要登記在 <see cref="CurrentSchema"/> 的新增清單，欄位另附 ALTER TABLE，
+    /// 已經建立的案件開啟時才會補上。每一句都要能在已有資料的案件上重複執行而不改變資料。
     /// 匯入暫存表的 row_number 是同一個批次裡只增不減的排序鍵，INF 抽樣以它為準；
     /// source_row_number 是來源檔裡實際的列號，錯誤訊息用它指出是哪一列；source_no 對應 import_batch_source。
     /// </summary>
@@ -395,6 +395,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
 
         INSERT INTO schema_info (key, value) VALUES ('filter_data_revision', '0')
         ON CONFLICT(key) DO NOTHING;
+
+        -- JET 開啟案件時不讀這一列。首次發布的 JET 開啟案件時要讀到 21，才認得是它能開的案件，
+        -- 所以新建的案件照首次發布的值寫入，已經有這一列的案件不改。
         INSERT INTO schema_info (key, value) VALUES ('schema_version', '21')
         ON CONFLICT(key) DO NOTHING;
         """;
@@ -423,7 +426,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     /// </summary>
     private const long SqliteMemoryLimitBytes = 1L << 30;
 
-    private static int memoryLimitApplied;
+    private static int MemoryLimitApplied;
 
     /// <summary>
     /// 所有案件連線建立時都經過 <see cref="CreateConfiguredConnection"/>，第一次建立時設一次上限，之後的連線共用同一個值。
@@ -431,7 +434,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     /// </summary>
     private static void ApplySqliteMemoryLimitOnce()
     {
-        if (Interlocked.Exchange(ref memoryLimitApplied, 1) == 0)
+        if (Interlocked.Exchange(ref MemoryLimitApplied, 1) == 0)
         {
             raw.sqlite3_soft_heap_limit64(SqliteMemoryLimitBytes);
         }
@@ -552,40 +555,47 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
         DbConnection connection, DbTransaction transaction, string table, IReadOnlyList<string> columns)
         => new SqliteBulkRowWriter(connection, transaction, table, columns);
 
-    private readonly LocalSchemaReadiness readiness = new();
+    private readonly LocalSchemaReadiness _readiness = new();
 
-    private readonly ProjectSchemaVersions schema = ProjectSchemaVersions.Released;
+    /// <summary>
+    /// 現行的案件資料庫結構。第二個參數是首次發布之後新增的表與欄位，依加入的先後排列，目前沒有。
+    /// 新增欄位寫成 <c>ProjectSchemaAddition.NewColumn("表", "欄位", "ALTER TABLE 表 ADD COLUMN ...;")</c>，
+    /// 新增的表寫成 <c>ProjectSchemaAddition.NewTable("表")</c>。
+    /// </summary>
+    internal static ProjectSchema CurrentSchema { get; } = new(SchemaSql, []);
 
-    /// <summary>指定支援的版本與升版步驟；測試用它確認較早版本的資料庫會逐版升級。</summary>
+    private readonly ProjectSchema _projectSchema = CurrentSchema;
+
+    /// <summary>指定案件資料庫的結構；測試用它確認定版後新增的表與欄位在開啟時補上。</summary>
     internal SqliteProjectDatabase(
-        JetProjectFolder folder, ProjectSchemaVersions schema, ISqlStatementObserver? statementObserver = null)
+        JetProjectFolder folder, ProjectSchema schema, ISqlStatementObserver? statementObserver = null)
         : this(folder, statementObserver)
     {
         ArgumentNullException.ThrowIfNull(schema);
-        this.schema = schema;
+        _projectSchema = schema;
     }
 
-    /// <summary>一律重新檢查版本，新資料庫在這裡建表，不寫入案件設定。只有建案與直接讀寫資料表的程式會建立新的資料庫。</summary>
+    /// <summary>一律重新核對結構，新資料庫在這裡建表，不寫入案件設定。只有建案與直接讀寫資料表的程式會建立新的資料庫。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
-        readiness.EnsureCreatedAsync(
+        _readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
             ct => EnsureCreatedCoreAsync(projectId, allowCreate: true, settings: null, ct),
             cancellationToken);
 
-    /// <summary>建案時呼叫：一律重新檢查版本，新資料庫在這裡建表，同一個交易裡寫入案件設定。</summary>
+    /// <summary>建案時呼叫：一律重新核對結構，新資料庫在這裡建表，同一個交易裡寫入案件設定。</summary>
     public Task EnsureCreatedAsync(
         string projectId, ProtectedProjectSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        return readiness.EnsureCreatedAsync(
+        return _readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
             ct => EnsureCreatedCoreAsync(projectId, allowCreate: true, _ => Task.FromResult(settings), ct),
             cancellationToken);
     }
 
-    /// <summary>開案時呼叫：一律重新檢查版本，不建立新的資料庫；建案中斷留下的案件在這裡把初始化做完。</summary>
+    /// <summary>開案時呼叫：一律重新核對結構，不建立新的資料庫；建案中斷留下的案件在這裡把初始化做完。</summary>
     public Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
-        readiness.EnsureExistingAsync(
+        _readiness.EnsureExistingAsync(
             GetDatabasePath(projectId),
             folder.GetCreationMarkerPath(projectId),
             (allowCreate, ct) => EnsureCreatedCoreAsync(projectId, allowCreate, settings: null, ct),
@@ -600,7 +610,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settingsIfCreating);
-        return readiness.EnsureExistingAsync(
+        return _readiness.EnsureExistingAsync(
             GetDatabasePath(projectId),
             folder.GetCreationMarkerPath(projectId),
             (allowCreate, ct) => EnsureCreatedCoreAsync(projectId, allowCreate, settingsIfCreating, ct),
@@ -609,7 +619,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
 
     /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次，不建立新的資料庫。</summary>
     public Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
-        readiness.EnsureReadyAsync(
+        _readiness.EnsureReadyAsync(
             GetDatabasePath(projectId),
             ct => EnsureCreatedCoreAsync(projectId, allowCreate: false, settings: null, ct),
             cancellationToken);
@@ -636,11 +646,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 已經建過表的資料庫先檢查版本：不支援的版本在任何寫入之前擋下，檔案保持原狀。
+        // 已經建過表的資料庫先和現行結構比對，只讀不寫：缺少不能補上的表或欄位時在任何寫入之前擋下，檔案保持原狀。
         var existing = await HasSchemaInfoAsync(connection, cancellationToken);
-        var requiresUpgrade = existing
-            && schema.RequiresUpgrade(
-                await ProjectSchemaVersions.ReadVersionAsync(connection, transaction: null, cancellationToken));
+        var requiresCompletion = existing && await _projectSchema.CheckAsync(connection, cancellationToken);
         if (!existing && !allowCreate)
         {
             // 有檔案但沒有任何資料表，同樣是沒有內容；在任何寫入之前回報，檔案保持原狀。
@@ -657,10 +665,10 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
 
         if (existing)
         {
-            // 較早版本建立的案件在這裡逐版升到現行版本，之後的讀寫都面對現行結構。
-            if (requiresUpgrade)
+            // 缺少的索引、觸發條件，以及首次發布之後新增的表與欄位在這裡補上，之後的讀寫都面對現行結構。
+            if (requiresCompletion)
             {
-                await schema.UpgradeAsync(connection, cancellationToken);
+                await _projectSchema.CompleteAsync(connection, cancellationToken);
             }
 
             return;
@@ -674,7 +682,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
         await using (var command = connection.CreateCommand())
         {
             command.Transaction = transaction;
-            command.CommandText = SchemaSql;
+            command.CommandText = _projectSchema.CreateSql;
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -687,18 +695,18 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatement
     }
 
     /// <summary>
-    /// 刪除該專案的 jet.db（含 WAL/SHM 邊檔）。只清除此專案的連線池以釋放檔案鎖，
-    /// 避免刪除一案時中斷其他專案正在執行的 SQLite 工作。
+    /// 刪除這個案件的 jet.db，以及它的記錄檔與共用記憶體檔（-wal、-shm）。只清除這個案件的連線池以釋放檔案鎖，
+    /// 避免刪除一個案件時中斷其他案件正在執行的 SQLite 工作。
     /// 資料夾本身由 IProjectStore.DeleteAsync 刪除。
     /// </summary>
     public Task DeleteAsync(string projectId, CancellationToken cancellationToken)
     {
-        readiness.Forget(folder.GetDatabasePath(projectId));
+        _readiness.Forget(folder.GetDatabasePath(projectId));
         DeleteDatabaseFiles(projectId);
         return Task.CompletedTask;
     }
 
-    /// <summary>清掉這個案件的連線池釋放檔案鎖，再刪 jet.db 與 WAL/SHM 邊檔。</summary>
+    /// <summary>清掉這個案件的連線池釋放檔案鎖，再刪 jet.db 與它的記錄檔、共用記憶體檔（-wal、-shm）。</summary>
     private void DeleteDatabaseFiles(string projectId)
     {
         var databasePath = folder.GetDatabasePath(projectId);

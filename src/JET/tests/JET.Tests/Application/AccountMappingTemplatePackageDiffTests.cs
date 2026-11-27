@@ -44,13 +44,6 @@ public sealed class AccountMappingTemplatePackageDiffTests
 
         AccountMappingTemplatePackageDiff.AssertAllowed(beforeBytes, output.ToArray(), rows);
         Assert.Equal(beforeBytes, await File.ReadAllBytesAsync(templatePath));
-
-        var evidencePath = Environment.GetEnvironmentVariable("JET_ACCOUNT_MAPPING_EVIDENCE_PATH");
-        if (!string.IsNullOrWhiteSpace(evidencePath))
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(evidencePath))!);
-            await File.WriteAllBytesAsync(evidencePath, output.ToArray());
-        }
     }
 
     [Fact]

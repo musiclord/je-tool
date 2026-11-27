@@ -44,8 +44,8 @@ internal static class FilterScenarioSummaryRenderer
                 ["name"] = scenario.Name,
                 ["rationale"] = scenario.Rationale,
                 ["groups"] = groups,
-                // 回給前端的篩選範圍一律寫目前唯一的範圍 auditPeriod。已儲存的舊範圍由
-                // FilterPopulationScopeParser.RequireCurrentRevision 判成過期，不把已停用的值送回前端再拿來執行。
+                // 回給前端的篩選範圍一律寫 auditPeriod。已儲存情境裡的其他範圍值由
+                // FilterPopulationScopeParser.RequireCurrentRevision 判成過期，不送回前端再拿來執行。
                 ["populationScope"] = GlPopulationScopeValues.AuditPeriod,
                 ["savedUtc"] = scenario.SavedUtc
             };

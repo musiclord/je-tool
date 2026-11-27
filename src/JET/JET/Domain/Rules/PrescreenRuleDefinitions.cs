@@ -12,7 +12,7 @@ public enum PrescreenRuleShape
 /// 以及需要的 GL 欄位與案件資料。規則名稱只流進 RuleCatalog 的顯示名稱；第四步卡片的標題另寫在前端 validate-step.js，
 /// 其中「金額尾數連續 N 個 0 的分錄」與「非授權編製人員之分錄」兩張卡和這裡的名稱不同；N 是由 GL 算出的個數。
 /// 述詞由 AuditCore 的 PrescreenRulePredicates 依 <see cref="Key"/> 對應，一條規則一個方法。
-/// 彙總規則沒有條件標籤。歷史代號只供回查舊文件，不進畫面、回應或資料表名稱。
+/// 彙總規則沒有條件標籤。LegacyCode 是舊版 JET 的規則代號（例如 R1），只供對照舊版文件，不進畫面、回應或資料表名稱。
 /// </summary>
 public sealed record PrescreenRuleDefinition(
     string Key,

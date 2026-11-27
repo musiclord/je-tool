@@ -13,11 +13,11 @@ namespace JET.Application;
 /// </summary>
 public abstract class ImportFromFileHandler : IApplicationActionHandler
 {
-    private readonly ITabularFileReader reader;
-    private readonly IProjectStore projectStore;
-    private readonly ProjectSession session;
-    private readonly IJetEventPublisher eventPublisher;
-    private readonly ILogger? logger;
+    private readonly ITabularFileReader _reader;
+    private readonly IProjectStore _projectStore;
+    private readonly ProjectSession _session;
+    private readonly IJetEventPublisher _eventPublisher;
+    private readonly ILogger? _logger;
 
     internal ImportFromFileHandler(
         ITabularFileReader reader,
@@ -25,17 +25,17 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         ProjectSession session,
         IJetEventPublisher eventPublisher, ILogger? logger = null)
     {
-        this.reader = reader;
-        this.projectStore = projectStore;
-        this.session = session;
-        this.eventPublisher = eventPublisher;
-        this.logger = logger;
+        this._reader = reader;
+        this._projectStore = projectStore;
+        this._session = session;
+        this._eventPublisher = eventPublisher;
+        this._logger = logger;
     }
 
     public abstract string Action { get; }
 
-    /// <summary>匯入成功後，案件至少推進到第二步。推進只增不減，由 <see cref="AdvanceStepAsync"/> 決定要不要存檔。</summary>
-    internal const int WorkflowStep = 2;
+    /// <summary>匯入成功後，案件至少推進到欄位配對這一步。推進只增不減，由 <see cref="AdvanceStepAsync"/> 決定要不要存檔。</summary>
+    internal const WorkflowStep AdvancesTo = WorkflowStep.Mapping;
 
     protected abstract DatasetKind Kind { get; }
 
@@ -44,7 +44,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var (projectId, repositories) = session.RequireActive();
+        var (projectId, repositories) = _session.RequireActive();
         var importPayload = ImportFromFilePayload.Parse(payload);
         var sourceCount = importPayload.Sources.Count;
         var plan = JetAuditProgram.Plan(
@@ -58,7 +58,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                     return new IntakeSourceRequest(
                         source.FilePath,
                         fileExists,
-                        fileExists && reader.Supports(source.FilePath));
+                        fileExists && _reader.Supports(source.FilePath));
                 }).ToList(),
                 importPayload.Mode));
         var previous = await repositories.Imports.GetLatestBatchAsync(projectId, Kind, cancellationToken);
@@ -86,7 +86,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         var lineBreakTallies = sourceRequests.Select(static _ => new QuotedLineBreakTally()).ToArray();
         // Excel 開著的來源檔照樣匯入最後一次存檔的內容，匯入完成後提醒。
         var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(
-            reader,
+            _reader,
             sourceRequests.Select(item => (item.Payload.FilePath, item.Payload.FileName)));
 
         // 讀檔與大量寫入都移到 UI thread 以外執行，匯入期間畫面才不會凍結。
@@ -101,7 +101,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                     var item = sourceRequests[index];
                     try
                     {
-                        columnsBySource.Add(await reader.ReadColumnsAsync(item.Request, cancellationToken));
+                        columnsBySource.Add(await _reader.ReadColumnsAsync(item.Request, cancellationToken));
                     }
                     catch (OperationCanceledException)
                     {
@@ -137,9 +137,9 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                     // sourceNo 與 sourceCount 是這次 action 裡的第幾個來源與來源總數，不是這一批匯入累計的來源序號。
                     var rows = WithSourceContext(
                         WithProgress(
-                            reader.ReadRowsAsync(item.Request, cancellationToken),
+                            _reader.ReadRowsAsync(item.Request, cancellationToken),
                             ProgressRowInterval,
-                            rowsRead => eventPublisher.Publish("import.progress", new
+                            rowsRead => _eventPublisher.Publish("import.progress", new
                             {
                                 kind = Kind.ToStorageName(),
                                 sourceNo,
@@ -168,7 +168,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
         // 資料庫交易已經提交，之後不再理會呼叫端的取消要求：案件的流程步驟一定要更新，
         // 不能因為晚到的取消，讓資料已經匯入而案件還停在舊的步驟。
-        await AdvanceStepAsync(projectId, WorkflowStep, CancellationToken.None);
+        await AdvanceStepAsync(projectId, AdvancesTo, CancellationToken.None);
 
         var batch = result.Data.Batch;
         string? operationLogWarning = null;
@@ -183,7 +183,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
                     Kind.ToStorageName(),
                     batch.RowCount,
                     replacedCount: 1),
-                logger);
+                _logger);
         }
 
         string[] warnings =
@@ -197,7 +197,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         ];
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, _logger);
         return new
         {
             batchId = batch.BatchId,
@@ -224,7 +224,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         var warnings = new List<string>();
         for (var index = 0; index < tallies.Count; index++)
         {
-            var warning = tallies[index].Warning(sources[index].Payload.FileName, index + 1, logger);
+            var warning = tallies[index].Warning(sources[index].Payload.FileName, index + 1, _logger);
             if (warning is not null)
             {
                 warnings.Add(warning);
@@ -244,8 +244,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             .Select(source =>
             {
                 var label = source.SheetName is null ? $"「{source.FileName}」" : $"「{source.FileName}」的工作表「{source.SheetName}」";
-                // 寫實際比對的結果，不寫「可能」。比對的是來源檔的列數，
-                // 來源檔用列，分錄用筆，所以寫成「列數」。
+                // 句子寫實際比對到的情形：來源檔名、工作表與列數都相同。
+                // 來源檔以列計、分錄以筆計，所以寫「列數」。
                 return $"{label}與已匯入的來源檔名、工作表及列數皆相同，已照常加入；請確認是否重複匯入。";
             }).ToArray();
     }
@@ -362,14 +362,14 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             ? $"來源 {sourceNo}/{sourceCount}，檔案「{source.FileName}」"
             : $"來源 {sourceNo}/{sourceCount}，檔案「{source.FileName}」，工作表「{source.SheetName}」";
 
-    private async Task AdvanceStepAsync(string projectId, int minimumStep, CancellationToken cancellationToken)
+    private async Task AdvanceStepAsync(string projectId, WorkflowStep minimumStep, CancellationToken cancellationToken)
     {
         await MappingCommitShared.AfterCommitAsync(async () =>
         {
-            var document = await projectStore.FindAsync(projectId, cancellationToken);
-            if (document is not null && document.CurrentStep < minimumStep)
-                await projectStore.SaveAsync(document with { CurrentStep = minimumStep }, cancellationToken);
-        }, logger);
+            var document = await _projectStore.FindAsync(projectId, cancellationToken);
+            if (document is not null && document.CurrentStep < (int)minimumStep)
+                await _projectStore.SaveAsync(document with { CurrentStep = (int)minimumStep }, cancellationToken);
+        }, _logger);
     }
 }
 

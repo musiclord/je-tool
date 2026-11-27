@@ -66,7 +66,7 @@ public sealed class RuleCatalogTests
     [Fact]
     public void LegacyCodes_MirrorGuideRegistry()
     {
-        var noLegacyStep3Counterpart = new[]
+        var rulesWithoutLegacyCode = new[]
         {
             PrescreenRuleKeys.WeekendPosting,
             PrescreenRuleKeys.WeekendApproval,
@@ -75,7 +75,7 @@ public sealed class RuleCatalogTests
             PrescreenRuleKeys.NonAuthorizedPreparer
         };
 
-        Assert.All(noLegacyStep3Counterpart, key =>
+        Assert.All(rulesWithoutLegacyCode, key =>
         {
             var descriptor = Assert.Single(RuleCatalog.All, rule => rule.WireKey == key);
             Assert.Null(descriptor.LegacyCode);
@@ -90,7 +90,7 @@ public sealed class RuleCatalogTests
     [Fact]
     public void All_DisplayNames_AreNonEmptyAndCodeFree()
     {
-        // 中文名不得為空、不得殘留 V/R/A 代號字樣。
+        // 中文名不得為空，也不得含 V/R/A 代號字樣。
         Assert.All(RuleCatalog.All, r =>
         {
             Assert.False(string.IsNullOrWhiteSpace(r.DisplayName));

@@ -3,8 +3,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// concurrent query 惰性補算的結構契約：純讀仍可 concurrent；只有空結果補算
-/// 透過和 dispatcher 相同的非阻塞 exclusive gate，取不到時由 production 回 operation_in_progress。
+/// 可同時執行的查詢遇到結果是空的才補算：只讀的部分照常同時執行；補算要先取得和 dispatcher 共用的
+/// 非阻塞獨占閘門 ActionExecutionGate，取不到時回 operation_in_progress。
 /// </summary>
 public sealed class LazyMaterializationGateArchitectureTests
 {

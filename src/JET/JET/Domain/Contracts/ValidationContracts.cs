@@ -7,13 +7,13 @@ public sealed record GlPopulationStats(
     long TotalCreditScaled,
     long NetScaled);
 
-/// <summary>GL raw target 母體（含因期間或過帳狀態排除的列）。</summary>
+/// <summary>gl 表的全部分錄，包含因期間或過帳狀態未納入測試的列。</summary>
 public sealed record GlRawPopulationTotals(
     long RowCount,
     long TotalDebitScaled,
     long TotalCreditScaled);
 
-/// <summary>可供審計程序消費的有效 GL 母體。</summary>
+/// <summary>納入測試、供審計程序使用的 GL 分錄。</summary>
 public sealed record ValidationGlTotals(
     long RowCount,
     long VoucherCount,

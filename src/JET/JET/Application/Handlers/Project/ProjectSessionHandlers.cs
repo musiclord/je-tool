@@ -44,10 +44,10 @@ public sealed class ProjectSaveProgressHandler(
 }
 
 /// <summary>
-/// project.releaseLock：放掉目前 session 這個案件的工作鎖；鎖不是自己持有的就不做事。前端只在真的要離開案件時呼叫。
+/// project.releaseLock：放掉目前 session 這個案件鎖；鎖不是自己持有的就不做事。前端只在真的要離開案件時呼叫。
 /// handler 先試著取得會改資料的 action 共用的那一把閘，取不到就直接回 operation_in_progress，不等待；
 /// 取到之後，放鎖與離開 session 都在持有這把閘的期間完成。沒有開啟中的案件時，取得閘之後什麼都不做，回 { ok }。
-/// 工作鎖放成功了，才清掉取得閘之後讀到的那個 session 案件；放鎖失敗或被取消時保留 session，審計員可以再試一次。
+/// 案件鎖放成功了，才清掉取得閘之後讀到的那個 session 案件；放鎖失敗或被取消時保留 session，審計員可以再試一次。
 /// 離開案件後關閉這個案件的資料庫連線，記錄檔併回資料庫檔，JET 不再開著案件資料庫（見 IProjectDatabaseCheckpoint）。
 /// </summary>
 public sealed class ProjectReleaseLockHandler(

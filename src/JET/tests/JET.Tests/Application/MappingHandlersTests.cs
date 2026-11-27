@@ -22,7 +22,7 @@ public sealed class MappingHandlersTests
         """;
 
     [Fact]
-    public async Task CommitGl_CurrentPayload_PersistsV2NormalizedDefaultsWithoutChangingProjectionContract()
+    public async Task CommitGl_CurrentPayload_PersistsNormalizedDefaultsWithoutChangingProjectionContract()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -46,7 +46,7 @@ public sealed class MappingHandlersTests
     }
 
     [Fact]
-    public async Task CommitGl_V2ProjectionOptions_ProjectsStrictManualAndTypedRdeValues()
+    public async Task CommitGl_ProjectionOptions_ProjectsStrictManualAndTypedRdeValues()
     {
         using var host = new HandlerTestHost();
         var builder = new InlineGlWorkbookBuilder()
@@ -269,7 +269,6 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "amountMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        // 這句的用字已定案。
         Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 
@@ -284,7 +283,6 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "changeMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        // 這句的用字已定案。
         Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 

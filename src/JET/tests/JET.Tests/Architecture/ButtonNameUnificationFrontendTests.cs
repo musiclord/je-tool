@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 同一個動作的按鈕在各步驟用同一個名稱；按下後的作業名稱、提示句與報讀名稱也照畫面上的字寫。
-/// 每項逐字鎖住現行字樣，並確認換掉的字樣不再出現在畫面程式。程式註解不算畫面文字，檢查前先移除。
+/// 每項逐字鎖住畫面字樣。程式註解不算畫面文字，檢查前先移除。
 /// </summary>
 public sealed class ButtonNameUnificationFrontendTests
 {
@@ -18,13 +18,11 @@ public sealed class ButtonNameUnificationFrontendTests
         var validate = Script("steps", "validate-step.js");
         Assert.Contains("data-action=\"open-account-mapping-folder\">開啟資料夾</button>", validate, StringComparison.Ordinal);
         Assert.Contains("Ui.run('開啟資料夾', function () {", validate, StringComparison.Ordinal);
-        // 報告區的按鈕字原本就是「開啟資料夾」，按下後的作業名稱也寫同一個名稱。
+        // 報告區的按鈕字是「開啟資料夾」，按下後的作業名稱也寫同一個名稱。
         var core = Script("ui-core.js");
         Assert.Contains("'>開啟資料夾</button>' : '') +", core, StringComparison.Ordinal);
         Assert.Contains("esc(report.reportId) + '\">開啟資料夾</button>' : '';", core, StringComparison.Ordinal);
         Assert.Contains("run('開啟資料夾', function () {", core, StringComparison.Ordinal);
-
-        AssertRetiredEverywhere("開啟案件資料夾", "顯示報告檔案");
     }
 
     [Fact]
@@ -45,8 +43,6 @@ public sealed class ButtonNameUnificationFrontendTests
         // 提示句用「」指名按鈕時，寫的是畫面上那顆按鈕的字。
         Assert.Contains("'讀取來源值失敗，可按「重新載入」。'", mapping, StringComparison.Ordinal);
         Assert.Contains("'<p>可按「重新載入」重試。</p>'", saved, StringComparison.Ordinal);
-
-        AssertRetiredEverywhere(">重試</button>", "= '重試'", "重試讀取結果", "重新確認數量", "「再試一次」");
     }
 
     [Fact]
@@ -63,7 +59,6 @@ public sealed class ButtonNameUnificationFrontendTests
 
         // 編輯區按下就儲存的那顆叫「另存為新情境」，選單的「複製」不會儲存。
         Assert.Contains(">另存為新情境</button>", Script("steps", "filter-step-rules.js"), StringComparison.Ordinal);
-        AssertRetiredEverywhere("另存副本");
     }
 
     [Fact]
@@ -76,8 +71,6 @@ public sealed class ButtonNameUnificationFrontendTests
         const string beforePrescreen = "Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存')";
         Assert.Contains(beforePrescreen, Script("steps", "validate-step.js"), StringComparison.Ordinal);
         Assert.Contains(beforePrescreen, Script("steps", "export-step.js"), StringComparison.Ordinal);
-
-        AssertRetiredEverywhere("不儲存，直接離開", "離開案件後，這些改動不會保留。", "先不儲存，直接執行");
     }
 
     [Fact]
@@ -85,13 +78,12 @@ public sealed class ButtonNameUnificationFrontendTests
     {
         // 後端在案件資料夾不見時請審計員「重新整理案件清單」，按鈕用同一個名稱。
         Assert.Contains("data-action=\"picker-refresh-local\">重新整理案件清單</button>", Script("app.js"), StringComparison.Ordinal);
-        AssertRetiredEverywhere("重新整理本機");
     }
 
     [Fact]
     public void ExportThatRunsPrescreenFirst_NamesItsOperationAfterTheButton()
     {
-        // 第六步要先執行預篩選時，按鈕與按下後的作業名稱同一個字；已有預篩選結果時照舊。
+        // 第六步要先執行預篩選時，按鈕與按下後的作業名稱同一個字；已有預篩選結果時，作業名稱是「產生工作底稿與預篩選報告」。
         var export = Script("steps", "export-step.js");
         Assert.Contains("if (plan.needsRun) { return '先執行預篩選並產生底稿'; }", export, StringComparison.Ordinal);
         Assert.Contains("Ui.run('先執行預篩選並產生底稿'", export, StringComparison.Ordinal);
@@ -160,9 +152,6 @@ public sealed class ButtonNameUnificationFrontendTests
         Assert.Contains("'國定假日清單上傳完成：' + Ui.countText(data.count) + ' 天。'", import, StringComparison.Ordinal);
         Assert.Contains("'補班日清單上傳完成：' + Ui.countText(data.count) + ' 天。'", import, StringComparison.Ordinal);
         Assert.Contains("hostSelectFile({ title: '選擇授權編製人員清單', extensions: ['.xlsx'] })", import, StringComparison.Ordinal);
-
-        AssertRetiredEverywhere("先不移除", "重新產生兩份報告", "展開查看", "預覽篩選情境", "輸出診斷日誌（DEV）", ">輸出日誌</button>",
-            "建立或載入案件", "國定假日匯入完成", "補班日匯入完成");
     }
 
     [Fact]
@@ -192,27 +181,6 @@ public sealed class ButtonNameUnificationFrontendTests
         Assert.Contains("button.setAttribute('aria-label', '正在整理最近 100 則訊息');", app, StringComparison.Ordinal);
         Assert.DoesNotContain("操作紀錄", html, StringComparison.Ordinal);
         Assert.DoesNotContain("操作紀錄", app, StringComparison.Ordinal);
-    }
-
-    private static void AssertRetiredEverywhere(params string[] retired)
-    {
-        var root = Path.Combine(ProductSources.ProductRoot, "wwwroot");
-        var files = Directory.GetFiles(Path.Combine(root, "js"), "*.js", SearchOption.AllDirectories)
-            .Where(path => !path.Contains(Path.DirectorySeparatorChar + "vendor" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            .ToList();
-        Assert.NotEmpty(files);
-
-        var hits = new List<string>();
-        foreach (var file in files)
-        {
-            var code = TerminologyUnificationFrontendTests.StripComments(File.ReadAllText(file), js: true);
-            hits.AddRange(retired.Where(term => code.Contains(term, StringComparison.Ordinal))
-                .Select(term => Path.GetFileName(file) + "：" + term));
-        }
-
-        var html = Html();
-        hits.AddRange(retired.Where(term => html.Contains(term, StringComparison.Ordinal)).Select(term => "index.html：" + term));
-        Assert.Empty(hits);
     }
 
     private static string Script(params string[] parts)

@@ -61,12 +61,12 @@ public sealed class DynamicResultPageContractTests
                             {
                                 new
                                 {
-                                    join = "AND", type = "typed", fieldId = setup.DateFieldId,
+                                    join = "AND", type = "fieldValue", fieldId = setup.DateFieldId,
                                     @operator = "isNotBlank"
                                 },
                                 new
                                 {
-                                    join = "OR", type = "typed", fieldId = setup.TextFieldId,
+                                    join = "OR", type = "fieldValue", fieldId = setup.TextFieldId,
                                     @operator = "isBlank"
                                 }
                             }
@@ -168,7 +168,7 @@ public sealed class DynamicResultPageContractTests
                 manualValues = new[] { "true", "1" },
                 automaticValues = new[] { "false", "0" }
             },
-            // committed ordinal deliberately differs from alphabetical/type order.
+            // committed ordinal 刻意和字母順序、型別順序不同。
             rdeFields = new object[]
             {
                 new { sourceColumn = "自訂金額", label = "自訂金額", valueType = "amount" },

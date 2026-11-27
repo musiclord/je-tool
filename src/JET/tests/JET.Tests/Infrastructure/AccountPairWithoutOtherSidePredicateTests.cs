@@ -134,8 +134,7 @@ public sealed class AccountPairWithoutOtherSidePredicateTests
 
     private static FilterConditionSpec Rule(
         string pairMode, IReadOnlyList<string> debitCategoryIds, IReadOnlyList<string> creditCategoryIds) =>
-        new(FilterJoin.And, FilterConditionType.SpecialAccountCategoryPair, null, null, [], TextMatchMode.Contains,
-            null, null, null, null, null, null, PairMode: pairMode)
+        new(FilterJoin.And, FilterConditionType.SpecialAccountCategoryPair, null, null, [], null, null, PairMode: pairMode)
         {
             DebitCategoryIds = debitCategoryIds,
             CreditCategoryIds = creditCategoryIds

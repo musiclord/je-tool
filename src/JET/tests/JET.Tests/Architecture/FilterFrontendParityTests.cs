@@ -27,10 +27,8 @@ public sealed class FilterFrontendParityTests
         Assert.Empty(MissingFrom(backendDateFields, FilterConditionLabels.GlFields.Keys));
         Assert.Empty(MissingFrom(backendDateFields, frontendGlFields));
         Assert.Equal(backendDateFields, frontendDateFields.OrderBy(static key => key, StringComparer.Ordinal));
-        // 不含傳票日期與回溯過帳：日期欄只有總帳日期與傳票核准日，前後端都沒有 voucherDate。
+        // 日期欄只有總帳日期與傳票核准日。
         Assert.Equal(["approvalDate", "glDate"], backendDateFields);
-        Assert.DoesNotContain("voucherDate", frontendGlFields);
-        Assert.False(FilterConditionLabels.GlFields.ContainsKey("voucherDate"));
     }
 
     private static IReadOnlyCollection<string> ExtractObjectArrayKeys(

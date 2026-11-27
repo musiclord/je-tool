@@ -8,16 +8,16 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class LocalSchemaReadinessTests : IDisposable
 {
-    private readonly string directory = Path.Combine(Path.GetTempPath(), "jet-readiness-" + Guid.NewGuid().ToString("N"));
-    private readonly string databasePath;
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "jet-readiness-" + Guid.NewGuid().ToString("N"));
+    private readonly string _databasePath;
 
     public LocalSchemaReadinessTests()
     {
-        Directory.CreateDirectory(directory);
-        databasePath = Path.Combine(directory, "jet.db");
+        Directory.CreateDirectory(_directory);
+        _databasePath = Path.Combine(_directory, "jet.db");
     }
 
-    public void Dispose() => Directory.Delete(directory, recursive: true);
+    public void Dispose() => Directory.Delete(_directory, recursive: true);
 
     [Fact]
     public async Task EnsureReady_RunsTheFullCheckOnlyOnceWhileTheFileExists()
@@ -27,7 +27,7 @@ public sealed class LocalSchemaReadinessTests : IDisposable
 
         for (var i = 0; i < 3; i++)
         {
-            await readiness.EnsureReadyAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
+            await readiness.EnsureReadyAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
         }
 
         Assert.Equal(1, runs);
@@ -39,9 +39,9 @@ public sealed class LocalSchemaReadinessTests : IDisposable
         var readiness = new LocalSchemaReadiness();
         var runs = 0;
 
-        await readiness.EnsureCreatedAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
-        await readiness.EnsureCreatedAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
-        await readiness.EnsureReadyAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
+        await readiness.EnsureCreatedAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
+        await readiness.EnsureCreatedAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
+        await readiness.EnsureReadyAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
 
         Assert.Equal(2, runs);
     }
@@ -52,11 +52,11 @@ public sealed class LocalSchemaReadinessTests : IDisposable
         var readiness = new LocalSchemaReadiness();
         var runs = 0;
 
-        await readiness.EnsureReadyAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
-        File.Delete(databasePath);
-        await readiness.EnsureReadyAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
-        readiness.Forget(databasePath);
-        await readiness.EnsureReadyAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
+        await readiness.EnsureReadyAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
+        File.Delete(_databasePath);
+        await readiness.EnsureReadyAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
+        readiness.Forget(_databasePath);
+        await readiness.EnsureReadyAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
 
         Assert.Equal(3, runs);
     }
@@ -68,15 +68,15 @@ public sealed class LocalSchemaReadinessTests : IDisposable
         var runs = 0;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => readiness.EnsureReadyAsync(
-            databasePath,
+            _databasePath,
             _ =>
             {
                 runs++;
-                File.WriteAllText(databasePath, string.Empty);
+                File.WriteAllText(_databasePath, string.Empty);
                 throw new InvalidOperationException("migration failed");
             },
             CancellationToken.None));
-        await readiness.EnsureReadyAsync(databasePath, CreateFile(() => runs++), CancellationToken.None);
+        await readiness.EnsureReadyAsync(_databasePath, CreateFile(() => runs++), CancellationToken.None);
 
         Assert.Equal(2, runs);
     }
@@ -92,11 +92,11 @@ public sealed class LocalSchemaReadinessTests : IDisposable
         {
             Interlocked.Increment(ref runs);
             await release.Task.WaitAsync(cancellationToken);
-            File.WriteAllText(databasePath, string.Empty);
+            File.WriteAllText(_databasePath, string.Empty);
         }
 
         var calls = Enumerable.Range(0, 8)
-            .Select(_ => readiness.EnsureReadyAsync(databasePath, Check, CancellationToken.None))
+            .Select(_ => readiness.EnsureReadyAsync(_databasePath, Check, CancellationToken.None))
             .ToArray();
         release.SetResult();
         await Task.WhenAll(calls);
@@ -107,7 +107,7 @@ public sealed class LocalSchemaReadinessTests : IDisposable
     private Func<CancellationToken, Task> CreateFile(Action onRun) => _ =>
     {
         onRun();
-        File.WriteAllText(databasePath, string.Empty);
+        File.WriteAllText(_databasePath, string.Empty);
         return Task.CompletedTask;
     };
 }

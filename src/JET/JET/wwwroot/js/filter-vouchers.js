@@ -6,7 +6,7 @@
     return positions.map(function (position) { return '第 ' + position.group + ' 組條件 ' + position.rule; }).join('、');
   }
   // 狀態欄只寫符合哪一組的哪一條，條件的完整讀回放在滑鼠停留的提示，也不和上方的篩選條件重複，
-  // 常駐說明不再多寫。位置與說明都來自後端，畫面不自己判斷命中。
+  // 常駐說明不另外寫。位置與說明都來自後端，畫面不自己判斷命中。
   // 名稱和位置排在同一行，太長時以省略號收尾，分錄列和傳票列一樣高。
   function matchStatusHtml(row) {
     // Only mirror the backend's declared match scope; do not infer new per-row hit semantics.
@@ -25,7 +25,7 @@
   // 依過往底稿分開顯示「符合條件的傳票數量」與「符合條件的分錄筆數」。分錄筆數用後端的
   // summaryRowCount，口徑與條件篩選報告的摘要相同：只用「未預期借貸組合」一個條件時是整張傳票的分錄數，畫面不自己換算。
   // 統計列的數字用 18px；情境之間由整列標題與下凹的底槽分開，數字比標題大也看得出屬於哪個情境。分錄筆數的口徑寫在那一格的提示裡；和一般情形不同時，
-  // 才在統計列下方說一次；常駐說明不再多寫，定義放在用到的地方。
+  // 才在統計列下方說一次；常駐說明不另外寫，定義放在用到的地方。
   var WHOLE_VOUCHER_ROWS_NOTE = '只用「未預期借貸組合」一個條件時，分錄筆數包含整張傳票的分錄。';
   // 資料庫條件式：後端把這個情境實際送進資料庫的條件寫成文字，跟著傳票清單的第一頁回來；畫面照原樣顯示，不自己組。
   // 預設收合，放在統計數字上方；展開後保留換行與縮排，太長時在框內捲動。「複製」把同一段文字放進剪貼簿。
@@ -97,7 +97,7 @@
     var id = motionId(preview);
     bindConditionSql(host, preview);
     if (host.setAttribute &&!(host.getAttribute && host.getAttribute('data-motion-key'))) { host.setAttribute('data-motion-key', id); }
-    // 展開與收合要一致：換頁、展開或收合分錄只重畫這一塊，交給 JetMotion.morph，
+    // 展開與收合的動態一致：換頁、展開或收合分錄只重畫這一塊，交給 JetMotion.morph，
     // 分錄明細從表格下方長出來、收合時收回，換頁時高度沿彈簧改變。第一次掛上時跟著整段重繪比對，不另外播。
     function redraw() {
       if (global.JetMotion && typeof global.JetMotion.morph === 'function') { global.JetMotion.morph(host, draw); } else { draw(); }

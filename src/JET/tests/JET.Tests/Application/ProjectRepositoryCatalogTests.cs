@@ -137,11 +137,11 @@ public sealed class ProjectRepositoryCatalogTests
 
     private sealed class CatalogFixture : IDisposable
     {
-        private readonly TempProjectRoot root = new();
+        private readonly TempProjectRoot _root = new();
 
         public CatalogFixture()
         {
-            var folder = new JetProjectFolder(root.Path);
+            var folder = new JetProjectFolder(_root.Path);
             var projectStore = new JsonFileProjectStore(folder);
             LocalFileLock = new LocalFileLockService(folder);
             var sqlite = new SqliteProjectDatabase(folder);
@@ -159,14 +159,14 @@ public sealed class ProjectRepositoryCatalogTests
 
         public ProjectRepositoryCatalog Catalog { get; }
 
-        public string RootPath => root.Path;
+        public string RootPath => _root.Path;
 
         public LocalFileLockService LocalFileLock { get; }
 
         public void Dispose()
         {
             LocalFileLock.Dispose();
-            root.Dispose();
+            _root.Dispose();
         }
     }
 }

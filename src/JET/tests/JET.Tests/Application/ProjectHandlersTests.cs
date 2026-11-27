@@ -46,8 +46,8 @@ public sealed class ProjectHandlersTests
     /// <summary>
     /// INF per-project 種子：建案時隨機生成一次並寫進 project.json 的 sampleSeed，
     /// 值落在 [1, 2147483646]（避開 0 與 SQL 模數 2147483647 的倍數），並寫入
-    /// current sampleSeedVersion。缺少版本的舊案件在讀取 project.json 時就會被拒絕。
-    /// oracle：規格（種子生命週期）＋ 直接讀 project.json 物證。以原始 JSON 斷言，不綁 ProjectDocument 型別。
+    /// current sampleSeedVersion。缺少版本的 project.json 在讀取時就會被拒絕。
+    /// oracle：種子在建案時產生一次並寫進 project.json；直接讀 project.json 的原始 JSON 斷言，不綁 ProjectDocument 型別。
     /// </summary>
     [Fact]
     public async Task Create_PersistsSampleSeedWithinRange()
@@ -216,7 +216,7 @@ public sealed class ProjectHandlersTests
 
         var loaded = await host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }""");
 
-        // 本地專案的資料庫 provider 固定是 sqlite。
+        // 本地案件的資料庫 provider 固定是 sqlite。
         Assert.Equal("sqlite", loaded.GetProperty("project").GetProperty("databaseProvider").GetString());
     }
 
@@ -332,9 +332,9 @@ public sealed class ProjectHandlersTests
         Assert.True(DateTimeOffset.TryParse(project.GetProperty("lastOpenedUtc").GetString(), out _));
     }
 
-    // ---- A/B/C 端到端流程驗收（驅動 GUI 按鈕背後的同一組 project.* actions） ----
+    // ---- 端到端流程（驅動 GUI 按鈕背後的同一組 project.* actions） ----
 
-    /// <summary>A：SQLite 建立→載入(currentStep=1,前端據此自動進入匯入)→在清單→刪除→移除。</summary>
+    /// <summary>SQLite 案件依序建立、載入(currentStep=1,前端據此自動進入匯入)、出現在清單、刪除後從清單移除。</summary>
     [Fact]
     public async Task Flow_Sqlite_CreateLoadListDelete()
     {

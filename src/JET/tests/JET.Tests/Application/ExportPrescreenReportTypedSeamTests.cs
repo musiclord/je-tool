@@ -67,7 +67,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     count = 0L
                 },
                 trailingZeros = new { status = "V", count = 4L, zerosThreshold = 3 },
-                // 預篩選結果一定帶 totalPreparerCount，沒有「改用清單列數」的退路；這份摘要照現在的形狀帶人員數。
+                // 預篩選結果一定帶 totalPreparerCount，沒有改用清單列數的退路；這份摘要帶人員數。
                 preparerSummary = new
                 {
                     status = "V",
@@ -392,7 +392,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身的 ListEntriesAsync 由 ListAsync 的結果換算，產品介面不提供這種換算。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 

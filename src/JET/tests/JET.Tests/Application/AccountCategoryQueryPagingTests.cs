@@ -22,7 +22,8 @@ public sealed class AccountCategoryQueryPagingTests
             .AddRow("SYN-3", "2025-01-01", "U500", "尚未分類", "合成", 1, 0),
             databaseProvider: provider);
 
-        // 使用既有兩次儲存建立 fixture，讓這則測試針對查詢篩選，而不是新暫存 ID 契約。
+        // 分兩次儲存建立 fixture：先存分類，再用存回的 categoryId 設上層。
+        // 這則測試只針對查詢篩選，不經過同一次儲存裡用暫時代號指定上層的做法。
         var rows = AccountCategoryDraftTestSupport.BuiltIns();
         rows.Add(AccountCategoryDraftTestSupport.Item(null, "合成銀行", 5, "cash", "builtin.cash"));
         rows.Add(AccountCategoryDraftTestSupport.Item(null, "合成下層其他用途", 6, "others"));
@@ -83,7 +84,7 @@ public sealed class AccountCategoryQueryPagingTests
         var selection = await QueryAsync(host, "builtin.cash", pageSize: 100);
         Assert.Equal(Enumerable.Range(1, 100).Select(number => $"C{number:D3}"), Codes(selection));
         Assert.False(string.IsNullOrEmpty(selection.GetProperty("nextCursor").GetString()));
-        // 每頁最多 200 筆；仍逐頁核對全部 501 筆，不縮小合成母體。
+        // 每頁最多 200 筆；逐頁核對全部 501 筆。
         var remaining = await QueryAsync(host, "builtin.cash", pageSize: 500,
             cursor: selection.GetProperty("nextCursor").GetString());
         Assert.Equal(Enumerable.Range(101, 200).Select(number => $"C{number:D3}"), Codes(remaining));

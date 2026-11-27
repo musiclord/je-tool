@@ -1,13 +1,15 @@
 'use strict';
 // 前端測試程序的資源上限。
 //
-// 前端測試程序失控時（例如在改壞檢查中），可能在幾分鐘內占用數十 GB 記憶體，讓整台電腦的服務與程式停擺。
+// 前端測試程序失控時，可能在幾分鐘內占用數十 GB 記憶體，讓整台電腦的服務與程式停擺。
 // 失控的程序超過 Node 內建的 JavaScript 堆積上限（約 4 GB）以後仍會繼續增長，堆積上限擋不住，
 // 所以每個前端測試程序都要載入這支檔案：它另開一條監看執行緒，每 100 毫秒讀一次整個程序實際占用的記憶體，
 // 超過上限或執行超過時間上限，就在 stderr 寫一行以 MARKER 開頭的說明，然後直接結束程序。
 // 主執行緒卡在同步迴圈裡時，監看執行緒照樣運作。
 //
 // 上限可用環境變數調整：JET_TEST_MAX_RSS_MB（預設 2048）與 JET_TEST_MAX_SECONDS（預設 900）。
+// 這裡只管單一測試程序；node --test 預設同時執行「CPU 核心數減一」個測試檔，16 核心的電腦合計最多可用到
+// 15 × 2048 MB，所以一次跑多個測試檔時加上 --test-concurrency=4，合計最多 4 × 2048 MB。
 // 同一個程序重複載入時只啟動一次監看。只需要判讀標記、本身不該受上限管的程式讀 resource-guard-marker.cjs 就好。
 const { Worker, isMainThread } = require('node:worker_threads');
 const { MARKER } = require('./resource-guard-marker.cjs');

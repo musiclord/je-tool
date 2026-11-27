@@ -174,7 +174,7 @@ public sealed class CsvTableReader : ITabularFileReader
     /// <summary>
     /// 先略過 leadingRowsToSkip 筆記錄（空白列也算一筆，和 Excel 讀取器以實際列號計算相同），再略過空白列，
     /// 讀第一個有內容的記錄作為標頭並正規化；整個檔都是空白列時以 empty_workbook 回報，
-    /// 審計員指定了欄名列卻略過到檔尾時同一個代碼，訊息改說那一列起沒有內容；略過列數是版面固定的就照舊說檔案是空的。
+    /// 審計員指定了欄名列卻略過到檔尾時同一個代碼，訊息改說那一列起沒有內容；略過列數是版面固定的，就說檔案是空的。
     /// </summary>
     private static (IReadOnlyList<string> Columns, int RowNumber) ReadHeader(
         CsvRecordReader records, string filePath, Encoding encoding, int leadingRowsToSkip = 0, bool fixedLeadingRows = false)
